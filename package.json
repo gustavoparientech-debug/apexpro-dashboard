@@ -1,0 +1,32 @@
+{
+  "name": "apexproweb",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.108.0",
+    "@vitejs/plugin-react": "^6.0.2",
+    "autoprefixer": "^10.5.0",
+    "date-fns": "^4.4.0",
+    "jspdf": "^4.2.1",
+    "lucide-react": "^1.17.0",
+    "postcss": "^8.5.15",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "react-hot-toast": "^2.6.0",
+    "react-router-dom": "^7.17.0",
+    "recharts": "^3.8.1",
+    "tailwindcss": "^3.4.19",
+    "vite": "^8.0.16",
+    "xlsx": "^0.18.5"
+  }
+}

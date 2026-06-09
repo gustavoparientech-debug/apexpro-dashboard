@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//Users/gustavopariente/Downloads/**)",
+      "Bash(ls Apexproweb/)",
+      "Bash(npm create *)",
+      "Bash(npm init *)",
+      "Bash(npm install *)",
+      "Bash(npm run *)",
+      "Bash(curl -s http://localhost:5173)",
+      "Bash(mkdir -p /Users/gustavopariente/Downloads/Apexproweb/.claude)",
+      "mcp__Claude_Preview__preview_start"
+    ]
+  }
+}

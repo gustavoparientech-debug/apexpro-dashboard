@@ -32,9 +32,20 @@ function loadFromLS() {
 // ─── Context & Reducer ────────────────────────────────────────────────────────
 const AppContext = createContext(null)
 
+const DEMO_VEHICLE_TYPES = [
+  { id: 'v1', emoji: '🏍️', label: 'Moto',              value: 'moto',           default_price: 15, sort_order: 1, active: true },
+  { id: 'v2', emoji: '🚗', label: 'Auto por fuera',    value: 'auto_exterior',  default_price: 15, sort_order: 2, active: true },
+  { id: 'v3', emoji: '🚙', label: 'Auto',              value: 'auto',           default_price: 25, sort_order: 3, active: true },
+  { id: 'v4', emoji: '🚐', label: 'Camioneta pequeña', value: 'camioneta_small',default_price: 30, sort_order: 4, active: true },
+  { id: 'v5', emoji: '🚛', label: 'Camioneta grande',  value: 'camioneta_large',default_price: 35, sort_order: 5, active: true },
+  { id: 'v6', emoji: '🚙', label: 'OffRoad Camioneta', value: 'offroad',        default_price: 35, sort_order: 6, active: true },
+  { id: 'v7', emoji: '🚌', label: 'Otro',              value: 'otro',           default_price: 45, sort_order: 7, active: true },
+]
+
 const initialState = {
   workers: [],
   services: [],
+  vehicleTypes: [],
   tickets: [],
   dailySummaries: [],
   incidents: [],
@@ -60,7 +71,11 @@ function reducer(state, action) {
     case 'ADD_INCIDENT':      return { ...state, incidents: [...state.incidents, action.payload] }
     case 'UPDATE_INCIDENT':   return { ...state, incidents: state.incidents.map(i => i.id === action.payload.id ? action.payload : i) }
     case 'DELETE_INCIDENT':   return { ...state, incidents: state.incidents.filter(i => i.id !== action.payload) }
-    case 'SET_MONTHLY_COSTS': return { ...state, monthlyCosts: action.payload }
+    case 'SET_MONTHLY_COSTS':   return { ...state, monthlyCosts: action.payload }
+    case 'SET_VEHICLE_TYPES':   return { ...state, vehicleTypes: action.payload }
+    case 'ADD_VEHICLE_TYPE':    return { ...state, vehicleTypes: [...state.vehicleTypes, action.payload] }
+    case 'UPDATE_VEHICLE_TYPE': return { ...state, vehicleTypes: state.vehicleTypes.map(v => v.id === action.payload.id ? action.payload : v) }
+    case 'DELETE_VEHICLE_TYPE': return { ...state, vehicleTypes: state.vehicleTypes.filter(v => v.id !== action.payload) }
     default: return state
   }
 }
@@ -139,20 +154,20 @@ export function AppProvider({ children }) {
       // Intentar cargar desde localStorage primero
       const saved = loadFromLS()
 
-      let workers, services, allTickets, allSummaries, allIncidents, monthlyCosts
+      let workers, services, vehicleTypes, allTickets, allSummaries, allIncidents, monthlyCosts
 
       if (saved) {
-        // Usar datos guardados
-        workers       = saved.workers       || DEMO_WORKERS
-        services      = saved.services      || DEMO_SERVICES
-        allTickets    = saved.tickets       || DEMO_TICKETS
-        allSummaries  = saved.dailySummaries|| []
-        allIncidents  = saved.incidents     || DEMO_INCIDENTS
-        monthlyCosts  = saved.monthlyCosts  || DEMO_MONTHLY_COSTS
+        workers       = saved.workers        || DEMO_WORKERS
+        services      = saved.services       || DEMO_SERVICES
+        vehicleTypes  = saved.vehicleTypes   || DEMO_VEHICLE_TYPES
+        allTickets    = saved.tickets        || DEMO_TICKETS
+        allSummaries  = saved.dailySummaries || []
+        allIncidents  = saved.incidents      || DEMO_INCIDENTS
+        monthlyCosts  = saved.monthlyCosts   || DEMO_MONTHLY_COSTS
       } else {
-        // Primera vez: usar datos demo originales
         workers       = DEMO_WORKERS
         services      = DEMO_SERVICES
+        vehicleTypes  = DEMO_VEHICLE_TYPES
         allTickets    = DEMO_TICKETS
         allSummaries  = []
         allIncidents  = DEMO_INCIDENTS
@@ -175,6 +190,7 @@ export function AppProvider({ children }) {
       dispatch({ type: 'SET_ALL', payload: {
         workers,
         services,
+        vehicleTypes,
         tickets,
         dailySummaries: summaries,
         incidents: enriched,
@@ -192,16 +208,16 @@ export function AppProvider({ children }) {
       const lastDay   = new Date(y, m, 0).getDate()
       const endDate   = `${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
 
-      const [workers, services, tickets, summaries, incidents, costs] = await Promise.all([
+      const [workers, services, vehicleTypesRes, tickets, summaries, incidents, costs] = await Promise.all([
         supabase.from('workers').select('*').order('name'),
         supabase.from('services').select('*').order('category, name'),
+        supabase.from('vehicle_types').select('*').eq('active', true).order('sort_order'),
         supabase.from('tickets').select('*').gte('date', startDate).lte('date', endDate).order('date', { ascending: false }),
         supabase.from('daily_summary').select('*').gte('date', startDate).lte('date', endDate),
         supabase.from('attendance_incidents').select('*').gte('date', startDate).lte('date', endDate),
         supabase.from('monthly_costs').select('*').eq('month', m).eq('year', y).maybeSingle(),
       ])
 
-      // Verificar errores individuales sin fallar todo
       if (workers.error) console.warn('workers error:', workers.error.message)
       if (services.error) console.warn('services error:', services.error.message)
       if (tickets.error) console.warn('tickets error:', tickets.error.message)
@@ -213,6 +229,7 @@ export function AppProvider({ children }) {
       dispatch({ type: 'SET_ALL', payload: {
         workers:        workersData,
         services:       services.data || [],
+        vehicleTypes:   vehicleTypesRes.data?.length ? vehicleTypesRes.data : DEMO_VEHICLE_TYPES,
         tickets:        tickets.data || [],
         dailySummaries: summaries.data || [],
         incidents:      incidentsEnriched,
@@ -366,6 +383,38 @@ export function AppProvider({ children }) {
     dispatch({ type: 'DELETE_INCIDENT', payload: id })
   }
 
+  // ─── CRUD Vehicle Types ─────────────────────────────────────────────────────
+  const addVehicleType = async (data) => {
+    if (IS_DEMO) {
+      const v = { ...data, id: `vt${Date.now()}`, active: true }
+      dispatch({ type: 'ADD_VEHICLE_TYPE', payload: v })
+      return v
+    }
+    const { data: v, error } = await supabase.from('vehicle_types').insert(data).select().single()
+    if (error) throw error
+    dispatch({ type: 'ADD_VEHICLE_TYPE', payload: v })
+    return v
+  }
+
+  const updateVehicleType = async (id, data) => {
+    if (IS_DEMO) {
+      const updated = { ...state.vehicleTypes.find(v => v.id === id), ...data }
+      dispatch({ type: 'UPDATE_VEHICLE_TYPE', payload: updated })
+      return updated
+    }
+    const { data: v, error } = await supabase.from('vehicle_types').update(data).eq('id', id).select().single()
+    if (error) throw error
+    dispatch({ type: 'UPDATE_VEHICLE_TYPE', payload: v })
+    return v
+  }
+
+  const deleteVehicleType = async (id) => {
+    if (IS_DEMO) { dispatch({ type: 'DELETE_VEHICLE_TYPE', payload: id }); return }
+    const { error } = await supabase.from('vehicle_types').delete().eq('id', id)
+    if (error) throw error
+    dispatch({ type: 'DELETE_VEHICLE_TYPE', payload: id })
+  }
+
   // ─── Monthly Costs ──────────────────────────────────────────────────────────
   const saveMonthlyCosts = async (data) => {
     if (IS_DEMO) {
@@ -404,6 +453,7 @@ export function AppProvider({ children }) {
       addTicket, updateTicket, deleteTicket,
       addDailySummary, deleteDailySummary,
       addIncident, updateIncident, deleteIncident,
+      addVehicleType, updateVehicleType, deleteVehicleType,
       saveMonthlyCosts,
       resetDemoData,
     }}>

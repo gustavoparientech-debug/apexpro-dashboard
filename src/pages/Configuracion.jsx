@@ -4,8 +4,10 @@ import { formatMoney, calcRealSalary, currentMonthYear } from '../lib/utils'
 import Modal from '../components/ui/Modal'
 import ConfirmDialog from '../components/ui/ConfirmDialog'
 import Badge from '../components/ui/Badge'
-import { Plus, Edit2, ToggleLeft, ToggleRight, Save } from 'lucide-react'
+import { Plus, Edit2, ToggleLeft, ToggleRight, Save, Trash2 } from 'lucide-react'
 import toast from 'react-hot-toast'
+
+const EMOJI_OPTIONS = ['🏍️','🚗','🚙','🚐','🚛','🚌','🚑','🚒','🚕','🚜','🛻','🚚']
 
 const CATEGORY_LABELS = { basico: 'Básico', ceramico: 'Cerámico', polarizado: 'Polarizado', ppf: 'PPF' }
 const CATEGORY_COLORS = { basico: 'gray', ceramico: 'blue', polarizado: 'purple', ppf: 'orange' }
@@ -71,8 +73,58 @@ function ServiceForm({ initial, onSave, onClose }) {
   )
 }
 
+function VehicleTypeRow({ vt, onSave, onDelete }) {
+  const [editing, setEditing] = useState(false)
+  const [form, setForm] = useState({ emoji: vt.emoji, label: vt.label, default_price: vt.default_price })
+
+  async function handleSave() {
+    await onSave(vt.id, { ...form, default_price: parseFloat(form.default_price) || 0 })
+    setEditing(false)
+  }
+
+  if (editing) {
+    return (
+      <div className="flex items-center gap-2 p-2 bg-orange-50 dark:bg-orange-900/10 rounded-xl border border-orange-200 dark:border-orange-800">
+        <select className="input py-1 w-14 text-center text-lg px-1" value={form.emoji}
+          onChange={e => setForm(f => ({ ...f, emoji: e.target.value }))}>
+          {EMOJI_OPTIONS.map(e => <option key={e} value={e}>{e}</option>)}
+        </select>
+        <input className="input py-1 flex-1 text-sm" placeholder="Nombre" value={form.label}
+          onChange={e => setForm(f => ({ ...f, label: e.target.value }))} />
+        <div className="flex items-center gap-1">
+          <span className="text-xs text-gray-500 whitespace-nowrap">S/</span>
+          <input type="number" min="0" step="1" className="input py-1 w-20 text-sm text-right"
+            value={form.default_price}
+            onChange={e => setForm(f => ({ ...f, default_price: e.target.value }))} />
+        </div>
+        <button onClick={handleSave} className="btn-primary py-1 px-3 text-sm">✓</button>
+        <button onClick={() => setEditing(false)} className="btn-secondary py-1 px-3 text-sm">✕</button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+      <span className="text-2xl w-8 text-center">{vt.emoji}</span>
+      <span className="flex-1 text-sm font-medium text-gray-800 dark:text-gray-200">{vt.label}</span>
+      <div className="flex items-center gap-1 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-1.5 min-w-[80px] justify-end">
+        <span className="text-xs text-gray-400">S/</span>
+        <span className="text-sm font-bold text-gray-900 dark:text-white">{vt.default_price}</span>
+      </div>
+      <button onClick={() => setEditing(true)} className="p-1.5 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg">
+        <Edit2 className="w-4 h-4 text-gray-400" />
+      </button>
+      <button onClick={() => onDelete(vt.id)} className="p-1.5 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg">
+        <Trash2 className="w-4 h-4 text-red-400" />
+      </button>
+    </div>
+  )
+}
+
 export default function Configuracion() {
-  const { services, monthlyCosts, workers, incidents, addService, updateService, saveMonthlyCosts } = useApp()
+  const { services, vehicleTypes, monthlyCosts, workers, incidents,
+          addService, updateService, saveMonthlyCosts,
+          addVehicleType, updateVehicleType, deleteVehicleType } = useApp()
   const { month, year } = currentMonthYear()
   const [showServiceForm, setShowServiceForm] = useState(false)
   const [editingService, setEditingService] = useState(null)
@@ -84,6 +136,9 @@ export default function Configuracion() {
   })
   const [savingCosts, setSavingCosts] = useState(false)
   const [activeCategory, setActiveCategory] = useState('all')
+  const [newVehicle, setNewVehicle] = useState({ emoji: '🚗', label: '', default_price: '' })
+  const [showNewVehicle, setShowNewVehicle] = useState(false)
+  const [deleteVehicleTarget, setDeleteVehicleTarget] = useState(null)
 
   // Recalcular meta en tiempo real
   const payrollTotal = useMemo(() => {
@@ -140,6 +195,27 @@ export default function Configuracion() {
     }
   }
 
+  async function handleAddVehicle() {
+    if (!newVehicle.label) { toast.error('Escribe el nombre del tipo'); return }
+    try {
+      const value = newVehicle.label.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '')
+      await addVehicleType({ ...newVehicle, value, default_price: parseFloat(newVehicle.default_price) || 0, sort_order: (vehicleTypes?.length || 0) + 1 })
+      setNewVehicle({ emoji: '🚗', label: '', default_price: '' })
+      setShowNewVehicle(false)
+      toast.success('Tipo agregado')
+    } catch (err) { toast.error('Error: ' + err.message) }
+  }
+
+  async function handleUpdateVehicle(id, data) {
+    try { await updateVehicleType(id, data); toast.success('Actualizado') }
+    catch (err) { toast.error('Error: ' + err.message) }
+  }
+
+  async function handleDeleteVehicle(id) {
+    try { await deleteVehicleType(id); toast.success('Eliminado') }
+    catch (err) { toast.error('Error: ' + err.message) }
+  }
+
   const categories = ['all', 'basico', 'ceramico', 'polarizado', 'ppf']
 
   return (
@@ -179,6 +255,48 @@ export default function Configuracion() {
           <Save className="w-4 h-4" />
           {savingCosts ? 'Guardando...' : 'Guardar costos'}
         </button>
+      </div>
+
+      {/* Tipos de vehículo */}
+      <div className="card">
+        <div className="flex items-center justify-between mb-1">
+          <div>
+            <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">Tipos de vehículo</p>
+            <p className="text-xs text-gray-400 mt-0.5">Precios sugeridos al registrar un ticket</p>
+          </div>
+          <button className="btn-primary text-sm flex items-center gap-1"
+            onClick={() => setShowNewVehicle(v => !v)}>
+            <Plus className="w-4 h-4" /> Agregar
+          </button>
+        </div>
+
+        {showNewVehicle && (
+          <div className="flex items-center gap-2 mt-3 p-3 bg-orange-50 dark:bg-orange-900/10 rounded-xl border border-orange-200 dark:border-orange-800">
+            <select className="input py-1.5 w-14 text-center text-lg px-1" value={newVehicle.emoji}
+              onChange={e => setNewVehicle(v => ({ ...v, emoji: e.target.value }))}>
+              {EMOJI_OPTIONS.map(e => <option key={e} value={e}>{e}</option>)}
+            </select>
+            <input className="input py-1.5 flex-1 text-sm" placeholder="Nombre del tipo (ej: Sedan)"
+              value={newVehicle.label}
+              onChange={e => setNewVehicle(v => ({ ...v, label: e.target.value }))} />
+            <div className="flex items-center gap-1">
+              <span className="text-xs text-gray-500">S/</span>
+              <input type="number" min="0" step="1" placeholder="0"
+                className="input py-1.5 w-20 text-sm text-right"
+                value={newVehicle.default_price}
+                onChange={e => setNewVehicle(v => ({ ...v, default_price: e.target.value }))} />
+            </div>
+            <button onClick={handleAddVehicle} className="btn-primary py-1.5 px-4 text-sm">Guardar</button>
+          </div>
+        )}
+
+        <div className="space-y-2 mt-3">
+          {(vehicleTypes || []).map(vt => (
+            <VehicleTypeRow key={vt.id} vt={vt}
+              onSave={handleUpdateVehicle}
+              onDelete={(id) => setDeleteVehicleTarget(id)} />
+          ))}
+        </div>
       </div>
 
       {/* Catálogo de servicios */}
@@ -236,6 +354,16 @@ export default function Configuracion() {
       <Modal open={showServiceForm} onClose={() => { setShowServiceForm(false); setEditingService(null) }} title={editingService ? 'Editar servicio' : 'Nuevo servicio'}>
         <ServiceForm initial={editingService} onSave={handleSaveService} onClose={() => { setShowServiceForm(false); setEditingService(null) }} />
       </Modal>
+
+      <ConfirmDialog
+        open={!!deleteVehicleTarget}
+        onClose={() => setDeleteVehicleTarget(null)}
+        onConfirm={() => handleDeleteVehicle(deleteVehicleTarget)}
+        title="¿Eliminar tipo de vehículo?"
+        message="Los tickets registrados con este tipo no se verán afectados."
+        confirmLabel="Eliminar"
+        variant="danger"
+      />
 
       <ConfirmDialog
         open={!!toggleTarget}

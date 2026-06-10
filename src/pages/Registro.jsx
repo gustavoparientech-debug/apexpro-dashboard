@@ -6,16 +6,6 @@ import Badge from '../components/ui/Badge'
 import { Plus, Edit2, Trash2, Car, Zap, Camera, Search, X, ChevronDown, ChevronUp } from 'lucide-react'
 import toast from 'react-hot-toast'
 
-const VEHICLE_OPTIONS = [
-  { value: 'moto',              label: 'Moto',               emoji: '🏍️' },
-  { value: 'auto_exterior',     label: 'Auto por fuera',     emoji: '🚗' },
-  { value: 'auto',              label: 'Auto',               emoji: '🚙' },
-  { value: 'camioneta_small',   label: 'Camioneta pequeña',  emoji: '🚐' },
-  { value: 'camioneta_large',   label: 'Camioneta grande',   emoji: '🚛' },
-  { value: 'offroad',           label: 'OffRoad Camioneta',  emoji: '🚙' },
-  { value: 'otro',              label: 'Otro',               emoji: '🚌' },
-]
-
 const PAYMENT_OPTIONS = [
   { value: 'efectivo', label: '💵 Efectivo' },
   { value: 'yape',     label: '📱 Yape' },
@@ -32,7 +22,7 @@ const CATEGORY_COLORS = {
 const BADGE_COLORS = { basico: 'gray', ceramico: 'blue', polarizado: 'purple', ppf: 'orange' }
 
 // ─── Ticket Form (nuevo diseño visual) ───────────────────────────────────────
-function TicketForm({ initial, onSave, onClose, workers, services }) {
+function TicketForm({ initial, onSave, onClose, workers, services, vehicleTypes }) {
   const [form, setForm] = useState({
     date:           initial?.date           || todayISO(),
     worker_id:      initial?.worker_id      || '',
@@ -69,6 +59,15 @@ function TicketForm({ initial, onSave, onClose, workers, services }) {
       setForm(f => ({ ...f, photo_url: ev.target.result }))
     }
     reader.readAsDataURL(file)
+  }
+
+  function handleVehicleSelect(vt) {
+    setForm(f => ({
+      ...f,
+      vehicle_type: vt.value,
+      // auto-fill price only if no service selected yet
+      price_charged: f.service_id ? f.price_charged : (vt.default_price || f.price_charged),
+    }))
   }
 
   function handleServiceSelect(svc) {
@@ -142,16 +141,19 @@ function TicketForm({ initial, onSave, onClose, workers, services }) {
         <div>
           <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-3">Tipo de vehículo</p>
           <div className="grid grid-cols-2 gap-2">
-            {VEHICLE_OPTIONS.map(v => (
+            {(vehicleTypes || []).map(v => (
               <button key={v.value} type="button"
-                onClick={() => setForm(f => ({ ...f, vehicle_type: v.value }))}
+                onClick={() => handleVehicleSelect(v)}
                 className={`flex items-center gap-2 px-4 py-3 rounded-2xl border text-sm font-medium transition-all ${
                   form.vehicle_type === v.value
                     ? 'border-orange-400 bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400'
                     : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-gray-300'
                 }`}>
                 <span className="text-xl">{v.emoji}</span>
-                <span>{v.label}</span>
+                <div className="flex-1 text-left">
+                  <span className="block">{v.label}</span>
+                  {v.default_price > 0 && <span className="text-xs opacity-60">S/ {v.default_price}</span>}
+                </div>
               </button>
             ))}
           </div>
@@ -340,11 +342,11 @@ function BottomSheet({ open, onClose, title, children }) {
 }
 
 // ─── Página principal ─────────────────────────────────────────────────────────
-const VEHICLE_LABELS = Object.fromEntries(VEHICLE_OPTIONS.map(v => [v.value, `${v.emoji} ${v.label}`]))
 const PAYMENT_LABELS = { efectivo: '💵 Efectivo', yape: '📱 Yape', transferencia: '🏦 Transferencia' }
 
 export default function Registro() {
-  const { tickets, dailySummaries, workers, services, addTicket, updateTicket, deleteTicket, addDailySummary, deleteDailySummary } = useApp()
+  const { tickets, dailySummaries, workers, services, vehicleTypes, addTicket, updateTicket, deleteTicket, addDailySummary, deleteDailySummary } = useApp()
+  const vehicleLabels = useMemo(() => Object.fromEntries((vehicleTypes || []).map(v => [v.value, `${v.emoji} ${v.label}`])), [vehicleTypes])
   const [selectedDate, setSelectedDate] = useState(todayISO())
   const [showTicketForm, setShowTicketForm] = useState(false)
   const [showQuickForm, setShowQuickForm]   = useState(false)
@@ -446,7 +448,7 @@ export default function Registro() {
                   <div className="flex items-center gap-2 text-xs text-gray-500 flex-wrap mt-0.5">
                     <span>{worker?.name || '—'}</span>
                     <span>·</span>
-                    <span>{VEHICLE_LABELS[ticket.vehicle_type] || ticket.vehicle_type}</span>
+                    <span>{vehicleLabels[ticket.vehicle_type] || ticket.vehicle_type}</span>
                     <span>·</span>
                     <span>{PAYMENT_LABELS[ticket.payment_method] || ticket.payment_method}</span>
                   </div>
@@ -509,6 +511,7 @@ export default function Registro() {
           onClose={() => { setShowTicketForm(false); setEditingTicket(null) }}
           workers={workers}
           services={services}
+          vehicleTypes={vehicleTypes}
         />
       </BottomSheet>
 

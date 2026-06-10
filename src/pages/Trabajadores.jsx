@@ -30,8 +30,9 @@ function WorkerForm({ initial, onSave, onClose }) {
     e.preventDefault()
     await onSave({
       ...form,
-      base_salary: parseFloat(form.base_salary),
+      base_salary: form.base_salary !== '' ? parseFloat(form.base_salary) : 0,
       weekly_hours: parseFloat(form.weekly_hours),
+      hire_date: form.hire_date || null,
     })
     onClose()
   }
@@ -45,7 +46,7 @@ function WorkerForm({ initial, onSave, onClose }) {
       <div className="grid grid-cols-2 gap-4">
         <div>
           <label className="label">Salario base (S/)</label>
-          <input type="number" className="input" min="0" step="50" value={form.base_salary} onChange={e => setForm(f => ({ ...f, base_salary: e.target.value }))} required placeholder="1500" />
+          <input type="number" className="input" min="0" step="50" value={form.base_salary} onChange={e => setForm(f => ({ ...f, base_salary: e.target.value }))} placeholder="0 si no aplica" />
         </div>
         <div>
           <label className="label">Horas/semana</label>

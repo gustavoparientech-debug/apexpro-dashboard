@@ -189,7 +189,8 @@ export function AppProvider({ children }) {
       const m = month || cm
       const y = year || cy
       const startDate = `${y}-${String(m).padStart(2, '0')}-01`
-      const endDate   = `${y}-${String(m).padStart(2, '0')}-31`
+      const lastDay   = new Date(y, m, 0).getDate()
+      const endDate   = `${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
 
       const [workers, services, tickets, summaries, incidents, costs] = await Promise.all([
         supabase.from('workers').select('*').order('name'),

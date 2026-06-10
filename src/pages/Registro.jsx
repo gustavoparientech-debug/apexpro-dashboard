@@ -529,7 +529,7 @@ function ActiveTicketCard({ ticket, workers, vehicleTypes, onClick }) {
 }
 
 // ─── Tarjeta ticket cerrado ───────────────────────────────────────────────────
-function ClosedTicketCard({ ticket, workers, vehicleTypes, onDelete }) {
+function ClosedTicketCard({ ticket, workers, vehicleTypes, onDelete, onEdit }) {
   const worker  = workers.find(w => w.id === ticket.worker_id)
   const vehicle = (vehicleTypes || []).find(v => v.value === ticket.vehicle_type)
   const extras  = ticket.extras || []
@@ -557,12 +557,18 @@ function ClosedTicketCard({ ticket, workers, vehicleTypes, onDelete }) {
           <p className="text-xs text-gray-400">{extras.map(e => e.name).join(', ')}</p>
         )}
       </div>
-      <div className="flex items-start gap-2 flex-none">
-        <div className="text-right">
+      <div className="flex items-start gap-1.5 flex-none">
+        <div className="text-right mr-1">
           {timeStr && <p className="text-xs text-gray-400">{timeStr}</p>}
           <p className="font-bold text-red-600 text-sm">{formatMoney(ticket.price_charged)}</p>
           <p className="text-xs text-gray-400">{PAYMENT_LABELS[ticket.payment_method]?.split(' ')[1] || ticket.payment_method}</p>
         </div>
+        {onEdit && (
+          <button onClick={() => onEdit(ticket)}
+            className="p-1.5 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg mt-0.5">
+            <PenLine className="w-3.5 h-3.5 text-blue-400" />
+          </button>
+        )}
         <button onClick={() => setDeleteConfirm(true)}
           className="p-1.5 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg mt-0.5">
           <Trash2 className="w-3.5 h-3.5 text-red-400" />
@@ -573,6 +579,115 @@ function ClosedTicketCard({ ticket, workers, vehicleTypes, onDelete }) {
         title="¿Eliminar registro?" message="Esta acción no se puede deshacer."
         confirmLabel="Eliminar" />
     </div>
+  )
+}
+
+// ─── Modal edición ticket cerrado (admin) ────────────────────────────────────
+function EditClosedTicket({ ticket, workers, vehicleTypes, onSave, onClose }) {
+  const activeWorkers  = workers.filter(w => w.active)
+  const activeVehicles = (vehicleTypes || []).filter(v => v.active !== false)
+  const [form, setForm] = useState({
+    plate:          ticket.plate || '',
+    vehicle_type:   ticket.vehicle_type || '',
+    worker_id:      ticket.worker_id || '',
+    price_charged:  ticket.price_charged || '',
+    payment_method: ticket.payment_method || '',
+    date:           ticket.date || todayISO(),
+    notes:          ticket.notes || '',
+  })
+  const [busy, setBusy] = useState(false)
+
+  async function handleSubmit(e) {
+    e.preventDefault()
+    setBusy(true)
+    try {
+      await onSave(ticket.id, { ...form, price_charged: parseFloat(form.price_charged) || 0 })
+      toast.success('Ticket actualizado')
+      onClose()
+    } catch (err) { toast.error('Error: ' + err.message) }
+    finally { setBusy(false) }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="px-4 pb-6 pt-2 space-y-4">
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="label">Placa</label>
+          <input className="input font-mono uppercase tracking-widest" value={form.plate}
+            onChange={e => setForm(f => ({ ...f, plate: e.target.value.toUpperCase() }))} maxLength={8} />
+        </div>
+        <div>
+          <label className="label">Fecha</label>
+          <input type="date" className="input" value={form.date}
+            onChange={e => setForm(f => ({ ...f, date: e.target.value }))} />
+        </div>
+      </div>
+
+      <div>
+        <label className="label">Tipo de vehículo</label>
+        <div className="grid grid-cols-2 gap-2">
+          {activeVehicles.map(v => (
+            <button key={v.value} type="button" onClick={() => setForm(f => ({ ...f, vehicle_type: v.value, price_charged: f.price_charged || v.default_price }))}
+              className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-sm font-medium transition-all ${
+                form.vehicle_type === v.value
+                  ? 'border-red-500 bg-red-50 dark:bg-red-900/20 text-red-600'
+                  : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300'
+              }`}>
+              <span>{v.emoji}</span><span className="flex-1 text-left">{v.label}</span>
+              <span className="text-xs text-gray-400">S/{v.default_price}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <label className="label">Técnico</label>
+        <div className="grid grid-cols-2 gap-2">
+          {activeWorkers.map(w => (
+            <button key={w.id} type="button" onClick={() => setForm(f => ({ ...f, worker_id: w.id }))}
+              className={`py-2 px-3 rounded-xl border text-sm font-medium transition-all ${
+                form.worker_id === w.id
+                  ? 'border-red-500 bg-red-50 dark:bg-red-900/20 text-red-600'
+                  : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300'
+              }`}>{w.name}</button>
+          ))}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="label">Precio cobrado (S/)</label>
+          <input type="number" className="input text-lg font-bold" min="0" step="0.5"
+            value={form.price_charged} onChange={e => setForm(f => ({ ...f, price_charged: e.target.value }))} />
+        </div>
+        <div>
+          <label className="label">Método de pago</label>
+          <div className="flex flex-col gap-1.5">
+            {PAYMENT_OPTIONS.map(p => (
+              <button key={p.value} type="button" onClick={() => setForm(f => ({ ...f, payment_method: p.value }))}
+                className={`py-1.5 px-3 rounded-xl border text-sm font-medium transition-all ${
+                  form.payment_method === p.value
+                    ? 'border-red-500 bg-red-50 dark:bg-red-900/20 text-red-600'
+                    : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300'
+                }`}>{p.label}</button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <label className="label">Notas</label>
+        <textarea className="input resize-none" rows={2} value={form.notes}
+          onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} placeholder="Opcional..." />
+      </div>
+
+      <div className="flex gap-3 pt-1">
+        <button type="button" className="btn-secondary flex-1" onClick={onClose}>Cancelar</button>
+        <button type="submit" disabled={busy} className="btn-primary flex-1">
+          {busy ? 'Guardando...' : 'Guardar cambios'}
+        </button>
+      </div>
+    </form>
   )
 }
 
@@ -611,19 +726,44 @@ function QuickSummaryForm({ onSave, onClose }) {
   )
 }
 
+const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
+
 // ─── Página principal ─────────────────────────────────────────────────────────
 export default function Registro() {
   const {
     tickets, dailySummaries, workers, vehicleTypes, extrasCatalog,
-    addTicket, updateTicket, deleteTicket, addDailySummary, deleteDailySummary,
+    addTicket, updateTicket, deleteTicket, addDailySummary, deleteDailySummary, loadData,
   } = useApp()
   const { profile, isAdmin, isDemo } = useAuth()
 
+  const { month: cm, year: cy } = useMemo(() => {
+    const n = new Date()
+    return { month: n.getMonth() + 1, year: n.getFullYear() }
+  }, [])
+
   const location = useLocation()
-  const [selectedDate, setSelectedDate]   = useState(todayISO())
+  const today = todayISO()
+  const [selMonth, setSelMonth] = useState(cm)
+  const [selYear,  setSelYear]  = useState(cy)
+  const [selectedDate, setSelectedDate]   = useState(today)
   const [showNewForm,  setShowNewForm]     = useState(!!location.state?.autoNew)
   const [showQuickForm, setShowQuickForm]  = useState(false)
   const [activeTicket, setActiveTicket]    = useState(null)
+  const [editingTicket, setEditingTicket]  = useState(null)
+
+  const canAdmin = isAdmin || isDemo
+
+  // Recargar cuando cambia mes/año (solo admin)
+  function handleMonthChange(m, y) {
+    setSelMonth(m)
+    setSelYear(y)
+    // Ajustar día seleccionado al primero del mes si está fuera de rango
+    const prefix = `${y}-${String(m).padStart(2, '0')}`
+    if (!selectedDate.startsWith(prefix)) {
+      setSelectedDate(`${prefix}-01`)
+    }
+    loadData(m, y)
+  }
 
   // Tickets abiertos (sin filtro de fecha)
   const openTickets = useMemo(
@@ -690,6 +830,22 @@ export default function Registro() {
         </button>
       </div>
 
+      {/* Selector mes/año (solo admin) */}
+      {canAdmin && (
+        <div className="flex items-center gap-2">
+          <select className="input text-sm py-1.5 flex-1"
+            value={selMonth}
+            onChange={e => handleMonthChange(+e.target.value, selYear)}>
+            {MONTHS.map((m, i) => <option key={i+1} value={i+1}>{m}</option>)}
+          </select>
+          <select className="input text-sm py-1.5 w-24"
+            value={selYear}
+            onChange={e => handleMonthChange(selMonth, +e.target.value)}>
+            {[cy-1, cy, cy+1].map(y => <option key={y} value={y}>{y}</option>)}
+          </select>
+        </div>
+      )}
+
       {/* FAB Nuevo ticket */}
       <button onClick={() => setShowNewForm(true)}
         className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl bg-red-600 hover:bg-red-700 text-white font-bold text-base shadow-lg shadow-red-200 dark:shadow-red-900/30 active:scale-95 transition-all">
@@ -740,7 +896,8 @@ export default function Registro() {
           <div className="space-y-2">
             {closedToday.map(t => (
               <ClosedTicketCard key={t.id} ticket={t} workers={workers} vehicleTypes={vehicleTypes}
-                onDelete={handleDeleteTicket} />
+                onDelete={handleDeleteTicket}
+                onEdit={canAdmin ? (tk) => setEditingTicket(tk) : null} />
             ))}
             {daySummaries.map(s => (
               <div key={s.id} className="card flex items-center gap-3 border-dashed">
@@ -799,6 +956,20 @@ export default function Registro() {
       <BottomSheet open={showQuickForm} onClose={() => setShowQuickForm(false)} title="Ingreso rápido">
         <QuickSummaryForm onSave={handleSaveSummary} onClose={() => setShowQuickForm(false)} />
       </BottomSheet>
+
+      {/* Modal — Editar ticket cerrado (admin) */}
+      <Modal open={!!editingTicket} onClose={() => setEditingTicket(null)}
+        title={`Editar ticket ${editingTicket?.plate || ''}`}>
+        {editingTicket && (
+          <EditClosedTicket
+            ticket={editingTicket}
+            workers={workers}
+            vehicleTypes={vehicleTypes}
+            onSave={handleUpdateTicket}
+            onClose={() => setEditingTicket(null)}
+          />
+        )}
+      </Modal>
     </div>
   )
 }

@@ -32,6 +32,15 @@ function loadFromLS() {
 // ─── Context & Reducer ────────────────────────────────────────────────────────
 const AppContext = createContext(null)
 
+const DEMO_EXTRAS_CATALOG = [
+  { id: 'e1', name: 'Motor',              price: 20, sort_order: 1, active: true },
+  { id: 'e2', name: 'Chasis',             price: 15, sort_order: 2, active: true },
+  { id: 'e3', name: 'Alumax',             price: 10, sort_order: 3, active: true },
+  { id: 'e4', name: 'Removex',            price: 10, sort_order: 4, active: true },
+  { id: 'e5', name: 'Silicona',           price:  5, sort_order: 5, active: true },
+  { id: 'e6', name: 'Retirado de llantas',price: 10, sort_order: 6, active: true },
+]
+
 const DEMO_VEHICLE_TYPES = [
   { id: 'v1', emoji: '🏍️', label: 'Moto',              value: 'moto',           default_price: 15, sort_order: 1, active: true },
   { id: 'v2', emoji: '🚗', label: 'Auto por fuera',    value: 'auto_exterior',  default_price: 15, sort_order: 2, active: true },
@@ -46,6 +55,7 @@ const initialState = {
   workers: [],
   services: [],
   vehicleTypes: [],
+  extrasCatalog: [],
   tickets: [],
   dailySummaries: [],
   incidents: [],
@@ -76,6 +86,10 @@ function reducer(state, action) {
     case 'ADD_VEHICLE_TYPE':    return { ...state, vehicleTypes: [...state.vehicleTypes, action.payload] }
     case 'UPDATE_VEHICLE_TYPE': return { ...state, vehicleTypes: state.vehicleTypes.map(v => v.id === action.payload.id ? action.payload : v) }
     case 'DELETE_VEHICLE_TYPE': return { ...state, vehicleTypes: state.vehicleTypes.filter(v => v.id !== action.payload) }
+    case 'SET_EXTRAS_CATALOG':   return { ...state, extrasCatalog: action.payload }
+    case 'ADD_EXTRA':            return { ...state, extrasCatalog: [...state.extrasCatalog, action.payload] }
+    case 'UPDATE_EXTRA':         return { ...state, extrasCatalog: state.extrasCatalog.map(e => e.id === action.payload.id ? action.payload : e) }
+    case 'DELETE_EXTRA':         return { ...state, extrasCatalog: state.extrasCatalog.filter(e => e.id !== action.payload) }
     default: return state
   }
 }
@@ -173,6 +187,7 @@ export function AppProvider({ children }) {
         allIncidents  = DEMO_INCIDENTS
         monthlyCosts  = DEMO_MONTHLY_COSTS
       }
+      const extrasCatalog = saved?.extrasCatalog || DEMO_EXTRAS_CATALOG
 
       // Filtrar por mes/año activo
       const prefix = `${y}-${String(m).padStart(2, '0')}`
@@ -191,6 +206,7 @@ export function AppProvider({ children }) {
         workers,
         services,
         vehicleTypes,
+        extrasCatalog,
         tickets,
         dailySummaries: summaries,
         incidents: enriched,
@@ -208,11 +224,13 @@ export function AppProvider({ children }) {
       const lastDay   = new Date(y, m, 0).getDate()
       const endDate   = `${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
 
-      const [workers, services, vehicleTypesRes, tickets, summaries, incidents, costs] = await Promise.all([
+      const [workers, services, vehicleTypesRes, extrasRes, tickets, openTickets, summaries, incidents, costs] = await Promise.all([
         supabase.from('workers').select('*').order('name'),
         supabase.from('services').select('*').order('category, name'),
         supabase.from('vehicle_types').select('*').eq('active', true).order('sort_order'),
-        supabase.from('tickets').select('*').gte('date', startDate).lte('date', endDate).order('date', { ascending: false }),
+        supabase.from('extras_catalog').select('*').eq('active', true).order('sort_order'),
+        supabase.from('tickets').select('*').eq('status', 'cerrado').gte('date', startDate).lte('date', endDate).order('created_at', { ascending: false }),
+        supabase.from('tickets').select('*').eq('status', 'abierto'),
         supabase.from('daily_summary').select('*').gte('date', startDate).lte('date', endDate),
         supabase.from('attendance_incidents').select('*').gte('date', startDate).lte('date', endDate),
         supabase.from('monthly_costs').select('*').eq('month', m).eq('year', y).maybeSingle(),
@@ -224,13 +242,15 @@ export function AppProvider({ children }) {
 
       const workersData       = workers.data || []
       const incidentsEnriched = (incidents.data || []).map(i => enrichIncident(i, workersData))
+      const allTickets        = [...(openTickets.data || []), ...(tickets.data || [])]
 
       initialLoadDone.current = true
       dispatch({ type: 'SET_ALL', payload: {
         workers:        workersData,
         services:       services.data || [],
         vehicleTypes:   vehicleTypesRes.data?.length ? vehicleTypesRes.data : DEMO_VEHICLE_TYPES,
-        tickets:        tickets.data || [],
+        extrasCatalog:  extrasRes.data?.length ? extrasRes.data : DEMO_EXTRAS_CATALOG,
+        tickets:        allTickets,
         dailySummaries: summaries.data || [],
         incidents:      incidentsEnriched,
         monthlyCosts:   costs.data || { month: m, year: y, rent: 2700, supplies: 800, utility_goal: 2000 },
@@ -415,6 +435,38 @@ export function AppProvider({ children }) {
     dispatch({ type: 'DELETE_VEHICLE_TYPE', payload: id })
   }
 
+  // ─── CRUD Extras Catalog ───────────────────────────────────────────────────
+  const addExtra = async (data) => {
+    if (IS_DEMO) {
+      const e = { ...data, id: `ex${Date.now()}`, active: true }
+      dispatch({ type: 'ADD_EXTRA', payload: e })
+      return e
+    }
+    const { data: e, error } = await supabase.from('extras_catalog').insert(data).select().single()
+    if (error) throw error
+    dispatch({ type: 'ADD_EXTRA', payload: e })
+    return e
+  }
+
+  const updateExtra = async (id, data) => {
+    if (IS_DEMO) {
+      const updated = { ...state.extrasCatalog.find(e => e.id === id), ...data }
+      dispatch({ type: 'UPDATE_EXTRA', payload: updated })
+      return updated
+    }
+    const { data: e, error } = await supabase.from('extras_catalog').update(data).eq('id', id).select().single()
+    if (error) throw error
+    dispatch({ type: 'UPDATE_EXTRA', payload: e })
+    return e
+  }
+
+  const deleteExtra = async (id) => {
+    if (IS_DEMO) { dispatch({ type: 'DELETE_EXTRA', payload: id }); return }
+    const { error } = await supabase.from('extras_catalog').delete().eq('id', id)
+    if (error) throw error
+    dispatch({ type: 'DELETE_EXTRA', payload: id })
+  }
+
   // ─── Monthly Costs ──────────────────────────────────────────────────────────
   const saveMonthlyCosts = async (data) => {
     if (IS_DEMO) {
@@ -454,6 +506,7 @@ export function AppProvider({ children }) {
       addDailySummary, deleteDailySummary,
       addIncident, updateIncident, deleteIncident,
       addVehicleType, updateVehicleType, deleteVehicleType,
+      addExtra, updateExtra, deleteExtra,
       saveMonthlyCosts,
       resetDemoData,
     }}>

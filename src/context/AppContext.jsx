@@ -224,12 +224,14 @@ export function AppProvider({ children }) {
       const lastDay   = new Date(y, m, 0).getDate()
       const endDate   = `${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
 
-      const [workers, services, vehicleTypesRes, extrasRes, tickets, openTickets, summaries, incidents, costs] = await Promise.all([
+      const [workers, services, vehicleTypesRes, extrasRes, allTicketsRes, openTicketsRes, summaries, incidents, costs] = await Promise.all([
         supabase.from('workers').select('*').order('name'),
         supabase.from('services').select('*').order('category, name'),
         supabase.from('vehicle_types').select('*').eq('active', true).order('sort_order'),
         supabase.from('extras_catalog').select('*').eq('active', true).order('sort_order'),
-        supabase.from('tickets').select('*').eq('status', 'cerrado').gte('date', startDate).lte('date', endDate).order('created_at', { ascending: false }),
+        // Carga todos los tickets del mes (sin filtrar por status para compatibilidad)
+        supabase.from('tickets').select('*').gte('date', startDate).lte('date', endDate).order('created_at', { ascending: false }),
+        // Intenta cargar tickets abiertos (puede fallar si la columna status no existe aún)
         supabase.from('tickets').select('*').eq('status', 'abierto'),
         supabase.from('daily_summary').select('*').gte('date', startDate).lte('date', endDate),
         supabase.from('attendance_incidents').select('*').gte('date', startDate).lte('date', endDate),
@@ -238,11 +240,13 @@ export function AppProvider({ children }) {
 
       if (workers.error) console.warn('workers error:', workers.error.message)
       if (services.error) console.warn('services error:', services.error.message)
-      if (tickets.error) console.warn('tickets error:', tickets.error.message)
 
       const workersData       = workers.data || []
       const incidentsEnriched = (incidents.data || []).map(i => enrichIncident(i, workersData))
-      const allTickets        = [...(openTickets.data || []), ...(tickets.data || [])]
+      // Combina tickets del mes + abiertos fuera del rango de fecha (si la columna existe)
+      const monthTickets  = allTicketsRes.data || []
+      const openOutOfRange = (openTicketsRes.data || []).filter(t => !monthTickets.find(x => x.id === t.id))
+      const allTickets    = [...openOutOfRange, ...monthTickets]
 
       initialLoadDone.current = true
       dispatch({ type: 'SET_ALL', payload: {
@@ -341,18 +345,30 @@ export function AppProvider({ children }) {
       dispatch({ type: 'UPDATE_TICKET', payload: updated })
       return updated
     }
+    // Separar campos que pueden no existir en DB aún
+    const { extras, opened_at, status, ...basicData } = data
+    const newCols = { ...(extras !== undefined && { extras }), ...(opened_at !== undefined && { opened_at }), ...(status !== undefined && { status }) }
+
+    // Intentar update completo primero
     const { data: t, error } = await supabase.from('tickets').update(data).eq('id', id).select().single()
     if (!error) {
       dispatch({ type: 'UPDATE_TICKET', payload: t })
       return t
     }
-    // Fallback: actualizar sin columnas nuevas
-    const { extras, opened_at, status, ...basicData } = data
-    const { data: t2, error: err2 } = await supabase.from('tickets').update(basicData).eq('id', id).select().single()
-    if (err2) throw err2
-    const withDefaults = { ...t2, ...( extras !== undefined ? { extras } : {}), ...( status !== undefined ? { status } : {}), ...( opened_at !== undefined ? { opened_at } : {}) }
-    dispatch({ type: 'UPDATE_TICKET', payload: withDefaults })
-    return withDefaults
+
+    // Fallback: actualizar solo campos básicos en DB, mantener nuevos en estado local
+    const current = state.tickets.find(t => t.id === id) || {}
+    if (Object.keys(basicData).length > 0) {
+      const { data: t2, error: err2 } = await supabase.from('tickets').update(basicData).eq('id', id).select().single()
+      if (err2) throw err2
+      const merged = { ...t2, ...newCols }
+      dispatch({ type: 'UPDATE_TICKET', payload: merged })
+      return merged
+    }
+    // Si solo hay campos nuevos (extras, status, etc.) sin columna en DB: actualizar solo en estado local
+    const localOnly = { ...current, ...newCols }
+    dispatch({ type: 'UPDATE_TICKET', payload: localOnly })
+    return localOnly
   }
 
   const deleteTicket = async (id) => {

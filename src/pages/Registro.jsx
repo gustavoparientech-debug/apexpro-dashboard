@@ -2,7 +2,7 @@ import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
 import { useApp } from '../context/AppContext'
 import { formatMoney, todayISO } from '../lib/utils'
 import ConfirmDialog from '../components/ui/ConfirmDialog'
-import { Plus, Camera, Search, X, ChevronDown, ChevronUp, Clock, CheckCircle, Trash2, PenLine, Zap } from 'lucide-react'
+import { Plus, Camera, Search, X, Clock, CheckCircle, Trash2, PenLine, Zap, Save } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 const PAYMENT_OPTIONS = [
@@ -244,12 +244,13 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
   const vehicle = (vehicleTypes || []).find(v => v.value === ticket.vehicle_type)
   const extras  = ticket.extras || []
 
-  const [showAddExtra, setShowAddExtra] = useState(false)
-  const [manualName,   setManualName]   = useState('')
-  const [manualPrice,  setManualPrice]  = useState('')
-  const [editPrice,    setEditPrice]    = useState(false)
-  const [basePrice,    setBasePrice]    = useState(ticket.price_charged || vehicle?.default_price || 0)
+  const [showAddExtra,  setShowAddExtra]  = useState(false)
+  const [manualName,    setManualName]    = useState('')
+  const [manualPrice,   setManualPrice]   = useState('')
+  const [editPrice,     setEditPrice]     = useState(false)
+  const [basePrice,     setBasePrice]     = useState(ticket.price_charged || vehicle?.default_price || 0)
   const [deleteConfirm, setDeleteConfirm] = useState(false)
+  const [saving,        setSaving]        = useState(false)
 
   const extrasTotal = extras.reduce((s, e) => s + (e.price || 0), 0)
   const total = parseFloat(basePrice || 0) + extrasTotal
@@ -275,10 +276,23 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
     await onUpdate(ticket.id, { extras: newExtras })
   }
 
+  async function handleSave() {
+    setSaving(true)
+    try {
+      await onUpdate(ticket.id, {
+        price_charged:  parseFloat(basePrice) || 0,
+        extras,
+      })
+      toast.success('Ticket actualizado')
+    } catch (e) { toast.error('Error al guardar') }
+    finally { setSaving(false) }
+  }
+
   async function handleClose() {
     await onUpdate(ticket.id, {
       status:        'cerrado',
       price_charged: total,
+      extras,
     })
     toast.success('Ticket cerrado')
     onClose()
@@ -437,10 +451,16 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
           <span className="text-sm text-gray-500">Total a cobrar</span>
           <span className="text-2xl font-black text-red-600">{formatMoney(total)}</span>
         </div>
-        <button onClick={handleClose}
-          className="w-full py-3.5 rounded-2xl bg-green-600 hover:bg-green-700 text-white font-bold text-base flex items-center justify-center gap-2 active:scale-95 transition-all">
-          <CheckCircle className="w-5 h-5" /> Cerrar ticket
-        </button>
+        <div className="flex gap-2">
+          <button onClick={handleSave} disabled={saving}
+            className="flex-1 py-3 rounded-2xl border-2 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 font-bold text-sm flex items-center justify-center gap-2 hover:bg-gray-50 dark:hover:bg-gray-800 active:scale-95 transition-all disabled:opacity-50">
+            <Save className="w-4 h-4" /> {saving ? 'Guardando…' : 'Actualizar'}
+          </button>
+          <button onClick={handleClose}
+            className="flex-1 py-3 rounded-2xl bg-green-600 hover:bg-green-700 text-white font-bold text-sm flex items-center justify-center gap-2 active:scale-95 transition-all">
+            <CheckCircle className="w-4 h-4" /> Cerrar ticket
+          </button>
+        </div>
         <button onClick={() => setDeleteConfirm(true)}
           className="w-full py-2 rounded-xl text-red-500 text-sm font-medium hover:bg-red-50 dark:hover:bg-red-900/10 transition-colors flex items-center justify-center gap-1">
           <Trash2 className="w-4 h-4" /> Eliminar ticket

@@ -48,7 +48,7 @@ function TicketForm({ initial, onSave, onClose, workers, services, vehicleTypes 
 
   const selectedService = services.find(s => s.id === form.service_id)
   const selectedWorker  = workers.find(w => w.id === form.worker_id)
-  const selectedVehicle = VEHICLE_OPTIONS.find(v => v.value === form.vehicle_type)
+  const selectedVehicle = (vehicleTypes || []).find(v => v.value === form.vehicle_type)
 
   function handlePhoto(e) {
     const file = e.target.files?.[0]

@@ -591,10 +591,8 @@ function ClosedTicketCard({ ticket, workers, vehicleTypes, onDelete, onEdit, onS
         </div>
         <div className="flex items-start gap-1.5 flex-none">
           <div className="text-right mr-1">
-            {duration
-              ? <p className="text-xs font-semibold text-blue-500 dark:text-blue-400">⏱ {duration}</p>
-              : timeStr && <p className="text-xs text-gray-400">{timeStr}</p>
-            }
+            {timeStr && <p className="text-xs text-gray-400">{timeStr}</p>}
+            {duration && <p className="text-xs font-semibold text-blue-500 dark:text-blue-400">⏱ {duration}</p>}
             <p className="font-bold text-red-600 text-sm">{formatMoney(ticket.price_charged)}</p>
             <p className="text-xs text-gray-400">{PAYMENT_LABELS[ticket.payment_method]?.split(' ')[1] || ticket.payment_method}</p>
           </div>

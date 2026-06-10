@@ -1,8 +1,9 @@
 import { useMemo, useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useApp } from '../context/AppContext'
 import { useAuth } from '../context/AuthContext'
 import { formatMoney, todayISO } from '../lib/utils'
-import { Target, Clock, CheckCircle, Car, AlertCircle } from 'lucide-react'
+import { Target, Clock, CheckCircle, Car, AlertCircle, Plus, X, ClipboardList } from 'lucide-react'
 
 function formatElapsed(ms) {
   const s = Math.floor(ms / 1000)
@@ -30,6 +31,32 @@ function OpenTicketRow({ ticket, vehicleTypes }) {
       <div className="flex items-center gap-1 text-xs font-mono font-bold text-amber-600">
         <Clock className="w-3 h-3" />{formatElapsed(ms)}
       </div>
+    </div>
+  )
+}
+
+function FabMenu() {
+  const navigate = useNavigate()
+  const [open, setOpen] = useState(false)
+  return (
+    <div className="fixed bottom-20 right-4 lg:bottom-6 lg:right-6 z-50 flex flex-col items-end gap-2">
+      {open && (
+        <>
+          <button
+            onClick={() => { navigate('/registro'); setOpen(false) }}
+            className="flex items-center gap-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm font-semibold px-4 py-2.5 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-all whitespace-nowrap">
+            <ClipboardList className="w-4 h-4 text-red-600" />
+            Nuevo ticket
+          </button>
+        </>
+      )}
+      <button
+        onClick={() => setOpen(v => !v)}
+        className={`w-14 h-14 rounded-full shadow-xl flex items-center justify-center transition-all duration-200 ${
+          open ? 'bg-gray-700 rotate-45' : 'bg-red-600 hover:bg-red-700'
+        }`}>
+        {open ? <X className="w-6 h-6 text-white" /> : <Plus className="w-6 h-6 text-white" />}
+      </button>
     </div>
   )
 }
@@ -185,9 +212,11 @@ export default function DashboardTrabajador() {
         <div className="card text-center py-10">
           <Car className="w-10 h-10 text-gray-300 dark:text-gray-600 mx-auto mb-2" />
           <p className="text-gray-400 text-sm">Sin tickets por ahora</p>
-          <p className="text-gray-400 text-xs mt-1">Ve a Registro para abrir el primero</p>
+          <p className="text-gray-400 text-xs mt-1">Toca el botón rojo para abrir uno</p>
         </div>
       )}
+
+      <FabMenu />
     </div>
   )
 }

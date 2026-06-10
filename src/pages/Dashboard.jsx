@@ -431,7 +431,9 @@ export default function Dashboard() {
               <BarChart data={data.dailyData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" className="dark:opacity-20" />
                 <XAxis dataKey="date" tick={{ fontSize: 11 }} />
-                <YAxis tick={{ fontSize: 11 }} tickFormatter={v => `S/${(v/1000).toFixed(1)}k`} />
+                <YAxis tick={{ fontSize: 11 }} tickFormatter={v => `S/${v}`}
+                  tickCount={6} allowDecimals={false}
+                  domain={[0, dataMax => Math.ceil(dataMax / 100) * 100]} />
                 <Tooltip formatter={v => formatMoney(v)} />
                 <Bar dataKey="amount" fill="#dc2626" radius={[4, 4, 0, 0]} name="Ingresos" />
               </BarChart>

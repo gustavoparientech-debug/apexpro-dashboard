@@ -213,7 +213,7 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         <div className="card">
           <div className="flex items-center gap-2 mb-3">
-            <Clock className="w-4 h-4 text-orange-500" />
+            <Clock className="w-4 h-4 text-red-500" />
             <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">Promedios diarios</p>
           </div>
           <div className="space-y-2">
@@ -242,7 +242,7 @@ export default function Dashboard() {
             </div>
             <div className="flex justify-between items-center">
               <span className="text-xs text-gray-500">Restantes</span>
-              <span className="font-semibold text-orange-500 text-sm">{data.workingDaysRemaining} días</span>
+              <span className="font-semibold text-red-500 text-sm">{data.workingDaysRemaining} días</span>
             </div>
           </div>
         </div>
@@ -290,7 +290,7 @@ export default function Dashboard() {
         <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">Composición de gastos fijos</p>
         <div className="space-y-3">
           {[
-            { label: 'Planilla (real)', value: data.payrollTotal, color: 'bg-orange-400' },
+            { label: 'Planilla (real)', value: data.payrollTotal, color: 'bg-red-400' },
             { label: 'Alquiler', value: data.rent, color: 'bg-blue-400' },
             { label: 'Insumos', value: data.supplies, color: 'bg-green-400' },
           ].map(item => (
@@ -305,7 +305,7 @@ export default function Dashboard() {
           ))}
           <div className="pt-2 border-t border-gray-100 dark:border-gray-800 flex justify-between">
             <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">Total + meta utilidad</span>
-            <span className="text-sm font-bold text-orange-500">{formatMoney(data.incomeGoal)}</span>
+            <span className="text-sm font-bold text-red-500">{formatMoney(data.incomeGoal)}</span>
           </div>
         </div>
       </div>

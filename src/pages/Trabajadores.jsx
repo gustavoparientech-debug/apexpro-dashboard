@@ -53,8 +53,8 @@ function WorkerForm({ initial, onSave, onClose }) {
         </div>
       </div>
       {realSalary > 0 && (
-        <div className="bg-orange-50 dark:bg-orange-900/10 border border-orange-100 dark:border-orange-900/30 rounded-lg p-3">
-          <p className="text-xs text-orange-600 dark:text-orange-400">
+        <div className="bg-red-50 dark:bg-red-900/10 border border-orange-100 dark:border-red-900/30 rounded-lg p-3">
+          <p className="text-xs text-red-600 dark:text-red-400">
             Salario real mensual: <strong>{formatMoney(realSalary)}</strong>
             {' '}· Salario diario: <strong>{formatMoney(realSalary / 26)}</strong>
           </p>
@@ -301,7 +301,7 @@ export default function Trabajadores() {
                 <tr key={w.id} className={`${!w.active ? 'opacity-50' : ''} hover:bg-gray-50 dark:hover:bg-gray-800/50`}>
                   <td className="py-3 pr-4">
                     <div className="flex items-center gap-2">
-                      <div className="w-7 h-7 rounded-full bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center text-orange-600 font-bold text-xs">
+                      <div className="w-7 h-7 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center text-red-600 font-bold text-xs">
                         {w.name[0]}
                       </div>
                       <div>

@@ -84,7 +84,7 @@ function VehicleTypeRow({ vt, onSave, onDelete }) {
 
   if (editing) {
     return (
-      <div className="flex items-center gap-2 p-2 bg-orange-50 dark:bg-orange-900/10 rounded-xl border border-orange-200 dark:border-orange-800">
+      <div className="flex items-center gap-2 p-2 bg-red-50 dark:bg-red-900/10 rounded-xl border border-red-200 dark:border-red-800">
         <select className="input py-1 w-14 text-center text-lg px-1" value={form.emoji}
           onChange={e => setForm(f => ({ ...f, emoji: e.target.value }))}>
           {EMOJI_OPTIONS.map(e => <option key={e} value={e}>{e}</option>)}
@@ -240,14 +240,14 @@ export default function Configuracion() {
           </div>
         </div>
 
-        <div className="flex items-center justify-between p-3 bg-orange-50 dark:bg-orange-900/10 rounded-lg border border-orange-100 dark:border-orange-900/30 mb-4">
+        <div className="flex items-center justify-between p-3 bg-red-50 dark:bg-red-900/10 rounded-lg border border-orange-100 dark:border-red-900/30 mb-4">
           <div className="text-sm">
             <span className="text-gray-500">Planilla real del mes: </span>
             <span className="font-semibold text-gray-800 dark:text-gray-200">{formatMoney(payrollTotal)}</span>
           </div>
           <div className="text-sm text-right">
             <span className="text-gray-500">Meta de ingresos: </span>
-            <span className="font-bold text-orange-600 dark:text-orange-400">{formatMoney(incomeGoal)}</span>
+            <span className="font-bold text-red-600 dark:text-red-400">{formatMoney(incomeGoal)}</span>
           </div>
         </div>
 
@@ -271,7 +271,7 @@ export default function Configuracion() {
         </div>
 
         {showNewVehicle && (
-          <div className="flex items-center gap-2 mt-3 p-3 bg-orange-50 dark:bg-orange-900/10 rounded-xl border border-orange-200 dark:border-orange-800">
+          <div className="flex items-center gap-2 mt-3 p-3 bg-red-50 dark:bg-red-900/10 rounded-xl border border-red-200 dark:border-red-800">
             <select className="input py-1.5 w-14 text-center text-lg px-1" value={newVehicle.emoji}
               onChange={e => setNewVehicle(v => ({ ...v, emoji: e.target.value }))}>
               {EMOJI_OPTIONS.map(e => <option key={e} value={e}>{e}</option>)}
@@ -314,7 +314,7 @@ export default function Configuracion() {
             <button
               key={cat}
               onClick={() => setActiveCategory(cat)}
-              className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${activeCategory === cat ? 'bg-orange-500 text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'}`}
+              className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${activeCategory === cat ? 'bg-red-500 text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'}`}
             >
               {cat === 'all' ? 'Todos' : CATEGORY_LABELS[cat]}
             </button>

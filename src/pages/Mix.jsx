@@ -10,7 +10,7 @@ function MixCard({ title, icon: Icon, color, services, neededPerDay, estimatedPr
   const colors = {
     conservador: { bg: 'bg-blue-50 dark:bg-blue-900/10', border: 'border-blue-200 dark:border-blue-900', text: 'text-blue-600 dark:text-blue-400', icon: 'text-blue-500 bg-blue-100 dark:bg-blue-900/30' },
     balanceado: { bg: 'bg-green-50 dark:bg-green-900/10', border: 'border-green-200 dark:border-green-900', text: 'text-green-600 dark:text-green-400', icon: 'text-green-500 bg-green-100 dark:bg-green-900/30' },
-    agresivo: { bg: 'bg-orange-50 dark:bg-orange-900/10', border: 'border-orange-200 dark:border-orange-900', text: 'text-orange-600 dark:text-orange-400', icon: 'text-orange-500 bg-orange-100 dark:bg-orange-900/30' },
+    agresivo: { bg: 'bg-red-50 dark:bg-red-900/10', border: 'border-red-200 dark:border-red-900', text: 'text-red-600 dark:text-red-400', icon: 'text-red-500 bg-red-100 dark:bg-red-900/30' },
   }
   const c = colors[color]
 
@@ -153,15 +153,15 @@ export default function Mix() {
       </div>
 
       {/* Resumen del gap */}
-      <div className="card border-2 border-orange-200 dark:border-orange-900 bg-orange-50 dark:bg-orange-900/10">
+      <div className="card border-2 border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-900/10">
         <div className="flex items-start gap-4">
-          <div className="p-3 bg-orange-100 dark:bg-orange-900/30 rounded-xl">
-            <Target className="w-6 h-6 text-orange-500" />
+          <div className="p-3 bg-red-100 dark:bg-red-900/30 rounded-xl">
+            <Target className="w-6 h-6 text-red-500" />
           </div>
           <div className="flex-1">
-            <p className="font-bold text-orange-700 dark:text-orange-400">Brecha para alcanzar la meta</p>
-            <p className="text-3xl font-bold text-orange-600 dark:text-orange-400 mt-1">{formatMoney(analysis.gap)}</p>
-            <p className="text-xs text-orange-500 mt-1">{analysis.daysRemaining} días hábiles restantes para generar {formatMoney(analysis.gap)}</p>
+            <p className="font-bold text-red-700 dark:text-red-400">Brecha para alcanzar la meta</p>
+            <p className="text-3xl font-bold text-red-600 dark:text-red-400 mt-1">{formatMoney(analysis.gap)}</p>
+            <p className="text-xs text-red-500 mt-1">{analysis.daysRemaining} días hábiles restantes para generar {formatMoney(analysis.gap)}</p>
           </div>
           {analysis.bestPremiumWorker && (
             <div className="text-right">

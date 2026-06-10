@@ -104,7 +104,7 @@ export default function Historial() {
             <button
               key={`${h.year}-${h.month}`}
               onClick={() => setSelectedMonth(selectedMonth === originalIndex ? null : originalIndex)}
-              className={`w-full card text-left transition-all ${selectedMonth === originalIndex ? 'ring-2 ring-orange-500' : 'hover:border-orange-200 dark:hover:border-orange-800'}`}
+              className={`w-full card text-left transition-all ${selectedMonth === originalIndex ? 'ring-2 ring-red-600' : 'hover:border-red-200 dark:hover:border-red-800'}`}
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -149,7 +149,7 @@ export default function Historial() {
                   {h.bestWorker && (
                     <div className="col-span-2">
                       <p className="text-xs text-gray-500">Mejor trabajador</p>
-                      <p className="font-bold text-orange-500">{h.bestWorker.name}</p>
+                      <p className="font-bold text-red-500">{h.bestWorker.name}</p>
                     </div>
                   )}
                   <div className="col-span-2">

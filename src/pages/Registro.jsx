@@ -17,7 +17,7 @@ const CATEGORY_COLORS = {
   basico:     'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300',
   ceramico:   'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300',
   polarizado: 'bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300',
-  ppf:        'bg-orange-50 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300',
+  ppf:        'bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-orange-300',
 }
 const BADGE_COLORS = { basico: 'gray', ceramico: 'blue', polarizado: 'purple', ppf: 'orange' }
 
@@ -115,7 +115,7 @@ function TicketForm({ initial, onSave, onClose, workers, services, vehicleTypes 
             </div>
           ) : (
             <button onClick={() => fileRef.current.click()}
-              className="w-full h-32 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-2xl flex flex-col items-center justify-center gap-2 text-gray-400 hover:border-orange-400 hover:text-orange-400 transition-colors">
+              className="w-full h-32 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-2xl flex flex-col items-center justify-center gap-2 text-gray-400 hover:border-red-400 hover:text-red-400 transition-colors">
               <Camera className="w-8 h-8" />
               <span className="text-sm">Tomar foto de placa</span>
             </button>
@@ -146,7 +146,7 @@ function TicketForm({ initial, onSave, onClose, workers, services, vehicleTypes 
                 onClick={() => handleVehicleSelect(v)}
                 className={`flex items-center gap-2 px-4 py-3 rounded-2xl border text-sm font-medium transition-all ${
                   form.vehicle_type === v.value
-                    ? 'border-orange-400 bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400'
+                    ? 'border-red-400 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400'
                     : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-gray-300'
                 }`}>
                 <span className="text-xl">{v.emoji}</span>
@@ -178,7 +178,7 @@ function TicketForm({ initial, onSave, onClose, workers, services, vehicleTypes 
                         onClick={() => handleServiceSelect(svc)}
                         className={`w-full text-left px-4 py-2.5 rounded-xl text-sm transition-all ${
                           form.service_id === svc.id
-                            ? 'bg-orange-500 text-white font-medium'
+                            ? 'bg-red-500 text-white font-medium'
                             : 'bg-white/60 dark:bg-gray-800/60 hover:bg-white dark:hover:bg-gray-700'
                         }`}>
                         <span className="block font-medium">{svc.name}</span>
@@ -191,8 +191,8 @@ function TicketForm({ initial, onSave, onClose, workers, services, vehicleTypes 
             ))}
           </div>
           {selectedService && (
-            <div className="mt-2 p-3 bg-orange-50 dark:bg-orange-900/20 rounded-xl">
-              <p className="text-xs text-orange-600 dark:text-orange-400 font-medium">✓ {selectedService.name}</p>
+            <div className="mt-2 p-3 bg-red-50 dark:bg-red-900/20 rounded-xl">
+              <p className="text-xs text-red-600 dark:text-red-400 font-medium">✓ {selectedService.name}</p>
               <div className="flex items-center gap-2 mt-1">
                 <span className="text-xs text-gray-500">Precio:</span>
                 <input
@@ -217,7 +217,7 @@ function TicketForm({ initial, onSave, onClose, workers, services, vehicleTypes 
                 onClick={() => setForm(f => ({ ...f, worker_id: w.id }))}
                 className={`py-3 px-4 rounded-2xl border text-sm font-medium transition-all ${
                   form.worker_id === w.id
-                    ? 'border-orange-400 bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400'
+                    ? 'border-red-400 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400'
                     : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-gray-300'
                 }`}>
                 {w.name}
@@ -235,7 +235,7 @@ function TicketForm({ initial, onSave, onClose, workers, services, vehicleTypes 
                 onClick={() => setForm(f => ({ ...f, payment_method: p.value }))}
                 className={`py-3 rounded-2xl border text-sm font-medium transition-all ${
                   form.payment_method === p.value
-                    ? 'border-orange-400 bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400'
+                    ? 'border-red-400 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400'
                     : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300'
                 }`}>
                 {p.label}
@@ -264,7 +264,7 @@ function TicketForm({ initial, onSave, onClose, workers, services, vehicleTypes 
             disabled={missing.length > 0}
             className={`flex-1 py-3 rounded-2xl font-bold text-white text-base transition-all ${
               missing.length === 0
-                ? 'bg-orange-500 hover:bg-orange-600 active:scale-95'
+                ? 'bg-red-500 hover:bg-red-700 active:scale-95'
                 : 'bg-gray-300 dark:bg-gray-700 cursor-not-allowed'
             }`}>
             {initial ? 'Guardar cambios' : 'Abrir ticket'}
@@ -398,7 +398,7 @@ export default function Registro() {
         </div>
         <div className="text-right pt-5">
           <p className="text-xs text-gray-500">Total del día</p>
-          <p className="text-xl font-bold text-orange-500">{formatMoney(dayTotal)}</p>
+          <p className="text-xl font-bold text-red-500">{formatMoney(dayTotal)}</p>
         </div>
       </div>
 
@@ -455,7 +455,7 @@ export default function Registro() {
                   {ticket.notes && <p className="text-xs text-gray-400 mt-1 italic">{ticket.notes}</p>}
                 </div>
                 <div className="flex flex-col items-end gap-1">
-                  <span className="font-bold text-orange-500 text-base">{formatMoney(ticket.price_charged)}</span>
+                  <span className="font-bold text-red-500 text-base">{formatMoney(ticket.price_charged)}</span>
                   <div className="flex gap-1">
                     <button className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"
                       onClick={() => { setEditingTicket(ticket); setShowTicketForm(true) }}>
@@ -481,7 +481,7 @@ export default function Registro() {
                 {summary.notes && <p className="text-xs text-gray-400 italic">{summary.notes}</p>}
               </div>
               <div className="flex items-center gap-2">
-                <span className="font-bold text-orange-500">{formatMoney(summary.total_income)}</span>
+                <span className="font-bold text-red-500">{formatMoney(summary.total_income)}</span>
                 <button className="p-1.5 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg"
                   onClick={() => setDeleteTarget({ type: 'summary', id: summary.id })}>
                   <Trash2 className="w-3.5 h-3.5 text-red-400" />
@@ -491,9 +491,9 @@ export default function Registro() {
           ))}
 
           <div className="flex justify-end pt-1">
-            <div className="bg-orange-50 dark:bg-orange-900/20 rounded-xl px-4 py-2 border border-orange-100 dark:border-orange-900/30">
-              <span className="text-sm text-orange-600 dark:text-orange-400 font-medium">Total del día: </span>
-              <span className="text-lg font-bold text-orange-600 dark:text-orange-400">{formatMoney(dayTotal)}</span>
+            <div className="bg-red-50 dark:bg-red-900/20 rounded-xl px-4 py-2 border border-orange-100 dark:border-red-900/30">
+              <span className="text-sm text-red-600 dark:text-red-400 font-medium">Total del día: </span>
+              <span className="text-lg font-bold text-red-600 dark:text-red-400">{formatMoney(dayTotal)}</span>
             </div>
           </div>
         </div>

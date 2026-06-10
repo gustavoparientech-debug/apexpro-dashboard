@@ -110,9 +110,9 @@ export default function Nomina() {
           <p className="text-xs text-gray-500 mb-1">Total descuentos</p>
           <p className="text-xl font-bold text-red-500">-{formatMoney(totalDiscounts)}</p>
         </div>
-        <div className="card text-center border-2 border-orange-200 dark:border-orange-900">
-          <p className="text-xs text-orange-600 dark:text-orange-400 mb-1 font-medium">Total a pagar</p>
-          <p className="text-xl font-bold text-orange-600 dark:text-orange-400">{formatMoney(totalPayroll)}</p>
+        <div className="card text-center border-2 border-red-200 dark:border-red-900">
+          <p className="text-xs text-red-600 dark:text-red-400 mb-1 font-medium">Total a pagar</p>
+          <p className="text-xl font-bold text-red-600 dark:text-red-400">{formatMoney(totalPayroll)}</p>
         </div>
       </div>
 
@@ -142,11 +142,11 @@ export default function Nomina() {
                 <td className="text-center px-2 text-xs text-gray-500">{w.workerIncidents.length}</td>
               </tr>
             ))}
-            <tr className="border-t-2 border-orange-200 dark:border-orange-900 bg-orange-50 dark:bg-orange-900/10">
-              <td className="py-3 pr-4 font-bold text-orange-700 dark:text-orange-400">TOTAL PLANILLA</td>
-              <td className="text-right px-2 font-bold text-orange-700 dark:text-orange-400">{formatMoney(totalBase)}</td>
+            <tr className="border-t-2 border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-900/10">
+              <td className="py-3 pr-4 font-bold text-red-700 dark:text-red-400">TOTAL PLANILLA</td>
+              <td className="text-right px-2 font-bold text-red-700 dark:text-red-400">{formatMoney(totalBase)}</td>
               <td className="text-right px-2 font-bold text-red-500">-{formatMoney(totalDiscounts)}</td>
-              <td className="text-right px-2 font-bold text-orange-600 dark:text-orange-400 text-base">{formatMoney(totalPayroll)}</td>
+              <td className="text-right px-2 font-bold text-red-600 dark:text-red-400 text-base">{formatMoney(totalPayroll)}</td>
               <td />
             </tr>
           </tbody>

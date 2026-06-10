@@ -60,6 +60,7 @@ const initialState = {
   dailySummaries: [],
   incidents: [],
   expenses: [],
+  bonuses: [],
   monthlyCosts: null,
   loading: true,
   error: null,
@@ -93,6 +94,9 @@ function reducer(state, action) {
     case 'DELETE_EXTRA':         return { ...state, extrasCatalog: state.extrasCatalog.filter(e => e.id !== action.payload) }
     case 'ADD_EXPENSE':    return { ...state, expenses: [...state.expenses, action.payload] }
     case 'SET_EXPENSES':   return { ...state, expenses: action.payload }
+    case 'ADD_BONUS':      return { ...state, bonuses: [...state.bonuses, action.payload] }
+    case 'DELETE_BONUS':   return { ...state, bonuses: state.bonuses.filter(b => b.id !== action.payload) }
+    case 'SET_BONUSES':    return { ...state, bonuses: action.payload }
     default: return state
   }
 }
@@ -544,6 +548,31 @@ export function AppProvider({ children }) {
     }
   }
 
+  // ─── CRUD Bonuses ───────────────────────────────────────────────────────────
+  const addBonus = async (data) => {
+    if (IS_DEMO) {
+      const b = { ...data, id: `b${Date.now()}` }
+      dispatch({ type: 'ADD_BONUS', payload: b })
+      return b
+    }
+    try {
+      const { data: b, error } = await supabase.from('worker_bonuses').insert(data).select().single()
+      if (error) throw error
+      dispatch({ type: 'ADD_BONUS', payload: b })
+      return b
+    } catch {
+      const b = { ...data, id: `b${Date.now()}` }
+      dispatch({ type: 'ADD_BONUS', payload: b })
+      return b
+    }
+  }
+  const deleteBonus = async (id) => {
+    dispatch({ type: 'DELETE_BONUS', payload: id })
+    if (!IS_DEMO) {
+      try { await supabase.from('worker_bonuses').delete().eq('id', id) } catch {}
+    }
+  }
+
   // ─── Utilidad: borrar todos los datos guardados (reset) ─────────────────────
   const resetDemoData = () => {
     localStorage.removeItem(LS_KEY)
@@ -564,6 +593,7 @@ export function AppProvider({ children }) {
       addVehicleType, updateVehicleType, deleteVehicleType,
       addExtra, updateExtra, deleteExtra,
       addExpense,
+      addBonus, deleteBonus,
       saveMonthlyCosts,
       resetDemoData,
     }}>

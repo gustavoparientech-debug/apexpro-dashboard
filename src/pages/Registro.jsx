@@ -1117,36 +1117,23 @@ export default function Registro() {
           <h2 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-2">
             Por colaborador
           </h2>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+          <div className="flex flex-wrap gap-2">
             {workerDayStats.map(({ worker, total, extras, byVehicle }) => (
-              <div key={worker.id} className="card py-3 px-3 space-y-2">
-                <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center text-red-600 font-bold text-xs flex-none">
-                    {worker.name[0]}
-                  </div>
-                  <span className="font-semibold text-sm text-gray-900 dark:text-white truncate">{worker.name}</span>
+              <div key={worker.id} className="flex items-center gap-2 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-xl px-3 py-2">
+                <div className="w-6 h-6 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center text-red-600 font-bold text-xs flex-none">
+                  {worker.name[0]}
                 </div>
-                <div className="flex items-baseline gap-1">
-                  <span className="text-2xl font-black text-gray-900 dark:text-white">{total}</span>
-                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide leading-none">
-                    vehíc{total === 1 ? 'ulo' : 'ulos'}
-                  </span>
-                </div>
-                {/* Desglose por tipo */}
-                <div className="space-y-0.5">
+                <span className="text-sm font-semibold text-gray-900 dark:text-white">{worker.name}</span>
+                <span className="text-lg font-black text-gray-900 dark:text-white leading-none">{total}</span>
+                <span className="text-xs text-gray-400 flex gap-1">
                   {Object.entries(byVehicle).map(([vt, cnt]) => {
                     const vObj = (vehicleTypes || []).find(v => v.value === vt)
-                    return (
-                      <div key={vt} className="flex items-center justify-between">
-                        <span className="text-xs text-gray-500">{vObj ? `${vObj.emoji} ${vObj.label}` : vt}</span>
-                        <span className="text-xs font-bold text-gray-700 dark:text-gray-300">{cnt}</span>
-                      </div>
-                    )
+                    return <span key={vt}>{vObj?.emoji || '🚗'}×{cnt}</span>
                   })}
-                </div>
+                </span>
                 {extras > 0 && (
-                  <span className="inline-block text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">
-                    +{extras} extra{extras > 1 ? 's' : ''}
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">
+                    +{extras}e
                   </span>
                 )}
               </div>

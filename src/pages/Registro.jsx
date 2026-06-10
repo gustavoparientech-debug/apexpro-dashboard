@@ -85,14 +85,13 @@ function Modal({ open, onClose, title, children }) {
 // ─── Formulario nuevo ticket (simplificado) ───────────────────────────────────
 function NewTicketForm({ onSave, onClose, workers, vehicleTypes }) {
   const [form, setForm] = useState({
-    date:           todayISO(),
-    worker_id:      '',
-    price_charged:  '',
-    vehicle_type:   '',
-    payment_method: 'efectivo',
-    notes:          '',
-    plate:          '',
-    photo_url:      '',
+    date:          todayISO(),
+    worker_id:     '',
+    price_charged: '',
+    vehicle_type:  '',
+    notes:         '',
+    plate:         '',
+    photo_url:     '',
   })
   const [photoPreview, setPhotoPreview] = useState('')
   const fileRef = useRef()
@@ -214,23 +213,6 @@ function NewTicketForm({ onSave, onClose, workers, vehicleTypes }) {
                     : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300'
                 }`}>
                 {w.name}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Método de pago */}
-        <div>
-          <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-2">Método de cobro</p>
-          <div className="grid grid-cols-3 gap-2">
-            {PAYMENT_OPTIONS.map(p => (
-              <button key={p.value} type="button" onClick={() => setForm(f => ({ ...f, payment_method: p.value }))}
-                className={`py-2.5 rounded-xl border text-xs font-medium transition-all ${
-                  form.payment_method === p.value
-                    ? 'border-red-500 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400'
-                    : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400'
-                }`}>
-                {p.label}
               </button>
             ))}
           </div>
@@ -431,7 +413,20 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
 
         {/* Método de pago */}
         <div className="px-4 py-3 border-t border-gray-100 dark:border-gray-800">
-          <p className="text-xs text-gray-500 mb-2">Método de cobro: <span className="font-semibold text-gray-700 dark:text-gray-300">{PAYMENT_LABELS[ticket.payment_method]}</span></p>
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Método de cobro</p>
+          <div className="grid grid-cols-3 gap-2">
+            {PAYMENT_OPTIONS.map(p => (
+              <button key={p.value} type="button"
+                onClick={() => onUpdate(ticket.id, { payment_method: p.value })}
+                className={`py-2 rounded-xl border text-xs font-medium transition-all ${
+                  ticket.payment_method === p.value
+                    ? 'border-red-500 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400'
+                    : 'border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400'
+                }`}>
+                {p.label}
+              </button>
+            ))}
+          </div>
         </div>
 
       </div>

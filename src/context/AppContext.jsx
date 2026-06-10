@@ -320,10 +320,19 @@ export function AppProvider({ children }) {
       dispatch({ type: 'ADD_TICKET', payload: t })
       return t
     }
+    // Intentar con nuevas columnas; si no existen (SQL pendiente), usar columnas básicas
     const { data: t, error } = await supabase.from('tickets').insert(data).select().single()
-    if (error) throw error
-    dispatch({ type: 'ADD_TICKET', payload: t })
-    return t
+    if (!error) {
+      dispatch({ type: 'ADD_TICKET', payload: t })
+      return t
+    }
+    // Fallback: insertar sin las columnas nuevas
+    const { status, opened_at, extras, ...basicData } = data
+    const { data: t2, error: err2 } = await supabase.from('tickets').insert(basicData).select().single()
+    if (err2) throw err2
+    const withDefaults = { ...t2, status: status || 'abierto', opened_at: opened_at || new Date().toISOString(), extras: extras || [] }
+    dispatch({ type: 'ADD_TICKET', payload: withDefaults })
+    return withDefaults
   }
 
   const updateTicket = async (id, data) => {
@@ -333,9 +342,17 @@ export function AppProvider({ children }) {
       return updated
     }
     const { data: t, error } = await supabase.from('tickets').update(data).eq('id', id).select().single()
-    if (error) throw error
-    dispatch({ type: 'UPDATE_TICKET', payload: t })
-    return t
+    if (!error) {
+      dispatch({ type: 'UPDATE_TICKET', payload: t })
+      return t
+    }
+    // Fallback: actualizar sin columnas nuevas
+    const { extras, opened_at, status, ...basicData } = data
+    const { data: t2, error: err2 } = await supabase.from('tickets').update(basicData).eq('id', id).select().single()
+    if (err2) throw err2
+    const withDefaults = { ...t2, ...( extras !== undefined ? { extras } : {}), ...( status !== undefined ? { status } : {}), ...( opened_at !== undefined ? { opened_at } : {}) }
+    dispatch({ type: 'UPDATE_TICKET', payload: withDefaults })
+    return withDefaults
   }
 
   const deleteTicket = async (id) => {

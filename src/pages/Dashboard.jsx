@@ -1,5 +1,8 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import { useApp } from '../context/AppContext'
+import { supabase } from '../lib/supabase'
+
+const IS_DEMO = !import.meta.env.VITE_SUPABASE_URL || import.meta.env.VITE_SUPABASE_URL === 'https://placeholder.supabase.co'
 import {
   formatMoney, formatDate, getSemaforoColor, calcRealSalary, calcTicketProfit,
   getWorkingDaysInMonth, getWorkingDaysElapsed, getWorkingDaysRemaining,
@@ -129,6 +132,18 @@ export default function Dashboard() {
   const [selYear,  setSelYear]  = useState(cy)
   const [selDay,   setSelDay]   = useState(null)
   const isCurrentMonth = selMonth === cm && selYear === cy
+
+  const [pastTickets,    setPastTickets]    = useState([])
+  const [pastSummaries,  setPastSummaries]  = useState([])
+
+  useEffect(() => {
+    if (isCurrentMonth || IS_DEMO) { setPastTickets([]); setPastSummaries([]); return }
+    const p = `${selYear}-${String(selMonth).padStart(2,'0')}`
+    Promise.all([
+      supabase.from('tickets').select('*').gte('date', `${p}-01`).lte('date', `${p}-31`).neq('status', 'abierto'),
+      supabase.from('daily_summary').select('*').gte('date', `${p}-01`).lte('date', `${p}-31`),
+    ]).then(([t, s]) => { setPastTickets(t.data || []); setPastSummaries(s.data || []) })
+  }, [selMonth, selYear, isCurrentMonth])
   const prefix = `${selYear}-${String(selMonth).padStart(2, '0')}`
   const lastDayOfMonth = new Date(selYear, selMonth, 0).getDate()
 
@@ -149,8 +164,10 @@ export default function Dashboard() {
 
   const data = useMemo(() => {
     const dateFilter = (date) => selDay ? date === selDay : date?.startsWith(prefix)
-    const periodTickets   = tickets.filter(t => dateFilter(t.date) && t.status !== 'abierto')
-    const periodSummaries = dailySummaries.filter(d => dateFilter(d.date))
+    const sourceTickets    = isCurrentMonth ? tickets    : pastTickets
+    const sourceSummaries  = isCurrentMonth ? dailySummaries : pastSummaries
+    const periodTickets   = sourceTickets.filter(t => dateFilter(t.date) && t.status !== 'abierto')
+    const periodSummaries = sourceSummaries.filter(d => dateFilter(d.date))
 
     const ticketIncome  = periodTickets.reduce((s, t) => s + (t.price_charged || 0), 0)
     const summaryIncome = periodSummaries.reduce((s, d) => s + (d.total_income || 0), 0)
@@ -217,7 +234,7 @@ export default function Dashboard() {
       bestDay, efectivo, yape, transferencia, onTrack, projectedIncome, dailyData,
       workerRanking, monthBonusAmt,
     }
-  }, [tickets, dailySummaries, workers, services, incidents, monthlyCosts, bonuses, prefix, selMonth, selYear, isCurrentMonth, selDay])
+  }, [tickets, dailySummaries, pastTickets, pastSummaries, workers, services, incidents, monthlyCosts, bonuses, prefix, selMonth, selYear, isCurrentMonth, selDay])
 
   if (loading) return (
     <div className="flex items-center justify-center h-64">

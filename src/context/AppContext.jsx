@@ -59,6 +59,7 @@ const initialState = {
   tickets: [],
   dailySummaries: [],
   incidents: [],
+  expenses: [],
   monthlyCosts: null,
   loading: true,
   error: null,
@@ -90,6 +91,8 @@ function reducer(state, action) {
     case 'ADD_EXTRA':            return { ...state, extrasCatalog: [...state.extrasCatalog, action.payload] }
     case 'UPDATE_EXTRA':         return { ...state, extrasCatalog: state.extrasCatalog.map(e => e.id === action.payload.id ? action.payload : e) }
     case 'DELETE_EXTRA':         return { ...state, extrasCatalog: state.extrasCatalog.filter(e => e.id !== action.payload) }
+    case 'ADD_EXPENSE':    return { ...state, expenses: [...state.expenses, action.payload] }
+    case 'SET_EXPENSES':   return { ...state, expenses: action.payload }
     default: return state
   }
 }
@@ -521,6 +524,26 @@ export function AppProvider({ children }) {
     return result
   }
 
+  // ─── CRUD Expenses ──────────────────────────────────────────────────────────
+  const addExpense = async (data) => {
+    if (IS_DEMO) {
+      const e = { ...data, id: `e${Date.now()}` }
+      dispatch({ type: 'ADD_EXPENSE', payload: e })
+      return e
+    }
+    try {
+      const { data: e, error } = await supabase.from('worker_expenses').insert(data).select().single()
+      if (error) throw error
+      dispatch({ type: 'ADD_EXPENSE', payload: e })
+      return e
+    } catch (err) {
+      // Si la tabla no existe aún, guardar solo en estado local
+      const e = { ...data, id: `e${Date.now()}` }
+      dispatch({ type: 'ADD_EXPENSE', payload: e })
+      return e
+    }
+  }
+
   // ─── Utilidad: borrar todos los datos guardados (reset) ─────────────────────
   const resetDemoData = () => {
     localStorage.removeItem(LS_KEY)
@@ -540,6 +563,7 @@ export function AppProvider({ children }) {
       addIncident, updateIncident, deleteIncident,
       addVehicleType, updateVehicleType, deleteVehicleType,
       addExtra, updateExtra, deleteExtra,
+      addExpense,
       saveMonthlyCosts,
       resetDemoData,
     }}>

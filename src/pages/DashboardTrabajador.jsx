@@ -3,7 +3,98 @@ import { useNavigate } from 'react-router-dom'
 import { useApp } from '../context/AppContext'
 import { useAuth } from '../context/AuthContext'
 import { formatMoney, todayISO } from '../lib/utils'
-import { Target, Clock, CheckCircle, Car, AlertCircle, Plus, X, ClipboardList } from 'lucide-react'
+import { Target, Clock, CheckCircle, Car, AlertCircle, Plus, X, ClipboardList, TrendingDown } from 'lucide-react'
+import toast from 'react-hot-toast'
+
+const GASTO_CATS = [
+  { value: 'insumos',    label: '🧴 Insumos' },
+  { value: 'herramientas', label: '🔧 Herramientas' },
+  { value: 'transporte', label: '🚌 Transporte' },
+  { value: 'comida',     label: '🍱 Comida' },
+  { value: 'otro',       label: '📦 Otro' },
+]
+
+function GastoSheet({ onClose, workerId, workerName }) {
+  const { addExpense } = useApp()
+  const [form, setForm] = useState({
+    date: todayISO(),
+    amount: '',
+    category: 'insumos',
+    description: '',
+    worker_id: workerId || null,
+  })
+  const [busy, setBusy] = useState(false)
+
+  async function handleSubmit(e) {
+    e.preventDefault()
+    if (!form.amount || parseFloat(form.amount) <= 0) { toast.error('Ingresa el monto'); return }
+    setBusy(true)
+    try {
+      await addExpense({ ...form, amount: parseFloat(form.amount) })
+      toast.success('Gasto registrado')
+      onClose()
+    } catch (err) { toast.error('Error: ' + err.message) }
+    finally { setBusy(false) }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex flex-col justify-end">
+      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
+      <div className="relative bg-white dark:bg-gray-900 rounded-t-3xl shadow-2xl">
+        <div className="flex justify-center pt-3 pb-1">
+          <div className="w-10 h-1 rounded-full bg-gray-300 dark:bg-gray-600" />
+        </div>
+        <div className="flex items-center justify-between px-4 py-2">
+          <h2 className="text-lg font-bold text-gray-900 dark:text-white">Registrar gasto</h2>
+          <button onClick={onClose} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800">
+            <X className="w-5 h-5 text-gray-500" />
+          </button>
+        </div>
+        <form onSubmit={handleSubmit} className="px-4 pb-8 pt-1 space-y-4">
+          {/* Categorías */}
+          <div>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Categoría</p>
+            <div className="grid grid-cols-3 gap-2">
+              {GASTO_CATS.map(c => (
+                <button key={c.value} type="button"
+                  onClick={() => setForm(f => ({ ...f, category: c.value }))}
+                  className={`py-2 px-2 rounded-xl text-xs font-semibold text-center transition-all border ${
+                    form.category === c.value
+                      ? 'bg-red-600 text-white border-red-600'
+                      : 'bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700'
+                  }`}>
+                  {c.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Monto */}
+          <div>
+            <label className="label">Monto (S/)</label>
+            <input type="number" className="input text-lg font-bold" min="0.10" step="0.10"
+              placeholder="0.00" value={form.amount}
+              onChange={e => setForm(f => ({ ...f, amount: e.target.value }))}
+              autoFocus required />
+          </div>
+
+          {/* Descripción */}
+          <div>
+            <label className="label">Descripción (opcional)</label>
+            <input type="text" className="input" placeholder="Ej: Shampoo para autos"
+              value={form.description}
+              onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
+          </div>
+
+          <button type="submit" disabled={busy}
+            className="w-full py-3 rounded-2xl bg-red-600 hover:bg-red-700 text-white font-bold text-sm disabled:opacity-60">
+            {busy ? 'Guardando…' : 'Registrar gasto'}
+          </button>
+        </form>
+      </div>
+    </div>
+  )
+}
 
 function formatElapsed(ms) {
   const s = Math.floor(ms / 1000)
@@ -35,29 +126,39 @@ function OpenTicketRow({ ticket, vehicleTypes }) {
   )
 }
 
-function FabMenu() {
+function FabMenu({ workerId, workerName }) {
   const navigate = useNavigate()
   const [open, setOpen] = useState(false)
+  const [showGasto, setShowGasto] = useState(false)
   return (
-    <div className="fixed bottom-20 right-4 lg:bottom-6 lg:right-6 z-50 flex flex-col items-end gap-2">
-      {open && (
-        <>
-          <button
-            onClick={() => { navigate('/registro'); setOpen(false) }}
-            className="flex items-center gap-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm font-semibold px-4 py-2.5 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-all whitespace-nowrap">
-            <ClipboardList className="w-4 h-4 text-red-600" />
-            Nuevo ticket
-          </button>
-        </>
-      )}
-      <button
-        onClick={() => setOpen(v => !v)}
-        className={`w-14 h-14 rounded-full shadow-xl flex items-center justify-center transition-all duration-200 ${
-          open ? 'bg-gray-700 rotate-45' : 'bg-red-600 hover:bg-red-700'
-        }`}>
-        {open ? <X className="w-6 h-6 text-white" /> : <Plus className="w-6 h-6 text-white" />}
-      </button>
-    </div>
+    <>
+      <div className="fixed bottom-20 right-4 lg:bottom-6 lg:right-6 z-40 flex flex-col items-end gap-2">
+        {open && (
+          <>
+            <button
+              onClick={() => { setOpen(false); setShowGasto(true) }}
+              className="flex items-center gap-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm font-semibold px-4 py-2.5 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-all whitespace-nowrap">
+              <TrendingDown className="w-4 h-4 text-amber-500" />
+              Registrar gasto
+            </button>
+            <button
+              onClick={() => { navigate('/registro', { state: { autoNew: true } }); setOpen(false) }}
+              className="flex items-center gap-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm font-semibold px-4 py-2.5 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-all whitespace-nowrap">
+              <ClipboardList className="w-4 h-4 text-red-600" />
+              Nuevo ticket
+            </button>
+          </>
+        )}
+        <button
+          onClick={() => setOpen(v => !v)}
+          className={`w-14 h-14 rounded-full shadow-xl flex items-center justify-center transition-all duration-200 ${
+            open ? 'bg-gray-700' : 'bg-red-600 hover:bg-red-700'
+          }`}>
+          {open ? <X className="w-6 h-6 text-white" /> : <Plus className="w-6 h-6 text-white" />}
+        </button>
+      </div>
+      {showGasto && <GastoSheet onClose={() => setShowGasto(false)} workerId={workerId} workerName={workerName} />}
+    </>
   )
 }
 
@@ -216,7 +317,7 @@ export default function DashboardTrabajador() {
         </div>
       )}
 
-      <FabMenu />
+      <FabMenu workerId={profile?.worker_id} workerName={nombre} />
     </div>
   )
 }

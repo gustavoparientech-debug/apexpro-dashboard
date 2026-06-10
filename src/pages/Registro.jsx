@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
+import { useLocation } from 'react-router-dom'
 import { useApp } from '../context/AppContext'
 import { formatMoney, todayISO } from '../lib/utils'
 import ConfirmDialog from '../components/ui/ConfirmDialog'
@@ -605,8 +606,9 @@ export default function Registro() {
     addTicket, updateTicket, deleteTicket, addDailySummary, deleteDailySummary,
   } = useApp()
 
+  const location = useLocation()
   const [selectedDate, setSelectedDate]   = useState(todayISO())
-  const [showNewForm,  setShowNewForm]     = useState(false)
+  const [showNewForm,  setShowNewForm]     = useState(!!location.state?.autoNew)
   const [showQuickForm, setShowQuickForm]  = useState(false)
   const [activeTicket, setActiveTicket]    = useState(null)
 

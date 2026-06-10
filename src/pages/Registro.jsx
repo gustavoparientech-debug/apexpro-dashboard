@@ -4,7 +4,7 @@ import { useApp } from '../context/AppContext'
 import { useAuth } from '../context/AuthContext'
 import { formatMoney, todayISO } from '../lib/utils'
 import ConfirmDialog from '../components/ui/ConfirmDialog'
-import { Plus, Camera, Search, X, Clock, CheckCircle, Trash2, PenLine, Zap, Save } from 'lucide-react'
+import { Plus, Camera, Search, X, Clock, CheckCircle, Trash2, PenLine, Zap, Save, ChevronLeft, ChevronRight } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 const PAYMENT_OPTIONS = [
@@ -830,19 +830,61 @@ export default function Registro() {
         </button>
       </div>
 
-      {/* Selector mes/año (solo admin) */}
+      {/* Selector mes/año + día */}
       {canAdmin && (
-        <div className="flex items-center gap-2">
-          <select className="input text-sm py-1.5 flex-1"
-            value={selMonth}
-            onChange={e => handleMonthChange(+e.target.value, selYear)}>
-            {MONTHS.map((m, i) => <option key={i+1} value={i+1}>{m}</option>)}
-          </select>
-          <select className="input text-sm py-1.5 w-24"
-            value={selYear}
-            onChange={e => handleMonthChange(selMonth, +e.target.value)}>
-            {[cy-1, cy, cy+1].map(y => <option key={y} value={y}>{y}</option>)}
-          </select>
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <select className="input text-sm py-1.5 flex-1"
+              value={selMonth}
+              onChange={e => handleMonthChange(+e.target.value, selYear)}>
+              {MONTHS.map((m, i) => <option key={i+1} value={i+1}>{m}</option>)}
+            </select>
+            <select className="input text-sm py-1.5 w-24"
+              value={selYear}
+              onChange={e => handleMonthChange(selMonth, +e.target.value)}>
+              {[cy-1, cy, cy+1].map(y => <option key={y} value={y}>{y}</option>)}
+            </select>
+          </div>
+          {/* Navegación por día */}
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-800 rounded-xl p-1 flex-1">
+              <button
+                onClick={() => {
+                  const d = new Date(selectedDate + 'T00:00:00')
+                  d.setDate(d.getDate() - 1)
+                  const nd = d.toISOString().slice(0, 10)
+                  const prefix = `${selYear}-${String(selMonth).padStart(2,'0')}`
+                  if (nd.startsWith(prefix)) setSelectedDate(nd)
+                }}
+                className="p-1.5 rounded-lg hover:bg-white dark:hover:bg-gray-700 transition-colors">
+                <ChevronLeft className="w-4 h-4 text-gray-600 dark:text-gray-300" />
+              </button>
+              <input type="date"
+                className="bg-transparent text-sm font-medium text-gray-700 dark:text-gray-200 flex-1 focus:outline-none text-center"
+                value={selectedDate}
+                min={`${selYear}-${String(selMonth).padStart(2,'0')}-01`}
+                max={`${selYear}-${String(selMonth).padStart(2,'0')}-${new Date(selYear, selMonth, 0).getDate()}`}
+                onChange={e => e.target.value && setSelectedDate(e.target.value)}
+              />
+              <button
+                onClick={() => {
+                  const d = new Date(selectedDate + 'T00:00:00')
+                  d.setDate(d.getDate() + 1)
+                  const nd = d.toISOString().slice(0, 10)
+                  const prefix = `${selYear}-${String(selMonth).padStart(2,'0')}`
+                  if (nd.startsWith(prefix)) setSelectedDate(nd)
+                }}
+                className="p-1.5 rounded-lg hover:bg-white dark:hover:bg-gray-700 transition-colors">
+                <ChevronRight className="w-4 h-4 text-gray-600 dark:text-gray-300" />
+              </button>
+            </div>
+            {selectedDate !== today && (
+              <button onClick={() => setSelectedDate(today)}
+                className="text-xs text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 px-3 py-2 rounded-xl transition-colors font-medium whitespace-nowrap">
+                Hoy
+              </button>
+            )}
+          </div>
         </div>
       )}
 
@@ -878,14 +920,12 @@ export default function Registro() {
         )}
       </div>
 
-      {/* CERRADOS HOY */}
+      {/* CERRADOS DEL DÍA */}
       <div>
         <div className="flex items-center gap-3 mb-2">
           <h2 className="text-sm font-bold text-gray-600 dark:text-gray-400 uppercase tracking-wide">
-            Cerrados hoy
+            {selectedDate === today ? 'Cerrados hoy' : `Cerrados el ${selectedDate.split('-').reverse().join('/')}`}
           </h2>
-          <input type="date" className="text-xs border-0 bg-transparent text-gray-400 cursor-pointer"
-            value={selectedDate} onChange={e => setSelectedDate(e.target.value)} />
         </div>
 
         {closedToday.length === 0 && daySummaries.length === 0 ? (

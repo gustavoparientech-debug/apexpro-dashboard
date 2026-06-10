@@ -163,8 +163,11 @@ function FabMenu({ workerId, workerName }) {
 }
 
 export default function DashboardTrabajador() {
-  const { tickets, workers, vehicleTypes, monthlyCosts } = useApp()
+  const { tickets, workers, vehicleTypes, monthlyCosts, loadData } = useApp()
   const { profile } = useAuth()
+
+  // Recargar datos al entrar al dashboard para ver cambios de otros
+  useEffect(() => { loadData() }, [])
 
   const worker = useMemo(
     () => workers.find(w => w.id === profile?.worker_id),

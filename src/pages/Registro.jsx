@@ -85,9 +85,9 @@ function Modal({ open, onClose, title, children }) {
 }
 
 // ─── Formulario nuevo ticket (simplificado) ───────────────────────────────────
-function NewTicketForm({ onSave, onClose, workers, vehicleTypes, lockedWorkerId }) {
+function NewTicketForm({ onSave, onClose, workers, vehicleTypes, lockedWorkerId, canAdmin, defaultDate }) {
   const [form, setForm] = useState({
-    date:          todayISO(),
+    date:          defaultDate || todayISO(),
     worker_id:     lockedWorkerId || '',
     price_charged: '',
     vehicle_type:  '',
@@ -139,6 +139,19 @@ function NewTicketForm({ onSave, onClose, workers, vehicleTypes, lockedWorkerId 
   return (
     <div className="flex flex-col h-full">
       <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-5 pt-2">
+
+        {/* Fecha (solo admin) */}
+        {canAdmin && (
+          <div>
+            <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-2">Fecha del ticket</p>
+            <input type="date" className="input" value={form.date}
+              max={todayISO()}
+              onChange={e => setForm(f => ({ ...f, date: e.target.value }))} />
+            {form.date !== todayISO() && (
+              <p className="text-xs text-amber-500 mt-1">⚠ Registrando en fecha pasada: {form.date.split('-').reverse().join('/')}</p>
+            )}
+          </div>
+        )}
 
         {/* Foto placa */}
         <div>
@@ -1219,6 +1232,8 @@ export default function Registro() {
           workers={workers}
           vehicleTypes={vehicleTypes}
           lockedWorkerId={(isAdmin || isDemo) ? null : profile?.worker_id}
+          canAdmin={canAdmin}
+          defaultDate={selectedDate}
         />
       </BottomSheet>
 

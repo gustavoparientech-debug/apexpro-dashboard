@@ -18,10 +18,13 @@ export default function Historial() {
       const prefix = `${y}-${String(m).padStart(2, '0')}`
       const isCurrent = m === month && y === year
 
+      const mt = tickets.filter(t => t.date?.startsWith(prefix) && t.status !== 'abierto')
+      const ms = dailySummaries.filter(d => d.date?.startsWith(prefix))
+      const hasRealData = mt.length > 0 || ms.length > 0
+
       let income, cars, payroll
-      if (isCurrent) {
-        const mt = tickets.filter(t => t.date?.startsWith(prefix) && t.status !== 'abierto')
-        income = mt.reduce((s, t) => s + t.price_charged, 0) + dailySummaries.filter(d => d.date?.startsWith(prefix)).reduce((s, d) => s + d.total_income, 0)
+      if (isCurrent || hasRealData) {
+        income = mt.reduce((s, t) => s + t.price_charged, 0) + ms.reduce((s, d) => s + d.total_income, 0)
         cars = mt.length
         payroll = workers.filter(w => w.active).reduce((s, w) => {
           const real = calcRealSalary(w.base_salary, w.weekly_hours)
@@ -29,10 +32,9 @@ export default function Historial() {
           return s + real - disc
         }, 0)
       } else {
-        const base = 11000 + Math.sin(m) * 2000
-        income = Math.round(base + (Math.random() - 0.3) * 3000)
-        cars = Math.round(income / 180)
-        payroll = workers.filter(w => w.active).reduce((s, w) => s + calcRealSalary(w.base_salary, w.weekly_hours), 0) * (0.95 + Math.random() * 0.1)
+        income = 0
+        cars = 0
+        payroll = 0
       }
 
       const rent = monthlyCosts?.rent || 2700
@@ -51,12 +53,13 @@ export default function Historial() {
         bestWorker = workers.find(w => w.id === bestId)
       }
 
-      months.push({ month: m, year: y, income, cars, payroll, costs, goal, netProfit, goalMet: income >= goal, bestWorker })
+      months.push({ month: m, year: y, income, cars, payroll, costs, goal, netProfit, goalMet: income >= goal, bestWorker, hasRealData: isCurrent || hasRealData })
     }
     return months
   }, [tickets, dailySummaries, workers, incidents, monthlyCosts, month, year])
 
-  const chartData = historial.map(h => ({
+  // Solo graficar meses con datos reales
+  const chartData = historial.filter(h => h.hasRealData).map(h => ({
     name: `${monthName(h.month).slice(0, 3)} ${h.year}`,
     ingresos: h.income, meta: h.goal, ganancia: h.netProfit,
   }))
@@ -86,8 +89,8 @@ export default function Historial() {
         {[...historial].reverse().map((h, i) => {
           const originalIndex = historial.length - 1 - i
           return (
-            <button key={`${h.year}-${h.month}`} onClick={() => setSelectedMonth(selectedMonth === originalIndex ? null : originalIndex)}
-              className={`w-full card text-left transition-all ${selectedMonth === originalIndex ? 'ring-2 ring-red-600' : 'hover:border-red-200 dark:hover:border-red-800'}`}>
+            <button key={`${h.year}-${h.month}`} onClick={() => h.hasRealData && setSelectedMonth(selectedMonth === originalIndex ? null : originalIndex)}
+              className={`w-full card text-left transition-all ${!h.hasRealData ? 'opacity-40 cursor-default' : selectedMonth === originalIndex ? 'ring-2 ring-red-600' : 'hover:border-red-200 dark:hover:border-red-800'}`}>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
@@ -95,20 +98,25 @@ export default function Historial() {
                   </div>
                   <div>
                     <p className="font-semibold text-gray-900 dark:text-white">{monthName(h.month)} {h.year}</p>
-                    <p className="text-xs text-gray-500">{h.cars} vehículos · {formatMoney(h.income)}</p>
+                    {h.hasRealData
+                      ? <p className="text-xs text-gray-500">{h.cars} vehículos · {formatMoney(h.income)}</p>
+                      : <p className="text-xs text-gray-400 italic">Sin datos registrados</p>
+                    }
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <div className="text-right">
-                    <p className={`text-sm font-semibold ${h.netProfit >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-500'}`}>
-                      {h.netProfit >= 0 ? '+' : ''}{formatMoney(h.netProfit)}
-                    </p>
-                    <p className="text-xs text-gray-400">utilidad</p>
+                {h.hasRealData && (
+                  <div className="flex items-center gap-3">
+                    <div className="text-right">
+                      <p className={`text-sm font-semibold ${h.netProfit >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-500'}`}>
+                        {h.netProfit >= 0 ? '+' : ''}{formatMoney(h.netProfit)}
+                      </p>
+                      <p className="text-xs text-gray-400">utilidad</p>
+                    </div>
+                    <Badge variant={h.goalMet ? 'verde' : 'rojo'}>{h.goalMet ? '✓ Meta' : '✗ Meta'}</Badge>
                   </div>
-                  <Badge variant={h.goalMet ? 'verde' : 'rojo'}>{h.goalMet ? '✓ Meta' : '✗ Meta'}</Badge>
-                </div>
+                )}
               </div>
-              {selectedMonth === originalIndex && (
+              {h.hasRealData && selectedMonth === originalIndex && (
                 <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-800 grid grid-cols-2 sm:grid-cols-4 gap-4" onClick={e => e.stopPropagation()}>
                   <div><p className="text-xs text-gray-500">Ingresos brutos</p><p className="font-bold text-gray-900 dark:text-white">{formatMoney(h.income)}</p></div>
                   <div><p className="text-xs text-gray-500">Gastos totales</p><p className="font-bold text-gray-900 dark:text-white">{formatMoney(h.costs)}</p></div>

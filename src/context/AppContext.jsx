@@ -353,8 +353,13 @@ export function AppProvider({ children }) {
       return updated
     }
     // Separar campos que pueden no existir en DB aún
-    const { extras, opened_at, status, ...basicData } = data
-    const newCols = { ...(extras !== undefined && { extras }), ...(opened_at !== undefined && { opened_at }), ...(status !== undefined && { status }) }
+    const { extras, opened_at, closed_at, status, ...basicData } = data
+    const newCols = {
+      ...(extras     !== undefined && { extras }),
+      ...(opened_at  !== undefined && { opened_at }),
+      ...(closed_at  !== undefined && { closed_at }),
+      ...(status     !== undefined && { status }),
+    }
 
     // Intentar update completo primero
     const { data: t, error } = await supabase.from('tickets').update(data).eq('id', id).select().single()

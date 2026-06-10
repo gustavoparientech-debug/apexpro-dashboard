@@ -11,9 +11,9 @@ import {
 
 // ─── Defaults del negocio ────────────────────────────────────────────────────
 const DEFAULTS = [
-  { id: 'autos',         label: 'Lavado auto',       qty: 25, price: 70,   color: 'blue',   catKey: 'basico',        isWash: true },
-  { id: 'suvs',          label: 'Lavado SUV',         qty: 30, price: 95,   color: 'blue',   catKey: 'basico',        isWash: true },
-  { id: 'offroads',      label: 'Offroad / Pickup',   qty: 35, price: 55,   color: 'orange', catKey: 'offroad',       isWash: true },
+  { id: 'autos',         label: 'Lavado auto',       qty: 25, price: 70,   color: 'blue',   catKey: 'basico',        isWash: true,  vehicleTypes: ['auto', 'auto_exterior', 'moto'] },
+  { id: 'suvs',          label: 'Lavado SUV',         qty: 30, price: 95,   color: 'blue',   catKey: 'basico',        isWash: true,  vehicleTypes: ['camioneta_small'] },
+  { id: 'offroads',      label: 'Offroad / Pickup',   qty: 35, price: 55,   color: 'orange', catKey: 'offroad',       isWash: true,  vehicleTypes: ['camioneta_large', 'offroad', 'otro'] },
   { id: 'detallados',    label: 'Detallado',           qty: 5,  price: 350,  color: 'purple', catKey: 'detallado',     isWash: false },
   { id: 'ceramicos',     label: 'Cerámico',            qty: 2,  price: 600,  color: 'red',    catKey: 'ceramico',      isWash: false },
   { id: 'abrillantados', label: 'Abrillantado',        qty: 4,  price: 130,  color: 'yellow', catKey: 'abrillantado',  isWash: false },
@@ -38,7 +38,14 @@ const COLOR = {
 function loadItems() {
   try {
     const raw = localStorage.getItem('mix_items_v2')
-    if (raw) return JSON.parse(raw)
+    if (raw) {
+      const saved = JSON.parse(raw)
+      // Merge vehicleTypes from DEFAULTS so old saved configs get the new field
+      return saved.map(item => {
+        const def = DEFAULTS.find(d => d.id === item.id)
+        return def?.vehicleTypes ? { ...item, vehicleTypes: def.vehicleTypes } : item
+      })
+    }
   } catch {}
   return DEFAULTS.map(d => ({ ...d }))
 }
@@ -327,29 +334,42 @@ export default function Mix() {
     const daysElapsed = getWorkingDaysElapsed(year, month)
     const daysLeft    = getWorkingDaysRemaining(year, month)
 
-    // ── Conteo real del mes por catKey ───────────────────────────────────────
-    const cntByCat = {}
+    // ── Conteo real del mes ──────────────────────────────────────────────────
+    // Construir mapa vehicle_type → item id para lavados
+    const vtToItemId = {}
+    items.filter(i => i.isWash && i.vehicleTypes?.length).forEach(item => {
+      item.vehicleTypes.forEach(vt => { vtToItemId[vt] = item.id })
+    })
+
+    const cntByItemId = {}  // lavados contados por vehicle_type
+    const incByItemId = {}
+    const cntByCat = {}     // servicios premium contados por categoría
     const incByCat = {}
+
     mTickets.forEach(t => {
-      const svc = services.find(s => s.id === t.service_id)
-      const cat = svc?.category || 'basico'
-      cntByCat[cat] = (cntByCat[cat] || 0) + 1
-      incByCat[cat] = (incByCat[cat] || 0) + (t.price_charged || 0)
+      const svc = t.service_id ? services.find(s => s.id === t.service_id) : null
+      const isPremium = svc && !['basico', 'offroad'].includes(svc.category)
+      if (isPremium) {
+        cntByCat[svc.category] = (cntByCat[svc.category] || 0) + 1
+        incByCat[svc.category] = (incByCat[svc.category] || 0) + (t.price_charged || 0)
+      } else {
+        const vt = t.vehicle_type || 'auto'
+        const itemId = vtToItemId[vt] || 'autos'
+        cntByItemId[itemId] = (cntByItemId[itemId] || 0) + 1
+        incByItemId[itemId] = (incByItemId[itemId] || 0) + (t.price_charged || 0)
+      }
     })
 
     // ── Composición del mes por ítem configurado ─────────────────────────────
-    // Para lavados (wash): distribuir en proporción a los totales configurados
-    const washItems   = items.filter(i => i.isWash)
+    const washItems    = items.filter(i => i.isWash)
     const nonWashItems = items.filter(i => !i.isWash)
-    const totalWashes  = (cntByCat['basico'] || 0) + (cntByCat['offroad'] || 0)
-    const totalWashQty = washItems.reduce((s, i) => s + (i.qty || 0), 0)
+    const totalWashes  = washItems.reduce((s, i) => s + (cntByItemId[i.id] || 0), 0)
 
     const composition = items.map(item => {
       let actual, income
       if (item.isWash) {
-        const ratio = totalWashQty > 0 ? (item.qty / totalWashQty) : 0
-        actual = Math.round(totalWashes * ratio)
-        income = actual * item.price
+        actual = cntByItemId[item.id] || 0
+        income = incByItemId[item.id] || actual * item.price
       } else {
         actual = cntByCat[item.catKey] || 0
         income = incByCat[item.catKey] || actual * item.price
@@ -366,9 +386,9 @@ export default function Mix() {
     const wash    = composition.filter(i => i.isWash)
 
     // -- Propuesta 1: Solo volumen de lavados --
+    const totalWashQty  = washItems.reduce((s, i) => s + (i.qty || 0), 0)
     const washPriceAvg  = washItems.reduce((s, i) => s + i.price * i.qty, 0) / Math.max(1, totalWashQty)
     const extraWash1    = gap > 0 ? Math.ceil(gap / washPriceAvg) : 0
-    // Distribuir extra en proporciones iguales a las configuradas
     const vol1Items = washItems.map(wi => {
       const ratio = totalWashQty > 0 ? wi.qty / totalWashQty : 1 / washItems.length
       const qty   = gap > 0 ? Math.ceil(extraWash1 * ratio) : 0

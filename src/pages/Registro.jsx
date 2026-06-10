@@ -4,7 +4,7 @@ import { useApp } from '../context/AppContext'
 import { useAuth } from '../context/AuthContext'
 import { formatMoney, todayISO } from '../lib/utils'
 import ConfirmDialog from '../components/ui/ConfirmDialog'
-import { Plus, Camera, Search, X, Clock, CheckCircle, Trash2, PenLine, Zap, Save, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Plus, Camera, Search, X, Clock, CheckCircle, Trash2, PenLine, Zap, Save, ChevronLeft, ChevronRight, Eye } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 const PAYMENT_OPTIONS = [
@@ -306,6 +306,7 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
       status:        'cerrado',
       price_charged: total,
       extras,
+      closed_at:     new Date().toISOString(),
     })
     toast.success('Ticket cerrado')
     onClose()
@@ -528,56 +529,240 @@ function ActiveTicketCard({ ticket, workers, vehicleTypes, onClick }) {
   )
 }
 
+// ─── Duración de servicio ─────────────────────────────────────────────────────
+function serviceDuration(ticket) {
+  const start = ticket.opened_at ? new Date(ticket.opened_at) : null
+  const end   = ticket.closed_at ? new Date(ticket.closed_at) : null
+  if (!start || !end || end <= start) return null
+  const totalSecs = Math.round((end - start) / 1000)
+  if (totalSecs < 5) return null
+  if (totalSecs < 60) return `${totalSecs}s`
+  const mins = Math.floor(totalSecs / 60)
+  if (mins < 60) return `${mins} min`
+  const h = Math.floor(mins / 60)
+  const m = mins % 60
+  return m > 0 ? `${h}h ${m}min` : `${h}h`
+}
+
 // ─── Tarjeta ticket cerrado ───────────────────────────────────────────────────
-function ClosedTicketCard({ ticket, workers, vehicleTypes, onDelete, onEdit }) {
+function ClosedTicketCard({ ticket, workers, vehicleTypes, onDelete, onEdit, onSummary }) {
   const worker  = workers.find(w => w.id === ticket.worker_id)
   const vehicle = (vehicleTypes || []).find(v => v.value === ticket.vehicle_type)
   const extras  = ticket.extras || []
   const [deleteConfirm, setDeleteConfirm] = useState(false)
 
-  const createdAt = ticket.created_at ? new Date(ticket.created_at) : null
-  const timeStr   = createdAt ? createdAt.toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' }) : ''
+  const closedAt  = ticket.closed_at  ? new Date(ticket.closed_at)  : (ticket.created_at ? new Date(ticket.created_at) : null)
+  const timeStr   = closedAt ? closedAt.toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' }) : ''
+  const duration  = serviceDuration(ticket)
 
   return (
-    <div className="card flex items-start gap-3 border-l-4 border-l-green-400">
-      {ticket.photo_url ? (
-        <img src={ticket.photo_url} alt="placa" className="w-12 h-12 object-cover rounded-xl flex-none" />
-      ) : (
-        <div className="w-12 h-12 bg-gray-100 dark:bg-gray-800 rounded-xl flex-none flex items-center justify-center text-xl">
-          {vehicle?.emoji || '🚗'}
-        </div>
-      )}
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 mb-0.5">
-          <span className="font-mono font-bold text-gray-900 dark:text-white text-sm">{ticket.plate || 'Sin placa'}</span>
-          <span className="text-xs bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-1.5 py-0.5 rounded-full">Cerrado</span>
-        </div>
-        <p className="text-xs text-gray-500">{vehicle?.label || ticket.vehicle_type} · {worker?.name || '—'}</p>
-        {extras.length > 0 && (
-          <p className="text-xs text-gray-400">{extras.map(e => e.name).join(', ')}</p>
+    <>
+      <div className="card flex items-start gap-3 border-l-4 border-l-green-400 cursor-pointer active:scale-[0.99] transition-all"
+        onClick={() => onSummary?.(ticket)}>
+        {ticket.photo_url ? (
+          <img src={ticket.photo_url} alt="placa" className="w-12 h-12 object-cover rounded-xl flex-none" />
+        ) : (
+          <div className="w-12 h-12 bg-gray-100 dark:bg-gray-800 rounded-xl flex-none flex items-center justify-center text-xl">
+            {vehicle?.emoji || '🚗'}
+          </div>
         )}
-      </div>
-      <div className="flex items-start gap-1.5 flex-none">
-        <div className="text-right mr-1">
-          {timeStr && <p className="text-xs text-gray-400">{timeStr}</p>}
-          <p className="font-bold text-red-600 text-sm">{formatMoney(ticket.price_charged)}</p>
-          <p className="text-xs text-gray-400">{PAYMENT_LABELS[ticket.payment_method]?.split(' ')[1] || ticket.payment_method}</p>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-0.5">
+            <span className="font-mono font-bold text-gray-900 dark:text-white text-sm">{ticket.plate || 'Sin placa'}</span>
+            <span className="text-xs bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-1.5 py-0.5 rounded-full">Cerrado</span>
+          </div>
+          <p className="text-xs text-gray-500">{vehicle?.label || ticket.vehicle_type} · {worker?.name || '—'}</p>
+          {extras.length > 0 && (
+            <p className="text-xs text-gray-400">{extras.map(e => e.name).join(', ')}</p>
+          )}
         </div>
-        {onEdit && (
-          <button onClick={() => onEdit(ticket)}
-            className="p-1.5 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg mt-0.5">
-            <PenLine className="w-3.5 h-3.5 text-blue-400" />
+        <div className="flex items-start gap-1.5 flex-none">
+          <div className="text-right mr-1">
+            {duration
+              ? <p className="text-xs font-semibold text-blue-500 dark:text-blue-400">⏱ {duration}</p>
+              : timeStr && <p className="text-xs text-gray-400">{timeStr}</p>
+            }
+            <p className="font-bold text-red-600 text-sm">{formatMoney(ticket.price_charged)}</p>
+            <p className="text-xs text-gray-400">{PAYMENT_LABELS[ticket.payment_method]?.split(' ')[1] || ticket.payment_method}</p>
+          </div>
+          {onSummary && (
+            <button onClick={e => { e.stopPropagation(); onSummary(ticket) }}
+              className="p-1.5 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg mt-0.5">
+              <Eye className="w-3.5 h-3.5 text-green-500" />
+            </button>
+          )}
+          {onEdit && (
+            <button onClick={e => { e.stopPropagation(); onEdit(ticket) }}
+              className="p-1.5 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg mt-0.5">
+              <PenLine className="w-3.5 h-3.5 text-blue-400" />
+            </button>
+          )}
+          <button onClick={e => { e.stopPropagation(); setDeleteConfirm(true) }}
+            className="p-1.5 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg mt-0.5">
+            <Trash2 className="w-3.5 h-3.5 text-red-400" />
           </button>
-        )}
-        <button onClick={() => setDeleteConfirm(true)}
-          className="p-1.5 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg mt-0.5">
-          <Trash2 className="w-3.5 h-3.5 text-red-400" />
-        </button>
+        </div>
       </div>
       <ConfirmDialog open={deleteConfirm} onClose={() => setDeleteConfirm(false)}
         onConfirm={() => onDelete(ticket.id)}
         title="¿Eliminar registro?" message="Esta acción no se puede deshacer."
         confirmLabel="Eliminar" />
+    </>
+  )
+}
+
+// ─── Modal resumen ticket cerrado ────────────────────────────────────────────
+function TicketSummaryModal({ ticket, workers, vehicleTypes, onClose }) {
+  const worker  = workers.find(w => w.id === ticket.worker_id)
+  const vehicle = (vehicleTypes || []).find(v => v.value === ticket.vehicle_type)
+  const extras  = ticket.extras || []
+  const extrasTotal = extras.reduce((s, e) => s + (e.price || 0), 0)
+  const basePrice   = Math.max(0, (ticket.price_charged || 0) - extrasTotal)
+  const duration    = serviceDuration(ticket)
+  const closedDate  = ticket.closed_at
+    ? new Date(ticket.closed_at).toLocaleString('es-PE', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' })
+    : ticket.date
+
+  function shareWhatsApp() {
+    const lines = [
+      `🚗 *Apex Pro Detailing*`,
+      `Placa: *${ticket.plate || 'Sin placa'}*`,
+      `Vehículo: ${vehicle?.label || ticket.vehicle_type}`,
+      `Técnico: ${worker?.name || '—'}`,
+      ``,
+      `📋 *Detalle:*`,
+      basePrice > 0 ? `Lavado: ${formatMoney(basePrice)}` : null,
+      ...extras.map(e => `${e.name}: ${formatMoney(e.price || 0)}`),
+      ``,
+      `💰 *Total: ${formatMoney(ticket.price_charged)}*`,
+      `Pago: ${PAYMENT_LABELS[ticket.payment_method] || ticket.payment_method || '—'}`,
+      duration ? `⏱ Duración: ${duration}` : null,
+      ``,
+      `¡Gracias por preferirnos! 🙌`,
+    ].filter(v => v !== null).join('\n')
+    window.open(`https://wa.me/?text=${encodeURIComponent(lines)}`, '_blank')
+  }
+
+  async function downloadPDF() {
+    const { jsPDF } = await import('jspdf')
+    const doc = new jsPDF({ format: [80, 160], unit: 'mm' })
+    const lm = 8, rm = 72, mid = 40
+    let y = 10
+
+    // Header
+    doc.setFontSize(14).setFont(undefined, 'bold')
+    doc.text('Apex Pro Detailing', mid, y, { align: 'center' }); y += 6
+    doc.setFontSize(8).setFont(undefined, 'normal')
+    doc.text(closedDate, mid, y, { align: 'center' }); y += 5
+    doc.setLineWidth(0.3).line(lm, y, rm, y); y += 4
+
+    // Placa + vehículo
+    doc.setFontSize(11).setFont(undefined, 'bold')
+    doc.text(ticket.plate || 'Sin placa', mid, y, { align: 'center' }); y += 5
+    doc.setFontSize(8).setFont(undefined, 'normal')
+    doc.text(`${vehicle?.label || ticket.vehicle_type} · ${worker?.name || '—'}`, mid, y, { align: 'center' }); y += 5
+    doc.line(lm, y, rm, y); y += 4
+
+    // Detalle servicios
+    doc.setFontSize(8)
+    if (basePrice > 0) {
+      doc.text('Lavado', lm, y)
+      doc.text(formatMoney(basePrice), rm, y, { align: 'right' }); y += 5
+    }
+    extras.forEach(e => {
+      doc.text(e.name || 'Extra', lm, y)
+      doc.text(formatMoney(e.price || 0), rm, y, { align: 'right' }); y += 5
+    })
+    doc.line(lm, y, rm, y); y += 4
+
+    // Total
+    doc.setFontSize(10).setFont(undefined, 'bold')
+    doc.text('TOTAL', lm, y)
+    doc.text(formatMoney(ticket.price_charged), rm, y, { align: 'right' }); y += 5
+    doc.setFontSize(8).setFont(undefined, 'normal')
+    doc.text(`Pago: ${PAYMENT_LABELS[ticket.payment_method] || ticket.payment_method || '—'}`, lm, y); y += 5
+    if (duration) { doc.text(`Duración: ${duration}`, lm, y); y += 5 }
+
+    doc.line(lm, y, rm, y); y += 4
+    doc.setFontSize(7).text('¡Gracias por preferirnos!', mid, y, { align: 'center' })
+
+    doc.save(`ticket_${ticket.plate || 'apex'}.pdf`)
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-white dark:bg-gray-900 rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden">
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-gray-800">
+          <span className="font-mono font-black text-xl text-gray-900 dark:text-white">{ticket.plate || 'Sin placa'}</span>
+          <div className="flex items-center gap-2">
+            <button onClick={shareWhatsApp}
+              className="flex items-center gap-1.5 bg-green-500 hover:bg-green-600 text-white text-xs font-bold px-3 py-1.5 rounded-full transition-colors">
+              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.106.546 4.083 1.502 5.808L0 24l6.342-1.486A11.945 11.945 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.818a9.818 9.818 0 01-5.003-1.366l-.36-.213-3.767.883.921-3.669-.234-.377A9.818 9.818 0 112.182 12 9.818 9.818 0 0112 21.818z"/></svg>
+              WhatsApp
+            </button>
+            <button onClick={downloadPDF}
+              className="flex items-center gap-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-bold px-3 py-1.5 rounded-full transition-colors">
+              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+              PDF
+            </button>
+            <button onClick={onClose} className="p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800">
+              <X className="w-4 h-4 text-gray-500" />
+            </button>
+          </div>
+        </div>
+
+        {/* Foto */}
+        {ticket.photo_url && (
+          <img src={ticket.photo_url} alt="vehículo" className="w-full h-40 object-cover" />
+        )}
+
+        {/* Info */}
+        <div className="px-5 py-4 space-y-0">
+          <p className="text-sm text-gray-500 mb-4">{worker?.name || '—'} · {vehicle?.label || ticket.vehicle_type}</p>
+
+          {/* Detalle servicios */}
+          <div className="space-y-2 text-sm">
+            {basePrice > 0 && (
+              <div className="flex justify-between">
+                <span className="text-gray-600 dark:text-gray-400">Lavado</span>
+                <span className="text-gray-900 dark:text-white">{formatMoney(basePrice)}</span>
+              </div>
+            )}
+            {extras.map((e, i) => (
+              <div key={i} className="flex justify-between">
+                <span className="text-gray-600 dark:text-gray-400">{e.name}</span>
+                <span className="text-gray-900 dark:text-white">{formatMoney(e.price || 0)}</span>
+              </div>
+            ))}
+            <div className="flex justify-between pt-2 border-t border-gray-100 dark:border-gray-800 font-bold">
+              <span className="text-gray-900 dark:text-white">Total</span>
+              <span className="text-red-600 text-base">{formatMoney(ticket.price_charged)}</span>
+            </div>
+          </div>
+
+          {/* Meta */}
+          <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-800 space-y-2 text-sm">
+            <div className="flex justify-between">
+              <span className="text-gray-500">Pago</span>
+              <span className="font-medium text-gray-900 dark:text-white">{PAYMENT_LABELS[ticket.payment_method] || ticket.payment_method || '—'}</span>
+            </div>
+            {duration && (
+              <div className="flex justify-between">
+                <span className="text-gray-500">Duración</span>
+                <span className="font-semibold text-blue-500">⏱ {duration}</span>
+              </div>
+            )}
+            {closedDate && (
+              <div className="flex justify-between">
+                <span className="text-gray-500">Cerrado</span>
+                <span className="text-gray-700 dark:text-gray-300 text-xs">{closedDate}</span>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
@@ -750,6 +935,7 @@ export default function Registro() {
   const [showQuickForm, setShowQuickForm]  = useState(false)
   const [activeTicket, setActiveTicket]    = useState(null)
   const [editingTicket, setEditingTicket]  = useState(null)
+  const [summaryTicket, setSummaryTicket]  = useState(null)
 
   const canAdmin = isAdmin || isDemo
 
@@ -771,9 +957,23 @@ export default function Registro() {
     [tickets]
   )
 
-  // Tickets cerrados del día seleccionado
+  // Tickets cerrados del día seleccionado — más reciente primero
   const closedToday = useMemo(
-    () => tickets.filter(t => (t.status === 'cerrado' || !t.status) && t.date === selectedDate),
+    () => {
+      const filtered = tickets.filter(t => (t.status === 'cerrado' || !t.status) && t.date === selectedDate)
+      // Si tienen closed_at (columna agregada en DB), ordenar por ese campo
+      const hasClosed = filtered.some(t => t.closed_at)
+      if (hasClosed) {
+        return [...filtered].sort((a, b) => {
+          const ta = a.closed_at ? new Date(a.closed_at).getTime() : 0
+          const tb = b.closed_at ? new Date(b.closed_at).getTime() : 0
+          return tb - ta
+        })
+      }
+      // Sin closed_at: invertir el orden actual (tickets array viene created_at DESC,
+      // el más reciente ya está primero — no hace falta re-ordenar)
+      return filtered
+    },
     [tickets, selectedDate]
   )
 
@@ -784,6 +984,23 @@ export default function Registro() {
     daySummaries.reduce((s, d) => s + d.total_income, 0),
     [closedToday, daySummaries]
   )
+
+  // Resumen por trabajador (tickets cerrados del día)
+  const workerDayStats = useMemo(() => {
+    const map = {}
+    closedToday.forEach(t => {
+      if (!t.worker_id) return
+      if (!map[t.worker_id]) map[t.worker_id] = { total: 0, extras: 0, byVehicle: {} }
+      map[t.worker_id].total += 1
+      map[t.worker_id].extras += (t.extras?.length || 0)
+      const vt = t.vehicle_type || 'otro'
+      map[t.worker_id].byVehicle[vt] = (map[t.worker_id].byVehicle[vt] || 0) + 1
+    })
+    return Object.entries(map)
+      .map(([wid, s]) => ({ worker: workers.find(w => w.id === wid), ...s }))
+      .filter(r => r.worker)
+      .sort((a, b) => b.total - a.total)
+  }, [closedToday, workers])
 
   async function handleSaveTicket(data) {
     try {
@@ -894,6 +1111,50 @@ export default function Registro() {
         <Plus className="w-5 h-5" /> Nuevo ticket
       </button>
 
+      {/* POR COLABORADOR */}
+      {workerDayStats.length > 0 && (
+        <div>
+          <h2 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-2">
+            Por colaborador
+          </h2>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            {workerDayStats.map(({ worker, total, extras, byVehicle }) => (
+              <div key={worker.id} className="card py-3 px-3 space-y-2">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center text-red-600 font-bold text-xs flex-none">
+                    {worker.name[0]}
+                  </div>
+                  <span className="font-semibold text-sm text-gray-900 dark:text-white truncate">{worker.name}</span>
+                </div>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-2xl font-black text-gray-900 dark:text-white">{total}</span>
+                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide leading-none">
+                    vehíc{total === 1 ? 'ulo' : 'ulos'}
+                  </span>
+                </div>
+                {/* Desglose por tipo */}
+                <div className="space-y-0.5">
+                  {Object.entries(byVehicle).map(([vt, cnt]) => {
+                    const vObj = (vehicleTypes || []).find(v => v.value === vt)
+                    return (
+                      <div key={vt} className="flex items-center justify-between">
+                        <span className="text-xs text-gray-500">{vObj ? `${vObj.emoji} ${vObj.label}` : vt}</span>
+                        <span className="text-xs font-bold text-gray-700 dark:text-gray-300">{cnt}</span>
+                      </div>
+                    )
+                  })}
+                </div>
+                {extras > 0 && (
+                  <span className="inline-block text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">
+                    +{extras} extra{extras > 1 ? 's' : ''}
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* TICKETS ACTIVOS */}
       <div>
         <div className="flex items-center gap-2 mb-2">
@@ -937,7 +1198,8 @@ export default function Registro() {
             {closedToday.map(t => (
               <ClosedTicketCard key={t.id} ticket={t} workers={workers} vehicleTypes={vehicleTypes}
                 onDelete={handleDeleteTicket}
-                onEdit={canAdmin ? (tk) => setEditingTicket(tk) : null} />
+                onEdit={canAdmin ? (tk) => setEditingTicket(tk) : null}
+                onSummary={(tk) => setSummaryTicket(tk)} />
             ))}
             {daySummaries.map(s => (
               <div key={s.id} className="card flex items-center gap-3 border-dashed">
@@ -996,6 +1258,16 @@ export default function Registro() {
       <BottomSheet open={showQuickForm} onClose={() => setShowQuickForm(false)} title="Ingreso rápido">
         <QuickSummaryForm onSave={handleSaveSummary} onClose={() => setShowQuickForm(false)} />
       </BottomSheet>
+
+      {/* Modal — Resumen ticket */}
+      {summaryTicket && (
+        <TicketSummaryModal
+          ticket={summaryTicket}
+          workers={workers}
+          vehicleTypes={vehicleTypes}
+          onClose={() => setSummaryTicket(null)}
+        />
+      )}
 
       {/* Modal — Editar ticket cerrado (admin) */}
       <Modal open={!!editingTicket} onClose={() => setEditingTicket(null)}

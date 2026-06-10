@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase'
 import { formatMoney, calcRealSalary, monthName, currentMonthYear } from '../lib/utils'
 import Badge from '../components/ui/Badge'
 import { Calendar } from 'lucide-react'
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Cell } from 'recharts'
 
 const IS_DEMO = !import.meta.env.VITE_SUPABASE_URL || import.meta.env.VITE_SUPABASE_URL === 'https://placeholder.supabase.co'
 
@@ -99,8 +99,10 @@ export default function Historial() {
   }, [tickets, dailySummaries, pastTickets, pastSummaries, workers, incidents, monthlyCosts, month, year])
 
   const chartData = historial.filter(h => h.hasRealData).map(h => ({
-    name: `${monthName(h.month).slice(0, 3)} ${h.year}`,
-    ingresos: h.income, meta: h.goal, ganancia: h.netProfit,
+    name: monthName(h.month).slice(0, 3),
+    ingresos: h.income,
+    meta: h.goal,
+    metMeta: h.income >= h.goal,
   }))
 
   return (
@@ -112,20 +114,37 @@ export default function Historial() {
 
       {chartData.length >= 2 && (
         <div className="card">
-          <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">Tendencia de ingresos</p>
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">Ingresos por mes</p>
+            <div className="flex items-center gap-4 text-xs text-gray-400">
+              <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-red-500 inline-block" /> Ingresos</span>
+              <span className="flex items-center gap-1.5"><span className="w-3 h-1 bg-gray-400 inline-block rounded" style={{borderTop:'2px dashed #9ca3af',height:0}} /> Meta</span>
+            </div>
+          </div>
           <div className="h-56">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={chartData} margin={{ top: 0, right: 0, left: -15, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" className="dark:opacity-20" />
-                <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                <YAxis tick={{ fontSize: 11 }} tickFormatter={v => `S/${(v/1000).toFixed(1)}k`} />
-                <Tooltip formatter={v => formatMoney(v)} />
-                <Line type="monotone" dataKey="ingresos" stroke="#dc2626" strokeWidth={2} dot={{ r: 4 }} name="Ingresos" />
-                <Line type="monotone" dataKey="meta"     stroke="#94a3b8" strokeWidth={1.5} strokeDasharray="5 5" dot={false} name="Meta" />
-                <Line type="monotone" dataKey="ganancia" stroke="#22c55e" strokeWidth={2} dot={{ r: 3 }} name="Ganancia neta" />
-              </LineChart>
+              <BarChart data={chartData} margin={{ top: 8, right: 8, left: -10, bottom: 0 }} barSize={36}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
+                <XAxis dataKey="name" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 11 }} tickFormatter={v => `S/${(v/1000).toFixed(0)}k`} axisLine={false} tickLine={false} domain={[0, 'dataMax + 500']} />
+                <Tooltip
+                  formatter={(v, name) => [formatMoney(v), name === 'ingresos' ? 'Ingresos' : 'Meta']}
+                  contentStyle={{ borderRadius: 10, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.12)' }}
+                />
+                <ReferenceLine
+                  y={chartData[chartData.length - 1]?.meta}
+                  stroke="#94a3b8" strokeDasharray="6 4" strokeWidth={1.5}
+                  label={{ value: `Meta S/${Math.round((chartData[chartData.length-1]?.meta||0)/1000)}k`, position: 'insideTopRight', fontSize: 10, fill: '#94a3b8' }}
+                />
+                <Bar dataKey="ingresos" radius={[6, 6, 0, 0]} name="ingresos">
+                  {chartData.map((entry, i) => (
+                    <Cell key={i} fill={entry.metMeta ? '#22c55e' : '#dc2626'} fillOpacity={0.85} />
+                  ))}
+                </Bar>
+              </BarChart>
             </ResponsiveContainer>
           </div>
+          <p className="text-xs text-gray-400 mt-2 text-center">Verde = meta alcanzada · Rojo = meta no alcanzada</p>
         </div>
       )}
 

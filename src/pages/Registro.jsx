@@ -122,7 +122,7 @@ function NewTicketForm({ onSave, onClose, workers, vehicleTypes, lockedWorkerId 
 
   const missing = []
   if (!form.plate || form.plate.length < 3) missing.push('placa válida')
-  if (!form.worker_id) missing.push('lavador')
+  if (!form.worker_id) missing.push('técnico')
 
   async function handleSubmit() {
     if (missing.length) { toast.error('Falta: ' + missing.join(' · ')); return }
@@ -203,9 +203,9 @@ function NewTicketForm({ onSave, onClose, workers, vehicleTypes, lockedWorkerId 
           )}
         </div>
 
-        {/* Lavador */}
+        {/* Técnico */}
         <div>
-          <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-2">Lavador</p>
+          <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-2">Técnico</p>
           <div className="grid grid-cols-2 gap-2">
             {activeWorkers.map(w => {
               const isLocked = !!lockedWorkerId && w.id !== lockedWorkerId

@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useApp } from '../context/AppContext'
 import {
   formatMoney, formatDate, getSemaforoColor, calcRealSalary, calcTicketProfit,
@@ -8,124 +8,208 @@ import {
 import StatCard from '../components/ui/StatCard'
 import Badge from '../components/ui/Badge'
 import {
-  TrendingUp, Car, DollarSign, AlertTriangle, CheckCircle, Clock,
-  CreditCard, Smartphone, Calendar, Target, Users, Award
+  TrendingUp, Car, DollarSign, AlertTriangle, Clock,
+  CreditCard, Smartphone, Calendar, Award, Trophy, Gift, Plus, Trash2, Banknote
 } from 'lucide-react'
-import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line
-} from 'recharts'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
+import toast from 'react-hot-toast'
+
+const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
 
 function ProgressBar({ percent, color }) {
   const bg = { verde: 'bg-green-500', amarillo: 'bg-yellow-500', rojo: 'bg-red-500' }
   const border = { verde: 'border-green-200 dark:border-green-900', amarillo: 'border-yellow-200 dark:border-yellow-900', rojo: 'border-red-200 dark:border-red-900' }
   return (
     <div className={`w-full bg-gray-100 dark:bg-gray-800 rounded-full h-3 overflow-hidden border ${border[color]}`}>
-      <div
-        className={`h-full rounded-full transition-all duration-700 ${bg[color]}`}
-        style={{ width: `${Math.min(100, percent)}%` }}
-      />
+      <div className={`h-full rounded-full transition-all duration-700 ${bg[color]}`} style={{ width: `${Math.min(100, percent)}%` }} />
+    </div>
+  )
+}
+
+function Row({ label, value }) {
+  return (
+    <div className="flex items-center justify-between py-2.5 border-b border-gray-100 dark:border-gray-800 last:border-0">
+      <span className="text-sm text-gray-600 dark:text-gray-400">{label}</span>
+      <span className="text-sm font-semibold text-gray-900 dark:text-white">{value}</span>
+    </div>
+  )
+}
+
+function BonusSection({ workers, bonuses, addBonus, deleteBonus, monthPrefix }) {
+  const [open, setOpen] = useState(false)
+  const [form, setForm] = useState({ worker_id: '', amount: '', reason: '' })
+  const [busy, setBusy] = useState(false)
+  const monthBonuses = bonuses.filter(b => b.date?.startsWith(monthPrefix))
+  const activeWorkers = workers.filter(w => w.active)
+  const totalBonuses = monthBonuses.reduce((s, b) => s + b.amount, 0)
+
+  async function handleAdd(e) {
+    e.preventDefault()
+    if (!form.worker_id || !form.amount) { toast.error('Selecciona trabajador y monto'); return }
+    setBusy(true)
+    try {
+      await addBonus({ worker_id: form.worker_id, amount: parseFloat(form.amount), reason: form.reason, date: `${monthPrefix}-01` })
+      toast.success('Bono registrado')
+      setForm({ worker_id: '', amount: '', reason: '' })
+      setOpen(false)
+    } catch (err) { toast.error('Error: ' + err.message) }
+    finally { setBusy(false) }
+  }
+
+  return (
+    <div className="card space-y-3">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Gift className="w-4 h-4 text-amber-500" />
+          <p className="text-sm font-bold text-gray-900 dark:text-white">Bonos del mes</p>
+          {totalBonuses > 0 && (
+            <span className="text-xs bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 px-2 py-0.5 rounded-full font-semibold">
+              {formatMoney(totalBonuses)}
+            </span>
+          )}
+        </div>
+        <button onClick={() => setOpen(v => !v)}
+          className="flex items-center gap-1 text-xs text-red-600 font-semibold px-3 py-1.5 rounded-xl bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors">
+          <Plus className="w-3.5 h-3.5" /> Agregar
+        </button>
+      </div>
+      {open && (
+        <form onSubmit={handleAdd} className="bg-gray-50 dark:bg-gray-800/50 rounded-xl p-3 space-y-3">
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="label text-xs">Trabajador</label>
+              <select className="input text-sm" value={form.worker_id} onChange={e => setForm(f => ({ ...f, worker_id: e.target.value }))} required>
+                <option value="">Seleccionar...</option>
+                {activeWorkers.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="label text-xs">Monto (S/)</label>
+              <input type="number" className="input text-sm" min="1" step="1" placeholder="50" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} required />
+            </div>
+          </div>
+          <div>
+            <label className="label text-xs">Motivo (opcional)</label>
+            <input type="text" className="input text-sm" placeholder="Ej: Mejor mes, puntualidad..." value={form.reason} onChange={e => setForm(f => ({ ...f, reason: e.target.value }))} />
+          </div>
+          <div className="flex gap-2">
+            <button type="button" className="btn-secondary flex-1 text-sm py-2" onClick={() => setOpen(false)}>Cancelar</button>
+            <button type="submit" disabled={busy} className="btn-primary flex-1 text-sm py-2">{busy ? '...' : 'Guardar bono'}</button>
+          </div>
+        </form>
+      )}
+      {monthBonuses.length === 0 && !open && <p className="text-xs text-gray-400 text-center py-2">Sin bonos este mes</p>}
+      {monthBonuses.map(b => {
+        const w = workers.find(wk => wk.id === b.worker_id)
+        return (
+          <div key={b.id} className="flex items-center gap-3 py-1">
+            <div className="w-7 h-7 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center text-amber-600 font-bold text-xs flex-none">
+              {w?.name?.[0] || '?'}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-gray-900 dark:text-white">{w?.name || 'Trabajador'}</p>
+              {b.reason && <p className="text-xs text-gray-400 truncate">{b.reason}</p>}
+            </div>
+            <span className="text-sm font-bold text-amber-600">+{formatMoney(b.amount)}</span>
+            <button onClick={() => deleteBonus(b.id)} className="p-1 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg">
+              <Trash2 className="w-3.5 h-3.5 text-red-400" />
+            </button>
+          </div>
+        )
+      })}
     </div>
   )
 }
 
 export default function Dashboard() {
-  const { tickets, dailySummaries, workers, services, incidents, monthlyCosts, loading } = useApp()
-  const { month, year } = currentMonthYear()
+  const { tickets, dailySummaries, workers, services, incidents, monthlyCosts, bonuses, addBonus, deleteBonus, loading } = useApp()
+  const { month: cm, year: cy } = currentMonthYear()
+  const [selMonth, setSelMonth] = useState(cm)
+  const [selYear,  setSelYear]  = useState(cy)
+  const isCurrentMonth = selMonth === cm && selYear === cy
+  const prefix = `${selYear}-${String(selMonth).padStart(2, '0')}`
 
   const data = useMemo(() => {
-    const workingDaysTotal = getWorkingDaysInMonth(year, month)
-    const workingDaysElapsed = getWorkingDaysElapsed(year, month)
-    const workingDaysRemaining = getWorkingDaysRemaining(year, month)
+    const periodTickets   = tickets.filter(t => t.date?.startsWith(prefix) && t.status !== 'abierto')
+    const periodSummaries = dailySummaries.filter(d => d.date?.startsWith(prefix))
 
-    // Ingresos de tickets
-    const ticketIncome = tickets.reduce((s, t) => s + (t.price_charged || 0), 0)
-    // Ingresos de registros rápidos
-    const summaryIncome = dailySummaries.reduce((s, d) => s + (d.total_income || 0), 0)
-    const totalIncome = ticketIncome + summaryIncome
+    const ticketIncome  = periodTickets.reduce((s, t) => s + (t.price_charged || 0), 0)
+    const summaryIncome = periodSummaries.reduce((s, d) => s + (d.total_income || 0), 0)
+    const totalIncome   = ticketIncome + summaryIncome
 
-    // Ganancia neta (por tickets con margen)
-    const netProfit = tickets.reduce((s, t) => {
+    const netProfit = periodTickets.reduce((s, t) => {
       const svc = services.find(sv => sv.id === t.service_id)
-      if (!svc) return s + t.price_charged * 0.65 // estimado si no hay servicio
-      return s + calcTicketProfit(t.price_charged, svc.margin_percent)
+      return s + (svc ? calcTicketProfit(t.price_charged, svc.margin_percent) : t.price_charged * 0.65)
     }, 0)
 
-    // Costos fijos
-    const rent = monthlyCosts?.rent || 2700
-    const supplies = monthlyCosts?.supplies || 800
+    const rent        = monthlyCosts?.rent     || 0
+    const supplies    = monthlyCosts?.supplies || 0
     const utilityGoal = monthlyCosts?.utility_goal || 2000
-
-    // Planilla real (con descuentos)
-    const payrollTotal = workers
-      .filter(w => w.active)
-      .reduce((s, w) => {
-        const realSalary = calcRealSalary(w.base_salary, w.weekly_hours)
-        const workerDiscounts = incidents
-          .filter(i => i.worker_id === w.id && i.apply_discount)
-          .reduce((d, i) => d + (i.discount_amount || 0), 0)
-        return s + realSalary - workerDiscounts
-      }, 0)
-
-    const totalCosts = rent + supplies + payrollTotal
-    const incomeGoal = totalCosts + utilityGoal
+    const payrollTotal = workers.filter(w => w.active).reduce((s, w) => {
+      const real = calcRealSalary(w.base_salary, w.weekly_hours)
+      const disc = incidents.filter(i => i.worker_id === w.id && i.apply_discount && i.date?.startsWith(prefix))
+        .reduce((d, i) => d + (i.discount_amount || 0), 0)
+      return s + real - disc
+    }, 0)
+    const monthBonusAmt = bonuses.filter(b => b.date?.startsWith(prefix)).reduce((s, b) => s + b.amount, 0)
+    const totalCosts  = rent + supplies + payrollTotal + monthBonusAmt
+    const incomeGoal  = totalCosts + utilityGoal
     const progressPct = incomeGoal > 0 ? (totalIncome / incomeGoal) * 100 : 0
-    const semaforo = getSemaforoColor(progressPct)
+    const semaforo    = getSemaforoColor(progressPct)
 
-    // Promedio diario
-    const avgDailyActual = workingDaysElapsed > 0 ? totalIncome / workingDaysElapsed : 0
-    const avgDailyNeeded = workingDaysRemaining > 0
-      ? (incomeGoal - totalIncome) / workingDaysRemaining
-      : 0
+    const workingDaysTotal    = getWorkingDaysInMonth(selYear, selMonth)
+    const workingDaysElapsed  = isCurrentMonth ? getWorkingDaysElapsed(selYear, selMonth) : workingDaysTotal
+    const workingDaysRemaining = isCurrentMonth ? getWorkingDaysRemaining(selYear, selMonth) : 0
+    const avgDailyActual  = workingDaysElapsed  > 0 ? totalIncome / workingDaysElapsed  : 0
+    const avgDailyNeeded  = workingDaysRemaining > 0 ? (incomeGoal - totalIncome) / workingDaysRemaining : 0
+    const totalCars = periodTickets.length
 
-    // Vehículos
-    const totalCars = tickets.length
+    const efectivo      = periodTickets.filter(t => t.payment_method === 'efectivo').reduce((s, t) => s + t.price_charged, 0)
+    const yape          = periodTickets.filter(t => t.payment_method === 'yape').reduce((s, t) => s + t.price_charged, 0)
+    const transferencia = periodTickets.filter(t => t.payment_method === 'transferencia').reduce((s, t) => s + t.price_charged, 0)
 
-    // Mejor día
     const byDate = {}
-    tickets.forEach(t => {
-      byDate[t.date] = (byDate[t.date] || 0) + t.price_charged
-    })
-    dailySummaries.forEach(d => {
-      byDate[d.date] = (byDate[d.date] || 0) + d.total_income
-    })
+    periodTickets.forEach(t => { byDate[t.date] = (byDate[t.date] || 0) + t.price_charged })
+    periodSummaries.forEach(d => { byDate[d.date] = (byDate[d.date] || 0) + d.total_income })
     const bestDay = Object.entries(byDate).sort((a, b) => b[1] - a[1])[0]
-
-    // Por método de cobro
-    const efectivo = tickets.filter(t => t.payment_method === 'efectivo').reduce((s, t) => s + t.price_charged, 0)
-    const yape = tickets.filter(t => t.payment_method === 'yape').reduce((s, t) => s + t.price_charged, 0)
-
-    // Alerta de ritmo
-    const projectedIncome = workingDaysTotal > 0 ? (totalIncome / workingDaysElapsed) * workingDaysTotal : 0
-    const onTrack = projectedIncome >= incomeGoal
-
-    // Ingresos por día (últimos 10 días con actividad)
-    const dailyData = Object.entries(byDate)
-      .sort((a, b) => a[0].localeCompare(b[0]))
-      .slice(-10)
+    const dailyData = Object.entries(byDate).sort((a, b) => a[0].localeCompare(b[0])).slice(-10)
       .map(([date, amount]) => ({ date: formatDate(date), amount }))
 
-    return {
-      totalIncome, netProfit, totalCosts, payrollTotal,
-      rent, supplies, utilityGoal, incomeGoal,
-      progressPct, semaforo, totalCars,
-      avgDailyActual, avgDailyNeeded,
-      workingDaysElapsed, workingDaysRemaining, workingDaysTotal,
-      bestDay, efectivo, yape, onTrack, projectedIncome, dailyData
-    }
-  }, [tickets, dailySummaries, workers, services, incidents, monthlyCosts, month, year])
+    const projectedIncome = workingDaysTotal > 0 && workingDaysElapsed > 0 ? (totalIncome / workingDaysElapsed) * workingDaysTotal : 0
+    const onTrack = projectedIncome >= incomeGoal
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500" />
-      </div>
-    )
-  }
+    // Ranking por trabajador
+    const workerMap = {}
+    periodTickets.forEach(t => {
+      if (!t.worker_id) return
+      if (!workerMap[t.worker_id]) workerMap[t.worker_id] = { income: 0, cars: 0 }
+      workerMap[t.worker_id].income += t.price_charged
+      workerMap[t.worker_id].cars   += 1
+    })
+    const workerRanking = Object.entries(workerMap)
+      .map(([id, s]) => ({ worker: workers.find(w => w.id === id), ...s }))
+      .filter(r => r.worker)
+      .sort((a, b) => b.income - a.income)
+
+    return {
+      totalIncome, netProfit, totalCosts, payrollTotal, rent, supplies, utilityGoal,
+      incomeGoal, progressPct, semaforo, totalCars, avgDailyActual, avgDailyNeeded,
+      workingDaysElapsed, workingDaysRemaining, workingDaysTotal,
+      bestDay, efectivo, yape, transferencia, onTrack, projectedIncome, dailyData,
+      workerRanking, monthBonusAmt,
+    }
+  }, [tickets, dailySummaries, workers, services, incidents, monthlyCosts, bonuses, prefix, selMonth, selYear, isCurrentMonth])
+
+  if (loading) return (
+    <div className="flex items-center justify-center h-64">
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-500" />
+    </div>
+  )
 
   const semaforoClass = {
-    verde: 'border-green-200 dark:border-green-900 bg-green-50 dark:bg-green-900/10',
+    verde:    'border-green-200 dark:border-green-900 bg-green-50 dark:bg-green-900/10',
     amarillo: 'border-yellow-200 dark:border-yellow-900 bg-yellow-50 dark:bg-yellow-900/10',
-    rojo: 'border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-900/10',
+    rojo:     'border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-900/10',
   }
   const semaforoText = {
     verde: 'text-green-700 dark:text-green-400',
@@ -134,183 +218,155 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-5 max-w-4xl mx-auto">
+
+      {/* Header + selector de mes */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Panel Principal</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400">{monthName(month)} {year}</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Panel</h1>
+          <p className="text-sm text-gray-500">{monthName(selMonth)} {selYear}</p>
         </div>
-        <Badge variant={data.semaforo}>
-          {data.semaforo === 'verde' ? '✓ En meta' : data.semaforo === 'amarillo' ? '⚠ En progreso' : '✗ Por debajo'}
-        </Badge>
+        <div className="flex items-center gap-2">
+          <select className="input text-sm py-1.5 w-36"
+            value={selMonth} onChange={e => setSelMonth(+e.target.value)}>
+            {MONTHS.map((m, i) => <option key={i+1} value={i+1}>{m}</option>)}
+          </select>
+          <select className="input text-sm py-1.5 w-24"
+            value={selYear} onChange={e => setSelYear(+e.target.value)}>
+            {[cy-1, cy, cy+1].map(y => <option key={y} value={y}>{y}</option>)}
+          </select>
+          <Badge variant={data.semaforo}>
+            {data.semaforo === 'verde' ? '✓ En meta' : data.semaforo === 'amarillo' ? '⚠ En progreso' : '✗ Por debajo'}
+          </Badge>
+        </div>
       </div>
 
-      {/* Alerta de ritmo */}
-      {!data.onTrack && data.workingDaysElapsed > 0 && (
+      {/* Alerta ritmo */}
+      {isCurrentMonth && !data.onTrack && data.workingDaysElapsed > 0 && (
         <div className="flex items-start gap-3 p-4 rounded-xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/10">
           <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
           <div>
             <p className="font-medium text-red-700 dark:text-red-400 text-sm">Ritmo insuficiente para alcanzar la meta</p>
             <p className="text-xs text-red-600 dark:text-red-500 mt-0.5">
-              Al ritmo actual se proyectan {formatMoney(data.projectedIncome)} — meta: {formatMoney(data.incomeGoal)}
+              Proyección: {formatMoney(data.projectedIncome)} — meta: {formatMoney(data.incomeGoal)}
             </p>
           </div>
         </div>
       )}
 
-      {/* Stats principales */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard
-          label="Ingresos del mes"
-          value={formatMoney(data.totalIncome)}
-          sub={`${data.totalCars} vehículos atendidos`}
-          icon={DollarSign}
-          color="orange"
-        />
-        <StatCard
-          label="Ganancia neta est."
-          value={formatMoney(data.netProfit)}
-          sub={`${data.totalIncome > 0 ? ((data.netProfit / data.totalIncome) * 100).toFixed(0) : 0}% del ingreso bruto`}
-          icon={TrendingUp}
-          color="green"
-        />
-        <StatCard
-          label="Total gastos fijos"
-          value={formatMoney(data.totalCosts)}
-          sub={`Planilla: ${formatMoney(data.payrollTotal)}`}
-          icon={CreditCard}
-          color="blue"
-        />
-        <StatCard
-          label="Vehículos"
-          value={data.totalCars}
-          sub={`Promedio: ${formatMoney(data.totalCars ? data.totalIncome / data.totalCars : 0)}/carro`}
-          icon={Car}
-          color="purple"
-        />
+      {/* KPIs */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <StatCard label="Ingresos del mes"   value={formatMoney(data.totalIncome)}  sub={`${data.totalCars} vehículos`} icon={DollarSign} color="orange" />
+        <StatCard label="Ganancia neta est." value={formatMoney(data.netProfit)}    sub={`${data.totalIncome > 0 ? ((data.netProfit/data.totalIncome)*100).toFixed(0) : 0}% del bruto`} icon={TrendingUp} color="green" />
+        <StatCard label="Total gastos"       value={formatMoney(data.totalCosts)}   sub={`Planilla: ${formatMoney(data.payrollTotal)}`} icon={CreditCard} color="blue" />
+        <StatCard label="Vehículos"          value={data.totalCars}                 sub={`Prom: ${formatMoney(data.totalCars ? data.totalIncome / data.totalCars : 0)}/carro`} icon={Car} color="purple" />
       </div>
 
-      {/* Barra de progreso hacia la meta */}
+      {/* Barra de progreso */}
       <div className={`card border-2 ${semaforoClass[data.semaforo]}`}>
         <div className="flex items-center justify-between mb-3">
           <div>
             <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Progreso hacia la meta mensual</p>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Meta: {formatMoney(data.incomeGoal)}</p>
+            <p className="text-xs text-gray-500 mt-0.5">Meta: {formatMoney(data.incomeGoal)}</p>
           </div>
-          <div className="text-right">
-            <p className={`text-2xl font-bold ${semaforoText[data.semaforo]}`}>{data.progressPct.toFixed(1)}%</p>
-            <p className="text-xs text-gray-500">{formatMoney(data.totalIncome)} / {formatMoney(data.incomeGoal)}</p>
-          </div>
+          <p className={`text-2xl font-bold ${semaforoText[data.semaforo]}`}>{data.progressPct.toFixed(1)}%</p>
         </div>
         <ProgressBar percent={data.progressPct} color={data.semaforo} />
-        <div className="flex items-center gap-2 mt-2">
-          <div className="w-2 h-2 rounded-full bg-gray-300 dark:bg-gray-600" />
-          <p className="text-xs text-gray-400">Faltan {formatMoney(Math.max(0, data.incomeGoal - data.totalIncome))}</p>
-        </div>
+        <p className="text-xs text-gray-400 mt-2">Faltan {formatMoney(Math.max(0, data.incomeGoal - data.totalIncome))}</p>
       </div>
 
-      {/* Promedios y días */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      {/* Estadísticas + mejor día */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         <div className="card">
           <div className="flex items-center gap-2 mb-3">
             <Clock className="w-4 h-4 text-red-500" />
-            <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">Promedios diarios</p>
+            <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">Promedios</p>
           </div>
           <div className="space-y-2">
-            <div className="flex justify-between items-center">
-              <span className="text-xs text-gray-500">Promedio actual/día</span>
-              <span className="font-semibold text-gray-900 dark:text-white text-sm">{formatMoney(data.avgDailyActual)}</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-xs text-gray-500">Necesario para cerrar</span>
-              <span className={`font-semibold text-sm ${data.avgDailyNeeded > data.avgDailyActual ? 'text-red-500' : 'text-green-500'}`}>
-                {formatMoney(data.avgDailyNeeded)}
-              </span>
-            </div>
+            <div className="flex justify-between"><span className="text-xs text-gray-500">Promedio actual/día</span><span className="font-semibold text-sm text-gray-900 dark:text-white">{formatMoney(data.avgDailyActual)}</span></div>
+            {isCurrentMonth && <div className="flex justify-between"><span className="text-xs text-gray-500">Necesario para cerrar</span><span className={`font-semibold text-sm ${data.avgDailyNeeded > data.avgDailyActual ? 'text-red-500' : 'text-green-500'}`}>{formatMoney(data.avgDailyNeeded)}</span></div>}
           </div>
         </div>
-
         <div className="card">
           <div className="flex items-center gap-2 mb-3">
             <Calendar className="w-4 h-4 text-blue-500" />
             <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">Días hábiles</p>
           </div>
           <div className="space-y-2">
-            <div className="flex justify-between items-center">
-              <span className="text-xs text-gray-500">Trabajados</span>
-              <span className="font-semibold text-gray-900 dark:text-white text-sm">{data.workingDaysElapsed} de {data.workingDaysTotal}</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-xs text-gray-500">Restantes</span>
-              <span className="font-semibold text-red-500 text-sm">{data.workingDaysRemaining} días</span>
-            </div>
+            <div className="flex justify-between"><span className="text-xs text-gray-500">Trabajados</span><span className="font-semibold text-sm text-gray-900 dark:text-white">{data.workingDaysElapsed} de {data.workingDaysTotal}</span></div>
+            {isCurrentMonth && <div className="flex justify-between"><span className="text-xs text-gray-500">Restantes</span><span className="font-semibold text-sm text-red-500">{data.workingDaysRemaining} días</span></div>}
           </div>
         </div>
-
         <div className="card">
           <div className="flex items-center gap-2 mb-3">
             <Award className="w-4 h-4 text-yellow-500" />
-            <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">Mejor día del mes</p>
+            <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">Mejor día</p>
           </div>
           {data.bestDay ? (
-            <div className="space-y-1">
+            <div>
               <p className="text-xl font-bold text-gray-900 dark:text-white">{formatMoney(data.bestDay[1])}</p>
-              <p className="text-xs text-gray-500">{formatDate(data.bestDay[0])}</p>
+              <p className="text-xs text-gray-500 mt-0.5">{formatDate(data.bestDay[0])}</p>
             </div>
-          ) : (
-            <p className="text-sm text-gray-400">Sin registros aún</p>
-          )}
+          ) : <p className="text-sm text-gray-400">Sin registros</p>}
         </div>
       </div>
 
       {/* Métodos de cobro */}
-      <div className="grid grid-cols-2 gap-4">
-        <div className="card flex items-center gap-4">
-          <div className="rounded-xl p-3 bg-green-50 dark:bg-green-900/20">
-            <DollarSign className="w-6 h-6 text-green-600" />
-          </div>
-          <div>
-            <p className="text-xs text-gray-500">Efectivo</p>
-            <p className="text-xl font-bold text-gray-900 dark:text-white">{formatMoney(data.efectivo)}</p>
-          </div>
+      <div className="grid grid-cols-3 gap-3">
+        <div className="card flex items-center gap-3">
+          <div className="rounded-xl p-2.5 bg-green-50 dark:bg-green-900/20"><Banknote className="w-5 h-5 text-green-600" /></div>
+          <div><p className="text-xs text-gray-500">Efectivo</p><p className="text-lg font-bold text-gray-900 dark:text-white">{formatMoney(data.efectivo)}</p></div>
         </div>
-        <div className="card flex items-center gap-4">
-          <div className="rounded-xl p-3 bg-purple-50 dark:bg-purple-900/20">
-            <Smartphone className="w-6 h-6 text-purple-600" />
-          </div>
-          <div>
-            <p className="text-xs text-gray-500">Yape</p>
-            <p className="text-xl font-bold text-gray-900 dark:text-white">{formatMoney(data.yape)}</p>
-          </div>
+        <div className="card flex items-center gap-3">
+          <div className="rounded-xl p-2.5 bg-purple-50 dark:bg-purple-900/20"><Smartphone className="w-5 h-5 text-purple-600" /></div>
+          <div><p className="text-xs text-gray-500">Yape</p><p className="text-lg font-bold text-gray-900 dark:text-white">{formatMoney(data.yape)}</p></div>
+        </div>
+        <div className="card flex items-center gap-3">
+          <div className="rounded-xl p-2.5 bg-blue-50 dark:bg-blue-900/20"><CreditCard className="w-5 h-5 text-blue-600" /></div>
+          <div><p className="text-xs text-gray-500">Transferencia</p><p className="text-lg font-bold text-gray-900 dark:text-white">{formatMoney(data.transferencia)}</p></div>
         </div>
       </div>
 
-      {/* Composición de costos */}
+      {/* Desglose gastos */}
       <div className="card">
-        <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">Composición de gastos fijos</p>
-        <div className="space-y-3">
-          {[
-            { label: 'Planilla (real)', value: data.payrollTotal, color: 'bg-red-400' },
-            { label: 'Alquiler', value: data.rent, color: 'bg-blue-400' },
-            { label: 'Insumos', value: data.supplies, color: 'bg-green-400' },
-          ].map(item => (
-            <div key={item.label} className="flex items-center gap-3">
-              <div className={`w-3 h-3 rounded-full flex-shrink-0 ${item.color}`} />
-              <span className="text-sm text-gray-600 dark:text-gray-400 flex-1">{item.label}</span>
-              <span className="text-sm font-semibold text-gray-900 dark:text-white">{formatMoney(item.value)}</span>
-              <span className="text-xs text-gray-400 w-12 text-right">
-                {data.totalCosts > 0 ? ((item.value / data.totalCosts) * 100).toFixed(0) : 0}%
-              </span>
-            </div>
-          ))}
-          <div className="pt-2 border-t border-gray-100 dark:border-gray-800 flex justify-between">
-            <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">Total + meta utilidad</span>
-            <span className="text-sm font-bold text-red-500">{formatMoney(data.incomeGoal)}</span>
-          </div>
+        <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Desglose de gastos</p>
+        <Row label="🏠 Alquiler" value={formatMoney(data.rent)} />
+        <Row label="🧴 Insumos"  value={formatMoney(data.supplies)} />
+        <Row label="👷 Planilla" value={formatMoney(data.payrollTotal)} />
+        {data.monthBonusAmt > 0 && <Row label="🎁 Bonos" value={formatMoney(data.monthBonusAmt)} />}
+        <div className="flex items-center justify-between pt-2 mt-1 border-t border-gray-100 dark:border-gray-800">
+          <span className="text-sm font-bold text-gray-700 dark:text-gray-300">Total gastos</span>
+          <span className="text-sm font-black text-red-600">{formatMoney(data.totalCosts)}</span>
         </div>
       </div>
 
-      {/* Gráfico de ingresos diarios */}
+      {/* Ranking trabajadores */}
+      {data.workerRanking.length > 0 && (
+        <div className="card">
+          <div className="flex items-center gap-2 mb-4">
+            <Trophy className="w-4 h-4 text-amber-500" />
+            <p className="text-sm font-bold text-gray-900 dark:text-white">Ranking de trabajadores</p>
+          </div>
+          <div className="space-y-3">
+            {data.workerRanking.map((r, i) => (
+              <div key={r.worker.id} className="flex items-center gap-3">
+                <span className={`w-6 text-center text-sm font-black ${i === 0 ? 'text-amber-500' : i === 1 ? 'text-gray-400' : i === 2 ? 'text-amber-700' : 'text-gray-400'}`}>{i + 1}</span>
+                <div className="w-8 h-8 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center text-red-600 font-bold text-xs flex-none">{r.worker.name[0]}</div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-gray-900 dark:text-white">{r.worker.name}</p>
+                  <p className="text-xs text-gray-400">{r.cars} vehículos · prom {formatMoney(r.cars > 0 ? r.income / r.cars : 0)}</p>
+                </div>
+                <p className="text-sm font-bold text-blue-600 dark:text-blue-400">{formatMoney(r.income)}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Bonos */}
+      <BonusSection workers={workers} bonuses={bonuses} addBonus={addBonus} deleteBonus={deleteBonus} monthPrefix={prefix} />
+
+      {/* Gráfico diario */}
       {data.dailyData.length > 0 && (
         <div className="card">
           <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">Ingresos por día</p>
@@ -320,8 +376,8 @@ export default function Dashboard() {
                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" className="dark:opacity-20" />
                 <XAxis dataKey="date" tick={{ fontSize: 11 }} />
                 <YAxis tick={{ fontSize: 11 }} tickFormatter={v => `S/${(v/1000).toFixed(1)}k`} />
-                <Tooltip formatter={v => formatMoney(v)} labelFormatter={l => `Fecha: ${l}`} />
-                <Bar dataKey="amount" fill="#f97316" radius={[4, 4, 0, 0]} name="Ingresos" />
+                <Tooltip formatter={v => formatMoney(v)} />
+                <Bar dataKey="amount" fill="#dc2626" radius={[4, 4, 0, 0]} name="Ingresos" />
               </BarChart>
             </ResponsiveContainer>
           </div>

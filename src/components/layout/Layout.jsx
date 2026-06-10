@@ -15,7 +15,7 @@ const ADMIN_NAV = [
   { to: '/nomina',        label: 'Nómina',    icon: Wallet },
   { to: '/mix',           label: 'Mix',       icon: TrendingUp },
   { to: '/configuracion', label: 'Config',    icon: Settings },
-  { to: '/historial',     label: 'Reportes',  icon: History },
+  { to: '/historial',     label: 'Historial', icon: History },
   { to: '/usuarios',      label: 'Usuarios',  icon: UserCog },
 ]
 

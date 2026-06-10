@@ -197,10 +197,15 @@ export function AppProvider({ children }) {
         supabase.from('tickets').select('*').gte('date', startDate).lte('date', endDate).order('date', { ascending: false }),
         supabase.from('daily_summary').select('*').gte('date', startDate).lte('date', endDate),
         supabase.from('attendance_incidents').select('*').gte('date', startDate).lte('date', endDate),
-        supabase.from('monthly_costs').select('*').eq('month', m).eq('year', y).single(),
+        supabase.from('monthly_costs').select('*').eq('month', m).eq('year', y).maybeSingle(),
       ])
 
-      const workersData      = workers.data || []
+      // Verificar errores individuales sin fallar todo
+      if (workers.error) console.warn('workers error:', workers.error.message)
+      if (services.error) console.warn('services error:', services.error.message)
+      if (tickets.error) console.warn('tickets error:', tickets.error.message)
+
+      const workersData       = workers.data || []
       const incidentsEnriched = (incidents.data || []).map(i => enrichIncident(i, workersData))
 
       initialLoadDone.current = true
@@ -213,6 +218,7 @@ export function AppProvider({ children }) {
         monthlyCosts:   costs.data || { month: m, year: y, rent: 2700, supplies: 800, utility_goal: 2000 },
       }})
     } catch (err) {
+      console.error('loadData error:', err)
       dispatch({ type: 'SET_ERROR', payload: err.message })
     }
   }, [])

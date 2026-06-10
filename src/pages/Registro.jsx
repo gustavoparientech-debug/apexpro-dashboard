@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
 import { useLocation } from 'react-router-dom'
 import { useApp } from '../context/AppContext'
+import { useAuth } from '../context/AuthContext'
 import { formatMoney, todayISO } from '../lib/utils'
 import ConfirmDialog from '../components/ui/ConfirmDialog'
 import { Plus, Camera, Search, X, Clock, CheckCircle, Trash2, PenLine, Zap, Save } from 'lucide-react'
@@ -84,10 +85,10 @@ function Modal({ open, onClose, title, children }) {
 }
 
 // ─── Formulario nuevo ticket (simplificado) ───────────────────────────────────
-function NewTicketForm({ onSave, onClose, workers, vehicleTypes }) {
+function NewTicketForm({ onSave, onClose, workers, vehicleTypes, lockedWorkerId }) {
   const [form, setForm] = useState({
     date:          todayISO(),
-    worker_id:     '',
+    worker_id:     lockedWorkerId || '',
     price_charged: '',
     vehicle_type:  '',
     notes:         '',
@@ -206,17 +207,28 @@ function NewTicketForm({ onSave, onClose, workers, vehicleTypes }) {
         <div>
           <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-2">Lavador</p>
           <div className="grid grid-cols-2 gap-2">
-            {activeWorkers.map(w => (
-              <button key={w.id} type="button" onClick={() => setForm(f => ({ ...f, worker_id: w.id }))}
-                className={`py-3 px-4 rounded-xl border text-sm font-medium transition-all ${
-                  form.worker_id === w.id
-                    ? 'border-red-500 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400'
-                    : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300'
-                }`}>
-                {w.name}
-              </button>
-            ))}
+            {activeWorkers.map(w => {
+              const isLocked = !!lockedWorkerId && w.id !== lockedWorkerId
+              const isSelected = form.worker_id === w.id
+              return (
+                <button key={w.id} type="button"
+                  onClick={() => !isLocked && setForm(f => ({ ...f, worker_id: w.id }))}
+                  disabled={isLocked}
+                  className={`py-3 px-4 rounded-xl border text-sm font-medium transition-all ${
+                    isSelected
+                      ? 'border-red-500 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400'
+                      : isLocked
+                        ? 'border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 text-gray-300 dark:text-gray-600 cursor-not-allowed opacity-50'
+                        : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300'
+                  }`}>
+                  {w.name}
+                </button>
+              )
+            })}
           </div>
+          {lockedWorkerId && (
+            <p className="text-xs text-gray-400 mt-1.5">Solo puedes crear tickets a tu nombre</p>
+          )}
         </div>
 
       </div>
@@ -605,6 +617,7 @@ export default function Registro() {
     tickets, dailySummaries, workers, vehicleTypes, extrasCatalog,
     addTicket, updateTicket, deleteTicket, addDailySummary, deleteDailySummary,
   } = useApp()
+  const { profile, isAdmin, isDemo } = useAuth()
 
   const location = useLocation()
   const [selectedDate, setSelectedDate]   = useState(todayISO())
@@ -759,6 +772,7 @@ export default function Registro() {
           onClose={() => setShowNewForm(false)}
           workers={workers}
           vehicleTypes={vehicleTypes}
+          lockedWorkerId={(isAdmin || isDemo) ? null : profile?.worker_id}
         />
       </BottomSheet>
 

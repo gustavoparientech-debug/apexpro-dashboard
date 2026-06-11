@@ -594,7 +594,16 @@ function ClosedTicketCard({ ticket, workers, vehicleTypes, onDelete, onEdit, onS
             {timeStr && <p className="text-xs text-gray-400">{timeStr}</p>}
             {duration && <p className="text-xs font-semibold text-blue-500 dark:text-blue-400">⏱ {duration}</p>}
             <p className="font-bold text-red-600 text-sm">{formatMoney(ticket.price_charged)}</p>
-            <p className="text-xs text-gray-400">{PAYMENT_LABELS[ticket.payment_method]?.split(' ')[1] || ticket.payment_method}</p>
+            <p className="text-xs font-medium">
+              {ticket.payment_method === 'yape'
+                ? <span className="text-purple-500">📱 Yape</span>
+                : ticket.payment_method === 'efectivo'
+                ? <span className="text-green-600">💵 Efectivo</span>
+                : ticket.payment_method === 'transferencia'
+                ? <span className="text-blue-500">🏦 Transfer</span>
+                : <span className="text-gray-400">{ticket.payment_method || '—'}</span>
+              }
+            </p>
           </div>
           {onSummary && (
             <button onClick={e => { e.stopPropagation(); onSummary(ticket) }}

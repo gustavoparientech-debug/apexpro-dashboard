@@ -1204,20 +1204,20 @@ export default function Registro() {
           )}
 
           {/* Tarjeta total del día */}
-          <div className="bg-black/40 backdrop-blur-sm rounded-2xl px-4 py-3 flex items-center justify-between">
+          <div className="bg-black/40 backdrop-blur-sm rounded-xl px-3 py-2 flex items-center justify-between w-1/2">
             <div>
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-0.5">Total del día</p>
-              <p className="text-3xl font-black text-white leading-none">
+              <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Total del día</p>
+              <p className="text-lg font-black text-white leading-tight">
                 {hideTotal ? '••••••' : formatMoney(dayTotal)}
               </p>
-              <p className="text-xs text-gray-400 mt-1">
-                {fechaLabel}
-                {selectedDate !== today && <span className="ml-2 text-amber-400 font-medium">· Solo lectura</span>}
+              <p className="text-[10px] text-gray-400 leading-tight">
+                {fechaLabel.split(',')[0]}
+                {selectedDate !== today && <span className="ml-1 text-amber-400">· Lectura</span>}
               </p>
             </div>
             <button onClick={() => setHideTotal(v => !v)}
-              className="p-2 rounded-xl bg-white/10 hover:bg-white/20 transition-colors">
-              <Eye className="w-4 h-4 text-gray-300" />
+              className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 transition-colors ml-2">
+              <Eye className="w-3.5 h-3.5 text-gray-300" />
             </button>
           </div>
         </div>

@@ -629,14 +629,21 @@ function ClosedTicketCard({ ticket, workers, vehicleTypes, onDelete, onEdit, onS
           </div>
         )}
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-0.5">
+          <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
             <span className="font-mono font-bold text-gray-900 dark:text-white text-sm">{ticket.plate || 'Sin placa'}</span>
             <span className="text-xs bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-1.5 py-0.5 rounded-full">Cerrado</span>
+            {extras.length > 0 && (
+              <span className="text-xs bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 px-1.5 py-0.5 rounded-full">
+                +{extras.length} adicional{extras.length > 1 ? 'es' : ''}
+              </span>
+            )}
+            {ticket.notes && (
+              <span className="text-xs bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 px-1.5 py-0.5 rounded-full">
+                📝 Nota
+              </span>
+            )}
           </div>
           <p className="text-xs text-gray-500">{vehicle?.label || ticket.vehicle_type} · {worker?.name || '—'}</p>
-          {extras.length > 0 && (
-            <p className="text-xs text-gray-400">{extras.map(e => e.name).join(', ')}</p>
-          )}
         </div>
         <div className="flex items-start gap-1.5 flex-none">
           <div className="text-right mr-1">

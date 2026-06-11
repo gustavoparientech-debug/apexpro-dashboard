@@ -1061,6 +1061,18 @@ export default function Registro() {
     [closedToday, daySummaries]
   )
 
+  // Caja por método de pago
+  const cajaStats = useMemo(() => {
+    const map = {}
+    closedToday.forEach(t => {
+      const pm = t.payment_method || 'efectivo'
+      map[pm] = (map[pm] || 0) + (t.price_charged || 0)
+    })
+    const total = Object.values(map).reduce((s, v) => s + v, 0)
+    return Object.entries(map).map(([method, amount]) => ({ method, amount, pct: total > 0 ? Math.round(amount / total * 100) : 0 }))
+      .sort((a, b) => b.amount - a.amount)
+  }, [closedToday])
+
   // Resumen por trabajador (tickets cerrados del día)
   const workerDayStats = useMemo(() => {
     const map = {}
@@ -1186,6 +1198,38 @@ export default function Registro() {
         className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl bg-red-600 hover:bg-red-700 text-white font-bold text-base shadow-lg shadow-red-200 dark:shadow-red-900/30 active:scale-95 transition-all">
         <Plus className="w-5 h-5" /> Nuevo ticket
       </button>
+
+      {/* CAJA EN TIEMPO REAL */}
+      {cajaStats.length > 0 && (
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest">Caja en tiempo real</h2>
+            <span className="text-xs text-gray-400">disponible ahora</span>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            {cajaStats.map(({ method, amount, pct }) => {
+              const cfg = {
+                efectivo:      { label: 'Efectivo',      icon: '💵', color: 'text-green-600',  bar: 'bg-green-500',  ring: 'bg-green-100 dark:bg-green-900/30' },
+                yape:          { label: 'Yape',          icon: '📱', color: 'text-purple-600', bar: 'bg-purple-500', ring: 'bg-purple-100 dark:bg-purple-900/30' },
+                transferencia: { label: 'Transferencia', icon: '🏦', color: 'text-blue-600',   bar: 'bg-blue-500',   ring: 'bg-blue-100 dark:bg-blue-900/30' },
+              }[method] || { label: method, icon: '💳', color: 'text-gray-600', bar: 'bg-gray-400', ring: 'bg-gray-100' }
+              return (
+                <div key={method} className="card py-3 px-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className={`w-8 h-8 rounded-xl ${cfg.ring} flex items-center justify-center text-base`}>{cfg.icon}</div>
+                    <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">{cfg.label}</span>
+                  </div>
+                  <p className="text-xl font-black text-gray-900 dark:text-white">{formatMoney(amount)}</p>
+                  <p className="text-xs text-gray-400 mt-0.5">{pct}%</p>
+                  <div className="mt-2 h-1.5 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
+                    <div className={`h-full ${cfg.bar} rounded-full transition-all`} style={{ width: `${pct}%` }} />
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {/* POR COLABORADOR */}
       {workerDayStats.length > 0 && (

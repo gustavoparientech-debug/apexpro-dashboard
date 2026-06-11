@@ -1168,18 +1168,18 @@ export default function Registro() {
 
           {/* Navegación por día */}
           {canAdmin && (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 w-1/2">
               <button onClick={() => {
                   const d = new Date(selectedDate + 'T00:00:00'); d.setDate(d.getDate() - 1)
                   const nd = d.toISOString().slice(0, 10)
                   const prefix = `${selYear}-${String(selMonth).padStart(2,'0')}`
                   if (nd.startsWith(prefix)) setSelectedDate(nd)
                 }}
-                className="p-1.5 rounded-xl bg-white/10 hover:bg-white/20 transition-colors">
-                <ChevronLeft className="w-4 h-4 text-white" />
+                className="p-1 rounded-lg bg-white/10 hover:bg-white/20 transition-colors flex-none">
+                <ChevronLeft className="w-3.5 h-3.5 text-white" />
               </button>
               <input type="date"
-                className="bg-white/10 text-white text-sm font-medium flex-1 focus:outline-none text-center rounded-xl px-3 py-1.5 cursor-pointer"
+                className="bg-white/10 text-white text-xs font-medium flex-1 focus:outline-none text-center rounded-lg px-2 py-1 cursor-pointer min-w-0"
                 value={selectedDate}
                 min={`${selYear}-${String(selMonth).padStart(2,'0')}-01`}
                 max={`${selYear}-${String(selMonth).padStart(2,'0')}-${new Date(selYear, selMonth, 0).getDate()}`}
@@ -1191,12 +1191,12 @@ export default function Registro() {
                   const prefix = `${selYear}-${String(selMonth).padStart(2,'0')}`
                   if (nd.startsWith(prefix)) setSelectedDate(nd)
                 }}
-                className="p-1.5 rounded-xl bg-white/10 hover:bg-white/20 transition-colors">
-                <ChevronRight className="w-4 h-4 text-white" />
+                className="p-1 rounded-lg bg-white/10 hover:bg-white/20 transition-colors flex-none">
+                <ChevronRight className="w-3.5 h-3.5 text-white" />
               </button>
               {selectedDate !== today && (
                 <button onClick={() => setSelectedDate(today)}
-                  className="text-xs text-gray-300 bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-xl transition-colors font-medium whitespace-nowrap">
+                  className="text-[10px] text-gray-300 bg-white/10 hover:bg-white/20 px-2 py-1 rounded-lg transition-colors font-medium whitespace-nowrap flex-none">
                   Hoy
                 </button>
               )}

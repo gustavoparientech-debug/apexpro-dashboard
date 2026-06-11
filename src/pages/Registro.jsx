@@ -1123,77 +1123,106 @@ export default function Registro() {
     }
   }, [activeTicket, activeTicketData])
 
+  const fechaLabel = (() => {
+    const d = new Date(selectedDate + 'T00:00:00')
+    const dias = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado']
+    const meses = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre']
+    return `${dias[d.getDay()]}, ${d.getDate()} de ${meses[d.getMonth()]}`
+  })()
+
+  const [hideTotal, setHideTotal] = useState(false)
+
   return (
     <div className="space-y-4 max-w-2xl mx-auto">
 
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Registro</h1>
-        <button onClick={() => setShowQuickForm(true)}
-          className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 px-3 py-1.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
-          <Zap className="w-4 h-4" /> Ingreso rápido
-        </button>
-      </div>
-
-      {/* Selector mes/año + día */}
-      {canAdmin && (
-        <div className="space-y-2">
-          <div className="flex items-center gap-2">
-            <select className="input text-sm py-1.5 flex-1"
-              value={selMonth}
-              onChange={e => handleMonthChange(+e.target.value, selYear)}>
-              {MONTHS.map((m, i) => <option key={i+1} value={i+1}>{m}</option>)}
-            </select>
-            <select className="input text-sm py-1.5 w-24"
-              value={selYear}
-              onChange={e => handleMonthChange(selMonth, +e.target.value)}>
-              {[cy-1, cy, cy+1].map(y => <option key={y} value={y}>{y}</option>)}
-            </select>
+      {/* Hero header */}
+      <div className="relative rounded-3xl overflow-hidden bg-gray-900 dark:bg-gray-950 min-h-[180px]">
+        <div className="absolute inset-0 bg-gradient-to-br from-gray-800/80 to-gray-900/95" />
+        <div className="relative z-10 p-5 flex flex-col gap-3">
+          {/* Top row */}
+          <div className="flex items-start justify-between">
+            <div>
+              <h1 className="text-xl font-black text-white tracking-tight">Apex Pro Detailing</h1>
+              {/* Selector fecha compacto */}
+              {canAdmin ? (
+                <div className="flex items-center gap-1 mt-1">
+                  <select className="bg-transparent text-gray-300 text-xs font-medium focus:outline-none cursor-pointer"
+                    value={selMonth} onChange={e => handleMonthChange(+e.target.value, selYear)}>
+                    {MONTHS.map((m, i) => <option key={i+1} value={i+1} className="bg-gray-800">{m}</option>)}
+                  </select>
+                  <select className="bg-transparent text-gray-300 text-xs font-medium focus:outline-none cursor-pointer"
+                    value={selYear} onChange={e => handleMonthChange(selMonth, +e.target.value)}>
+                    {[cy-1, cy, cy+1].map(y => <option key={y} value={y} className="bg-gray-800">{y}</option>)}
+                  </select>
+                </div>
+              ) : (
+                <p className="text-gray-400 text-xs mt-1">{MONTHS[selMonth-1]} {selYear}</p>
+              )}
+            </div>
+            <button onClick={() => setShowQuickForm(true)}
+              className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-white bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-xl transition-colors">
+              <Zap className="w-3.5 h-3.5" /> Rápido
+            </button>
           </div>
+
           {/* Navegación por día */}
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-800 rounded-xl p-1 flex-1">
-              <button
-                onClick={() => {
-                  const d = new Date(selectedDate + 'T00:00:00')
-                  d.setDate(d.getDate() - 1)
+          {canAdmin && (
+            <div className="flex items-center gap-2">
+              <button onClick={() => {
+                  const d = new Date(selectedDate + 'T00:00:00'); d.setDate(d.getDate() - 1)
                   const nd = d.toISOString().slice(0, 10)
                   const prefix = `${selYear}-${String(selMonth).padStart(2,'0')}`
                   if (nd.startsWith(prefix)) setSelectedDate(nd)
                 }}
-                className="p-1.5 rounded-lg hover:bg-white dark:hover:bg-gray-700 transition-colors">
-                <ChevronLeft className="w-4 h-4 text-gray-600 dark:text-gray-300" />
+                className="p-1.5 rounded-xl bg-white/10 hover:bg-white/20 transition-colors">
+                <ChevronLeft className="w-4 h-4 text-white" />
               </button>
               <input type="date"
-                className="bg-transparent text-sm font-medium text-gray-700 dark:text-gray-200 flex-1 focus:outline-none text-center"
+                className="bg-white/10 text-white text-sm font-medium flex-1 focus:outline-none text-center rounded-xl px-3 py-1.5 cursor-pointer"
                 value={selectedDate}
                 min={`${selYear}-${String(selMonth).padStart(2,'0')}-01`}
                 max={`${selYear}-${String(selMonth).padStart(2,'0')}-${new Date(selYear, selMonth, 0).getDate()}`}
                 onChange={e => e.target.value && setSelectedDate(e.target.value)}
               />
-              <button
-                onClick={() => {
-                  const d = new Date(selectedDate + 'T00:00:00')
-                  d.setDate(d.getDate() + 1)
+              <button onClick={() => {
+                  const d = new Date(selectedDate + 'T00:00:00'); d.setDate(d.getDate() + 1)
                   const nd = d.toISOString().slice(0, 10)
                   const prefix = `${selYear}-${String(selMonth).padStart(2,'0')}`
                   if (nd.startsWith(prefix)) setSelectedDate(nd)
                 }}
-                className="p-1.5 rounded-lg hover:bg-white dark:hover:bg-gray-700 transition-colors">
-                <ChevronRight className="w-4 h-4 text-gray-600 dark:text-gray-300" />
+                className="p-1.5 rounded-xl bg-white/10 hover:bg-white/20 transition-colors">
+                <ChevronRight className="w-4 h-4 text-white" />
               </button>
+              {selectedDate !== today && (
+                <button onClick={() => setSelectedDate(today)}
+                  className="text-xs text-gray-300 bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-xl transition-colors font-medium whitespace-nowrap">
+                  Hoy
+                </button>
+              )}
             </div>
-            {selectedDate !== today && (
-              <button onClick={() => setSelectedDate(today)}
-                className="text-xs text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 px-3 py-2 rounded-xl transition-colors font-medium whitespace-nowrap">
-                Hoy
-              </button>
-            )}
+          )}
+
+          {/* Tarjeta total del día */}
+          <div className="bg-black/40 backdrop-blur-sm rounded-2xl px-4 py-3 flex items-center justify-between">
+            <div>
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-0.5">Total del día</p>
+              <p className="text-3xl font-black text-white leading-none">
+                {hideTotal ? '••••••' : formatMoney(dayTotal)}
+              </p>
+              <p className="text-xs text-gray-400 mt-1">
+                {fechaLabel}
+                {selectedDate !== today && <span className="ml-2 text-amber-400 font-medium">· Solo lectura</span>}
+              </p>
+            </div>
+            <button onClick={() => setHideTotal(v => !v)}
+              className="p-2 rounded-xl bg-white/10 hover:bg-white/20 transition-colors">
+              <Eye className="w-4 h-4 text-gray-300" />
+            </button>
           </div>
         </div>
-      )}
+      </div>
 
-      {/* FAB Nuevo ticket */}
+      {/* Botón nuevo ticket */}
       <button onClick={() => setShowNewForm(true)}
         className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl bg-red-600 hover:bg-red-700 text-white font-bold text-base shadow-lg shadow-red-200 dark:shadow-red-900/30 active:scale-95 transition-all">
         <Plus className="w-5 h-5" /> Nuevo ticket

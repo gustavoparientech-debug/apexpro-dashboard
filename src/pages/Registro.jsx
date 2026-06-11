@@ -277,6 +277,9 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
   const [basePrice,     setBasePrice]     = useState(ticket.price_charged || vehicle?.default_price || 0)
   const [deleteConfirm, setDeleteConfirm] = useState(false)
   const [saving,        setSaving]        = useState(false)
+  const [notes,         setNotes]         = useState(ticket.notes || '')
+  const [paymentPhoto,  setPaymentPhoto]  = useState(ticket.payment_photo || '')
+  const paymentPhotoRef = useRef()
 
   const extrasTotal = extras.reduce((s, e) => s + (e.price || 0), 0)
   const total = parseFloat(basePrice || 0) + extrasTotal
@@ -306,8 +309,10 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
     setSaving(true)
     try {
       await onUpdate(ticket.id, {
-        price_charged:  parseFloat(basePrice) || 0,
+        price_charged: parseFloat(basePrice) || 0,
         extras,
+        notes,
+        ...(paymentPhoto && { payment_photo: paymentPhoto }),
       })
       toast.success('Ticket actualizado')
     } catch (e) { toast.error('Error al guardar') }
@@ -319,7 +324,9 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
       status:        'cerrado',
       price_charged: total,
       extras,
+      notes,
       closed_at:     new Date().toISOString(),
+      ...(paymentPhoto && { payment_photo: paymentPhoto }),
     })
     toast.success('Ticket cerrado')
     onClose()
@@ -468,6 +475,48 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
               </button>
             ))}
           </div>
+
+          {/* Foto comprobante Yape */}
+          {ticket.payment_method === 'yape' && (
+            <div className="mt-3">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Comprobante Yape</p>
+              <input ref={paymentPhotoRef} type="file" accept="image/*" capture="environment" className="hidden"
+                onChange={e => {
+                  const file = e.target.files?.[0]
+                  if (!file) return
+                  const reader = new FileReader()
+                  reader.onload = ev => setPaymentPhoto(ev.target.result)
+                  reader.readAsDataURL(file)
+                }} />
+              {paymentPhoto ? (
+                <div className="relative rounded-xl overflow-hidden border border-purple-200 dark:border-purple-800">
+                  <img src={paymentPhoto} alt="comprobante" className="w-full h-32 object-cover" />
+                  <button onClick={() => setPaymentPhoto('')}
+                    className="absolute top-2 right-2 bg-black/50 text-white rounded-full p-1">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              ) : (
+                <button onClick={() => paymentPhotoRef.current.click()}
+                  className="w-full h-20 border-2 border-dashed border-purple-300 dark:border-purple-700 rounded-xl flex items-center justify-center gap-2 text-purple-400 hover:border-purple-500 hover:text-purple-500 transition-colors text-sm font-medium">
+                  <Camera className="w-5 h-5" /> Foto del Yape
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Notas del servicio */}
+        <div className="px-4 py-3 border-t border-gray-100 dark:border-gray-800">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Notas</p>
+          <textarea
+            className="input resize-none text-sm"
+            rows={2}
+            placeholder="Ej: cliente solicita cera extra, rayón en puerta trasera…"
+            value={notes}
+            onChange={e => setNotes(e.target.value)}
+            maxLength={200}
+          />
         </div>
 
       </div>

@@ -371,30 +371,17 @@ ${workerLines}`
               </div>
             </div>
 
-            {/* Estadísticas + Mejor día */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {/* Mejor día */}
+            {d.bestDay && (
               <div className="card">
                 <div className="flex items-center gap-2 mb-3">
-                  <Clock className="w-4 h-4 text-red-500" />
-                  <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">Estadísticas</p>
+                  <Award className="w-4 h-4 text-yellow-500" />
+                  <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">Mejor día</p>
                 </div>
-                <div className="space-y-2">
-                  <div className="flex justify-between"><span className="text-xs text-gray-500">Días trabajados</span><span className="font-semibold text-sm">{d.daysWorked}</span></div>
-                  <div className="flex justify-between"><span className="text-xs text-gray-500">Promedio actual/día</span><span className="font-semibold text-sm">{formatMoney(d.avgDaily)}</span></div>
-                  <div className="flex justify-between"><span className="text-xs text-gray-500">Promedio carros/día</span><span className="font-semibold text-sm">{d.avgCarsDay.toFixed(1)}</span></div>
-                </div>
+                <p className="text-2xl font-bold text-gray-900 dark:text-white">{formatMoney(d.bestDay.amount)}</p>
+                <p className="text-xs text-gray-400 mt-1">{formatDate(d.bestDay.date)}</p>
               </div>
-              {d.bestDay && (
-                <div className="card">
-                  <div className="flex items-center gap-2 mb-3">
-                    <Award className="w-4 h-4 text-yellow-500" />
-                    <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">Mejor día</p>
-                  </div>
-                  <p className="text-2xl font-bold text-gray-900 dark:text-white">{formatMoney(d.bestDay.amount)}</p>
-                  <p className="text-xs text-gray-400 mt-1">{formatDate(d.bestDay.date)}</p>
-                </div>
-              )}
-            </div>
+            )}
 
             {/* Costos del período */}
             {d.totalCosts > 0 && (

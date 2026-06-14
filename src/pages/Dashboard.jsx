@@ -338,9 +338,11 @@ export default function Dashboard() {
     const workerExpTotal  = periodExpenses.reduce((s, e) => s + (e.amount || 0), 0)
     const totalIncome     = ticketIncome + summaryIncome
 
-    const rent        = monthlyCosts?.rent     || 0
-    const supplies    = monthlyCosts?.supplies || 0
     const utilityGoal = monthlyCosts?.utility_goal || 2000
+    const costItemsData = monthlyCosts?.cost_items
+    const fixedItemsTotal = (costItemsData && Array.isArray(costItemsData) && costItemsData.length > 0)
+      ? costItemsData.reduce((s, i) => s + (i.amount || 0), 0)
+      : (monthlyCosts?.rent || 0) + (monthlyCosts?.supplies || 0)
     const payrollTotal = workers.filter(w => w.active).reduce((s, w) => {
       const real = calcRealSalary(w.base_salary, w.weekly_hours)
       const disc = incidents.filter(i => i.worker_id === w.id && i.apply_discount && i.date?.startsWith(prefix))
@@ -348,13 +350,15 @@ export default function Dashboard() {
       return s + real - disc
     }, 0)
     const monthBonusAmt = bonuses.filter(b => b.date?.startsWith(prefix)).reduce((s, b) => s + b.amount, 0)
-    const totalCosts  = rent + supplies + payrollTotal + monthBonusAmt + workerExpTotal
+    const rent = monthlyCosts?.rent || 0
+    const supplies = monthlyCosts?.supplies || 0
+    const totalCosts  = fixedItemsTotal + payrollTotal + monthBonusAmt + workerExpTotal
 
     const workingDaysTotal    = getWorkingDaysInMonth(selYear, selMonth)
     const workingDaysElapsed  = isCurrentMonth ? getWorkingDaysElapsed(selYear, selMonth) : workingDaysTotal
     const workingDaysRemaining = isCurrentMonth ? getWorkingDaysRemaining(selYear, selMonth) : 0
 
-    const fixedCosts = rent + supplies + payrollTotal + monthBonusAmt
+    const fixedCosts = fixedItemsTotal + payrollTotal + monthBonusAmt
     const proportionalFixed = (isCurrentMonth && !selDay && workingDaysTotal > 0)
       ? fixedCosts * (workingDaysElapsed / workingDaysTotal)
       : fixedCosts
@@ -399,7 +403,7 @@ export default function Dashboard() {
       incomeGoal, progressPct, semaforo, totalCars, avgDailyActual, avgDailyNeeded,
       workingDaysElapsed, workingDaysRemaining, workingDaysTotal,
       bestDay, efectivo, yape, transferencia, onTrack, projectedIncome, dailyData,
-      workerRanking, monthBonusAmt, workerExpTotal, periodExpenses,
+      workerRanking, monthBonusAmt, workerExpTotal, periodExpenses, costItemsData,
     }
   }, [tickets, dailySummaries, expenses, pastTickets, pastSummaries, pastExpenses, workers, services, incidents, monthlyCosts, bonuses, prefix, selMonth, selYear, isCurrentMonth, selDay])
 
@@ -570,8 +574,10 @@ export default function Dashboard() {
       {/* Desglose gastos */}
       <div className="card">
         <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Desglose de gastos</p>
-        <Row label="🏠 Alquiler" value={formatMoney(data.rent)} />
-        <Row label="🧴 Insumos"  value={formatMoney(data.supplies)} />
+        {(data.costItemsData && data.costItemsData.length > 0)
+          ? data.costItemsData.map((item, i) => <Row key={i} label={`📌 ${item.name}`} value={formatMoney(item.amount)} />)
+          : (<><Row label="🏠 Alquiler" value={formatMoney(data.rent)} /><Row label="🧴 Insumos" value={formatMoney(data.supplies)} /></>)
+        }
         <Row label="👷 Planilla" value={formatMoney(data.payrollTotal)} />
         {data.monthBonusAmt > 0 && <Row label="🎁 Bonos" value={formatMoney(data.monthBonusAmt)} />}
         {data.workerExpTotal > 0 && <Row label="💸 Gastos personal" value={formatMoney(data.workerExpTotal)} />}

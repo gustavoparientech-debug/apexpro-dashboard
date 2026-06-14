@@ -4,7 +4,7 @@ import { formatMoney, calcRealSalary, currentMonthYear } from '../lib/utils'
 import Modal from '../components/ui/Modal'
 import ConfirmDialog from '../components/ui/ConfirmDialog'
 import Badge from '../components/ui/Badge'
-import { Plus, Edit2, ToggleLeft, ToggleRight, Save, Trash2, ChevronUp, ChevronDown } from 'lucide-react'
+import { Plus, Edit2, ToggleLeft, ToggleRight, Save, Trash2, ChevronUp, ChevronDown, X } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 const EMOJI_OPTIONS = ['🏍️','🚗','🚙','🚐','🚛','🚌','🚑','🚒','🚕','🚜','🛻','🚚']
@@ -130,9 +130,17 @@ export default function Configuracion() {
   const [showServiceForm, setShowServiceForm] = useState(false)
   const [editingService, setEditingService] = useState(null)
   const [toggleTarget, setToggleTarget] = useState(null)
+  const defaultItems = () => {
+    const saved = monthlyCosts?.cost_items
+    if (saved && Array.isArray(saved) && saved.length > 0) return saved
+    const items = []
+    if (monthlyCosts?.rent)     items.push({ name: 'Alquiler',  amount: monthlyCosts.rent })
+    if (monthlyCosts?.supplies) items.push({ name: 'Insumos',   amount: monthlyCosts.supplies })
+    if (items.length === 0)     items.push({ name: 'Alquiler',  amount: 2700 }, { name: 'Insumos', amount: 800 })
+    return items
+  }
+  const [costItems, setCostItems] = useState(defaultItems)
   const [costs, setCosts] = useState({
-    rent: monthlyCosts?.rent || 2700,
-    supplies: monthlyCosts?.supplies || 800,
     utility_goal: monthlyCosts?.utility_goal || 2000,
   })
   const [savingCosts, setSavingCosts] = useState(false)
@@ -187,7 +195,8 @@ export default function Configuracion() {
     }, 0)
   }, [workers, incidents])
 
-  const incomeGoal = (parseFloat(costs.rent) || 0) + (parseFloat(costs.supplies) || 0) + payrollTotal + (parseFloat(costs.utility_goal) || 0)
+  const fixedTotal = costItems.reduce((s, i) => s + (parseFloat(i.amount) || 0), 0)
+  const incomeGoal = fixedTotal + payrollTotal + (parseFloat(costs.utility_goal) || 0)
 
   const filteredServices = activeCategory === 'all' ? services : services.filter(s => s.category === activeCategory)
 
@@ -216,14 +225,17 @@ export default function Configuracion() {
   }
 
   async function handleSaveCosts() {
+    if (costItems.some(i => !i.name.trim())) { toast.error('Todos los ítems deben tener nombre'); return }
     setSavingCosts(true)
     try {
+      const items = costItems.map(i => ({ name: i.name.trim(), amount: parseFloat(i.amount) || 0 }))
       await saveMonthlyCosts({
         month,
         year,
-        rent: parseFloat(costs.rent),
-        supplies: parseFloat(costs.supplies),
+        rent: items.find(i => i.name === 'Alquiler')?.amount || 0,
+        supplies: items.find(i => i.name === 'Insumos')?.amount || 0,
         utility_goal: parseFloat(costs.utility_goal),
+        cost_items: items,
       })
       toast.success('Costos guardados')
     } catch (err) {
@@ -263,18 +275,54 @@ export default function Configuracion() {
       {/* Costos fijos */}
       <div className="card">
         <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">Costos fijos mensuales</p>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
-          <div>
-            <label className="label">Alquiler (S/)</label>
-            <input type="number" className="input" min="0" step="50" value={costs.rent} onChange={e => setCosts(c => ({ ...c, rent: e.target.value }))} />
-          </div>
-          <div>
-            <label className="label">Insumos (S/)</label>
-            <input type="number" className="input" min="0" step="50" value={costs.supplies} onChange={e => setCosts(c => ({ ...c, supplies: e.target.value }))} />
-          </div>
+
+        <div className="space-y-2 mb-3">
+          {costItems.map((item, idx) => (
+            <div key={idx} className="flex items-center gap-2">
+              <input
+                type="text"
+                placeholder="Nombre (ej: Luz)"
+                className="input flex-1 min-w-0"
+                value={item.name}
+                onChange={e => setCostItems(list => list.map((x, i) => i === idx ? { ...x, name: e.target.value } : x))}
+              />
+              <div className="flex items-center gap-1 shrink-0">
+                <span className="text-sm text-gray-400">S/</span>
+                <input
+                  type="number"
+                  placeholder="0"
+                  className="input w-28"
+                  min="0"
+                  step="50"
+                  value={item.amount}
+                  onChange={e => setCostItems(list => list.map((x, i) => i === idx ? { ...x, amount: e.target.value } : x))}
+                />
+              </div>
+              <button
+                onClick={() => setCostItems(list => list.filter((_, i) => i !== idx))}
+                className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          ))}
+        </div>
+
+        <button
+          onClick={() => setCostItems(list => [...list, { name: '', amount: '' }])}
+          className="flex items-center gap-1.5 text-sm text-red-600 dark:text-red-400 hover:text-red-700 mb-4 font-medium"
+        >
+          <Plus className="w-4 h-4" /> Agregar ítem
+        </button>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4 pt-3 border-t border-gray-100 dark:border-gray-800">
           <div>
             <label className="label">Meta de utilidad (S/)</label>
             <input type="number" className="input" min="0" step="100" value={costs.utility_goal} onChange={e => setCosts(c => ({ ...c, utility_goal: e.target.value }))} />
+          </div>
+          <div className="flex flex-col justify-end pb-1">
+            <p className="text-xs text-gray-400 mb-1">Total costos fijos</p>
+            <p className="text-lg font-bold text-gray-800 dark:text-white">{formatMoney(fixedTotal)}</p>
           </div>
         </div>
 

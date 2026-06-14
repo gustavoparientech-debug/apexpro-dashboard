@@ -391,15 +391,12 @@ ${workerLines}`
               <div className="card">
                 <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Desglose de costos</p>
                 <div className="space-y-2 text-sm">
-                  {(d.costItemsData && d.costItemsData.length > 0)
-                    ? d.costItemsData.map((item, i) => <Row key={i} label={`📌 ${item.name}`} value={formatMoney(item.amount)} />)
-                    : (d.fixedCosts > 0 && <Row label="🏠 Costos fijos" value={formatMoney(d.fixedCosts)} />)
-                  }
-                  {d.payrollTotal > 0  && <Row label="👷 Planilla"        value={formatMoney(d.payrollTotal)} />}
-                  {d.totalExpenses > 0 && <Row label="💸 Gastos personal" value={formatMoney(d.totalExpenses)} />}
+                  {d.fixedCostsProp > 0   && <Row label="🏠 Costos fijos"    value={formatMoney(d.fixedCostsProp)} />}
+                  {d.payrollTotalProp > 0 && <Row label="👷 Planilla"        value={formatMoney(d.payrollTotalProp)} />}
+                  {d.totalExpenses > 0    && <Row label="💸 Gastos personal" value={formatMoney(d.totalExpenses)} />}
                   <div className="border-t border-gray-100 dark:border-gray-800 pt-2 mt-1 flex justify-between font-semibold text-sm">
                     <span className="text-gray-700 dark:text-gray-300">Total</span>
-                    <span className="text-red-600 dark:text-red-400">{formatMoney(d.totalCostsFull)}</span>
+                    <span className="text-red-600 dark:text-red-400">{formatMoney(d.totalCosts)}</span>
                   </div>
                 </div>
               </div>

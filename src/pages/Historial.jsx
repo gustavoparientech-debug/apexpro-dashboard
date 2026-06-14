@@ -2,7 +2,8 @@ import { useState, useMemo, useEffect } from 'react'
 import { useApp } from '../context/AppContext'
 import { supabase } from '../lib/supabase'
 import { formatMoney, formatDate, calcRealSalary, monthName, currentMonthYear, getWorkingDaysInMonth, getWorkingDaysElapsed } from '../lib/utils'
-import { Download, Share2, Calendar, TrendingUp } from 'lucide-react'
+import { Download, Share2, Calendar, TrendingUp, DollarSign, CreditCard, Car, Clock, Award } from 'lucide-react'
+import StatCard from '../components/ui/StatCard'
 import toast from 'react-hot-toast'
 
 const IS_DEMO = !import.meta.env.VITE_SUPABASE_URL || import.meta.env.VITE_SUPABASE_URL === 'https://placeholder.supabase.co'
@@ -342,23 +343,11 @@ ${workerLines}`
         return (
           <>
             {/* KPIs */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="card bg-blue-50 dark:bg-blue-900/20 border-blue-100 dark:border-blue-800">
-                <p className="text-xs text-blue-600 dark:text-blue-400 font-medium mb-1">Ingresos brutos</p>
-                <p className="text-2xl font-bold text-blue-700 dark:text-blue-300">{formatMoney(d.grossIncome)}</p>
-              </div>
-              <div className="card bg-green-50 dark:bg-green-900/20 border-green-100 dark:border-green-800">
-                <p className="text-xs text-green-600 dark:text-green-400 font-medium mb-1">Ganancia neta</p>
-                <p className={`text-2xl font-bold ${d.netProfit >= 0 ? 'text-green-700 dark:text-green-300' : 'text-red-600'}`}>{formatMoney(d.netProfit)}</p>
-              </div>
-              <div className="card bg-red-50 dark:bg-red-900/20 border-red-100 dark:border-red-800">
-                <p className="text-xs text-red-600 dark:text-red-400 font-medium mb-1">Total gastos</p>
-                <p className="text-2xl font-bold text-red-700 dark:text-red-300">{formatMoney(d.totalCosts)}</p>
-              </div>
-              <div className="card bg-purple-50 dark:bg-purple-900/20 border-purple-100 dark:border-purple-800">
-                <p className="text-xs text-purple-600 dark:text-purple-400 font-medium mb-1">Carros lavados</p>
-                <p className="text-2xl font-bold text-purple-700 dark:text-purple-300">{d.cars}</p>
-              </div>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              <StatCard label="Ingresos del período" value={formatMoney(d.grossIncome)}  sub={`${d.cars} vehículos`} icon={DollarSign} color="orange" />
+              <StatCard label="Ganancia neta"        value={formatMoney(d.netProfit)}    sub={`Costos proporcionales`} icon={TrendingUp} color="green" />
+              <StatCard label="Total gastos"         value={formatMoney(d.totalCosts)}   sub={`Planilla: ${formatMoney(d.payrollTotal)}`} icon={CreditCard} color="blue" />
+              <StatCard label="Vehículos"            value={d.cars}                       sub={d.cars > 0 ? `Prom: ${formatMoney(d.grossIncome / d.cars)}/carro` : '—'} icon={Car} color="purple" />
             </div>
 
             {/* Desglose ingresos */}
@@ -374,25 +363,43 @@ ${workerLines}`
               </div>
             </div>
 
-            {/* Estadísticas */}
-            <div className="card">
-              <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Estadísticas</p>
-              <div className="space-y-2 text-sm">
-                <Row label="📅 Días trabajados"      value={d.daysWorked} />
-                <Row label="📈 Promedio diario"      value={formatMoney(d.avgDaily)} />
-                <Row label="🚗 Promedio carros/día"  value={d.avgCarsDay.toFixed(1)} />
-                {d.bestDay && <Row label="🏆 Mejor día" value={`${formatDate(d.bestDay.date)} · ${formatMoney(d.bestDay.amount)}`} />}
+            {/* Estadísticas + Mejor día */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="card">
+                <div className="flex items-center gap-2 mb-3">
+                  <Clock className="w-4 h-4 text-red-500" />
+                  <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">Estadísticas</p>
+                </div>
+                <div className="space-y-2">
+                  <div className="flex justify-between"><span className="text-xs text-gray-500">Días trabajados</span><span className="font-semibold text-sm">{d.daysWorked}</span></div>
+                  <div className="flex justify-between"><span className="text-xs text-gray-500">Promedio actual/día</span><span className="font-semibold text-sm">{formatMoney(d.avgDaily)}</span></div>
+                  <div className="flex justify-between"><span className="text-xs text-gray-500">Promedio carros/día</span><span className="font-semibold text-sm">{d.avgCarsDay.toFixed(1)}</span></div>
+                </div>
               </div>
+              {d.bestDay && (
+                <div className="card">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Award className="w-4 h-4 text-yellow-500" />
+                    <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">Mejor día</p>
+                  </div>
+                  <p className="text-2xl font-bold text-gray-900 dark:text-white">{formatMoney(d.bestDay.amount)}</p>
+                  <p className="text-xs text-gray-400 mt-1">{formatDate(d.bestDay.date)}</p>
+                </div>
+              )}
             </div>
 
-            {/* Gastos */}
+            {/* Costos del período */}
             {d.totalCosts > 0 && (
               <div className="card">
-                <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Costos del período</p>
+                <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Desglose de costos</p>
                 <div className="space-y-2 text-sm">
-                  {d.fixedCosts > 0     && <Row label="🏠 Costos fijos"    value={formatMoney(d.fixedCosts)} />}
-                  {d.payrollTotal > 0   && <Row label="👷 Planilla"        value={formatMoney(d.payrollTotal)} />}
-                  {d.totalExpenses > 0  && <Row label="💸 Gastos personal" value={formatMoney(d.totalExpenses)} />}
+                  {d.fixedCosts > 0    && <Row label="🏠 Costos fijos"    value={formatMoney(d.fixedCosts)} />}
+                  {d.payrollTotal > 0  && <Row label="👷 Planilla"        value={formatMoney(d.payrollTotal)} />}
+                  {d.totalExpenses > 0 && <Row label="💸 Gastos personal" value={formatMoney(d.totalExpenses)} />}
+                  <div className="border-t border-gray-100 dark:border-gray-800 pt-2 mt-1 flex justify-between font-semibold text-sm">
+                    <span className="text-gray-700 dark:text-gray-300">Total</span>
+                    <span className="text-red-600 dark:text-red-400">{formatMoney(d.totalCosts)}</span>
+                  </div>
                 </div>
               </div>
             )}

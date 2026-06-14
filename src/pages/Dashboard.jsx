@@ -1,5 +1,6 @@
 import { useMemo, useState, useEffect } from 'react'
 import { useApp } from '../context/AppContext'
+import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 
 const IS_DEMO = !import.meta.env.VITE_SUPABASE_URL || import.meta.env.VITE_SUPABASE_URL === 'https://placeholder.supabase.co'
@@ -13,7 +14,7 @@ import Badge from '../components/ui/Badge'
 import {
   TrendingUp, Car, DollarSign, AlertTriangle, Clock,
   CreditCard, Smartphone, Calendar, Award, Trophy, Gift, Plus, Trash2, Banknote,
-  ChevronLeft, ChevronRight, X
+  ChevronLeft, ChevronRight, X, Pencil
 } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import toast from 'react-hot-toast'
@@ -134,9 +135,13 @@ const SORT_OPTIONS = [
 ]
 
 function ExpensesPanel({ expenses, workers }) {
+  const { updateExpense, deleteExpense } = useApp()
+  const { isAdmin, isDemo } = useAuth()
+  const canAdmin = isAdmin || isDemo
   const [filterCat,    setFilterCat]    = useState('')
   const [filterWorker, setFilterWorker] = useState('')
   const [sortBy,       setSortBy]       = useState('date_desc')
+  const [editingExp,   setEditingExp]   = useState(null)
 
   const filtered = useMemo(() => {
     let list = [...expenses]
@@ -196,6 +201,54 @@ function ExpensesPanel({ expenses, workers }) {
         <div className="space-y-0">
           {filtered.map(exp => {
             const worker = workers.find(w => w.id === exp.worker_id)
+            const isEditing = editingExp?.id === exp.id
+
+            if (isEditing && canAdmin) return (
+              <div key={exp.id} className="py-2 border-b border-gray-100 dark:border-gray-800 space-y-2">
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <p className="text-xs text-gray-400 mb-0.5">Monto</p>
+                    <input type="number" className="input text-xs py-1" value={editingExp.amount}
+                      onChange={e => setEditingExp(f => ({ ...f, amount: e.target.value }))} />
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-400 mb-0.5">Fecha</p>
+                    <input type="date" className="input text-xs py-1" value={editingExp.date}
+                      onChange={e => setEditingExp(f => ({ ...f, date: e.target.value }))} />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <p className="text-xs text-gray-400 mb-0.5">Categoría</p>
+                    <select className="input text-xs py-1" value={editingExp.category || ''}
+                      onChange={e => setEditingExp(f => ({ ...f, category: e.target.value }))}>
+                      {Object.entries(CAT_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-400 mb-0.5">Trabajador</p>
+                    <select className="input text-xs py-1" value={editingExp.worker_id || ''}
+                      onChange={e => setEditingExp(f => ({ ...f, worker_id: e.target.value }))}>
+                      <option value="">Sin asignar</option>
+                      {workers.filter(w => w.active).map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+                    </select>
+                  </div>
+                </div>
+                <input className="input text-xs py-1" placeholder="Notas" value={editingExp.notes || ''}
+                  onChange={e => setEditingExp(f => ({ ...f, notes: e.target.value }))} />
+                <div className="flex gap-2">
+                  <button onClick={async () => {
+                    try {
+                      await updateExpense(exp.id, { ...editingExp, amount: parseFloat(editingExp.amount) })
+                      toast.success('Gasto actualizado')
+                      setEditingExp(null)
+                    } catch { toast.error('Error al actualizar') }
+                  }} className="flex-1 py-1.5 bg-red-600 text-white text-xs font-bold rounded-xl">Guardar</button>
+                  <button onClick={() => setEditingExp(null)} className="px-3 py-1.5 border border-gray-200 text-xs rounded-xl text-gray-600">Cancelar</button>
+                </div>
+              </div>
+            )
+
             return (
               <div key={exp.id} className="flex items-center gap-2 py-2 border-b border-gray-100 dark:border-gray-800 last:border-0">
                 <div className="flex-1 min-w-0">
@@ -207,6 +260,18 @@ function ExpensesPanel({ expenses, workers }) {
                   </div>
                 </div>
                 <span className="text-xs font-bold text-amber-600 flex-shrink-0">-{formatMoney(exp.amount)}</span>
+                {canAdmin && (
+                  <>
+                    <button onClick={() => setEditingExp({ ...exp })}
+                      className="p-1 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg flex-shrink-0">
+                      <Pencil className="w-3 h-3 text-blue-400" />
+                    </button>
+                    <button onClick={async () => { try { await deleteExpense(exp.id); toast.success('Eliminado') } catch { toast.error('Error') } }}
+                      className="p-1 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg flex-shrink-0">
+                      <Trash2 className="w-3 h-3 text-red-400" />
+                    </button>
+                  </>
+                )}
               </div>
             )
           })}

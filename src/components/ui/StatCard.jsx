@@ -18,7 +18,7 @@ export default function StatCard({ label, value, sub, icon: Icon, color = 'orang
         )}
         <p className="text-sm text-gray-500 dark:text-gray-400 leading-tight">{label}</p>
       </div>
-      <p className="text-2xl font-bold text-gray-900 dark:text-white leading-none break-all">{value}</p>
+      <p className="text-xl font-bold text-gray-900 dark:text-white leading-tight">{value}</p>
       {sub && <p className="text-xs text-gray-400 dark:text-gray-500 leading-tight">{sub}</p>}
     </div>
   )

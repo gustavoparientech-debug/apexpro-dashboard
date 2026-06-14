@@ -993,7 +993,7 @@ const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto
 export default function Registro() {
   const {
     tickets, dailySummaries, workers, vehicleTypes, extrasCatalog, expenses,
-    addTicket, updateTicket, deleteTicket, addDailySummary, deleteDailySummary, loadData,
+    addTicket, updateTicket, deleteTicket, addDailySummary, deleteDailySummary, deleteExpense, loadData,
   } = useApp()
   const { profile, isAdmin, isDemo } = useAuth()
 
@@ -1055,10 +1055,12 @@ export default function Registro() {
 
   const daySummaries = useMemo(() => dailySummaries.filter(d => d.date === selectedDate), [dailySummaries, selectedDate])
 
-  const expensesToday = useMemo(
-    () => (expenses || []).filter(e => e.date === selectedDate),
-    [expenses, selectedDate]
-  )
+  const expensesToday = useMemo(() => {
+    const all = (expenses || []).filter(e => e.date === selectedDate)
+    // Trabajadores solo ven sus propios gastos
+    if (!canAdmin) return all.filter(e => e.worker_id === profile?.worker_id)
+    return all
+  }, [expenses, selectedDate, canAdmin, profile])
 
   const expensesTodayTotal = useMemo(
     () => expensesToday.reduce((s, e) => s + (e.amount || 0), 0),
@@ -1388,19 +1390,26 @@ export default function Registro() {
           <div className="space-y-2">
             {expensesToday.map(exp => {
               const worker = workers.find(w => w.id === exp.worker_id)
+              const catLabels = { insumos: '🧴 Insumos', herramientas: '🔧 Herramientas', transporte: '🚌 Transporte', comida: '🍱 Comida', otro: '📦 Otro' }
               return (
                 <div key={exp.id} className="card flex items-center gap-3">
                   <div className="w-8 h-8 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center flex-shrink-0">
                     <span className="text-sm">💸</span>
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 capitalize">
-                      {exp.category || 'Gasto'}
+                    <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">
+                      {catLabels[exp.category] || exp.category || 'Gasto'}
                     </p>
                     {exp.notes && <p className="text-xs text-gray-400 truncate">{exp.notes}</p>}
                     {worker && <p className="text-xs text-gray-400">{worker.name}</p>}
                   </div>
                   <span className="text-sm font-bold text-amber-600">-{formatMoney(exp.amount)}</span>
+                  {canAdmin && (
+                    <button onClick={async () => { try { await deleteExpense(exp.id); toast.success('Gasto eliminado') } catch { toast.error('Error al eliminar') } }}
+                      className="p-1.5 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg">
+                      <Trash2 className="w-3.5 h-3.5 text-red-400" />
+                    </button>
+                  )}
                 </div>
               )
             })}

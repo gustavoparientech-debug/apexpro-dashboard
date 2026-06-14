@@ -555,6 +555,13 @@ export function AppProvider({ children }) {
     }
   }
 
+  const deleteExpense = async (id) => {
+    if (IS_DEMO) { dispatch({ type: 'SET_EXPENSES', payload: state.expenses.filter(e => e.id !== id) }); return }
+    const { error } = await supabase.from('worker_expenses').delete().eq('id', id)
+    if (error) throw error
+    dispatch({ type: 'SET_EXPENSES', payload: state.expenses.filter(e => e.id !== id) })
+  }
+
   // ─── CRUD Bonuses ───────────────────────────────────────────────────────────
   const addBonus = async (data) => {
     if (IS_DEMO) {
@@ -599,7 +606,7 @@ export function AppProvider({ children }) {
       addIncident, updateIncident, deleteIncident,
       addVehicleType, updateVehicleType, deleteVehicleType,
       addExtra, updateExtra, deleteExtra,
-      addExpense,
+      addExpense, deleteExpense,
       addBonus, deleteBonus,
       saveMonthlyCosts,
       resetDemoData,

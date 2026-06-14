@@ -123,7 +123,8 @@ export default function Historial() {
     ])
     const daysWorked = dateSet.size
 
-    const avgDaily   = daysWorked > 0 ? grossIncome / daysWorked : 0
+    const avgDivisor = mode === 'mes' ? workingDaysElapsed : daysWorked
+    const avgDaily   = avgDivisor > 0 ? grossIncome / avgDivisor : 0
     const avgCarsDay = daysWorked > 0 ? periodTickets.length / daysWorked : 0
 
     const byDate = {}

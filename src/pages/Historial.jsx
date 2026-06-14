@@ -25,8 +25,10 @@ export default function Historial() {
   const [mode, setMode] = useState('mes') // 'mes' | 'rango'
   const [selM, setSelM] = useState(cm)
   const [selY, setSelY] = useState(cy)
-  const [dateFrom, setDateFrom] = useState('')
-  const [dateTo,   setDateTo]   = useState('')
+  const todayStr = new Date().toISOString().slice(0, 10)
+  const monthStartStr = `${cy}-${String(cm).padStart(2,'0')}-01`
+  const [dateFrom, setDateFrom] = useState(monthStartStr)
+  const [dateTo,   setDateTo]   = useState(todayStr)
 
   const [pastData, setPastData] = useState({ tickets: [], summaries: [], expenses: [] })
   const [loading, setLoading] = useState(false)

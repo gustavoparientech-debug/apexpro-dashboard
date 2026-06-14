@@ -2,7 +2,7 @@ import { useMemo, useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useApp } from '../context/AppContext'
 import { useAuth } from '../context/AuthContext'
-import { formatMoney, todayISO } from '../lib/utils'
+import { formatMoney, todayISO, getWorkingDaysInMonth, currentMonthYear } from '../lib/utils'
 import { Target, Clock, CheckCircle, Car, AlertCircle, Plus, X, ClipboardList, TrendingDown } from 'lucide-react'
 import toast from 'react-hot-toast'
 
@@ -193,8 +193,14 @@ export default function DashboardTrabajador() {
     }), [tickets, profile, linked])
 
   const totalHoy  = useMemo(() => myTicketsHoy.reduce((s, t) => s + t.price_charged, 0), [myTicketsHoy])
-  const numWorkers  = workers.filter(w => w.active && w.role === 'worker').length || 1
-  const metaDiaria  = monthlyCosts ? Math.round((monthlyCosts.utility_goal || 2000) / 26 / numWorkers) : 80
+  const { month, year } = currentMonthYear()
+  const workingDaysTotal = getWorkingDaysInMonth(year, month)
+  const numWorkers = workers.filter(w => w.active && w.role === 'worker').length || 1
+  const fixedItemsTotal = (monthlyCosts?.cost_items?.length > 0)
+    ? monthlyCosts.cost_items.reduce((s, i) => s + (i.amount || 0), 0)
+    : (monthlyCosts?.rent || 0) + (monthlyCosts?.supplies || 0)
+  const incomeGoal = fixedItemsTotal + (monthlyCosts?.utility_goal || 2000)
+  const metaDiaria = workingDaysTotal > 0 ? Math.round(incomeGoal / workingDaysTotal / numWorkers) : 80
   const progreso   = Math.min(100, Math.round((totalHoy / metaDiaria) * 100))
 
   const hora   = new Date().getHours()

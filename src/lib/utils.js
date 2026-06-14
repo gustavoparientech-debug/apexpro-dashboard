@@ -58,6 +58,18 @@ export function getWorkingDaysElapsed(year, month) {
   return count
 }
 
+export function getWorkingDaysInRange(dateFrom, dateTo) {
+  const from = new Date(dateFrom + 'T00:00:00')
+  const to   = new Date(dateTo   + 'T00:00:00')
+  let count = 0
+  const cur = new Date(from)
+  while (cur <= to) {
+    if (cur.getDay() !== 0) count++ // excluye domingos
+    cur.setDate(cur.getDate() + 1)
+  }
+  return count
+}
+
 export function getWorkingDaysRemaining(year, month) {
   const total = getWorkingDaysInMonth(year, month)
   const elapsed = getWorkingDaysElapsed(year, month)

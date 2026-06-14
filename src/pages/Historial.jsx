@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useApp } from '../context/AppContext'
 import { supabase } from '../lib/supabase'
-import { formatMoney, formatDate, calcRealSalary, monthName, currentMonthYear, getWorkingDaysInMonth, getWorkingDaysElapsed } from '../lib/utils'
+import { formatMoney, formatDate, calcRealSalary, monthName, currentMonthYear, getWorkingDaysInMonth, getWorkingDaysElapsed, getWorkingDaysInRange } from '../lib/utils'
 import { Download, Share2, Calendar, TrendingUp, DollarSign, CreditCard, Car, Clock, Award } from 'lucide-react'
 import StatCard from '../components/ui/StatCard'
 import toast from 'react-hot-toast'
@@ -97,18 +97,17 @@ export default function Historial() {
         .reduce((d, i) => d + (i.discount_amount || 0), 0)
       return s + real - disc
     }, 0)
-    // Prorratear costos según días del período sobre días totales del mes
+    // Prorratear costos usando días laborables igual que el Panel
     const workingDaysTotal   = getWorkingDaysInMonth(selY, selM)
     const workingDaysElapsed = isCurrentMonth ? getWorkingDaysElapsed(selY, selM) : workingDaysTotal
     let costRatio = 1
-    if (mode === 'mes' && workingDaysTotal > 0) {
-      costRatio = isCurrentMonth ? workingDaysElapsed / workingDaysTotal : 1
-    } else if (mode === 'rango' && dateFrom && dateTo) {
-      const daysInMonth = new Date(selY, selM, 0).getDate()
-      const from = new Date(dateFrom + 'T00:00:00')
-      const to   = new Date(dateTo   + 'T00:00:00')
-      const rangeDays = Math.round((to - from) / 86400000) + 1
-      costRatio = Math.min(rangeDays / daysInMonth, 1)
+    if (workingDaysTotal > 0) {
+      if (mode === 'mes') {
+        costRatio = isCurrentMonth ? workingDaysElapsed / workingDaysTotal : 1
+      } else if (mode === 'rango' && dateFrom && dateTo) {
+        const rangeDays = getWorkingDaysInRange(dateFrom, dateTo)
+        costRatio = Math.min(rangeDays / workingDaysTotal, 1)
+      }
     }
     const proportionalFixed = (fixedCosts + payrollTotal) * costRatio
     const totalCosts = proportionalFixed + totalExpenses

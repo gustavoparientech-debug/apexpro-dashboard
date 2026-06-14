@@ -112,7 +112,8 @@ export default function Historial() {
     const proportionalFixed = (fixedCosts + payrollTotal) * costRatio
     const fixedCostsProp    = fixedCosts   * costRatio
     const payrollTotalProp  = payrollTotal * costRatio
-    const totalCosts = proportionalFixed + totalExpenses
+    const totalCosts        = proportionalFixed + totalExpenses
+    const totalCostsFull    = fixedCosts + payrollTotal + totalExpenses
     const netProfit  = grossIncome - totalCosts
 
     const efectivo      = periodTickets.filter(t => t.payment_method === 'efectivo').reduce((s, t) => s + t.price_charged, 0)
@@ -147,7 +148,7 @@ export default function Historial() {
       .sort((a, b) => b.income - a.income)
 
     return {
-      grossIncome, netProfit, totalCosts, totalExpenses, fixedCosts, payrollTotal, fixedCostsProp, payrollTotalProp,
+      grossIncome, netProfit, totalCosts, totalCostsFull, totalExpenses, fixedCosts, payrollTotal, fixedCostsProp, payrollTotalProp, costItemsData,
       efectivo, yape, transferencia,
       cars: periodTickets.length, daysWorked, avgDaily, avgCarsDay,
       bestDay: bestDayEntry ? { date: bestDayEntry[0], amount: bestDayEntry[1] } : null,
@@ -390,12 +391,15 @@ ${workerLines}`
               <div className="card">
                 <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Desglose de costos</p>
                 <div className="space-y-2 text-sm">
-                  {d.fixedCostsProp > 0    && <Row label="🏠 Costos fijos"    value={formatMoney(d.fixedCostsProp)} />}
-                  {d.payrollTotalProp > 0  && <Row label="👷 Planilla"        value={formatMoney(d.payrollTotalProp)} />}
+                  {(d.costItemsData && d.costItemsData.length > 0)
+                    ? d.costItemsData.map((item, i) => <Row key={i} label={`📌 ${item.name}`} value={formatMoney(item.amount)} />)
+                    : (d.fixedCosts > 0 && <Row label="🏠 Costos fijos" value={formatMoney(d.fixedCosts)} />)
+                  }
+                  {d.payrollTotal > 0  && <Row label="👷 Planilla"        value={formatMoney(d.payrollTotal)} />}
                   {d.totalExpenses > 0 && <Row label="💸 Gastos personal" value={formatMoney(d.totalExpenses)} />}
                   <div className="border-t border-gray-100 dark:border-gray-800 pt-2 mt-1 flex justify-between font-semibold text-sm">
                     <span className="text-gray-700 dark:text-gray-300">Total</span>
-                    <span className="text-red-600 dark:text-red-400">{formatMoney(d.totalCosts)}</span>
+                    <span className="text-red-600 dark:text-red-400">{formatMoney(d.totalCostsFull)}</span>
                   </div>
                 </div>
               </div>

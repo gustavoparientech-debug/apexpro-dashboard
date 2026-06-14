@@ -549,6 +549,19 @@ export function AppProvider({ children }) {
     return e
   }
 
+  const updateExpense = async (id, data) => {
+    if (IS_DEMO) {
+      const updated = { ...state.expenses.find(e => e.id === id), ...data }
+      dispatch({ type: 'SET_EXPENSES', payload: state.expenses.map(e => e.id === id ? updated : e) })
+      return updated
+    }
+    const payload = { ...data, worker_id: data.worker_id || null }
+    const { data: e, error } = await supabase.from('worker_expenses').update(payload).eq('id', id).select().single()
+    if (error) { console.error('updateExpense error:', error); throw error }
+    dispatch({ type: 'SET_EXPENSES', payload: state.expenses.map(ex => ex.id === id ? e : ex) })
+    return e
+  }
+
   const deleteExpense = async (id) => {
     if (IS_DEMO) { dispatch({ type: 'SET_EXPENSES', payload: state.expenses.filter(e => e.id !== id) }); return }
     const { error } = await supabase.from('worker_expenses').delete().eq('id', id)
@@ -600,7 +613,7 @@ export function AppProvider({ children }) {
       addIncident, updateIncident, deleteIncident,
       addVehicleType, updateVehicleType, deleteVehicleType,
       addExtra, updateExtra, deleteExtra,
-      addExpense, deleteExpense,
+      addExpense, updateExpense, deleteExpense,
       addBonus, deleteBonus,
       saveMonthlyCosts,
       resetDemoData,

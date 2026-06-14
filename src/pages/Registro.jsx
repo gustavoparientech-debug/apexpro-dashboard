@@ -993,7 +993,7 @@ const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto
 export default function Registro() {
   const {
     tickets, dailySummaries, workers, vehicleTypes, extrasCatalog, expenses,
-    addTicket, updateTicket, deleteTicket, addDailySummary, deleteDailySummary, deleteExpense, loadData,
+    addTicket, updateTicket, deleteTicket, addDailySummary, deleteDailySummary, updateExpense, deleteExpense, loadData,
   } = useApp()
   const { profile, isAdmin, isDemo } = useAuth()
 
@@ -1012,6 +1012,7 @@ export default function Registro() {
   const [activeTicket, setActiveTicket]    = useState(null)
   const [editingTicket, setEditingTicket]  = useState(null)
   const [summaryTicket, setSummaryTicket]  = useState(null)
+  const [editingExpense, setEditingExpense] = useState(null)
 
   const canAdmin = isAdmin || isDemo
 
@@ -1391,6 +1392,48 @@ export default function Registro() {
             {expensesToday.map(exp => {
               const worker = workers.find(w => w.id === exp.worker_id)
               const catLabels = { insumos: '🧴 Insumos', herramientas: '🔧 Herramientas', transporte: '🚌 Transporte', comida: '🍱 Comida', otro: '📦 Otro' }
+              const isEditing = editingExpense?.id === exp.id
+
+              if (isEditing && canAdmin) return (
+                <div key={exp.id} className="card space-y-3">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <p className="text-xs text-gray-500 mb-1">Monto</p>
+                      <input type="number" className="input text-sm" value={editingExpense.amount}
+                        onChange={e => setEditingExpense(f => ({ ...f, amount: e.target.value }))} />
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500 mb-1">Trabajador</p>
+                      <select className="input text-sm" value={editingExpense.worker_id || ''}
+                        onChange={e => setEditingExpense(f => ({ ...f, worker_id: e.target.value }))}>
+                        <option value="">Sin asignar</option>
+                        {workers.filter(w => w.active).map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {Object.entries({ insumos: '🧴', herramientas: '🔧', transporte: '🚌', comida: '🍱', otro: '📦' }).map(([v, emoji]) => (
+                      <button key={v} type="button" onClick={() => setEditingExpense(f => ({ ...f, category: v }))}
+                        className={`py-1.5 px-2 rounded-xl border text-xs font-medium transition-all ${editingExpense.category === v ? 'border-red-500 bg-red-50 text-red-600' : 'border-gray-200 text-gray-600'}`}>
+                        {emoji} {v.charAt(0).toUpperCase() + v.slice(1)}
+                      </button>
+                    ))}
+                  </div>
+                  <input className="input text-sm" placeholder="Notas" value={editingExpense.notes || ''}
+                    onChange={e => setEditingExpense(f => ({ ...f, notes: e.target.value }))} />
+                  <div className="flex gap-2">
+                    <button onClick={async () => {
+                      try {
+                        await updateExpense(exp.id, { ...editingExpense, amount: parseFloat(editingExpense.amount) })
+                        toast.success('Gasto actualizado')
+                        setEditingExpense(null)
+                      } catch { toast.error('Error al actualizar') }
+                    }} className="flex-1 py-2 bg-red-600 text-white text-sm font-bold rounded-xl">Guardar</button>
+                    <button onClick={() => setEditingExpense(null)} className="px-4 py-2 border border-gray-200 text-sm rounded-xl text-gray-600">Cancelar</button>
+                  </div>
+                </div>
+              )
+
               return (
                 <div key={exp.id} className="card flex items-center gap-3">
                   <div className="w-8 h-8 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center flex-shrink-0">
@@ -1405,10 +1448,16 @@ export default function Registro() {
                   </div>
                   <span className="text-sm font-bold text-amber-600">-{formatMoney(exp.amount)}</span>
                   {canAdmin && (
-                    <button onClick={async () => { try { await deleteExpense(exp.id); toast.success('Gasto eliminado') } catch { toast.error('Error al eliminar') } }}
-                      className="p-1.5 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg">
-                      <Trash2 className="w-3.5 h-3.5 text-red-400" />
-                    </button>
+                    <>
+                      <button onClick={() => setEditingExpense({ ...exp })}
+                        className="p-1.5 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg">
+                        <PenLine className="w-3.5 h-3.5 text-blue-400" />
+                      </button>
+                      <button onClick={async () => { try { await deleteExpense(exp.id); toast.success('Gasto eliminado') } catch { toast.error('Error al eliminar') } }}
+                        className="p-1.5 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg">
+                        <Trash2 className="w-3.5 h-3.5 text-red-400" />
+                      </button>
+                    </>
                   )}
                 </div>
               )

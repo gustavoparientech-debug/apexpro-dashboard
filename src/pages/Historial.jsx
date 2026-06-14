@@ -37,28 +37,22 @@ export default function Historial() {
 
 // ─── Historial de tickets ────────────────────────────────────────────────────
 function TicketHistory() {
-  const { tickets, expenses, workers, vehicleTypes } = useApp()
+  const { tickets, workers, vehicleTypes } = useApp()
   const today = new Date().toISOString().slice(0, 10)
   const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10)
 
   const [dateFrom, setDateFrom] = useState(weekAgo)
   const [dateTo,   setDateTo]   = useState(today)
   const [search,   setSearch]   = useState('')
-  const [pastTickets,   setPastTickets]   = useState([])
-  const [pastExpenses,  setPastExpenses]  = useState([])
+  const [pastTickets, setPastTickets] = useState([])
   const [loading, setLoading] = useState(false)
 
-  // Cargar datos del rango desde Supabase
   useEffect(() => {
     if (IS_DEMO || !dateFrom || !dateTo) return
     setLoading(true)
-    Promise.all([
-      supabase.from('tickets').select('*').gte('date', dateFrom).lte('date', dateTo).neq('status', 'abierto').order('created_at', { ascending: false }),
-      supabase.from('worker_expenses').select('*').gte('date', dateFrom).lte('date', dateTo).order('date', { ascending: false }),
-    ]).then(([t, e]) => {
-      setPastTickets(t.data || [])
-      setPastExpenses(e.data || [])
-    }).finally(() => setLoading(false))
+    supabase.from('tickets').select('*').gte('date', dateFrom).lte('date', dateTo).neq('status', 'abierto').order('created_at', { ascending: false })
+      .then(({ data }) => setPastTickets(data || []))
+      .finally(() => setLoading(false))
   }, [dateFrom, dateTo])
 
   const allTickets  = useMemo(() => {
@@ -73,19 +67,7 @@ function TicketHistory() {
     )
   }, [pastTickets, tickets, search, workers])
 
-  const allExpenses = useMemo(() => {
-    const base = IS_DEMO ? expenses || [] : pastExpenses
-    if (!search.trim()) return base
-    const q = search.toLowerCase()
-    return base.filter(e =>
-      e.description?.toLowerCase().includes(q) ||
-      e.category?.toLowerCase().includes(q) ||
-      workers.find(w => w.id === e.worker_id)?.name?.toLowerCase().includes(q)
-    )
-  }, [pastExpenses, expenses, search, workers])
-
-  const totalIncome   = allTickets.reduce((s, t) => s + (t.price_charged || 0), 0)
-  const totalExpTotal = allExpenses.reduce((s, e) => s + (e.amount || 0), 0)
+  const totalIncome = allTickets.reduce((s, t) => s + (t.price_charged || 0), 0)
 
   async function handleDelete(id) {
     if (!confirm('¿Eliminar este ticket?')) return
@@ -119,18 +101,12 @@ function TicketHistory() {
       {loading && <p className="text-center text-sm text-gray-400 animate-pulse py-4">Cargando...</p>}
 
       {/* Resumen */}
-      {!loading && (allTickets.length > 0 || allExpenses.length > 0) && (
+      {!loading && allTickets.length > 0 && (
         <div className="rounded-xl overflow-hidden border border-gray-100 dark:border-gray-800">
           <div className="flex items-center justify-between px-4 py-3 bg-blue-50 dark:bg-blue-900/20">
             <span className="text-sm text-blue-700 dark:text-blue-300 font-medium">{allTickets.length} tickets</span>
             <span className="text-sm font-bold text-blue-700 dark:text-blue-300">{formatMoney(totalIncome)}</span>
           </div>
-          {allExpenses.length > 0 && (
-            <div className="flex items-center justify-between px-4 py-2 bg-red-50 dark:bg-red-900/20">
-              <span className="text-sm text-red-600 dark:text-red-400 font-medium">{allExpenses.length} gastos</span>
-              <span className="text-sm font-bold text-red-600 dark:text-red-400">−{formatMoney(totalExpTotal)}</span>
-            </div>
-          )}
         </div>
       )}
 
@@ -167,28 +143,7 @@ function TicketHistory() {
         </div>
       )}
 
-      {/* Lista de gastos */}
-      {!loading && allExpenses.length > 0 && (
-        <div>
-          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">GASTOS ({allExpenses.length})</p>
-          <div className="space-y-2">
-            {allExpenses.map(e => {
-              const worker = workers.find(w => w.id === e.worker_id)
-              return (
-                <div key={e.id} className="card flex items-center gap-3 border-l-4 border-red-400">
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-gray-900 dark:text-white">{e.description || e.notes || e.category || '—'}</p>
-                    <p className="text-xs text-gray-500">{formatDate(e.date)}{worker ? ` · ${worker.name}` : ''}</p>
-                  </div>
-                  <p className="font-bold text-red-500 flex-shrink-0">−{formatMoney(e.amount)}</p>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      )}
-
-      {!loading && allTickets.length === 0 && allExpenses.length === 0 && (
+      {!loading && allTickets.length === 0 && (
         <div className="card text-center py-10 text-gray-400">
           <ClipboardList className="w-10 h-10 mx-auto mb-2 opacity-30" />
           <p className="text-sm">Sin registros en este período</p>

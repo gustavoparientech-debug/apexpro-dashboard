@@ -542,7 +542,8 @@ export function AppProvider({ children }) {
       dispatch({ type: 'ADD_EXPENSE', payload: e })
       return e
     }
-    const { data: e, error } = await supabase.from('worker_expenses').insert(data).select().single()
+    const payload = { ...data, worker_id: data.worker_id || null }
+    const { data: e, error } = await supabase.from('worker_expenses').insert(payload).select().single()
     if (error) { console.error('addExpense error:', error); throw error }
     dispatch({ type: 'ADD_EXPENSE', payload: e })
     return e

@@ -125,6 +125,101 @@ function BonusSection({ workers, bonuses, addBonus, deleteBonus, monthPrefix }) 
   )
 }
 
+const CAT_LABELS = { insumos: '🧴 Insumos', herramientas: '🔧 Herramientas', transporte: '🚌 Transporte', comida: '🍱 Comida', otro: '📦 Otro' }
+const SORT_OPTIONS = [
+  { value: 'date_desc', label: 'Fecha ↓' },
+  { value: 'date_asc',  label: 'Fecha ↑' },
+  { value: 'amount_desc', label: 'Mayor monto' },
+  { value: 'amount_asc',  label: 'Menor monto' },
+]
+
+function ExpensesPanel({ expenses, workers }) {
+  const [filterCat,    setFilterCat]    = useState('')
+  const [filterWorker, setFilterWorker] = useState('')
+  const [sortBy,       setSortBy]       = useState('date_desc')
+
+  const filtered = useMemo(() => {
+    let list = [...expenses]
+    if (filterCat)    list = list.filter(e => e.category === filterCat)
+    if (filterWorker) list = list.filter(e => e.worker_id === filterWorker)
+    list.sort((a, b) => {
+      if (sortBy === 'date_desc')   return b.date.localeCompare(a.date)
+      if (sortBy === 'date_asc')    return a.date.localeCompare(b.date)
+      if (sortBy === 'amount_desc') return b.amount - a.amount
+      if (sortBy === 'amount_asc')  return a.amount - b.amount
+      return 0
+    })
+    return list
+  }, [expenses, filterCat, filterWorker, sortBy])
+
+  const total = filtered.reduce((s, e) => s + (e.amount || 0), 0)
+  const activeWorkers = workers.filter(w => expenses.some(e => e.worker_id === w.id))
+
+  return (
+    <div className="card">
+      <div className="flex items-center gap-2 mb-3">
+        <span className="text-base">💸</span>
+        <p className="text-sm font-bold text-gray-900 dark:text-white flex-1">Gastos de personal</p>
+        <span className="text-sm font-black text-amber-600">-{formatMoney(total)}</span>
+      </div>
+
+      {/* Filtros */}
+      <div className="flex flex-wrap gap-2 mb-3">
+        <select value={filterCat} onChange={e => setFilterCat(e.target.value)}
+          className="text-xs border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1.5 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300">
+          <option value="">Todas las categorías</option>
+          {Object.entries(CAT_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+        </select>
+        {activeWorkers.length > 0 && (
+          <select value={filterWorker} onChange={e => setFilterWorker(e.target.value)}
+            className="text-xs border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1.5 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300">
+            <option value="">Todos los trabajadores</option>
+            {activeWorkers.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+          </select>
+        )}
+        <select value={sortBy} onChange={e => setSortBy(e.target.value)}
+          className="text-xs border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1.5 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300">
+          {SORT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
+        {(filterCat || filterWorker) && (
+          <button onClick={() => { setFilterCat(''); setFilterWorker('') }}
+            className="text-xs text-red-500 border border-red-200 rounded-lg px-2 py-1.5">
+            Limpiar
+          </button>
+        )}
+      </div>
+
+      {/* Lista */}
+      {filtered.length === 0 ? (
+        <p className="text-xs text-gray-400 text-center py-3">Sin gastos con estos filtros</p>
+      ) : (
+        <div className="space-y-0">
+          {filtered.map(exp => {
+            const worker = workers.find(w => w.id === exp.worker_id)
+            return (
+              <div key={exp.id} className="flex items-center gap-2 py-2 border-b border-gray-100 dark:border-gray-800 last:border-0">
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-semibold text-gray-700 dark:text-gray-300">{CAT_LABELS[exp.category] || exp.category || 'Gasto'}</p>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {worker && <span className="text-xs text-gray-400">{worker.name}</span>}
+                    {exp.notes && <span className="text-xs text-gray-400 italic truncate">· {exp.notes}</span>}
+                    <span className="text-xs text-gray-300 dark:text-gray-600">{exp.date}</span>
+                  </div>
+                </div>
+                <span className="text-xs font-bold text-amber-600 flex-shrink-0">-{formatMoney(exp.amount)}</span>
+              </div>
+            )
+          })}
+        </div>
+      )}
+      <div className="flex justify-between items-center pt-2 mt-1 border-t border-gray-100 dark:border-gray-800">
+        <span className="text-xs text-gray-400">{filtered.length} gasto{filtered.length !== 1 ? 's' : ''}</span>
+        <span className="text-xs font-black text-amber-600">-{formatMoney(total)}</span>
+      </div>
+    </div>
+  )
+}
+
 export default function Dashboard() {
   const { tickets, dailySummaries, expenses, workers, services, incidents, monthlyCosts, bonuses, addBonus, deleteBonus, loading } = useApp()
   const { month: cm, year: cy } = currentMonthYear()
@@ -420,34 +515,7 @@ export default function Dashboard() {
       </div>
 
       {/* Gastos de personal */}
-      {data.periodExpenses?.length > 0 && (
-        <div className="card">
-          <div className="flex items-center gap-2 mb-3">
-            <span className="text-base">💸</span>
-            <p className="text-sm font-bold text-gray-900 dark:text-white flex-1">Gastos de personal</p>
-            <span className="text-sm font-black text-amber-600">-{formatMoney(data.workerExpTotal)}</span>
-          </div>
-          <div className="space-y-2">
-            {data.periodExpenses.map(exp => {
-              const worker = workers.find(w => w.id === exp.worker_id)
-              const catLabels = { insumos: '🧴 Insumos', herramientas: '🔧 Herramientas', transporte: '🚌 Transporte', comida: '🍱 Comida', otro: '📦 Otro' }
-              return (
-                <div key={exp.id} className="flex items-center gap-2 py-1.5 border-b border-gray-100 dark:border-gray-800 last:border-0">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-semibold text-gray-700 dark:text-gray-300">{catLabels[exp.category] || exp.category || 'Gasto'}</p>
-                    <div className="flex items-center gap-2">
-                      {worker && <span className="text-xs text-gray-400">{worker.name}</span>}
-                      {exp.notes && <span className="text-xs text-gray-400 italic truncate">· {exp.notes}</span>}
-                      <span className="text-xs text-gray-400">{exp.date}</span>
-                    </div>
-                  </div>
-                  <span className="text-xs font-bold text-amber-600">-{formatMoney(exp.amount)}</span>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      )}
+      {data.periodExpenses?.length > 0 && <ExpensesPanel expenses={data.periodExpenses} workers={workers} />}
 
       {/* Ranking trabajadores */}
       {data.workerRanking.length > 0 && (

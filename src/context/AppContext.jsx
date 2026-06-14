@@ -542,17 +542,10 @@ export function AppProvider({ children }) {
       dispatch({ type: 'ADD_EXPENSE', payload: e })
       return e
     }
-    try {
-      const { data: e, error } = await supabase.from('worker_expenses').insert(data).select().single()
-      if (error) throw error
-      dispatch({ type: 'ADD_EXPENSE', payload: e })
-      return e
-    } catch (err) {
-      // Si la tabla no existe aún, guardar solo en estado local
-      const e = { ...data, id: `e${Date.now()}` }
-      dispatch({ type: 'ADD_EXPENSE', payload: e })
-      return e
-    }
+    const { data: e, error } = await supabase.from('worker_expenses').insert(data).select().single()
+    if (error) { console.error('addExpense error:', error); throw error }
+    dispatch({ type: 'ADD_EXPENSE', payload: e })
+    return e
   }
 
   const deleteExpense = async (id) => {

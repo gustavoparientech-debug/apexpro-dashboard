@@ -1008,6 +1008,12 @@ export default function Registro() {
   const [selYear,  setSelYear]  = useState(cy)
   const [selectedDate, setSelectedDate]   = useState(today)
   const [showNewForm,  setShowNewForm]     = useState(!!location.state?.autoNew)
+  useEffect(() => {
+    if (location.state?.autoNew) {
+      setShowNewForm(true)
+      window.history.replaceState({}, '')
+    }
+  }, [location.state])
   const [showQuickForm, setShowQuickForm]  = useState(false)
   const [activeTicket, setActiveTicket]    = useState(null)
   const [editingTicket, setEditingTicket]  = useState(null)

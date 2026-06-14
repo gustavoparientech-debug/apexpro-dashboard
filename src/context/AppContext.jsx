@@ -224,6 +224,9 @@ export function AppProvider({ children }) {
 
     // ── Supabase ──────────────────────────────────────────────────────────────
     try {
+      // Esperar a que Supabase restaure la sesión desde localStorage antes de lanzar queries
+      await supabase.auth.getSession()
+
       const { month: cm, year: cy } = currentMonthYear()
       const m = month || cm
       const y = year || cy

@@ -349,48 +349,6 @@ export default function Configuracion() {
         </button>
       </div>
 
-      {/* Tipos de vehículo */}
-      <div className="card">
-        <div className="flex items-center justify-between mb-1">
-          <div>
-            <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">Tipos de vehículo</p>
-            <p className="text-xs text-gray-400 mt-0.5">Precios sugeridos al registrar un ticket</p>
-          </div>
-          <button className="btn-primary text-sm flex items-center gap-1"
-            onClick={() => setShowNewVehicle(v => !v)}>
-            <Plus className="w-4 h-4" /> Agregar
-          </button>
-        </div>
-
-        {showNewVehicle && (
-          <div className="flex items-center gap-2 mt-3 p-3 bg-red-50 dark:bg-red-900/10 rounded-xl border border-red-200 dark:border-red-800">
-            <select className="input py-1.5 w-14 text-center text-lg px-1" value={newVehicle.emoji}
-              onChange={e => setNewVehicle(v => ({ ...v, emoji: e.target.value }))}>
-              {EMOJI_OPTIONS.map(e => <option key={e} value={e}>{e}</option>)}
-            </select>
-            <input className="input py-1.5 flex-1 text-sm" placeholder="Nombre del tipo (ej: Sedan)"
-              value={newVehicle.label}
-              onChange={e => setNewVehicle(v => ({ ...v, label: e.target.value }))} />
-            <div className="flex items-center gap-1">
-              <span className="text-xs text-gray-500">S/</span>
-              <input type="number" min="0" step="1" placeholder="0"
-                className="input py-1.5 w-20 text-sm text-right"
-                value={newVehicle.default_price}
-                onChange={e => setNewVehicle(v => ({ ...v, default_price: e.target.value }))} />
-            </div>
-            <button onClick={handleAddVehicle} className="btn-primary py-1.5 px-4 text-sm">Guardar</button>
-          </div>
-        )}
-
-        <div className="space-y-2 mt-3">
-          {(vehicleTypes || []).map(vt => (
-            <VehicleTypeRow key={vt.id} vt={vt}
-              onSave={handleUpdateVehicle}
-              onDelete={(id) => setDeleteVehicleTarget(id)} />
-          ))}
-        </div>
-      </div>
-
       {/* Catálogo de servicios */}
       <div className="card">
         <div className="flex items-center justify-between mb-4">

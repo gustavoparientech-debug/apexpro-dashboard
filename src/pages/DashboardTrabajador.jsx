@@ -2,7 +2,7 @@ import { useMemo, useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useApp } from '../context/AppContext'
 import { useAuth } from '../context/AuthContext'
-import { formatMoney, todayISO, getWorkingDaysInMonth, currentMonthYear } from '../lib/utils'
+import { formatMoney, todayISO, getWorkingDaysInMonth, currentMonthYear, calcRealSalary } from '../lib/utils'
 import { Target, Clock, CheckCircle, Car, AlertCircle, Plus, X, ClipboardList, TrendingDown } from 'lucide-react'
 import toast from 'react-hot-toast'
 
@@ -199,7 +199,8 @@ export default function DashboardTrabajador() {
   const fixedItemsTotal = (monthlyCosts?.cost_items?.length > 0)
     ? monthlyCosts.cost_items.reduce((s, i) => s + (i.amount || 0), 0)
     : (monthlyCosts?.rent || 0) + (monthlyCosts?.supplies || 0)
-  const incomeGoal = fixedItemsTotal + (monthlyCosts?.utility_goal || 2000)
+  const payrollTotal = workers.filter(w => w.active).reduce((s, w) => s + calcRealSalary(w.base_salary || 0, w.weekly_hours || 48), 0)
+  const incomeGoal = fixedItemsTotal + payrollTotal + (monthlyCosts?.utility_goal || 2000)
   const metaDiaria = workingDaysTotal > 0 ? Math.round(incomeGoal / workingDaysTotal / numWorkers) : 80
   const progreso   = Math.min(100, Math.round((totalHoy / metaDiaria) * 100))
 

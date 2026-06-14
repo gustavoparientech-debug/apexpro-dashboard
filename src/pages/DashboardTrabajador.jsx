@@ -193,7 +193,8 @@ export default function DashboardTrabajador() {
     }), [tickets, profile, linked])
 
   const totalHoy  = useMemo(() => myTicketsHoy.reduce((s, t) => s + t.price_charged, 0), [myTicketsHoy])
-  const metaDiaria = monthlyCosts ? Math.round((monthlyCosts.utility_goal || 2000) / 26) : 80
+  const numWorkers  = workers.length || 1
+  const metaDiaria  = monthlyCosts ? Math.round((monthlyCosts.utility_goal || 2000) / 26 / numWorkers) : 80
   const progreso   = Math.min(100, Math.round((totalHoy / metaDiaria) * 100))
 
   const hora   = new Date().getHours()

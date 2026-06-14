@@ -37,7 +37,7 @@ export default function Historial() {
 
 // ─── Historial de tickets ────────────────────────────────────────────────────
 function TicketHistory() {
-  const { tickets, expenses, workers } = useApp()
+  const { tickets, expenses, workers, vehicleTypes } = useApp()
   const today = new Date().toISOString().slice(0, 10)
   const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10)
 
@@ -68,8 +68,8 @@ function TicketHistory() {
     return base.filter(t =>
       t.plate?.toLowerCase().includes(q) ||
       workers.find(w => w.id === t.worker_id)?.name?.toLowerCase().includes(q) ||
-      t.service_name?.toLowerCase().includes(q) ||
-      t.vehicle_label?.toLowerCase().includes(q)
+      t.vehicle_type?.toLowerCase().includes(q) ||
+      (vehicleTypes || []).find(v => v.value === t.vehicle_type)?.label?.toLowerCase().includes(q)
     )
   }, [pastTickets, tickets, search, workers])
 
@@ -148,8 +148,7 @@ function TicketHistory() {
                   )}
                   <div className="flex-1 min-w-0">
                     <p className="font-bold text-gray-900 dark:text-white">{t.plate || '—'}</p>
-                    <p className="text-xs text-gray-500">{formatDate(t.date)} · {t.vehicle_label || '—'} · {worker?.name || '—'}</p>
-                    {t.service_name && <p className="text-xs text-gray-400 mt-0.5">{t.service_name}</p>}
+                    <p className="text-xs text-gray-500">{formatDate(t.date)} · {(vehicleTypes || []).find(v => v.value === t.vehicle_type)?.label || t.vehicle_type || '—'} · {worker?.name || '—'}</p>
                     {t.notes && <p className="text-xs text-gray-400 italic mt-0.5">{t.notes}</p>}
                   </div>
                   <div className="text-right flex-shrink-0">
@@ -204,7 +203,7 @@ const CLIENT_FILTERS = ['Todos', 'Con contacto', 'Sin contacto', 'Frecuentes', '
 const FREE_WASH_EVERY = 10 // cada 10 lavados = 1 gratis
 
 function ClientList() {
-  const { tickets, workers } = useApp()
+  const { tickets, workers, vehicleTypes } = useApp()
   const [search,     setSearch]     = useState('')
   const [filter,     setFilter]     = useState('Todos')
   const [expanded,   setExpanded]   = useState(null)
@@ -416,7 +415,7 @@ function ClientList() {
                           <div key={t.id} className="flex items-center justify-between py-2 border-b border-gray-50 dark:border-gray-800 last:border-0">
                             <div>
                               <p className="text-sm font-medium text-gray-800 dark:text-gray-200">{t.date}</p>
-                              <p className="text-xs text-gray-400">{t.vehicle_label || '—'} · {worker?.name || '—'}</p>
+                              <p className="text-xs text-gray-400">{(vehicleTypes || []).find(v => v.value === t.vehicle_type)?.label || t.vehicle_type || '—'} · {worker?.name || '—'}</p>
                             </div>
                             <p className="font-semibold text-green-600 dark:text-green-400">{formatMoney(t.price_charged)}</p>
                           </div>

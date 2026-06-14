@@ -19,9 +19,9 @@ const GASTO_CATS = [
   { value: 'otro',         label: '📦 Otro' },
 ]
 
-function GastoSheet({ onClose }) {
+function GastoSheet({ onClose, fixedWorkerId }) {
   const { addExpense, workers } = useApp()
-  const [form, setForm] = useState({ date: todayISO(), amount: '', category: '', notes: '', worker_id: '' })
+  const [form, setForm] = useState({ date: todayISO(), amount: '', category: '', notes: '', worker_id: fixedWorkerId || '' })
   const [busy, setBusy] = useState(false)
   async function handleSave() {
     if (!form.amount) { toast.error('Ingresa el monto'); return }
@@ -51,10 +51,12 @@ function GastoSheet({ onClose }) {
             </button>
           ))}
         </div>
-        <select className="input" value={form.worker_id} onChange={e => setForm(f => ({ ...f, worker_id: e.target.value }))}>
-          <option value="">Trabajador (opcional)</option>
-          {workers.filter(w => w.active).map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
-        </select>
+        {!fixedWorkerId && (
+          <select className="input" value={form.worker_id} onChange={e => setForm(f => ({ ...f, worker_id: e.target.value }))}>
+            <option value="">Trabajador (opcional)</option>
+            {workers.filter(w => w.active).map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+          </select>
+        )}
         <input className="input" placeholder="Notas (opcional)" value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
         <button onClick={handleSave} disabled={busy}
           className="w-full py-3 rounded-2xl bg-red-600 hover:bg-red-700 text-white font-bold transition-all active:scale-95">
@@ -65,7 +67,7 @@ function GastoSheet({ onClose }) {
   )
 }
 
-function GlobalFab({ canAdmin }) {
+function GlobalFab({ canAdmin, workerWorkerId }) {
   const navigate = useNavigate()
   const [open, setOpen] = useState(false)
   const [showGasto, setShowGasto] = useState(false)
@@ -73,16 +75,6 @@ function GlobalFab({ canAdmin }) {
   function handleNewTicket() {
     navigate('/registro', { state: { autoNew: true } })
     setOpen(false)
-  }
-
-  // Si solo es trabajador, el botón va directo a nuevo ticket sin menú
-  if (!canAdmin) {
-    return (
-      <button onClick={handleNewTicket}
-        className="fixed bottom-20 right-4 lg:bottom-6 lg:right-6 z-40 w-14 h-14 rounded-full bg-red-600 hover:bg-red-700 shadow-xl flex items-center justify-center transition-all duration-200">
-        <Plus className="w-6 h-6 text-white" />
-      </button>
-    )
   }
 
   return (
@@ -106,7 +98,12 @@ function GlobalFab({ canAdmin }) {
           {open ? <X className="w-6 h-6 text-white" /> : <Plus className="w-6 h-6 text-white" />}
         </button>
       </div>
-      {showGasto && <GastoSheet onClose={() => setShowGasto(false)} />}
+      {showGasto && (
+        <GastoSheet
+          onClose={() => setShowGasto(false)}
+          fixedWorkerId={canAdmin ? undefined : workerWorkerId}
+        />
+      )}
     </>
   )
 }
@@ -297,7 +294,7 @@ export default function Layout({ children }) {
           {children}
         </main>
 
-        <GlobalFab canAdmin={isAdmin || isDemo} />
+        <GlobalFab canAdmin={isAdmin || isDemo} workerWorkerId={profile?.worker_id} />
 
         {/* Bottom nav móvil */}
         <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-30 bg-[#1e1e1e] border-t border-white/10 flex">

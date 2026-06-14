@@ -122,9 +122,10 @@ function VehicleTypeRow({ vt, onSave, onDelete }) {
 }
 
 export default function Configuracion() {
-  const { services, vehicleTypes, monthlyCosts, workers, incidents,
+  const { services, vehicleTypes, monthlyCosts, workers, incidents, extrasCatalog,
           addService, updateService, saveMonthlyCosts,
-          addVehicleType, updateVehicleType, deleteVehicleType } = useApp()
+          addVehicleType, updateVehicleType, deleteVehicleType,
+          addExtra, updateExtra, deleteExtra } = useApp()
   const { month, year } = currentMonthYear()
   const [showServiceForm, setShowServiceForm] = useState(false)
   const [editingService, setEditingService] = useState(null)
@@ -139,6 +140,28 @@ export default function Configuracion() {
   const [newVehicle, setNewVehicle] = useState({ emoji: '🚗', label: '', default_price: '' })
   const [showNewVehicle, setShowNewVehicle] = useState(false)
   const [deleteVehicleTarget, setDeleteVehicleTarget] = useState(null)
+  const [newExtra, setNewExtra] = useState({ name: '', price: '' })
+  const [showNewExtra, setShowNewExtra] = useState(false)
+  const [editingExtra, setEditingExtra] = useState(null)
+
+  async function handleAddExtra() {
+    if (!newExtra.name.trim() || !newExtra.price) { toast.error('Nombre y precio requeridos'); return }
+    try {
+      await addExtra({ name: newExtra.name.trim(), price: parseFloat(newExtra.price), active: true, sort_order: (extrasCatalog?.length || 0) + 1 })
+      setNewExtra({ name: '', price: '' }); setShowNewExtra(false)
+      toast.success('Extra agregado')
+    } catch { toast.error('Error al guardar') }
+  }
+
+  async function handleUpdateExtra(extra) {
+    try { await updateExtra(extra.id, { name: extra.name, price: extra.price }); setEditingExtra(null); toast.success('Actualizado') }
+    catch { toast.error('Error al guardar') }
+  }
+
+  async function handleDeleteExtra(id) {
+    try { await deleteExtra(id); toast.success('Eliminado') }
+    catch { toast.error('Error al eliminar') }
+  }
 
   // Recalcular meta en tiempo real
   const payrollTotal = useMemo(() => {
@@ -347,6 +370,66 @@ export default function Configuracion() {
               </div>
             </div>
           ))}
+        </div>
+      </div>
+
+      {/* Catálogo de extras */}
+      <div className="card">
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">Extras del catálogo</p>
+            <p className="text-xs text-gray-400 mt-0.5">Servicios adicionales al cerrar un ticket</p>
+          </div>
+          <button className="btn-primary text-sm flex items-center gap-1" onClick={() => setShowNewExtra(v => !v)}>
+            <Plus className="w-4 h-4" /> Agregar
+          </button>
+        </div>
+
+        {showNewExtra && (
+          <div className="flex items-center gap-2 mb-3 p-3 bg-red-50 dark:bg-red-900/10 rounded-xl border border-red-200 dark:border-red-800">
+            <input className="input py-1.5 flex-1 text-sm" placeholder="Nombre (ej: Motor)"
+              value={newExtra.name} onChange={e => setNewExtra(v => ({ ...v, name: e.target.value }))} />
+            <div className="flex items-center gap-1">
+              <span className="text-xs text-gray-500">S/</span>
+              <input type="number" min="0" step="0.5" placeholder="0" className="input py-1.5 w-20 text-sm text-right"
+                value={newExtra.price} onChange={e => setNewExtra(v => ({ ...v, price: e.target.value }))} />
+            </div>
+            <button onClick={handleAddExtra} className="btn-primary py-1.5 px-4 text-sm">Guardar</button>
+          </div>
+        )}
+
+        <div className="space-y-2">
+          {(extrasCatalog || []).map(ex => (
+            <div key={ex.id} className="flex items-center gap-3 p-3 rounded-xl bg-gray-50 dark:bg-gray-800/50">
+              {editingExtra?.id === ex.id ? (
+                <>
+                  <input className="input py-1 flex-1 text-sm" value={editingExtra.name}
+                    onChange={e => setEditingExtra(v => ({ ...v, name: e.target.value }))} />
+                  <div className="flex items-center gap-1">
+                    <span className="text-xs text-gray-500">S/</span>
+                    <input type="number" min="0" step="0.5" className="input py-1 w-20 text-sm text-right"
+                      value={editingExtra.price} onChange={e => setEditingExtra(v => ({ ...v, price: e.target.value }))} />
+                  </div>
+                  <button onClick={() => handleUpdateExtra(editingExtra)} className="btn-primary py-1 px-3 text-sm"><Save className="w-3.5 h-3.5" /></button>
+                  <button onClick={() => setEditingExtra(null)} className="p-1.5 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700"><Trash2 className="w-3.5 h-3.5 text-gray-400" /></button>
+                </>
+              ) : (
+                <>
+                  <span className="flex-1 text-sm font-medium text-gray-900 dark:text-white">{ex.name}</span>
+                  <span className="text-sm font-bold text-red-500">+S/{ex.price}</span>
+                  <button onClick={() => setEditingExtra({ ...ex })} className="p-1.5 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700">
+                    <Edit2 className="w-3.5 h-3.5 text-gray-400" />
+                  </button>
+                  <button onClick={() => handleDeleteExtra(ex.id)} className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20">
+                    <Trash2 className="w-3.5 h-3.5 text-red-400" />
+                  </button>
+                </>
+              )}
+            </div>
+          ))}
+          {(extrasCatalog || []).length === 0 && (
+            <p className="text-sm text-gray-400 text-center py-4">Sin extras. Agrega el primero.</p>
+          )}
         </div>
       </div>
 

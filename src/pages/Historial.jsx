@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useApp } from '../context/AppContext'
 import { supabase } from '../lib/supabase'
-import { formatMoney, formatDate, calcRealSalary, monthName, currentMonthYear } from '../lib/utils'
+import { formatMoney, formatDate, calcRealSalary, monthName, currentMonthYear, getWorkingDaysInMonth, getWorkingDaysElapsed } from '../lib/utils'
 import { Download, Share2, Calendar, TrendingUp } from 'lucide-react'
 import toast from 'react-hot-toast'
 
@@ -96,7 +96,13 @@ export default function Historial() {
         .reduce((d, i) => d + (i.discount_amount || 0), 0)
       return s + real - disc
     }, 0)
-    const totalCosts = fixedCosts + payrollTotal + totalExpenses
+    // Para el mes actual sin rango específico, prorratear costos fijos igual que el Panel
+    const workingDaysTotal   = getWorkingDaysInMonth(selY, selM)
+    const workingDaysElapsed = (isCurrentMonth && mode === 'mes') ? getWorkingDaysElapsed(selY, selM) : workingDaysTotal
+    const proportionalFixed  = (isCurrentMonth && mode === 'mes' && workingDaysTotal > 0)
+      ? (fixedCosts + payrollTotal) * (workingDaysElapsed / workingDaysTotal)
+      : (fixedCosts + payrollTotal)
+    const totalCosts = proportionalFixed + totalExpenses
     const netProfit  = grossIncome - totalCosts
 
     const efectivo      = periodTickets.filter(t => t.payment_method === 'efectivo').reduce((s, t) => s + t.price_charged, 0)

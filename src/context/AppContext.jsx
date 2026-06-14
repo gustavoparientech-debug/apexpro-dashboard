@@ -499,7 +499,9 @@ export function AppProvider({ children }) {
       dispatch({ type: 'UPDATE_EXTRA', payload: updated })
       return updated
     }
-    const { data: e, error } = await supabase.from('extras_catalog').update({ ...data, price: parseFloat(data.price) }).eq('id', id).select().single()
+    const payload = { ...data }
+    if (data.price !== undefined) payload.price = parseFloat(data.price)
+    const { data: e, error } = await supabase.from('extras_catalog').update(payload).eq('id', id).select().single()
     if (error) { console.error('updateExtra error:', error); throw error }
     dispatch({ type: 'UPDATE_EXTRA', payload: e })
     return e

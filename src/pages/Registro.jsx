@@ -1055,11 +1055,14 @@ export default function Registro() {
 
   const daySummaries = useMemo(() => dailySummaries.filter(d => d.date === selectedDate), [dailySummaries, selectedDate])
 
-  const dayTotal = useMemo(() =>
-    closedToday.reduce((s, t) => s + t.price_charged, 0) +
-    daySummaries.reduce((s, d) => s + d.total_income, 0),
-    [closedToday, daySummaries]
-  )
+  const dayTotal = useMemo(() => {
+    // Si hay tickets para el día, los tickets son la fuente de verdad
+    // Solo sumar daySummaries si no hay tickets (días históricos sin tickets en memoria)
+    if (closedToday.length > 0) {
+      return closedToday.reduce((s, t) => s + (t.price_charged || 0), 0)
+    }
+    return daySummaries.reduce((s, d) => s + (d.total_income || 0), 0)
+  }, [closedToday, daySummaries])
 
   // Caja por método de pago
   const cajaStats = useMemo(() => {

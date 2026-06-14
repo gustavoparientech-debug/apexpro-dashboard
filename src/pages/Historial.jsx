@@ -2,15 +2,199 @@ import { useState, useMemo, useEffect } from 'react'
 import { useApp } from '../context/AppContext'
 import { supabase } from '../lib/supabase'
 import { formatMoney, formatDate } from '../lib/utils'
-import { Search, Users, Download, ChevronDown, ChevronUp, Pencil, Check, X as XIcon, Phone, User } from 'lucide-react'
+import { Search, ClipboardList, Users, Download, ChevronDown, ChevronUp, Pencil, Trash2, Check, X as XIcon, Phone, User } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 const IS_DEMO = !import.meta.env.VITE_SUPABASE_URL || import.meta.env.VITE_SUPABASE_URL === 'https://placeholder.supabase.co'
 
+const PAYMENT_ICONS = { efectivo: '💵', yape: '📱', transferencia: '🏦' }
+
 export default function Historial() {
+  const [tab, setTab] = useState('historial')
+
   return (
     <div className="space-y-4 pb-8">
-      <ClientList />
+      {/* Tabs */}
+      <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 rounded-xl p-1">
+        <button onClick={() => setTab('historial')}
+          className={`flex-1 flex items-center justify-center gap-2 py-2 text-sm font-medium rounded-lg transition-colors ${
+            tab === 'historial' ? 'bg-white dark:bg-gray-700 shadow text-gray-900 dark:text-white' : 'text-gray-500'
+          }`}>
+          <ClipboardList className="w-4 h-4" /> Historial
+        </button>
+        <button onClick={() => setTab('clientes')}
+          className={`flex-1 flex items-center justify-center gap-2 py-2 text-sm font-medium rounded-lg transition-colors ${
+            tab === 'clientes' ? 'bg-white dark:bg-gray-700 shadow text-gray-900 dark:text-white' : 'text-gray-500'
+          }`}>
+          <Users className="w-4 h-4" /> Clientes
+        </button>
+      </div>
+
+      {tab === 'historial' ? <TicketHistory /> : <ClientList />}
+    </div>
+  )
+}
+
+// ─── Historial de tickets ────────────────────────────────────────────────────
+function TicketHistory() {
+  const { tickets, expenses, workers } = useApp()
+  const today = new Date().toISOString().slice(0, 10)
+  const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10)
+
+  const [dateFrom, setDateFrom] = useState(weekAgo)
+  const [dateTo,   setDateTo]   = useState(today)
+  const [search,   setSearch]   = useState('')
+  const [pastTickets,   setPastTickets]   = useState([])
+  const [pastExpenses,  setPastExpenses]  = useState([])
+  const [loading, setLoading] = useState(false)
+
+  // Cargar datos del rango desde Supabase
+  useEffect(() => {
+    if (IS_DEMO || !dateFrom || !dateTo) return
+    setLoading(true)
+    Promise.all([
+      supabase.from('tickets').select('*').gte('date', dateFrom).lte('date', dateTo).neq('status', 'abierto').order('created_at', { ascending: false }),
+      supabase.from('worker_expenses').select('*').gte('date', dateFrom).lte('date', dateTo).order('date', { ascending: false }),
+    ]).then(([t, e]) => {
+      setPastTickets(t.data || [])
+      setPastExpenses(e.data || [])
+    }).finally(() => setLoading(false))
+  }, [dateFrom, dateTo])
+
+  const allTickets  = useMemo(() => {
+    const base = IS_DEMO ? tickets.filter(t => t.status !== 'abierto') : pastTickets
+    if (!search.trim()) return base
+    const q = search.toLowerCase()
+    return base.filter(t =>
+      t.plate?.toLowerCase().includes(q) ||
+      workers.find(w => w.id === t.worker_id)?.name?.toLowerCase().includes(q) ||
+      t.service_name?.toLowerCase().includes(q) ||
+      t.vehicle_label?.toLowerCase().includes(q)
+    )
+  }, [pastTickets, tickets, search, workers])
+
+  const allExpenses = useMemo(() => {
+    const base = IS_DEMO ? expenses || [] : pastExpenses
+    if (!search.trim()) return base
+    const q = search.toLowerCase()
+    return base.filter(e =>
+      e.description?.toLowerCase().includes(q) ||
+      e.category?.toLowerCase().includes(q) ||
+      workers.find(w => w.id === e.worker_id)?.name?.toLowerCase().includes(q)
+    )
+  }, [pastExpenses, expenses, search, workers])
+
+  const totalIncome   = allTickets.reduce((s, t) => s + (t.price_charged || 0), 0)
+  const totalExpTotal = allExpenses.reduce((s, e) => s + (e.amount || 0), 0)
+
+  async function handleDelete(id) {
+    if (!confirm('¿Eliminar este ticket?')) return
+    try {
+      await supabase.from('tickets').delete().eq('id', id)
+      setPastTickets(prev => prev.filter(t => t.id !== id))
+      toast.success('Ticket eliminado')
+    } catch { toast.error('Error al eliminar') }
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Filtros */}
+      <div className="flex gap-2">
+        <div className="flex-1">
+          <label className="label text-xs">Desde</label>
+          <input type="date" className="input" value={dateFrom} onChange={e => setDateFrom(e.target.value)} />
+        </div>
+        <div className="flex-1">
+          <label className="label text-xs">Hasta</label>
+          <input type="date" className="input" value={dateTo} onChange={e => setDateTo(e.target.value)} />
+        </div>
+      </div>
+
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+        <input type="text" placeholder="Buscar placa, lavador, descripción..." className="input pl-9"
+          value={search} onChange={e => setSearch(e.target.value)} />
+      </div>
+
+      {loading && <p className="text-center text-sm text-gray-400 animate-pulse py-4">Cargando...</p>}
+
+      {/* Resumen */}
+      {!loading && (allTickets.length > 0 || allExpenses.length > 0) && (
+        <div className="rounded-xl overflow-hidden border border-gray-100 dark:border-gray-800">
+          <div className="flex items-center justify-between px-4 py-3 bg-blue-50 dark:bg-blue-900/20">
+            <span className="text-sm text-blue-700 dark:text-blue-300 font-medium">{allTickets.length} tickets</span>
+            <span className="text-sm font-bold text-blue-700 dark:text-blue-300">{formatMoney(totalIncome)}</span>
+          </div>
+          {allExpenses.length > 0 && (
+            <div className="flex items-center justify-between px-4 py-2 bg-red-50 dark:bg-red-900/20">
+              <span className="text-sm text-red-600 dark:text-red-400 font-medium">{allExpenses.length} gastos</span>
+              <span className="text-sm font-bold text-red-600 dark:text-red-400">−{formatMoney(totalExpTotal)}</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Lista de tickets */}
+      {!loading && allTickets.length > 0 && (
+        <div>
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">TICKETS ({allTickets.length})</p>
+          <div className="space-y-2">
+            {allTickets.map(t => {
+              const worker = workers.find(w => w.id === t.worker_id)
+              return (
+                <div key={t.id} className="card flex items-center gap-3 border-l-4 border-green-400">
+                  {t.photo_url && (
+                    <img src={t.photo_url} alt="" className="w-12 h-12 rounded-lg object-cover flex-shrink-0" />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="font-bold text-gray-900 dark:text-white">{t.plate || '—'}</p>
+                    <p className="text-xs text-gray-500">{formatDate(t.date)} · {t.vehicle_label || '—'} · {worker?.name || '—'}</p>
+                    {t.service_name && <p className="text-xs text-gray-400 mt-0.5">{t.service_name}</p>}
+                    {t.notes && <p className="text-xs text-gray-400 italic mt-0.5">{t.notes}</p>}
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    <p className="font-bold text-green-600 dark:text-green-400">{formatMoney(t.price_charged)}</p>
+                    <p className="text-xs text-gray-400">{PAYMENT_ICONS[t.payment_method]} {t.payment_method}</p>
+                  </div>
+                  {!IS_DEMO && (
+                    <button onClick={() => handleDelete(t.id)} className="p-1 text-gray-300 hover:text-red-500 transition-colors">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Lista de gastos */}
+      {!loading && allExpenses.length > 0 && (
+        <div>
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">GASTOS ({allExpenses.length})</p>
+          <div className="space-y-2">
+            {allExpenses.map(e => {
+              const worker = workers.find(w => w.id === e.worker_id)
+              return (
+                <div key={e.id} className="card flex items-center gap-3 border-l-4 border-red-400">
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-gray-900 dark:text-white">{e.description || e.notes || e.category || '—'}</p>
+                    <p className="text-xs text-gray-500">{formatDate(e.date)}{worker ? ` · ${worker.name}` : ''}</p>
+                  </div>
+                  <p className="font-bold text-red-500 flex-shrink-0">−{formatMoney(e.amount)}</p>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {!loading && allTickets.length === 0 && allExpenses.length === 0 && (
+        <div className="card text-center py-10 text-gray-400">
+          <ClipboardList className="w-10 h-10 mx-auto mb-2 opacity-30" />
+          <p className="text-sm">Sin registros en este período</p>
+        </div>
+      )}
     </div>
   )
 }

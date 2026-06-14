@@ -1,12 +1,99 @@
 import { useState } from 'react'
-import { NavLink, useLocation, Navigate } from 'react-router-dom'
+import { NavLink, useLocation, Navigate, useNavigate } from 'react-router-dom'
 import { useTheme } from '../../context/ThemeContext'
 import { useAuth } from '../../context/AuthContext'
+import { useApp } from '../../context/AppContext'
 import {
   LayoutDashboard, ClipboardList, Users, Wallet, TrendingUp,
-  Settings, History, Sun, Moon, Menu, X, ChevronRight, UserCog, LogOut
+  Settings, History, Sun, Moon, Menu, X, ChevronRight, UserCog, LogOut,
+  Plus, TrendingDown
 } from 'lucide-react'
-import { cn } from '../../lib/utils'
+import { cn, todayISO } from '../../lib/utils'
+import toast from 'react-hot-toast'
+
+const GASTO_CATS = [
+  { value: 'insumos',      label: '🧴 Insumos' },
+  { value: 'herramientas', label: '🔧 Herramientas' },
+  { value: 'transporte',   label: '🚌 Transporte' },
+  { value: 'comida',       label: '🍱 Comida' },
+  { value: 'otro',         label: '📦 Otro' },
+]
+
+function GastoSheet({ onClose }) {
+  const { addExpense, workers } = useApp()
+  const [form, setForm] = useState({ date: todayISO(), amount: '', category: '', notes: '', worker_id: '' })
+  const [busy, setBusy] = useState(false)
+  async function handleSave() {
+    if (!form.amount) { toast.error('Ingresa el monto'); return }
+    setBusy(true)
+    try {
+      await addExpense({ ...form, amount: parseFloat(form.amount) })
+      toast.success('Gasto registrado')
+      onClose()
+    } catch { toast.error('Error al guardar') }
+    finally { setBusy(false) }
+  }
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center">
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative w-full max-w-lg bg-white dark:bg-gray-900 rounded-t-3xl p-5 space-y-4">
+        <div className="flex items-center justify-between mb-1">
+          <h2 className="text-lg font-bold text-gray-900 dark:text-white">Registrar gasto</h2>
+          <button onClick={onClose}><X className="w-5 h-5 text-gray-400" /></button>
+        </div>
+        <input type="date" className="input" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} />
+        <input type="number" className="input" placeholder="Monto S/" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} />
+        <div className="grid grid-cols-3 gap-2">
+          {GASTO_CATS.map(c => (
+            <button key={c.value} type="button" onClick={() => setForm(f => ({ ...f, category: c.value }))}
+              className={`py-2 px-2 rounded-xl border text-xs font-medium transition-all ${form.category === c.value ? 'border-red-500 bg-red-50 dark:bg-red-900/20 text-red-600' : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300'}`}>
+              {c.label}
+            </button>
+          ))}
+        </div>
+        <select className="input" value={form.worker_id} onChange={e => setForm(f => ({ ...f, worker_id: e.target.value }))}>
+          <option value="">Trabajador (opcional)</option>
+          {workers.filter(w => w.active).map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+        </select>
+        <input className="input" placeholder="Notas (opcional)" value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
+        <button onClick={handleSave} disabled={busy}
+          className="w-full py-3 rounded-2xl bg-red-600 hover:bg-red-700 text-white font-bold transition-all active:scale-95">
+          {busy ? 'Guardando…' : 'Registrar gasto'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function GlobalFab() {
+  const navigate = useNavigate()
+  const [open, setOpen] = useState(false)
+  const [showGasto, setShowGasto] = useState(false)
+  return (
+    <>
+      {open && <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-30" onClick={() => setOpen(false)} />}
+      <div className="fixed bottom-20 right-4 lg:bottom-6 lg:right-6 z-40 flex flex-col items-end gap-2">
+        {open && (
+          <>
+            <button onClick={() => { setOpen(false); setShowGasto(true) }}
+              className="flex items-center gap-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm font-semibold px-4 py-2.5 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 transition-all whitespace-nowrap">
+              <TrendingDown className="w-4 h-4 text-amber-500" /> Registrar gasto
+            </button>
+            <button onClick={() => { navigate('/registro', { state: { autoNew: true } }); setOpen(false) }}
+              className="flex items-center gap-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm font-semibold px-4 py-2.5 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 transition-all whitespace-nowrap">
+              <ClipboardList className="w-4 h-4 text-red-600" /> Nuevo ticket
+            </button>
+          </>
+        )}
+        <button onClick={() => setOpen(v => !v)}
+          className={`w-14 h-14 rounded-full shadow-xl flex items-center justify-center transition-all duration-200 ${open ? 'bg-gray-700' : 'bg-red-600 hover:bg-red-700'}`}>
+          {open ? <X className="w-6 h-6 text-white" /> : <Plus className="w-6 h-6 text-white" />}
+        </button>
+      </div>
+      {showGasto && <GastoSheet onClose={() => setShowGasto(false)} />}
+    </>
+  )
+}
 
 const ADMIN_NAV = [
   { to: '/',              label: 'Panel',     icon: LayoutDashboard },
@@ -193,6 +280,8 @@ export default function Layout({ children }) {
         <main className="flex-1 p-4 lg:p-6 overflow-auto pb-20 lg:pb-6">
           {children}
         </main>
+
+        {(isAdmin || isDemo) && <GlobalFab />}
 
         {/* Bottom nav móvil */}
         <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-30 bg-[#1e1e1e] border-t border-white/10 flex">

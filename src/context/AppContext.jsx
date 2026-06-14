@@ -487,8 +487,8 @@ export function AppProvider({ children }) {
       dispatch({ type: 'ADD_EXTRA', payload: e })
       return e
     }
-    const { data: e, error } = await supabase.from('extras_catalog').insert(data).select().single()
-    if (error) throw error
+    const { data: e, error } = await supabase.from('extras_catalog').insert({ ...data, price: parseFloat(data.price) }).select().single()
+    if (error) { console.error('addExtra error:', error); throw error }
     dispatch({ type: 'ADD_EXTRA', payload: e })
     return e
   }
@@ -499,8 +499,8 @@ export function AppProvider({ children }) {
       dispatch({ type: 'UPDATE_EXTRA', payload: updated })
       return updated
     }
-    const { data: e, error } = await supabase.from('extras_catalog').update(data).eq('id', id).select().single()
-    if (error) throw error
+    const { data: e, error } = await supabase.from('extras_catalog').update({ ...data, price: parseFloat(data.price) }).eq('id', id).select().single()
+    if (error) { console.error('updateExtra error:', error); throw error }
     dispatch({ type: 'UPDATE_EXTRA', payload: e })
     return e
   }

@@ -358,7 +358,7 @@ export default function Dashboard() {
     const semaforo    = getSemaforoColor(progressPct)
 
     const avgDailyActual  = workingDaysElapsed  > 0 ? totalIncome / workingDaysElapsed  : 0
-    const avgDailyNeeded  = workingDaysRemaining > 0 ? (incomeGoal - totalIncome) / workingDaysRemaining : 0
+    const avgDailyNeeded  = workingDaysTotal    > 0 ? incomeGoal / workingDaysTotal : 0
     const totalCars = periodTickets.length
 
     const efectivo      = periodTickets.filter(t => t.payment_method === 'efectivo').reduce((s, t) => s + t.price_charged, 0)

@@ -268,8 +268,12 @@ export default function Dashboard() {
     const periodSummaries = sourceSummaries.filter(d => dateFilter(d.date))
     const periodExpenses  = sourceExpenses.filter(e => dateFilter(e.date))
 
+    // Fechas que tienen tickets — no sumar daily_summary de esas fechas (evita doble conteo)
+    const datesWithTickets = new Set(periodTickets.map(t => t.date))
     const ticketIncome    = periodTickets.reduce((s, t) => s + (t.price_charged || 0), 0)
-    const summaryIncome   = periodSummaries.reduce((s, d) => s + (d.total_income || 0), 0)
+    const summaryIncome   = periodSummaries
+      .filter(d => !datesWithTickets.has(d.date))
+      .reduce((s, d) => s + (d.total_income || 0), 0)
     const workerExpTotal  = periodExpenses.reduce((s, e) => s + (e.amount || 0), 0)
     const totalIncome     = ticketIncome + summaryIncome
 

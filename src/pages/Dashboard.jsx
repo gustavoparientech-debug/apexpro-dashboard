@@ -135,13 +135,27 @@ const SORT_OPTIONS = [
 ]
 
 function ExpensesPanel({ expenses, workers }) {
-  const { updateExpense, deleteExpense } = useApp()
+  const { updateExpense, deleteExpense, addExpense } = useApp()
   const { isAdmin, isDemo } = useAuth()
   const canAdmin = isAdmin || isDemo
   const [filterCat,    setFilterCat]    = useState('')
   const [filterWorker, setFilterWorker] = useState('')
   const [sortBy,       setSortBy]       = useState('date_desc')
   const [editingExp,   setEditingExp]   = useState(null)
+  const [showAdd,      setShowAdd]      = useState(false)
+  const [addForm,      setAddForm]      = useState({ amount: '', category: 'insumos', worker_id: '', notes: '', date: new Date().toISOString().slice(0, 10) })
+  const [saving,       setSaving]       = useState(false)
+
+  async function handleAdd() {
+    if (!addForm.amount || isNaN(addForm.amount)) { toast.error('Ingresa un monto válido'); return }
+    setSaving(true)
+    try {
+      await addExpense({ ...addForm, amount: parseFloat(addForm.amount), worker_id: addForm.worker_id || null })
+      setAddForm({ amount: '', category: 'insumos', worker_id: '', notes: '', date: new Date().toISOString().slice(0, 10) })
+      setShowAdd(false)
+      toast.success('Gasto registrado')
+    } catch { toast.error('Error al registrar') } finally { setSaving(false) }
+  }
 
   const filtered = useMemo(() => {
     let list = [...expenses]
@@ -166,7 +180,63 @@ function ExpensesPanel({ expenses, workers }) {
         <span className="text-base">💸</span>
         <p className="text-sm font-bold text-gray-900 dark:text-white flex-1">Gastos de personal</p>
         <span className="text-sm font-black text-amber-600">-{formatMoney(total)}</span>
+        {canAdmin && (
+          <button onClick={() => setShowAdd(v => !v)}
+            className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 hover:bg-amber-200 transition-colors">
+            + Registrar gasto
+          </button>
+        )}
       </div>
+
+      {/* Formulario rápido */}
+      {showAdd && canAdmin && (
+        <div className="mb-4 p-3 bg-gray-50 dark:bg-gray-800/50 rounded-xl space-y-2 border border-gray-200 dark:border-gray-700">
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <p className="text-xs text-gray-400 mb-0.5">Monto</p>
+              <input type="number" className="input text-sm py-1.5" placeholder="0.00"
+                value={addForm.amount} onChange={e => setAddForm(f => ({ ...f, amount: e.target.value }))} />
+            </div>
+            <div>
+              <p className="text-xs text-gray-400 mb-0.5">Categoría</p>
+              <select className="input text-sm py-1.5" value={addForm.category}
+                onChange={e => setAddForm(f => ({ ...f, category: e.target.value }))}>
+                {Object.entries(CAT_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+              </select>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <p className="text-xs text-gray-400 mb-0.5">Trabajador</p>
+              <select className="input text-sm py-1.5" value={addForm.worker_id}
+                onChange={e => setAddForm(f => ({ ...f, worker_id: e.target.value }))}>
+                <option value="">Sin asignar</option>
+                {workers.filter(w => w.active).map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <p className="text-xs text-gray-400 mb-0.5">Fecha</p>
+              <input type="date" className="input text-sm py-1.5" value={addForm.date}
+                onChange={e => setAddForm(f => ({ ...f, date: e.target.value }))} />
+            </div>
+          </div>
+          <div>
+            <p className="text-xs text-gray-400 mb-0.5">Descripción</p>
+            <input type="text" className="input text-sm py-1.5" placeholder="Opcional"
+              value={addForm.notes} onChange={e => setAddForm(f => ({ ...f, notes: e.target.value }))} />
+          </div>
+          <div className="flex gap-2 pt-1">
+            <button onClick={() => setShowAdd(false)}
+              className="flex-1 py-2 rounded-xl border border-gray-200 dark:border-gray-700 text-sm text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+              Cancelar
+            </button>
+            <button onClick={handleAdd} disabled={saving}
+              className="flex-1 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold transition-colors disabled:opacity-50">
+              {saving ? 'Guardando…' : 'Guardar gasto'}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Filtros */}
       <div className="flex flex-wrap gap-2 mb-3">

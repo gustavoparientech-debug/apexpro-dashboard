@@ -275,7 +275,15 @@ export function AppProvider({ children }) {
     }
   }, [])
 
-  useEffect(() => { loadData() }, [loadData])
+  useEffect(() => {
+    // Escuchar el evento de auth para garantizar que la sesión esté lista antes de cargar datos
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        loadData()
+      }
+    })
+    return () => subscription.unsubscribe()
+  }, [loadData])
 
   // ─── CRUD Workers ───────────────────────────────────────────────────────────
   const addWorker = async (data) => {

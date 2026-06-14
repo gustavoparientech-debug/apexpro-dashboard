@@ -167,12 +167,14 @@ export default function Configuracion() {
     const list = [...(extrasCatalog || [])].sort((a, b) => a.sort_order - b.sort_order)
     const swapIdx = index + dir
     if (swapIdx < 0 || swapIdx >= list.length) return
-    const a = list[index], b = list[swapIdx]
+    // Reordenar el array y reasignar sort_order 1,2,3... para evitar duplicados
+    const reordered = [...list]
+    const [moved] = reordered.splice(index, 1)
+    reordered.splice(swapIdx, 0, moved)
     try {
-      await Promise.all([
-        updateExtra(a.id, { sort_order: b.sort_order }),
-        updateExtra(b.id, { sort_order: a.sort_order }),
-      ])
+      await Promise.all(
+        reordered.map((item, i) => updateExtra(item.id, { sort_order: i + 1 }))
+      )
     } catch { toast.error('Error al reordenar') }
   }
 

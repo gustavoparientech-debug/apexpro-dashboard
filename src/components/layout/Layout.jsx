@@ -65,10 +65,26 @@ function GastoSheet({ onClose }) {
   )
 }
 
-function GlobalFab() {
+function GlobalFab({ canAdmin }) {
   const navigate = useNavigate()
   const [open, setOpen] = useState(false)
   const [showGasto, setShowGasto] = useState(false)
+
+  function handleNewTicket() {
+    navigate('/registro', { state: { autoNew: true } })
+    setOpen(false)
+  }
+
+  // Si solo es trabajador, el botón va directo a nuevo ticket sin menú
+  if (!canAdmin) {
+    return (
+      <button onClick={handleNewTicket}
+        className="fixed bottom-20 right-4 lg:bottom-6 lg:right-6 z-40 w-14 h-14 rounded-full bg-red-600 hover:bg-red-700 shadow-xl flex items-center justify-center transition-all duration-200">
+        <Plus className="w-6 h-6 text-white" />
+      </button>
+    )
+  }
+
   return (
     <>
       {open && <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-30" onClick={() => setOpen(false)} />}
@@ -79,7 +95,7 @@ function GlobalFab() {
               className="flex items-center gap-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm font-semibold px-4 py-2.5 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 transition-all whitespace-nowrap">
               <TrendingDown className="w-4 h-4 text-amber-500" /> Registrar gasto
             </button>
-            <button onClick={() => { navigate('/registro', { state: { autoNew: true } }); setOpen(false) }}
+            <button onClick={handleNewTicket}
               className="flex items-center gap-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm font-semibold px-4 py-2.5 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 transition-all whitespace-nowrap">
               <ClipboardList className="w-4 h-4 text-red-600" /> Nuevo ticket
             </button>
@@ -281,7 +297,7 @@ export default function Layout({ children }) {
           {children}
         </main>
 
-        {(isAdmin || isDemo) && <GlobalFab />}
+        <GlobalFab canAdmin={isAdmin || isDemo} />
 
         {/* Bottom nav móvil */}
         <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-30 bg-[#1e1e1e] border-t border-white/10 flex">

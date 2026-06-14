@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useApp } from '../context/AppContext'
 import { formatMoney, calcRealSalary, currentMonthYear } from '../lib/utils'
 import Modal from '../components/ui/Modal'
@@ -130,19 +130,25 @@ export default function Configuracion() {
   const [showServiceForm, setShowServiceForm] = useState(false)
   const [editingService, setEditingService] = useState(null)
   const [toggleTarget, setToggleTarget] = useState(null)
-  const defaultItems = () => {
-    const saved = monthlyCosts?.cost_items
-    if (saved && Array.isArray(saved) && saved.length > 0) return saved
-    const items = []
-    if (monthlyCosts?.rent)     items.push({ name: 'Alquiler',  amount: monthlyCosts.rent })
-    if (monthlyCosts?.supplies) items.push({ name: 'Insumos',   amount: monthlyCosts.supplies })
-    if (items.length === 0)     items.push({ name: 'Alquiler',  amount: 2700 }, { name: 'Insumos', amount: 800 })
-    return items
-  }
-  const [costItems, setCostItems] = useState(defaultItems)
+  const [costItems, setCostItems] = useState([])
   const [costs, setCosts] = useState({
     utility_goal: monthlyCosts?.utility_goal || 2000,
   })
+
+  useEffect(() => {
+    if (!monthlyCosts) return
+    const saved = monthlyCosts.cost_items
+    if (saved && Array.isArray(saved) && saved.length > 0) {
+      setCostItems(saved)
+    } else {
+      const items = []
+      if (monthlyCosts.rent)     items.push({ name: 'Alquiler', amount: monthlyCosts.rent })
+      if (monthlyCosts.supplies) items.push({ name: 'Insumos',  amount: monthlyCosts.supplies })
+      if (items.length === 0)    items.push({ name: 'Alquiler', amount: 2700 }, { name: 'Insumos', amount: 800 })
+      setCostItems(items)
+    }
+    setCosts(c => ({ ...c, utility_goal: monthlyCosts.utility_goal || 2000 }))
+  }, [monthlyCosts])
   const [savingCosts, setSavingCosts] = useState(false)
   const [activeCategory, setActiveCategory] = useState('all')
   const [newVehicle, setNewVehicle] = useState({ emoji: '🚗', label: '', default_price: '' })

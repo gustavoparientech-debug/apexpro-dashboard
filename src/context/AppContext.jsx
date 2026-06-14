@@ -231,18 +231,17 @@ export function AppProvider({ children }) {
       const lastDay   = new Date(y, m, 0).getDate()
       const endDate   = `${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
 
-      const [workers, services, vehicleTypesRes, extrasRes, allTicketsRes, openTicketsRes, summaries, incidents, costs] = await Promise.all([
+      const [workers, services, vehicleTypesRes, extrasRes, allTicketsRes, openTicketsRes, summaries, incidents, costs, expensesRes] = await Promise.all([
         supabase.from('workers').select('*').order('name'),
         supabase.from('services').select('*').order('category, name'),
         supabase.from('vehicle_types').select('*').eq('active', true).order('sort_order'),
         supabase.from('extras_catalog').select('*').eq('active', true).order('sort_order'),
-        // Carga todos los tickets del mes (sin filtrar por status para compatibilidad)
         supabase.from('tickets').select('*').gte('date', startDate).lte('date', endDate).order('created_at', { ascending: false }),
-        // Intenta cargar tickets abiertos (puede fallar si la columna status no existe aún)
         supabase.from('tickets').select('*').eq('status', 'abierto'),
         supabase.from('daily_summary').select('*').gte('date', startDate).lte('date', endDate),
         supabase.from('attendance_incidents').select('*').gte('date', startDate).lte('date', endDate),
         supabase.from('monthly_costs').select('*').eq('month', m).eq('year', y).maybeSingle(),
+        supabase.from('worker_expenses').select('*').gte('date', startDate).lte('date', endDate).order('date', { ascending: false }),
       ])
 
       if (workers.error) console.warn('workers error:', workers.error.message)
@@ -265,6 +264,7 @@ export function AppProvider({ children }) {
         dailySummaries: summaries.data || [],
         incidents:      incidentsEnriched,
         monthlyCosts:   costs.data || { month: m, year: y, rent: 2700, supplies: 800, utility_goal: 2000 },
+        expenses:       expensesRes.data || [],
       }})
     } catch (err) {
       console.error('loadData error:', err)

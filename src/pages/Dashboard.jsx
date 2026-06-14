@@ -126,7 +126,7 @@ function BonusSection({ workers, bonuses, addBonus, deleteBonus, monthPrefix }) 
 }
 
 export default function Dashboard() {
-  const { tickets, dailySummaries, workers, services, incidents, monthlyCosts, bonuses, addBonus, deleteBonus, loading } = useApp()
+  const { tickets, dailySummaries, expenses, workers, services, incidents, monthlyCosts, bonuses, addBonus, deleteBonus, loading } = useApp()
   const { month: cm, year: cy } = currentMonthYear()
   const [selMonth, setSelMonth] = useState(cm)
   const [selYear,  setSelYear]  = useState(cy)
@@ -135,14 +135,16 @@ export default function Dashboard() {
 
   const [pastTickets,    setPastTickets]    = useState([])
   const [pastSummaries,  setPastSummaries]  = useState([])
+  const [pastExpenses,   setPastExpenses]   = useState([])
 
   useEffect(() => {
-    if (isCurrentMonth || IS_DEMO) { setPastTickets([]); setPastSummaries([]); return }
+    if (isCurrentMonth || IS_DEMO) { setPastTickets([]); setPastSummaries([]); setPastExpenses([]); return }
     const p = `${selYear}-${String(selMonth).padStart(2,'0')}`
     Promise.all([
       supabase.from('tickets').select('*').gte('date', `${p}-01`).lte('date', `${p}-31`).neq('status', 'abierto'),
       supabase.from('daily_summary').select('*').gte('date', `${p}-01`).lte('date', `${p}-31`),
-    ]).then(([t, s]) => { setPastTickets(t.data || []); setPastSummaries(s.data || []) })
+      supabase.from('worker_expenses').select('*').gte('date', `${p}-01`).lte('date', `${p}-31`),
+    ]).then(([t, s, e]) => { setPastTickets(t.data || []); setPastSummaries(s.data || []); setPastExpenses(e.data || []) })
   }, [selMonth, selYear, isCurrentMonth])
   const prefix = `${selYear}-${String(selMonth).padStart(2, '0')}`
   const lastDayOfMonth = new Date(selYear, selMonth, 0).getDate()
@@ -166,12 +168,15 @@ export default function Dashboard() {
     const dateFilter = (date) => selDay ? date === selDay : date?.startsWith(prefix)
     const sourceTickets    = isCurrentMonth ? tickets    : pastTickets
     const sourceSummaries  = isCurrentMonth ? dailySummaries : pastSummaries
+    const sourceExpenses   = isCurrentMonth ? (expenses || []) : pastExpenses
     const periodTickets   = sourceTickets.filter(t => dateFilter(t.date) && t.status !== 'abierto')
     const periodSummaries = sourceSummaries.filter(d => dateFilter(d.date))
+    const periodExpenses  = sourceExpenses.filter(e => dateFilter(e.date))
 
-    const ticketIncome  = periodTickets.reduce((s, t) => s + (t.price_charged || 0), 0)
-    const summaryIncome = periodSummaries.reduce((s, d) => s + (d.total_income || 0), 0)
-    const totalIncome   = ticketIncome + summaryIncome
+    const ticketIncome    = periodTickets.reduce((s, t) => s + (t.price_charged || 0), 0)
+    const summaryIncome   = periodSummaries.reduce((s, d) => s + (d.total_income || 0), 0)
+    const workerExpTotal  = periodExpenses.reduce((s, e) => s + (e.amount || 0), 0)
+    const totalIncome     = ticketIncome + summaryIncome
 
     const netProfit = periodTickets.reduce((s, t) => {
       const svc = services.find(sv => sv.id === t.service_id)
@@ -188,7 +193,7 @@ export default function Dashboard() {
       return s + real - disc
     }, 0)
     const monthBonusAmt = bonuses.filter(b => b.date?.startsWith(prefix)).reduce((s, b) => s + b.amount, 0)
-    const totalCosts  = rent + supplies + payrollTotal + monthBonusAmt
+    const totalCosts  = rent + supplies + payrollTotal + monthBonusAmt + workerExpTotal
     const incomeGoal  = totalCosts + utilityGoal
     const progressPct = incomeGoal > 0 ? (totalIncome / incomeGoal) * 100 : 0
     const semaforo    = getSemaforoColor(progressPct)
@@ -232,9 +237,9 @@ export default function Dashboard() {
       incomeGoal, progressPct, semaforo, totalCars, avgDailyActual, avgDailyNeeded,
       workingDaysElapsed, workingDaysRemaining, workingDaysTotal,
       bestDay, efectivo, yape, transferencia, onTrack, projectedIncome, dailyData,
-      workerRanking, monthBonusAmt,
+      workerRanking, monthBonusAmt, workerExpTotal, periodExpenses,
     }
-  }, [tickets, dailySummaries, pastTickets, pastSummaries, workers, services, incidents, monthlyCosts, bonuses, prefix, selMonth, selYear, isCurrentMonth, selDay])
+  }, [tickets, dailySummaries, expenses, pastTickets, pastSummaries, pastExpenses, workers, services, incidents, monthlyCosts, bonuses, prefix, selMonth, selYear, isCurrentMonth, selDay])
 
   if (loading) return (
     <div className="flex items-center justify-center h-64">
@@ -407,11 +412,42 @@ export default function Dashboard() {
         <Row label="🧴 Insumos"  value={formatMoney(data.supplies)} />
         <Row label="👷 Planilla" value={formatMoney(data.payrollTotal)} />
         {data.monthBonusAmt > 0 && <Row label="🎁 Bonos" value={formatMoney(data.monthBonusAmt)} />}
+        {data.workerExpTotal > 0 && <Row label="💸 Gastos personal" value={formatMoney(data.workerExpTotal)} />}
         <div className="flex items-center justify-between pt-2 mt-1 border-t border-gray-100 dark:border-gray-800">
           <span className="text-sm font-bold text-gray-700 dark:text-gray-300">Total gastos</span>
           <span className="text-sm font-black text-red-600">{formatMoney(data.totalCosts)}</span>
         </div>
       </div>
+
+      {/* Gastos de personal */}
+      {data.periodExpenses?.length > 0 && (
+        <div className="card">
+          <div className="flex items-center gap-2 mb-3">
+            <span className="text-base">💸</span>
+            <p className="text-sm font-bold text-gray-900 dark:text-white flex-1">Gastos de personal</p>
+            <span className="text-sm font-black text-amber-600">-{formatMoney(data.workerExpTotal)}</span>
+          </div>
+          <div className="space-y-2">
+            {data.periodExpenses.map(exp => {
+              const worker = workers.find(w => w.id === exp.worker_id)
+              const catLabels = { insumos: '🧴 Insumos', herramientas: '🔧 Herramientas', transporte: '🚌 Transporte', comida: '🍱 Comida', otro: '📦 Otro' }
+              return (
+                <div key={exp.id} className="flex items-center gap-2 py-1.5 border-b border-gray-100 dark:border-gray-800 last:border-0">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold text-gray-700 dark:text-gray-300">{catLabels[exp.category] || exp.category || 'Gasto'}</p>
+                    <div className="flex items-center gap-2">
+                      {worker && <span className="text-xs text-gray-400">{worker.name}</span>}
+                      {exp.notes && <span className="text-xs text-gray-400 italic truncate">· {exp.notes}</span>}
+                      <span className="text-xs text-gray-400">{exp.date}</span>
+                    </div>
+                  </div>
+                  <span className="text-xs font-bold text-amber-600">-{formatMoney(exp.amount)}</span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Ranking trabajadores */}
       {data.workerRanking.length > 0 && (

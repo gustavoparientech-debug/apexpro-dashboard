@@ -992,7 +992,7 @@ const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto
 // ─── Página principal ─────────────────────────────────────────────────────────
 export default function Registro() {
   const {
-    tickets, dailySummaries, workers, vehicleTypes, extrasCatalog,
+    tickets, dailySummaries, workers, vehicleTypes, extrasCatalog, expenses,
     addTicket, updateTicket, deleteTicket, addDailySummary, deleteDailySummary, loadData,
   } = useApp()
   const { profile, isAdmin, isDemo } = useAuth()
@@ -1055,14 +1055,24 @@ export default function Registro() {
 
   const daySummaries = useMemo(() => dailySummaries.filter(d => d.date === selectedDate), [dailySummaries, selectedDate])
 
-  const dayTotal = useMemo(() => {
-    // Si hay tickets para el día, los tickets son la fuente de verdad
-    // Solo sumar daySummaries si no hay tickets (días históricos sin tickets en memoria)
+  const expensesToday = useMemo(
+    () => (expenses || []).filter(e => e.date === selectedDate),
+    [expenses, selectedDate]
+  )
+
+  const expensesTodayTotal = useMemo(
+    () => expensesToday.reduce((s, e) => s + (e.amount || 0), 0),
+    [expensesToday]
+  )
+
+  const dayGross = useMemo(() => {
     if (closedToday.length > 0) {
       return closedToday.reduce((s, t) => s + (t.price_charged || 0), 0)
     }
     return daySummaries.reduce((s, d) => s + (d.total_income || 0), 0)
   }, [closedToday, daySummaries])
+
+  const dayTotal = useMemo(() => dayGross - expensesTodayTotal, [dayGross, expensesTodayTotal])
 
   // Caja por método de pago
   const cajaStats = useMemo(() => {
@@ -1356,13 +1366,57 @@ export default function Registro() {
             ))}
             <div className="flex justify-end pt-1">
               <div className="bg-red-50 dark:bg-red-900/20 rounded-xl px-4 py-2">
-                <span className="text-sm text-red-600 font-medium">Total: </span>
-                <span className="text-lg font-black text-red-600">{formatMoney(dayTotal)}</span>
+                <span className="text-sm text-red-600 font-medium">Ingresos: </span>
+                <span className="text-lg font-black text-red-600">{formatMoney(dayGross)}</span>
               </div>
             </div>
           </div>
         )}
       </div>
+
+      {/* GASTOS DEL DÍA */}
+      {expensesToday.length > 0 && (
+        <div>
+          <div className="flex items-center gap-3 mb-2">
+            <h2 className="text-sm font-bold text-gray-600 dark:text-gray-400 uppercase tracking-wide">
+              Gastos del día
+            </h2>
+            <span className="bg-amber-500 text-white text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center">
+              {expensesToday.length}
+            </span>
+          </div>
+          <div className="space-y-2">
+            {expensesToday.map(exp => {
+              const worker = workers.find(w => w.id === exp.worker_id)
+              return (
+                <div key={exp.id} className="card flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center flex-shrink-0">
+                    <span className="text-sm">💸</span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 capitalize">
+                      {exp.category || 'Gasto'}
+                    </p>
+                    {exp.notes && <p className="text-xs text-gray-400 truncate">{exp.notes}</p>}
+                    {worker && <p className="text-xs text-gray-400">{worker.name}</p>}
+                  </div>
+                  <span className="text-sm font-bold text-amber-600">-{formatMoney(exp.amount)}</span>
+                </div>
+              )
+            })}
+            <div className="flex justify-between items-center pt-1 px-1">
+              <span className="text-xs text-gray-400">Total gastos</span>
+              <span className="text-sm font-bold text-amber-600">-{formatMoney(expensesTodayTotal)}</span>
+            </div>
+            <div className="flex justify-end">
+              <div className="bg-green-50 dark:bg-green-900/20 rounded-xl px-4 py-2">
+                <span className="text-sm text-green-700 dark:text-green-400 font-medium">Neto del día: </span>
+                <span className="text-lg font-black text-green-700 dark:text-green-400">{formatMoney(dayTotal)}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Bottom Sheet — Nuevo Ticket */}
       <BottomSheet open={showNewForm} onClose={() => setShowNewForm(false)} title="Nuevo ticket">

@@ -4,7 +4,7 @@ import { formatMoney, calcRealSalary, currentMonthYear } from '../lib/utils'
 import Modal from '../components/ui/Modal'
 import ConfirmDialog from '../components/ui/ConfirmDialog'
 import Badge from '../components/ui/Badge'
-import { Plus, Edit2, ToggleLeft, ToggleRight, Save, Trash2 } from 'lucide-react'
+import { Plus, Edit2, ToggleLeft, ToggleRight, Save, Trash2, ChevronUp, ChevronDown } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 const EMOJI_OPTIONS = ['🏍️','🚗','🚙','🚐','🚛','🚌','🚑','🚒','🚕','🚜','🛻','🚚']
@@ -161,6 +161,19 @@ export default function Configuracion() {
   async function handleDeleteExtra(id) {
     try { await deleteExtra(id); toast.success('Eliminado') }
     catch { toast.error('Error al eliminar') }
+  }
+
+  async function handleMoveExtra(index, dir) {
+    const list = [...(extrasCatalog || [])].sort((a, b) => a.sort_order - b.sort_order)
+    const swapIdx = index + dir
+    if (swapIdx < 0 || swapIdx >= list.length) return
+    const a = list[index], b = list[swapIdx]
+    try {
+      await Promise.all([
+        updateExtra(a.id, { sort_order: b.sort_order }),
+        updateExtra(b.id, { sort_order: a.sort_order }),
+      ])
+    } catch { toast.error('Error al reordenar') }
   }
 
   // Recalcular meta en tiempo real
@@ -399,8 +412,19 @@ export default function Configuracion() {
         )}
 
         <div className="space-y-2">
-          {(extrasCatalog || []).map(ex => (
-            <div key={ex.id} className="flex items-center gap-3 p-3 rounded-xl bg-gray-50 dark:bg-gray-800/50">
+          {[...(extrasCatalog || [])].sort((a,b) => a.sort_order - b.sort_order).map((ex, idx, arr) => (
+            <div key={ex.id} className="flex items-center gap-2 p-3 rounded-xl bg-gray-50 dark:bg-gray-800/50">
+              {/* Flechas orden */}
+              <div className="flex flex-col gap-0.5">
+                <button onClick={() => handleMoveExtra(idx, -1)} disabled={idx === 0}
+                  className="p-0.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-20">
+                  <ChevronUp className="w-3.5 h-3.5 text-gray-400" />
+                </button>
+                <button onClick={() => handleMoveExtra(idx, 1)} disabled={idx === arr.length - 1}
+                  className="p-0.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-20">
+                  <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
+                </button>
+              </div>
               {editingExtra?.id === ex.id ? (
                 <>
                   <input className="input py-1 flex-1 text-sm" value={editingExtra.name}

@@ -1,14 +1,26 @@
-import { useMemo, useRef } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useApp } from '../context/AppContext'
 import { formatMoney, formatDate, calcRealSalary, currentMonthYear, monthName } from '../lib/utils'
 import Badge from '../components/ui/Badge'
-import { Download, FileSpreadsheet } from 'lucide-react'
+import { Download, FileSpreadsheet, Pencil, Check, X } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 const INCIDENT_LABELS = { falta: 'Falta injustificada', permiso: 'Permiso justificado', tardanza: 'Tardanza', no_marcacion: 'No marcó entrada/salida' }
 
 export default function Nomina() {
-  const { workers, incidents } = useApp()
+  const { workers, incidents, updateWorker } = useApp()
+  const [editingWorker, setEditingWorker] = useState(null)
+
+  async function handleSaveWorker() {
+    try {
+      await updateWorker(editingWorker.id, {
+        base_salary: parseFloat(editingWorker.base_salary),
+        weekly_hours: parseFloat(editingWorker.weekly_hours),
+      })
+      toast.success('Salario actualizado')
+      setEditingWorker(null)
+    } catch { toast.error('Error al guardar') }
+  }
   const { month, year } = currentMonthYear()
   const tableRef = useRef(null)
 
@@ -130,18 +142,50 @@ export default function Nomina() {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
-            {payrollData.map(w => (
-              <tr key={w.id}>
-                <td className="py-3 pr-4">
-                  <p className="font-medium text-gray-900 dark:text-white">{w.name}</p>
-                  <p className="text-xs text-gray-400">Base: {formatMoney(w.base_salary)} · {w.weekly_hours}h/sem</p>
-                </td>
-                <td className="text-right px-2 text-gray-700 dark:text-gray-300">{formatMoney(w.realSalary)}</td>
-                <td className="text-right px-2 text-red-500">{w.totalDiscounts > 0 ? `-${formatMoney(w.totalDiscounts)}` : '—'}</td>
-                <td className="text-right px-2 font-bold text-gray-900 dark:text-white">{formatMoney(w.finalPay)}</td>
-                <td className="text-center px-2 text-xs text-gray-500">{w.workerIncidents.length}</td>
-              </tr>
-            ))}
+            {payrollData.map(w => {
+              const isEditing = editingWorker?.id === w.id
+              return (
+                <tr key={w.id}>
+                  <td className="py-3 pr-4">
+                    <p className="font-medium text-gray-900 dark:text-white">{w.name}</p>
+                    {isEditing ? (
+                      <div className="flex items-center gap-1.5 mt-1">
+                        <div className="flex items-center gap-1">
+                          <span className="text-xs text-gray-400">S/</span>
+                          <input type="number" value={editingWorker.base_salary}
+                            onChange={e => setEditingWorker(f => ({ ...f, base_salary: e.target.value }))}
+                            className="w-20 text-xs border border-gray-300 dark:border-gray-600 rounded-lg px-1.5 py-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-white" />
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <input type="number" value={editingWorker.weekly_hours}
+                            onChange={e => setEditingWorker(f => ({ ...f, weekly_hours: e.target.value }))}
+                            className="w-12 text-xs border border-gray-300 dark:border-gray-600 rounded-lg px-1.5 py-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-white" />
+                          <span className="text-xs text-gray-400">h/sem</span>
+                        </div>
+                        <button onClick={handleSaveWorker} className="p-1 bg-green-100 hover:bg-green-200 rounded-lg">
+                          <Check className="w-3.5 h-3.5 text-green-600" />
+                        </button>
+                        <button onClick={() => setEditingWorker(null)} className="p-1 bg-gray-100 hover:bg-gray-200 rounded-lg">
+                          <X className="w-3.5 h-3.5 text-gray-500" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1.5">
+                        <p className="text-xs text-gray-400">Base: {formatMoney(w.base_salary)} · {w.weekly_hours}h/sem</p>
+                        <button onClick={() => setEditingWorker({ id: w.id, base_salary: w.base_salary, weekly_hours: w.weekly_hours })}
+                          className="p-0.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded">
+                          <Pencil className="w-3 h-3 text-gray-400" />
+                        </button>
+                      </div>
+                    )}
+                  </td>
+                  <td className="text-right px-2 text-gray-700 dark:text-gray-300">{formatMoney(w.realSalary)}</td>
+                  <td className="text-right px-2 text-red-500">{w.totalDiscounts > 0 ? `-${formatMoney(w.totalDiscounts)}` : '—'}</td>
+                  <td className="text-right px-2 font-bold text-gray-900 dark:text-white">{formatMoney(w.finalPay)}</td>
+                  <td className="text-center px-2 text-xs text-gray-500">{w.workerIncidents.length}</td>
+                </tr>
+              )
+            })}
             <tr className="border-t-2 border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-900/10">
               <td className="py-3 pr-4 font-bold text-red-700 dark:text-red-400">TOTAL PLANILLA</td>
               <td className="text-right px-2 font-bold text-red-700 dark:text-red-400">{formatMoney(totalBase)}</td>

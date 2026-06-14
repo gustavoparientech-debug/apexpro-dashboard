@@ -113,7 +113,7 @@ const ADMIN_NAV = [
   { to: '/registro',      label: 'Registro',  icon: ClipboardList },
   { to: '/trabajadores',  label: 'Equipo',    icon: Users },
   { to: '/nomina',        label: 'Nómina',    icon: Wallet },
-  { to: '/mix',           label: 'Mix',       icon: TrendingUp },
+  // { to: '/mix', label: 'Mix', icon: TrendingUp }, // oculto temporalmente
   { to: '/configuracion', label: 'Config',    icon: Settings },
   { to: '/historial',     label: 'Historial', icon: History },
   { to: '/usuarios',      label: 'Usuarios',  icon: UserCog },

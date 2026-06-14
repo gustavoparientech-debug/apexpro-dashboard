@@ -97,12 +97,20 @@ export default function Historial() {
         .reduce((d, i) => d + (i.discount_amount || 0), 0)
       return s + real - disc
     }, 0)
-    // Para el mes actual sin rango específico, prorratear costos fijos igual que el Panel
+    // Prorratear costos según días del período sobre días totales del mes
     const workingDaysTotal   = getWorkingDaysInMonth(selY, selM)
-    const workingDaysElapsed = (isCurrentMonth && mode === 'mes') ? getWorkingDaysElapsed(selY, selM) : workingDaysTotal
-    const proportionalFixed  = (isCurrentMonth && mode === 'mes' && workingDaysTotal > 0)
-      ? (fixedCosts + payrollTotal) * (workingDaysElapsed / workingDaysTotal)
-      : (fixedCosts + payrollTotal)
+    const workingDaysElapsed = isCurrentMonth ? getWorkingDaysElapsed(selY, selM) : workingDaysTotal
+    let costRatio = 1
+    if (mode === 'mes' && workingDaysTotal > 0) {
+      costRatio = isCurrentMonth ? workingDaysElapsed / workingDaysTotal : 1
+    } else if (mode === 'rango' && dateFrom && dateTo) {
+      const daysInMonth = new Date(selY, selM, 0).getDate()
+      const from = new Date(dateFrom + 'T00:00:00')
+      const to   = new Date(dateTo   + 'T00:00:00')
+      const rangeDays = Math.round((to - from) / 86400000) + 1
+      costRatio = Math.min(rangeDays / daysInMonth, 1)
+    }
+    const proportionalFixed = (fixedCosts + payrollTotal) * costRatio
     const totalCosts = proportionalFixed + totalExpenses
     const netProfit  = grossIncome - totalCosts
 

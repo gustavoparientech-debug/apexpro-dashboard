@@ -338,11 +338,6 @@ export default function Dashboard() {
     const workerExpTotal  = periodExpenses.reduce((s, e) => s + (e.amount || 0), 0)
     const totalIncome     = ticketIncome + summaryIncome
 
-    const netProfit = periodTickets.reduce((s, t) => {
-      const svc = services.find(sv => sv.id === t.service_id)
-      return s + (svc ? calcTicketProfit(t.price_charged, svc.margin_percent) : t.price_charged * 0.65)
-    }, 0)
-
     const rent        = monthlyCosts?.rent     || 0
     const supplies    = monthlyCosts?.supplies || 0
     const utilityGoal = monthlyCosts?.utility_goal || 2000
@@ -354,13 +349,20 @@ export default function Dashboard() {
     }, 0)
     const monthBonusAmt = bonuses.filter(b => b.date?.startsWith(prefix)).reduce((s, b) => s + b.amount, 0)
     const totalCosts  = rent + supplies + payrollTotal + monthBonusAmt + workerExpTotal
-    const incomeGoal  = totalCosts + utilityGoal
-    const progressPct = incomeGoal > 0 ? (totalIncome / incomeGoal) * 100 : 0
-    const semaforo    = getSemaforoColor(progressPct)
 
     const workingDaysTotal    = getWorkingDaysInMonth(selYear, selMonth)
     const workingDaysElapsed  = isCurrentMonth ? getWorkingDaysElapsed(selYear, selMonth) : workingDaysTotal
     const workingDaysRemaining = isCurrentMonth ? getWorkingDaysRemaining(selYear, selMonth) : 0
+
+    const fixedCosts = rent + supplies + payrollTotal + monthBonusAmt
+    const proportionalFixed = (isCurrentMonth && !selDay && workingDaysTotal > 0)
+      ? fixedCosts * (workingDaysElapsed / workingDaysTotal)
+      : fixedCosts
+    const netProfit = totalIncome - proportionalFixed - workerExpTotal
+    const incomeGoal  = totalCosts + utilityGoal
+    const progressPct = incomeGoal > 0 ? (totalIncome / incomeGoal) * 100 : 0
+    const semaforo    = getSemaforoColor(progressPct)
+
     const avgDailyActual  = workingDaysElapsed  > 0 ? totalIncome / workingDaysElapsed  : 0
     const avgDailyNeeded  = workingDaysRemaining > 0 ? (incomeGoal - totalIncome) / workingDaysRemaining : 0
     const totalCars = periodTickets.length
@@ -493,7 +495,7 @@ export default function Dashboard() {
       {/* KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <StatCard label={selDay ? 'Ingresos del día' : 'Ingresos del mes'}   value={formatMoney(data.totalIncome)}  sub={`${data.totalCars} vehículos`} icon={DollarSign} color="orange" />
-        <StatCard label="Ganancia neta est." value={formatMoney(data.netProfit)}    sub={`${data.totalIncome > 0 ? ((data.netProfit/data.totalIncome)*100).toFixed(0) : 0}% del bruto`} icon={TrendingUp} color="green" />
+        <StatCard label="Ganancia neta est." value={formatMoney(data.netProfit)}    sub={`Costos proporcionales al día ${data.workingDaysElapsed}`} icon={TrendingUp} color="green" />
         <StatCard label="Total gastos"       value={formatMoney(data.totalCosts)}   sub={`Planilla: ${formatMoney(data.payrollTotal)}`} icon={CreditCard} color="blue" />
         <StatCard label="Vehículos"          value={data.totalCars}                 sub={`Prom: ${formatMoney(data.totalCars ? data.totalIncome / data.totalCars : 0)}/carro`} icon={Car} color="purple" />
       </div>

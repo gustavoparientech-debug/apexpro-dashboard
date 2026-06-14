@@ -5,7 +5,7 @@ import { useAuth } from '../../context/AuthContext'
 import { useApp } from '../../context/AppContext'
 import {
   LayoutDashboard, ClipboardList, Users, Wallet, TrendingUp,
-  Settings, History, Sun, Moon, Menu, X, ChevronRight, UserCog, LogOut,
+  Settings, History, BarChart2, Sun, Moon, Menu, X, ChevronRight, UserCog, LogOut,
   Plus, TrendingDown
 } from 'lucide-react'
 import { cn, todayISO } from '../../lib/utils'
@@ -116,6 +116,7 @@ const ADMIN_NAV = [
   // { to: '/mix', label: 'Mix', icon: TrendingUp }, // oculto temporalmente
   { to: '/configuracion', label: 'Config',    icon: Settings },
   { to: '/historial',     label: 'Historial', icon: History },
+  { to: '/reportes',      label: 'Reportes',  icon: BarChart2 },
   { to: '/usuarios',      label: 'Usuarios',  icon: UserCog },
 ]
 

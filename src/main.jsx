@@ -15,6 +15,7 @@ import Nomina from './pages/Nomina'
 import Mix from './pages/Mix'
 import Configuracion from './pages/Configuracion'
 import Historial from './pages/Historial'
+import Reportes from './pages/Reportes'
 import AdminUsuarios from './pages/AdminUsuarios'
 import './index.css'
 
@@ -47,6 +48,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
                     <Route path="/mix"           element={<AdminOnly><Mix /></AdminOnly>} />
                     <Route path="/configuracion" element={<AdminOnly><Configuracion /></AdminOnly>} />
                     <Route path="/historial"     element={<AdminOnly><Historial /></AdminOnly>} />
+                    <Route path="/reportes"      element={<AdminOnly><Reportes /></AdminOnly>} />
                     <Route path="/usuarios"      element={<AdminOnly><AdminUsuarios /></AdminOnly>} />
                   </Routes>
                 </Layout>

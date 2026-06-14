@@ -195,7 +195,7 @@ export default function DashboardTrabajador() {
   const totalHoy  = useMemo(() => myTicketsHoy.reduce((s, t) => s + t.price_charged, 0), [myTicketsHoy])
   const { month, year } = currentMonthYear()
   const workingDaysTotal = getWorkingDaysInMonth(year, month)
-  const numWorkers = workers.filter(w => w.active && w.role === 'worker').length || 1
+  const numWorkers = 4 // temporal: 4 trabajadores operativos
   const fixedItemsTotal = (monthlyCosts?.cost_items?.length > 0)
     ? monthlyCosts.cost_items.reduce((s, i) => s + (i.amount || 0), 0)
     : (monthlyCosts?.rent || 0) + (monthlyCosts?.supplies || 0)

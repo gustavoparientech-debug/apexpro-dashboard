@@ -423,7 +423,7 @@ export default function Dashboard() {
       ? fixedCosts * (workingDaysElapsed / workingDaysTotal)
       : fixedCosts
     const netProfit = totalIncome - proportionalFixed - workerExpTotal
-    const incomeGoal  = totalCosts + utilityGoal
+    const incomeGoal  = fixedItemsTotal + payrollTotal + monthBonusAmt + utilityGoal
     const progressPct = incomeGoal > 0 ? (totalIncome / incomeGoal) * 100 : 0
     const semaforo    = getSemaforoColor(progressPct)
 

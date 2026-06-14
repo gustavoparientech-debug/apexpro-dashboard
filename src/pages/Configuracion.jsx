@@ -349,57 +349,6 @@ export default function Configuracion() {
         </button>
       </div>
 
-      {/* Catálogo de servicios */}
-      <div className="card">
-        <div className="flex items-center justify-between mb-4">
-          <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">Catálogo de servicios</p>
-          <button className="btn-primary text-sm flex items-center gap-1" onClick={() => { setEditingService(null); setShowServiceForm(true) }}>
-            <Plus className="w-4 h-4" /> Agregar
-          </button>
-        </div>
-
-        {/* Filtros por categoría */}
-        <div className="flex gap-2 flex-wrap mb-4">
-          {categories.map(cat => (
-            <button
-              key={cat}
-              onClick={() => setActiveCategory(cat)}
-              className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${activeCategory === cat ? 'bg-red-500 text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'}`}
-            >
-              {cat === 'all' ? 'Todos' : CATEGORY_LABELS[cat]}
-            </button>
-          ))}
-        </div>
-
-        <div className="space-y-2">
-          {filteredServices.map(service => (
-            <div key={service.id} className={`flex items-center gap-3 p-3 rounded-lg ${service.active ? 'bg-gray-50 dark:bg-gray-800/50' : 'bg-gray-100 dark:bg-gray-800 opacity-60'}`}>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <p className="text-sm font-medium text-gray-900 dark:text-white">{service.name}</p>
-                  <Badge variant={CATEGORY_COLORS[service.category] || 'gray'}>{CATEGORY_LABELS[service.category]}</Badge>
-                  {!service.active && <Badge variant="gray">Inactivo</Badge>}
-                </div>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  S/{service.min_price} – S/{service.max_price} · Margen: {service.margin_percent}%
-                </p>
-              </div>
-              <div className="flex items-center gap-1">
-                <button onClick={() => { setEditingService(service); setShowServiceForm(true) }} className="p-1.5 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg">
-                  <Edit2 className="w-4 h-4 text-gray-400" />
-                </button>
-                <button onClick={() => setToggleTarget(service)} className="p-1.5 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg">
-                  {service.active
-                    ? <ToggleRight className="w-4 h-4 text-green-500" />
-                    : <ToggleLeft className="w-4 h-4 text-gray-400" />
-                  }
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
       {/* Catálogo de extras */}
       <div className="card">
         <div className="flex items-center justify-between mb-3">

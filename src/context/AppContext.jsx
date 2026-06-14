@@ -264,7 +264,7 @@ export function AppProvider({ children }) {
         dailySummaries: summaries.data || [],
         incidents:      incidentsEnriched,
         monthlyCosts:   costs.data || { month: m, year: y, rent: 2700, supplies: 800, utility_goal: 2000 },
-        expenses:       expensesRes.data || [],
+        expenses:       expensesRes.error ? (console.error('expenses fetch error:', expensesRes.error), []) : (expensesRes.data || []),
       }})
     } catch (err) {
       console.error('loadData error:', err)

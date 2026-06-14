@@ -290,8 +290,10 @@ export default function Dashboard() {
   const { month: cm, year: cy } = currentMonthYear()
   const [selMonth, setSelMonth] = useState(cm)
   const [selYear,  setSelYear]  = useState(cy)
-  const [selDay,   setSelDay]   = useState(null)
+  const [rangeFrom, setRangeFrom] = useState(null)
+  const [rangeTo,   setRangeTo]   = useState(null)
   const isCurrentMonth = selMonth === cm && selYear === cy
+  const hasRange = rangeFrom && rangeTo
 
   const [pastTickets,    setPastTickets]    = useState([])
   const [pastSummaries,  setPastSummaries]  = useState([])
@@ -309,23 +311,11 @@ export default function Dashboard() {
   const prefix = `${selYear}-${String(selMonth).padStart(2, '0')}`
   const lastDayOfMonth = new Date(selYear, selMonth, 0).getDate()
 
-  function prevDay() {
-    if (!selDay) return
-    const d = new Date(selDay + 'T00:00:00')
-    d.setDate(d.getDate() - 1)
-    const newDay = d.toISOString().slice(0, 10)
-    if (newDay.startsWith(prefix)) setSelDay(newDay)
-  }
-  function nextDay() {
-    if (!selDay) return
-    const d = new Date(selDay + 'T00:00:00')
-    d.setDate(d.getDate() + 1)
-    const newDay = d.toISOString().slice(0, 10)
-    if (newDay.startsWith(prefix)) setSelDay(newDay)
-  }
-
   const data = useMemo(() => {
-    const dateFilter = (date) => selDay ? date === selDay : date?.startsWith(prefix)
+    const dateFilter = (date) => {
+      if (hasRange) return date >= rangeFrom && date <= rangeTo
+      return date?.startsWith(prefix)
+    }
     const sourceTickets    = isCurrentMonth ? tickets    : pastTickets
     const sourceSummaries  = isCurrentMonth ? dailySummaries : pastSummaries
     const sourceExpenses   = isCurrentMonth ? (expenses || []) : pastExpenses
@@ -359,7 +349,7 @@ export default function Dashboard() {
     const workingDaysRemaining = isCurrentMonth ? getWorkingDaysRemaining(selYear, selMonth) : 0
 
     const fixedCosts = fixedItemsTotal + payrollTotal + monthBonusAmt
-    const proportionalFixed = (isCurrentMonth && !selDay && workingDaysTotal > 0)
+    const proportionalFixed = (isCurrentMonth && !hasRange && workingDaysTotal > 0)
       ? fixedCosts * (workingDaysElapsed / workingDaysTotal)
       : fixedCosts
     const netProfit = totalIncome - proportionalFixed - workerExpTotal
@@ -405,7 +395,7 @@ export default function Dashboard() {
       bestDay, efectivo, yape, transferencia, onTrack, projectedIncome, dailyData,
       workerRanking, monthBonusAmt, workerExpTotal, periodExpenses, costItemsData,
     }
-  }, [tickets, dailySummaries, expenses, pastTickets, pastSummaries, pastExpenses, workers, services, incidents, monthlyCosts, bonuses, prefix, selMonth, selYear, isCurrentMonth, selDay])
+  }, [tickets, dailySummaries, expenses, pastTickets, pastSummaries, pastExpenses, workers, services, incidents, monthlyCosts, bonuses, prefix, selMonth, selYear, isCurrentMonth, rangeFrom, rangeTo, hasRange])
 
   if (loading) return (
     <div className="flex items-center justify-center h-64">
@@ -433,19 +423,19 @@ export default function Dashboard() {
           <div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Panel</h1>
             <p className="text-sm text-gray-500">
-              {selDay ? (() => { const [y,m,d] = selDay.split('-'); return `${d} de ${monthName(+m)} ${y}` })() : `${monthName(selMonth)} ${selYear}`}
+              {hasRange ? `${formatDate(rangeFrom)} – ${formatDate(rangeTo)}` : `${monthName(selMonth)} ${selYear}`}
             </p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             <select className="input text-sm py-1.5 w-36"
-              value={selMonth} onChange={e => { setSelMonth(+e.target.value); setSelDay(null) }}>
+              value={selMonth} onChange={e => { setSelMonth(+e.target.value); setRangeFrom(null); setRangeTo(null) }}>
               {MONTHS.map((m, i) => <option key={i+1} value={i+1}>{m}</option>)}
             </select>
             <select className="input text-sm py-1.5 w-24"
-              value={selYear} onChange={e => { setSelYear(+e.target.value); setSelDay(null) }}>
+              value={selYear} onChange={e => { setSelYear(+e.target.value); setRangeFrom(null); setRangeTo(null) }}>
               {[cy-1, cy, cy+1].map(y => <option key={y} value={y}>{y}</option>)}
             </select>
-            {!selDay && (
+            {!hasRange && (
               <Badge variant={data.semaforo}>
                 {data.semaforo === 'verde' ? '✓ En meta' : data.semaforo === 'amarillo' ? '⚠ En progreso' : '✗ Por debajo'}
               </Badge>
@@ -453,38 +443,35 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Selector de día */}
+        {/* Filtro de rango de fechas */}
         <div className="flex items-center gap-2 flex-wrap">
-          <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-800 rounded-xl p-1">
-            <button onClick={prevDay} disabled={!selDay}
-              className="p-1.5 rounded-lg hover:bg-white dark:hover:bg-gray-700 disabled:opacity-30 transition-colors">
-              <ChevronLeft className="w-4 h-4 text-gray-600 dark:text-gray-300" />
-            </button>
-            <input type="date" className="bg-transparent text-sm font-medium text-gray-700 dark:text-gray-200 px-1 focus:outline-none w-36"
-              value={selDay || ''}
+          <div className="flex items-center gap-2 bg-gray-100 dark:bg-gray-800 rounded-xl px-3 py-1.5">
+            <span className="text-xs text-gray-400 shrink-0">Desde</span>
+            <input type="date" className="bg-transparent text-sm font-medium text-gray-700 dark:text-gray-200 focus:outline-none w-32"
+              value={rangeFrom || ''}
               min={`${prefix}-01`}
               max={`${prefix}-${String(lastDayOfMonth).padStart(2,'0')}`}
-              onChange={e => setSelDay(e.target.value || null)}
+              onChange={e => setRangeFrom(e.target.value || null)}
             />
-            <button onClick={nextDay} disabled={!selDay}
-              className="p-1.5 rounded-lg hover:bg-white dark:hover:bg-gray-700 disabled:opacity-30 transition-colors">
-              <ChevronRight className="w-4 h-4 text-gray-600 dark:text-gray-300" />
-            </button>
+            <span className="text-xs text-gray-400 shrink-0">Hasta</span>
+            <input type="date" className="bg-transparent text-sm font-medium text-gray-700 dark:text-gray-200 focus:outline-none w-32"
+              value={rangeTo || ''}
+              min={rangeFrom || `${prefix}-01`}
+              max={`${prefix}-${String(lastDayOfMonth).padStart(2,'0')}`}
+              onChange={e => setRangeTo(e.target.value || null)}
+            />
           </div>
-          {selDay ? (
-            <button onClick={() => setSelDay(null)}
+          {hasRange && (
+            <button onClick={() => { setRangeFrom(null); setRangeTo(null) }}
               className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 px-3 py-2 rounded-xl transition-colors font-medium">
               <X className="w-3 h-3" /> Todo el mes
             </button>
-          ) : (
-            <p className="text-xs text-gray-400">Selecciona un día para filtrar</p>
           )}
-          {selDay && <Badge variant="blue">Día específico</Badge>}
         </div>
       </div>
 
       {/* Alerta ritmo */}
-      {!selDay && isCurrentMonth && !data.onTrack && data.workingDaysElapsed > 0 && (
+      {!hasRange && isCurrentMonth && !data.onTrack && data.workingDaysElapsed > 0 && (
         <div className="flex items-start gap-3 p-4 rounded-xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/10">
           <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
           <div>
@@ -498,14 +485,14 @@ export default function Dashboard() {
 
       {/* KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <StatCard label={selDay ? 'Ingresos del día' : 'Ingresos del mes'}   value={formatMoney(data.totalIncome)}  sub={`${data.totalCars} vehículos`} icon={DollarSign} color="orange" />
+        <StatCard label={hasRange ? 'Ingresos del rango' : 'Ingresos del mes'}   value={formatMoney(data.totalIncome)}  sub={`${data.totalCars} vehículos`} icon={DollarSign} color="orange" />
         <StatCard label="Ganancia neta est." value={formatMoney(data.netProfit)}    sub={`Costos proporcionales al día ${data.workingDaysElapsed}`} icon={TrendingUp} color="green" />
         <StatCard label="Total gastos"       value={formatMoney(data.totalCosts)}   sub={`Planilla: ${formatMoney(data.payrollTotal)}`} icon={CreditCard} color="blue" />
         <StatCard label="Vehículos"          value={data.totalCars}                 sub={`Prom: ${formatMoney(data.totalCars ? data.totalIncome / data.totalCars : 0)}/carro`} icon={Car} color="purple" />
       </div>
 
       {/* Barra de progreso — solo vista mensual */}
-      {!selDay && (
+      {!hasRange && (
         <div className={`card border-2 ${semaforoClass[data.semaforo]}`}>
           <div className="flex items-center justify-between mb-3">
             <div>

@@ -320,6 +320,10 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
   }
 
   async function handleClose() {
+    if (!ticket.payment_method) {
+      toast.error('Selecciona el método de pago antes de cerrar')
+      return
+    }
     await onUpdate(ticket.id, {
       status:        'cerrado',
       price_charged: total,

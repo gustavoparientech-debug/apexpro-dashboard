@@ -208,7 +208,7 @@ export default function DashboardTrabajador() {
   const payrollTotal = activeWorkers.reduce((s, w) => s + calcRealSalary(w.base_salary || 0, w.weekly_hours || 48), 0)
   const incomeGoal = fixedItemsTotal + payrollTotal + (monthlyCosts?.utility_goal || 2000)
   const metaDiariaRef = workingDaysTotal > 0 ? Math.round(incomeGoal / workingDaysTotal / numWorkers) : 80
-  const metaDiaria = (worker?.daily_goal != null && worker.daily_goal > 0) ? worker.daily_goal : metaDiariaRef
+  const metaDiaria = (worker?.daily_goal != null) ? worker.daily_goal : metaDiariaRef
   const progreso   = Math.min(100, Math.round((totalHoy / metaDiaria) * 100))
 
   const hora   = new Date().getHours()

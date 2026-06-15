@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useApp } from '../context/AppContext'
 import { useAuth } from '../context/AuthContext'
-import { Shield, User, Link, Trash2, RefreshCw } from 'lucide-react'
+import { Shield, User, Link, Trash2, RefreshCw, UserCheck } from 'lucide-react'
 import toast from 'react-hot-toast'
 import ConfirmDialog from '../components/ui/ConfirmDialog'
 
@@ -17,6 +17,7 @@ export default function AdminUsuarios() {
   const { profile: myProfile, refreshProfile } = useAuth()
 
   const [profiles, setProfiles] = useState([])
+  const [pending,  setPending]  = useState([])
   const [loading,  setLoading]  = useState(true)
   const [deleteTarget, setDeleteTarget] = useState(null)
 
@@ -24,10 +25,30 @@ export default function AdminUsuarios() {
 
   async function loadProfiles() {
     setLoading(true)
-    const { data, error } = await supabase.from('profiles').select('*').order('role')
+    const [{ data: profs, error }, { data: pends }] = await Promise.all([
+      supabase.from('profiles').select('*').order('role'),
+      supabase.from('pending_requests').select('*').order('created_at'),
+    ])
     if (error) { toast.error('Error al cargar usuarios'); console.error(error) }
-    else setProfiles(data || [])
+    else setProfiles(profs || [])
+    setPending(pends || [])
     setLoading(false)
+  }
+
+  async function handleApprove(req) {
+    const { error } = await supabase.from('profiles').insert({
+      id: req.id,
+      email: req.email,
+      display_name: req.display_name,
+      role: 'worker',
+      avatar_url: null,
+      worker_id: null,
+    })
+    if (error) { toast.error('Error al aprobar'); return }
+    await supabase.from('pending_requests').delete().eq('id', req.id)
+    setPending(prev => prev.filter(p => p.id !== req.id))
+    await loadProfiles()
+    toast.success(`${req.display_name} aprobado como Trabajador`)
   }
 
   useEffect(() => { loadProfiles() }, [])
@@ -77,6 +98,30 @@ export default function AdminUsuarios() {
           Los usuarios se registran solos. Aquí asignas su rol y lo vinculas a un perfil de trabajador.
         </p>
       </div>
+
+      {pending.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-xs font-semibold text-amber-600 dark:text-amber-400 uppercase tracking-wide">
+            Solicitudes pendientes ({pending.length})
+          </p>
+          {pending.map(req => (
+            <div key={req.id} className="card flex items-center gap-3 border border-amber-200 dark:border-amber-800/50">
+              <div className="w-9 h-9 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center text-sm font-bold text-amber-700 dark:text-amber-400 flex-none">
+                {(req.display_name || '?')[0].toUpperCase()}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">{req.display_name}</p>
+                <p className="text-xs text-gray-400 truncate">{req.email}</p>
+              </div>
+              <button onClick={() => handleApprove(req)}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-semibold rounded-lg transition-colors flex-none">
+                <UserCheck className="w-3.5 h-3.5" />
+                Aprobar
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
 
       {loading ? (
         <div className="flex justify-center py-10">

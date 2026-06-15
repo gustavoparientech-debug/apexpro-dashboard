@@ -23,18 +23,28 @@ export default function Login() {
       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-500" />
     </div>
   )
-  if (user && !profile) return (
-    <div className="min-h-screen flex items-center justify-center bg-[#1e1e1e] px-4">
-      <div className="bg-gray-900 rounded-2xl p-8 max-w-sm w-full text-center space-y-4">
-        <div className="text-4xl">⏳</div>
-        <h2 className="text-white font-bold text-lg">Acceso pendiente</h2>
-        <p className="text-gray-400 text-sm">Tu cuenta está registrada pero aún no tiene acceso. Contacta al administrador para que te active.</p>
-        <button className="text-sm text-red-400 hover:text-red-300 underline" onClick={async () => { await supabase.auth.signOut(); window.location.reload() }}>
-          Cerrar sesión
-        </button>
+  if (user && !profile) {
+    // Registrar solicitud de acceso para que el admin la vea
+    supabase.from('pending_requests').upsert({
+      id: user.id,
+      email: user.email,
+      display_name: user.user_metadata?.full_name || user.user_metadata?.name || user.email,
+    }, { onConflict: 'id' }).then(() => {})
+
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#1e1e1e] px-4">
+        <div className="bg-gray-900 rounded-2xl p-8 max-w-sm w-full text-center space-y-4">
+          <div className="text-4xl">⏳</div>
+          <h2 className="text-white font-bold text-lg">Acceso pendiente</h2>
+          <p className="text-gray-400 text-sm">Tu cuenta está registrada pero aún no tiene acceso. Contacta al administrador para que te active.</p>
+          <p className="text-xs text-gray-600">{user.email}</p>
+          <button className="text-sm text-red-400 hover:text-red-300 underline" onClick={async () => { await supabase.auth.signOut(); window.location.reload() }}>
+            Cerrar sesión
+          </button>
+        </div>
       </div>
-    </div>
-  )
+    )
+  }
 
   async function handleGoogle() {
     setBusy(true)

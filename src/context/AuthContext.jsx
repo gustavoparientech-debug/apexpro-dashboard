@@ -89,16 +89,7 @@ export function AuthProvider({ children }) {
       options: { data: { full_name: displayName } },
     })
     if (error) throw error
-    if (data.user) {
-      await supabase.from('profiles').insert({
-        id: data.user.id,
-        role: 'worker',
-        email,
-        display_name: displayName || email,
-        avatar_url: null,
-        worker_id: null,
-      })
-    }
+    // No se crea perfil automáticamente — el admin lo aprueba desde Usuarios
     return data
   }
 

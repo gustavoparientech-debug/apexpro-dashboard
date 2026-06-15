@@ -10,13 +10,15 @@ const DEMO_USER = { id: 'demo', email: 'demo@apexpro.pe' }
 const DEMO_PROFILE = { id: 'demo', role: 'admin', email: 'demo@apexpro.pe', display_name: 'Admin Demo', avatar_url: null, worker_id: null }
 
 export function AuthProvider({ children }) {
-  const [user,        setUser]        = useState(IS_DEMO ? DEMO_USER : null)
-  const [profile,     setProfile]     = useState(IS_DEMO ? DEMO_PROFILE : null)
-  const [loading,     setLoading]     = useState(!IS_DEMO)
-  const [deactivated, setDeactivated] = useState(false)
+  const [user,           setUser]           = useState(IS_DEMO ? DEMO_USER : null)
+  const [profile,        setProfile]        = useState(IS_DEMO ? DEMO_PROFILE : null)
+  const [loading,        setLoading]        = useState(!IS_DEMO)
+  const [profileLoading, setProfileLoading] = useState(false)
+  const [deactivated,    setDeactivated]    = useState(false)
 
   const fetchProfile = useCallback(async (authUser) => {
-    if (!authUser) { setProfile(null); setDeactivated(false); return }
+    if (!authUser) { setProfile(null); setDeactivated(false); setProfileLoading(false); return }
+    setProfileLoading(true)
     try {
       const { data, error } = await supabase
         .from('profiles')
@@ -24,7 +26,7 @@ export function AuthProvider({ children }) {
         .eq('id', authUser.id)
         .maybeSingle()
 
-      if (error) { console.warn('profile fetch error:', error.message); setProfile(null); setDeactivated(false); return }
+      if (error) { console.warn('profile fetch error:', error.message); setProfile(null); setDeactivated(false); setProfileLoading(false); return }
 
       if (!data) {
         setProfile(null); setDeactivated(false)
@@ -32,7 +34,6 @@ export function AuthProvider({ children }) {
         setProfile(null); setDeactivated(true)
       } else {
         setDeactivated(false)
-        // Actualizar email/avatar si cambió (por Google)
         const updates = {}
         if (!data.email && authUser.email) updates.email = authUser.email
         if (!data.display_name) updates.display_name = authUser.user_metadata?.full_name || authUser.email
@@ -47,6 +48,8 @@ export function AuthProvider({ children }) {
     } catch (e) {
       console.error('fetchProfile error:', e)
       setProfile(null); setDeactivated(false)
+    } finally {
+      setProfileLoading(false)
     }
   }, [])
 
@@ -109,7 +112,7 @@ export function AuthProvider({ children }) {
 
   return (
     <AuthContext.Provider value={{
-      user, profile, loading, deactivated,
+      user, profile, loading, profileLoading, deactivated,
       isAdmin, isWorker, isDemo: IS_DEMO,
       signInWithGoogle, signInWithEmail, signUpWithEmail,
       signOut, refreshProfile,

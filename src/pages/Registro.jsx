@@ -125,16 +125,22 @@ function NewTicketForm({ onSave, onClose, workers, vehicleTypes, lockedWorkerId,
   if (!form.plate || form.plate.length < 3) missing.push('placa válida')
   if (!form.worker_id) missing.push('técnico')
 
+  const [submitting, setSubmitting] = useState(false)
+
   async function handleSubmit() {
     if (missing.length) { toast.error('Falta: ' + missing.join(' · ')); return }
-    await onSave({
-      ...form,
-      price_charged: parseFloat(form.price_charged) || 0,
-      status:     'abierto',
-      opened_at:  new Date().toISOString(),
-      extras:     [],
-    })
-    onClose()
+    if (submitting) return
+    setSubmitting(true)
+    try {
+      await onSave({
+        ...form,
+        price_charged: parseFloat(form.price_charged) || 0,
+        status:     'abierto',
+        opened_at:  new Date().toISOString(),
+        extras:     [],
+      })
+      onClose()
+    } finally { setSubmitting(false) }
   }
 
   return (
@@ -252,7 +258,7 @@ function NewTicketForm({ onSave, onClose, workers, vehicleTypes, lockedWorkerId,
         {missing.length > 0 && (
           <p className="text-xs text-gray-400 text-center mb-2">Falta: {missing.join(' · ')}</p>
         )}
-        <button type="button" onClick={handleSubmit} disabled={missing.length > 0}
+        <button type="button" onClick={handleSubmit} disabled={missing.length > 0 || submitting}
           className={`w-full py-3.5 rounded-2xl font-bold text-base transition-all ${
             missing.length === 0
               ? 'bg-red-600 hover:bg-red-700 text-white active:scale-95'

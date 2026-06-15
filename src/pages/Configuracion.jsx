@@ -178,9 +178,11 @@ export default function Configuracion() {
     setSavingGoals(true)
     try {
       await Promise.all(
-        activeWorkers.map(w =>
-          updateWorker(w.id, { daily_goal: workerGoals[w.id] ? parseFloat(workerGoals[w.id]) : null })
-        )
+        activeWorkers.map(w => {
+          const v = workerGoals[w.id]
+          const goal = (v !== '' && v !== undefined && v !== null) ? parseFloat(v) : null
+          return updateWorker(w.id, { daily_goal: goal })
+        })
       )
       toast.success('Metas guardadas')
     } catch { toast.error('Error al guardar metas') }

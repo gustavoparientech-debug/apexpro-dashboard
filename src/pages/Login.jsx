@@ -17,7 +17,7 @@ export default function Login() {
   const [showPass,    setShowPass]    = useState(false)
   const [busy,        setBusy]        = useState(false)
 
-  if (isDemo || (user && profile)) return <Navigate to="/" replace />
+  if (isDemo || (user && profile && !profile._deactivated)) return <Navigate to="/" replace />
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center bg-[#1e1e1e]">
       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-500" />

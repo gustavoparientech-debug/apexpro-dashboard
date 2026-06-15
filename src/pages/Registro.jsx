@@ -718,22 +718,23 @@ function TicketSummaryModal({ ticket, workers, vehicleTypes, onClose }) {
     : ticket.date
 
   function shareWhatsApp() {
-    const paymentIcon = ticket.payment_method === 'yape' ? '📱 Yape' : ticket.payment_method === 'transferencia' ? '🏦 Transferencia' : '💵 Efectivo'
+    const paymentLabel = ticket.payment_method === 'yape' ? 'Yape' : ticket.payment_method === 'transferencia' ? 'Transferencia' : 'Efectivo'
+    const sep = '--------------------'
     const lines = [
-      `✨ *APEX PRO DETAILING* ✨`,
-      `━━━━━━━━━━━━━━━━━━`,
+      `*✨ APEX PRO DETAILING ✨*`,
+      sep,
       `🚘 *Placa:* ${ticket.plate || 'Sin placa'}`,
       `🚙 *Vehículo:* ${vehicle?.label || ticket.vehicle_type}`,
-      `👨‍🔧 *Técnico:* ${worker?.name || '—'}`,
+      `👷 *Técnico:* ${worker?.name || '—'}`,
       ``,
       `🧾 *Detalle del servicio:*`,
       basePrice > 0 ? `  • Lavado: ${formatMoney(basePrice)}` : null,
       ...extras.map(e => `  • ${e.name}: ${formatMoney(e.price || 0)}`),
-      `━━━━━━━━━━━━━━━━━━`,
+      sep,
       `💰 *Total: ${formatMoney(ticket.price_charged)}*`,
-      `${paymentIcon}`,
-      `📅 *Fecha:* ${closedDate}`,
-      `━━━━━━━━━━━━━━━━━━`,
+      `💳 Pago: ${paymentLabel}`,
+      `📅 Fecha: ${closedDate}`,
+      sep,
       `🙌 *¡Gracias por preferirnos!*`,
       `📍 Apex Pro Detailing`,
     ].filter(v => v !== null).join('\n')

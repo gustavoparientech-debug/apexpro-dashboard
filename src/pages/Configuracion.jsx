@@ -165,9 +165,13 @@ export default function Configuracion() {
   const activeWorkers = workers.filter(w => w.active)
 
   useEffect(() => {
-    const initial = {}
-    activeWorkers.forEach(w => { initial[w.id] = w.daily_goal ?? '' })
-    setWorkerGoals(initial)
+    setWorkerGoals(prev => {
+      const next = { ...prev }
+      activeWorkers.forEach(w => {
+        if (!(w.id in next)) next[w.id] = w.daily_goal ?? ''
+      })
+      return next
+    })
   }, [workers])
 
   async function handleSaveGoals() {

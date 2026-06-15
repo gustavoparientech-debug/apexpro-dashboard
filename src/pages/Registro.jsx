@@ -732,7 +732,6 @@ function TicketSummaryModal({ ticket, workers, vehicleTypes, onClose }) {
       `━━━━━━━━━━━━━━━━━━`,
       `💰 *Total: ${formatMoney(ticket.price_charged)}*`,
       `${paymentIcon}`,
-      duration ? `⏱️ *Duración:* ${duration}` : null,
       `📅 *Fecha:* ${closedDate}`,
       `━━━━━━━━━━━━━━━━━━`,
       `🙌 *¡Gracias por preferirnos!*`,

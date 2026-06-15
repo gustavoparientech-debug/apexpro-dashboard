@@ -551,10 +551,12 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
             <CheckCircle className="w-4 h-4" /> Cerrar ticket
           </button>
         </div>
-        <button onClick={() => setDeleteConfirm(true)}
-          className="w-full py-2 rounded-xl text-red-500 text-sm font-medium hover:bg-red-50 dark:hover:bg-red-900/10 transition-colors flex items-center justify-center gap-1">
-          <Trash2 className="w-4 h-4" /> Eliminar ticket
-        </button>
+        {onDelete && (
+          <button onClick={() => setDeleteConfirm(true)}
+            className="w-full py-2 rounded-xl text-red-500 text-sm font-medium hover:bg-red-50 dark:hover:bg-red-900/10 transition-colors flex items-center justify-center gap-1">
+            <Trash2 className="w-4 h-4" /> Eliminar ticket
+          </button>
+        )}
       </div>
 
       <ConfirmDialog open={deleteConfirm} onClose={() => setDeleteConfirm(false)}
@@ -687,10 +689,12 @@ function ClosedTicketCard({ ticket, workers, vehicleTypes, onDelete, onEdit, onS
               <PenLine className="w-3.5 h-3.5 text-blue-400" />
             </button>
           )}
-          <button onClick={e => { e.stopPropagation(); setDeleteConfirm(true) }}
-            className="p-1.5 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg mt-0.5">
-            <Trash2 className="w-3.5 h-3.5 text-red-400" />
-          </button>
+          {onDelete && (
+            <button onClick={e => { e.stopPropagation(); setDeleteConfirm(true) }}
+              className="p-1.5 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg mt-0.5">
+              <Trash2 className="w-3.5 h-3.5 text-red-400" />
+            </button>
+          )}
         </div>
       </div>
       <ConfirmDialog open={deleteConfirm} onClose={() => setDeleteConfirm(false)}
@@ -1380,7 +1384,7 @@ export default function Registro() {
           <div className="space-y-2">
             {closedToday.map(t => (
               <ClosedTicketCard key={t.id} ticket={t} workers={workers} vehicleTypes={vehicleTypes}
-                onDelete={handleDeleteTicket}
+                onDelete={canAdmin ? handleDeleteTicket : null}
                 onEdit={canAdmin ? (tk) => setEditingTicket(tk) : null}
                 onSummary={(tk) => setSummaryTicket(tk)} />
             ))}
@@ -1533,7 +1537,7 @@ export default function Registro() {
             vehicleTypes={vehicleTypes}
             extrasCatalog={extrasCatalog || []}
             onUpdate={handleUpdateTicket}
-            onDelete={handleDeleteTicket}
+            onDelete={canAdmin ? handleDeleteTicket : null}
           />
         )}
       </Modal>

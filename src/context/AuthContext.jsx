@@ -10,12 +10,13 @@ const DEMO_USER = { id: 'demo', email: 'demo@apexpro.pe' }
 const DEMO_PROFILE = { id: 'demo', role: 'admin', email: 'demo@apexpro.pe', display_name: 'Admin Demo', avatar_url: null, worker_id: null }
 
 export function AuthProvider({ children }) {
-  const [user,    setUser]    = useState(IS_DEMO ? DEMO_USER : null)
-  const [profile, setProfile] = useState(IS_DEMO ? DEMO_PROFILE : null)
-  const [loading, setLoading] = useState(!IS_DEMO)
+  const [user,        setUser]        = useState(IS_DEMO ? DEMO_USER : null)
+  const [profile,     setProfile]     = useState(IS_DEMO ? DEMO_PROFILE : null)
+  const [loading,     setLoading]     = useState(!IS_DEMO)
+  const [deactivated, setDeactivated] = useState(false)
 
   const fetchProfile = useCallback(async (authUser) => {
-    if (!authUser) { setProfile(null); return }
+    if (!authUser) { setProfile(null); setDeactivated(false); return }
     try {
       const { data, error } = await supabase
         .from('profiles')
@@ -23,12 +24,14 @@ export function AuthProvider({ children }) {
         .eq('id', authUser.id)
         .maybeSingle()
 
-      if (error) { console.warn('profile fetch error:', error.message); setProfile(null); return }
+      if (error) { console.warn('profile fetch error:', error.message); setProfile(null); setDeactivated(false); return }
 
-      if (!data || data.active === false) {
-        // Sin perfil o desactivado = sin acceso
-        setProfile(data?.active === false ? { ...data, _deactivated: true } : null)
+      if (!data) {
+        setProfile(null); setDeactivated(false)
+      } else if (data.active === false) {
+        setProfile(null); setDeactivated(true)
       } else {
+        setDeactivated(false)
         // Actualizar email/avatar si cambió (por Google)
         const updates = {}
         if (!data.email && authUser.email) updates.email = authUser.email
@@ -43,7 +46,7 @@ export function AuthProvider({ children }) {
       }
     } catch (e) {
       console.error('fetchProfile error:', e)
-      setProfile(null)
+      setProfile(null); setDeactivated(false)
     }
   }, [])
 
@@ -106,7 +109,7 @@ export function AuthProvider({ children }) {
 
   return (
     <AuthContext.Provider value={{
-      user, profile, loading,
+      user, profile, loading, deactivated,
       isAdmin, isWorker, isDemo: IS_DEMO,
       signInWithGoogle, signInWithEmail, signUpWithEmail,
       signOut, refreshProfile,

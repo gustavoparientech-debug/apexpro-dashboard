@@ -7,7 +7,7 @@ import { Sun, Moon, Eye, EyeOff } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 export default function Login() {
-  const { user, profile, loading, signInWithGoogle, signInWithEmail, signUpWithEmail, isDemo } = useAuth()
+  const { user, profile, loading, deactivated, signInWithGoogle, signInWithEmail, signUpWithEmail, isDemo } = useAuth()
   const { dark, toggle } = useTheme()
 
   const [tab,         setTab]         = useState('login') // 'login' | 'signup'
@@ -17,13 +17,13 @@ export default function Login() {
   const [showPass,    setShowPass]    = useState(false)
   const [busy,        setBusy]        = useState(false)
 
-  if (isDemo || (user && profile && !profile._deactivated)) return <Navigate to="/" replace />
+  if (isDemo || (user && profile)) return <Navigate to="/" replace />
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center bg-[#1e1e1e]">
       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-500" />
     </div>
   )
-  if (user && profile?._deactivated) return (
+  if (deactivated) return (
     <div className="min-h-screen flex items-center justify-center bg-[#1e1e1e] px-4">
       <div className="bg-gray-900 rounded-2xl p-8 max-w-sm w-full text-center space-y-4">
         <div className="text-4xl">🚫</div>

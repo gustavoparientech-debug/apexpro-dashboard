@@ -322,6 +322,7 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
         ...(paymentPhoto && { payment_photo: paymentPhoto }),
       })
       toast.success('Ticket actualizado')
+      onClose()
     } catch (e) { toast.error('Error al guardar') }
     finally { setSaving(false) }
   }

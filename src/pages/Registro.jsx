@@ -289,7 +289,10 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
   const paymentPhotoRef = useRef()
 
   const extrasTotal = extras.reduce((s, e) => s + (e.price || 0), 0)
-  const total = parseFloat(basePrice || 0) + extrasTotal
+  const totalBruto = parseFloat(basePrice || 0) + extrasTotal
+  const isTransferencia = ticket.payment_method === 'transferencia'
+  const TRANSFER_FEE = 0.04
+  const total = isTransferencia ? Math.round(totalBruto * (1 - TRANSFER_FEE) * 100) / 100 : totalBruto
 
   async function addCatalogExtra(extra) {
     const newExtras = [...extras, { name: extra.name, price: extra.price }]
@@ -538,6 +541,18 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
 
       {/* Footer */}
       <div className="px-4 pb-6 pt-3 border-t border-gray-100 dark:border-gray-800 space-y-2">
+        {isTransferencia && (
+          <div className="flex items-center justify-between text-xs text-gray-400 -mb-1">
+            <span>Subtotal</span>
+            <span>{formatMoney(totalBruto)}</span>
+          </div>
+        )}
+        {isTransferencia && (
+          <div className="flex items-center justify-between text-xs text-orange-500 -mb-1">
+            <span>Comisión transferencia (4%)</span>
+            <span>-{formatMoney(Math.round(totalBruto * TRANSFER_FEE * 100) / 100)}</span>
+          </div>
+        )}
         <div className="flex items-center justify-between mb-3">
           <span className="text-sm text-gray-500">Total a cobrar</span>
           <span className="text-2xl font-black text-red-600">{formatMoney(total)}</span>

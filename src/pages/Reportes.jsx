@@ -138,12 +138,13 @@ export default function Historial() {
     const byWorker = {}
     periodTickets.forEach(t => {
       if (!t.worker_id) return
-      if (!byWorker[t.worker_id]) byWorker[t.worker_id] = { income: 0, cars: 0 }
+      if (!byWorker[t.worker_id]) byWorker[t.worker_id] = { income: 0, cars: 0, dates: new Set() }
       byWorker[t.worker_id].income += t.price_charged
       byWorker[t.worker_id].cars   += 1
+      byWorker[t.worker_id].dates.add(t.date)
     })
     const workerRanking = Object.entries(byWorker)
-      .map(([id, s]) => ({ worker: workers.find(w => w.id === id), ...s }))
+      .map(([id, s]) => ({ worker: workers.find(w => w.id === id), income: s.income, cars: s.cars, daysWorked: s.dates.size }))
       .filter(r => r.worker)
       .sort((a, b) => b.income - a.income)
 
@@ -418,7 +419,7 @@ ${workerLines}`
                       </div>
                       <div className="text-right">
                         <p className="font-bold text-sm text-red-600 dark:text-red-400">{formatMoney(r.income)}</p>
-                        <p className="text-xs text-gray-400">Prom: {formatMoney(r.income / (r.cars || 1))}</p>
+                        <p className="text-xs text-gray-400">{formatMoney(r.income / (r.cars || 1))}/carro · {formatMoney(r.income / (r.daysWorked || 1))}/día</p>
                       </div>
                     </div>
                   ))}

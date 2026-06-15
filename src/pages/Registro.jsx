@@ -797,7 +797,7 @@ function TicketSummaryModal({ ticket, workers, vehicleTypes, onClose }) {
           </div>
         </div>
 
-        {/* Foto */}
+        {/* Foto vehículo */}
         {ticket.photo_url && (
           <img src={ticket.photo_url} alt="vehículo" className="w-full h-40 object-cover" />
         )}
@@ -825,6 +825,16 @@ function TicketSummaryModal({ ticket, workers, vehicleTypes, onClose }) {
               <span className="text-red-600 text-base">{formatMoney(ticket.price_charged)}</span>
             </div>
           </div>
+
+          {/* Foto comprobante Yape */}
+          {ticket.payment_photo && (
+            <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-800">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Comprobante Yape</p>
+              <a href={ticket.payment_photo} target="_blank" rel="noopener noreferrer">
+                <img src={ticket.payment_photo} alt="comprobante yape" className="w-full rounded-xl object-cover max-h-48 border border-purple-200 dark:border-purple-800" />
+              </a>
+            </div>
+          )}
 
           {/* Meta */}
           <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-800 space-y-2 text-sm">

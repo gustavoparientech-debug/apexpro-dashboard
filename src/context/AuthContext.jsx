@@ -59,9 +59,20 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     if (IS_DEMO) return
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null)
       fetchProfile(session?.user ?? null).finally(() => setLoading(false))
+    })
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
+        setUser(session?.user ?? null)
+        fetchProfile(session?.user ?? null)
+      }
+      if (event === 'SIGNED_OUT') {
+        setUser(null)
+        setProfile(null)
+      }
     })
 
     return () => subscription.unsubscribe()

@@ -176,7 +176,7 @@ export default function Layout({ children }) {
   const location = useLocation()
 
   // Redirigir a login si no está autenticado
-  if (!isDemo && !loading && !profile) {
+  if (!isDemo && !loading && (!profile || profile._deactivated)) {
     return <Navigate to="/login" replace />
   }
 

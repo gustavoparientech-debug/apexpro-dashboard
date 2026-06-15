@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useApp } from '../context/AppContext'
 import { useAuth } from '../context/AuthContext'
-import { Shield, User, Link, Trash2, RefreshCw, UserCheck } from 'lucide-react'
+import { Shield, User, Link, Trash2, RefreshCw, UserCheck, ToggleLeft, ToggleRight } from 'lucide-react'
 import toast from 'react-hot-toast'
 import ConfirmDialog from '../components/ui/ConfirmDialog'
 
@@ -71,11 +71,19 @@ export default function AdminUsuarios() {
     toast.success(val ? 'Trabajador vinculado' : 'Vínculo removido')
   }
 
+  async function handleToggleActive(profileId, currentActive) {
+    const newActive = !currentActive
+    const { error } = await supabase.from('profiles').update({ active: newActive }).eq('id', profileId)
+    if (error) { toast.error('Error al cambiar estado'); return }
+    setProfiles(prev => prev.map(p => p.id === profileId ? { ...p, active: newActive } : p))
+    toast.success(newActive ? 'Usuario activado' : 'Usuario desactivado')
+  }
+
   async function handleDelete(profileId) {
     const { error } = await supabase.from('profiles').delete().eq('id', profileId)
     if (error) { toast.error('Error al eliminar'); return }
     setProfiles(prev => prev.filter(p => p.id !== profileId))
-    toast.success('Usuario eliminado del sistema')
+    toast.success('Cuenta eliminada (los tickets se conservan)')
   }
 
   const initials = (name) => (name || '?').split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
@@ -140,7 +148,7 @@ export default function AdminUsuarios() {
             const linkedWorker = workers.find(w => w.id === p.worker_id)
             const isMe = p.id === myProfile?.id
             return (
-              <div key={p.id} className={`card space-y-3 ${isMe ? 'ring-2 ring-red-200 dark:ring-red-900/50' : ''}`}>
+              <div key={p.id} className={`card space-y-3 ${isMe ? 'ring-2 ring-red-200 dark:ring-red-900/50' : ''} ${p.active === false ? 'opacity-50' : ''}`}>
                 {/* Header usuario */}
                 <div className="flex items-start gap-3">
                   {p.avatar_url ? (
@@ -168,10 +176,19 @@ export default function AdminUsuarios() {
                     )}
                   </div>
                   {!isMe && (
-                    <button onClick={() => setDeleteTarget(p.id)}
-                      className="p-1.5 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg flex-none">
-                      <Trash2 className="w-4 h-4 text-red-400" />
-                    </button>
+                    <div className="flex items-center gap-1 flex-none">
+                      <button onClick={() => handleToggleActive(p.id, p.active !== false)}
+                        title={p.active === false ? 'Activar' : 'Desactivar'}
+                        className="p-1">
+                        {p.active === false
+                          ? <ToggleLeft className="w-7 h-7 text-gray-400" />
+                          : <ToggleRight className="w-7 h-7 text-green-500" />}
+                      </button>
+                      <button onClick={() => setDeleteTarget(p.id)}
+                        className="p-1.5 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg">
+                        <Trash2 className="w-4 h-4 text-red-400" />
+                      </button>
+                    </div>
                   )}
                 </div>
 

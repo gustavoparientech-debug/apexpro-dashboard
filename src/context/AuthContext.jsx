@@ -25,9 +25,9 @@ export function AuthProvider({ children }) {
 
       if (error) { console.warn('profile fetch error:', error.message); setProfile(null); return }
 
-      if (!data) {
-        // Sin perfil = sin acceso (admin debe aprobar)
-        setProfile(null)
+      if (!data || data.active === false) {
+        // Sin perfil o desactivado = sin acceso
+        setProfile(data?.active === false ? { ...data, _deactivated: true } : null)
       } else {
         // Actualizar email/avatar si cambió (por Google)
         const updates = {}

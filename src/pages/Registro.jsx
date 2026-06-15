@@ -742,48 +742,76 @@ function TicketSummaryModal({ ticket, workers, vehicleTypes, onClose }) {
 
   async function downloadPDF() {
     const { jsPDF } = await import('jspdf')
-    const doc = new jsPDF({ format: [80, 160], unit: 'mm' })
+    const doc = new jsPDF({ format: [80, 200], unit: 'mm' })
     const lm = 8, rm = 72, mid = 40
-    let y = 10
+    let y = 8
+
+    // Logo
+    try {
+      const img = new Image()
+      img.src = '/logo.jpg'
+      await new Promise(resolve => { img.onload = resolve; img.onerror = resolve })
+      if (img.complete && img.naturalWidth > 0) {
+        doc.addImage(img, 'JPEG', mid - 8, y, 16, 16, undefined, 'FAST')
+        y += 19
+      }
+    } catch {}
 
     // Header
-    doc.setFontSize(14).setFont(undefined, 'bold')
-    doc.text('Apex Pro Detailing', mid, y, { align: 'center' }); y += 6
-    doc.setFontSize(8).setFont(undefined, 'normal')
+    doc.setFontSize(13).setFont(undefined, 'bold')
+    doc.text('Apex Pro Detailing', mid, y, { align: 'center' }); y += 5
+    doc.setFontSize(7).setFont(undefined, 'normal')
+    doc.setTextColor(120, 120, 120)
+    doc.text('DETAILING PROFESIONAL', mid, y, { align: 'center' }); y += 4
+    doc.setTextColor(0, 0, 0)
     doc.text(closedDate, mid, y, { align: 'center' }); y += 5
-    doc.setLineWidth(0.3).line(lm, y, rm, y); y += 4
+    doc.setLineWidth(0.5).setDrawColor(200, 200, 200).line(lm, y, rm, y); y += 5
 
     // Placa + vehículo
-    doc.setFontSize(11).setFont(undefined, 'bold')
+    doc.setFontSize(14).setFont(undefined, 'bold').setTextColor(0, 0, 0)
     doc.text(ticket.plate || 'Sin placa', mid, y, { align: 'center' }); y += 5
-    doc.setFontSize(8).setFont(undefined, 'normal')
-    doc.text(`${vehicle?.label || ticket.vehicle_type} · ${worker?.name || '—'}`, mid, y, { align: 'center' }); y += 5
-    doc.line(lm, y, rm, y); y += 4
+    doc.setFontSize(8).setFont(undefined, 'normal').setTextColor(80, 80, 80)
+    doc.text(`${vehicle?.label || ticket.vehicle_type}  |  Tecnico: ${worker?.name || '—'}`, mid, y, { align: 'center' }); y += 6
+    doc.setDrawColor(200, 200, 200).line(lm, y, rm, y); y += 5
 
     // Detalle servicios
-    doc.setFontSize(8)
+    doc.setFontSize(8).setFont(undefined, 'bold').setTextColor(0, 0, 0)
+    doc.text('SERVICIO', lm, y)
+    doc.text('PRECIO', rm, y, { align: 'right' }); y += 4
+    doc.setFont(undefined, 'normal').setTextColor(40, 40, 40)
     if (basePrice > 0) {
       doc.text('Lavado', lm, y)
       doc.text(formatMoney(basePrice), rm, y, { align: 'right' }); y += 5
     }
     extras.forEach(e => {
-      doc.text(e.name || 'Extra', lm, y)
-      doc.text(formatMoney(e.price || 0), rm, y, { align: 'right' }); y += 5
+      const name = e.name || 'Extra'
+      const wrapped = doc.splitTextToSize(name, 45)
+      doc.text(wrapped, lm, y)
+      doc.text(formatMoney(e.price || 0), rm, y, { align: 'right' })
+      y += wrapped.length * 4.5
     })
-    doc.line(lm, y, rm, y); y += 4
+    y += 1
+    doc.setLineWidth(0.5).setDrawColor(180, 180, 180).line(lm, y, rm, y); y += 4
 
     // Total
-    doc.setFontSize(10).setFont(undefined, 'bold')
+    doc.setFontSize(11).setFont(undefined, 'bold').setTextColor(0, 0, 0)
     doc.text('TOTAL', lm, y)
-    doc.text(formatMoney(ticket.price_charged), rm, y, { align: 'right' }); y += 5
-    doc.setFontSize(8).setFont(undefined, 'normal')
-    doc.text(`Pago: ${PAYMENT_LABELS[ticket.payment_method] || ticket.payment_method || '—'}`, lm, y); y += 5
-    if (duration) { doc.text(`Duración: ${duration}`, lm, y); y += 5 }
+    doc.text(formatMoney(ticket.price_charged), rm, y, { align: 'right' }); y += 6
 
-    doc.line(lm, y, rm, y); y += 4
-    doc.setFontSize(7).text('¡Gracias por preferirnos!', mid, y, { align: 'center' })
+    // Pago
+    const paymentText = { efectivo: 'Efectivo', yape: 'Yape', transferencia: 'Transferencia' }
+    doc.setFontSize(8).setFont(undefined, 'normal').setTextColor(80, 80, 80)
+    doc.text(`Metodo de pago: ${paymentText[ticket.payment_method] || ticket.payment_method || '—'}`, lm, y); y += 5
 
-    doc.save(`ticket_${ticket.plate || 'apex'}.pdf`)
+    doc.setLineWidth(0.5).setDrawColor(200, 200, 200).line(lm, y, rm, y); y += 5
+
+    // Footer
+    doc.setFontSize(8).setFont(undefined, 'bold').setTextColor(0, 0, 0)
+    doc.text('Gracias por preferirnos!', mid, y, { align: 'center' }); y += 4
+    doc.setFontSize(7).setFont(undefined, 'normal').setTextColor(150, 150, 150)
+    doc.text('Apex Pro Detailing', mid, y, { align: 'center' })
+
+    doc.save(`ticket_${ticket.plate || 'apex'}_${ticket.date || ''}.pdf`)
   }
 
   return (

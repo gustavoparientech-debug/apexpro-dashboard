@@ -614,17 +614,20 @@ export default function Dashboard() {
 
       {/* Métodos de cobro */}
       <div className="grid grid-cols-3 gap-3">
-        <div className="card flex items-center gap-3">
+        <div className="card flex flex-col items-center text-center gap-2 py-3">
           <div className="rounded-xl p-2.5 bg-green-50 dark:bg-green-900/20"><Banknote className="w-5 h-5 text-green-600" /></div>
-          <div><p className="text-xs text-gray-500">Efectivo</p><p className="text-lg font-bold text-gray-900 dark:text-white">{formatMoney(data.efectivo)}</p></div>
+          <p className="text-xs text-gray-500">Efectivo</p>
+          <p className="text-sm font-bold text-gray-900 dark:text-white leading-tight">{formatMoney(data.efectivo)}</p>
         </div>
-        <div className="card flex items-center gap-3">
+        <div className="card flex flex-col items-center text-center gap-2 py-3">
           <div className="rounded-xl p-2.5 bg-purple-50 dark:bg-purple-900/20"><Smartphone className="w-5 h-5 text-purple-600" /></div>
-          <div><p className="text-xs text-gray-500">Yape</p><p className="text-lg font-bold text-gray-900 dark:text-white">{formatMoney(data.yape)}</p></div>
+          <p className="text-xs text-gray-500">Yape</p>
+          <p className="text-sm font-bold text-gray-900 dark:text-white leading-tight">{formatMoney(data.yape)}</p>
         </div>
-        <div className="card flex items-center gap-3">
+        <div className="card flex flex-col items-center text-center gap-2 py-3">
           <div className="rounded-xl p-2.5 bg-blue-50 dark:bg-blue-900/20"><CreditCard className="w-5 h-5 text-blue-600" /></div>
-          <div><p className="text-xs text-gray-500">Transferencia</p><p className="text-lg font-bold text-gray-900 dark:text-white">{formatMoney(data.transferencia)}</p></div>
+          <p className="text-xs text-gray-500">Transfer.</p>
+          <p className="text-sm font-bold text-gray-900 dark:text-white leading-tight">{formatMoney(data.transferencia)}</p>
         </div>
       </div>
 

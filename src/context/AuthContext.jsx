@@ -23,20 +23,11 @@ export function AuthProvider({ children }) {
         .eq('id', authUser.id)
         .maybeSingle()
 
-      if (error) { console.warn('profile fetch error:', error.message); setProfile({ id: authUser.id, role: 'worker', email: authUser.email, display_name: authUser.email, avatar_url: null, worker_id: null }); return }
+      if (error) { console.warn('profile fetch error:', error.message); setProfile(null); return }
 
       if (!data) {
-        // Crear perfil si no existe
-        const newProfile = {
-          id:           authUser.id,
-          role:         'worker',
-          email:        authUser.email,
-          display_name: authUser.user_metadata?.full_name || authUser.user_metadata?.name || authUser.email,
-          avatar_url:   authUser.user_metadata?.avatar_url || null,
-          worker_id:    null,
-        }
-        const { data: created } = await supabase.from('profiles').insert(newProfile).select().maybeSingle()
-        setProfile(created || newProfile)
+        // Sin perfil = sin acceso (admin debe aprobar)
+        setProfile(null)
       } else {
         // Actualizar email/avatar si cambió (por Google)
         const updates = {}
@@ -52,7 +43,7 @@ export function AuthProvider({ children }) {
       }
     } catch (e) {
       console.error('fetchProfile error:', e)
-      setProfile({ id: authUser.id, role: 'worker', email: authUser.email, display_name: authUser.email, avatar_url: null, worker_id: null })
+      setProfile(null)
     }
   }, [])
 
@@ -98,6 +89,16 @@ export function AuthProvider({ children }) {
       options: { data: { full_name: displayName } },
     })
     if (error) throw error
+    if (data.user) {
+      await supabase.from('profiles').insert({
+        id: data.user.id,
+        role: 'worker',
+        email,
+        display_name: displayName || email,
+        avatar_url: null,
+        worker_id: null,
+      })
+    }
     return data
   }
 

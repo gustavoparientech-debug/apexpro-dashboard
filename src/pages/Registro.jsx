@@ -2,6 +2,7 @@ import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
 import { useLocation } from 'react-router-dom'
 import { useApp } from '../context/AppContext'
 import { useAuth } from '../context/AuthContext'
+import { supabase } from '../lib/supabase'
 import { formatMoney, todayISO } from '../lib/utils'
 import ConfirmDialog from '../components/ui/ConfirmDialog'
 import { Plus, Camera, Search, X, Clock, CheckCircle, Trash2, PenLine, Zap, Save, ChevronLeft, ChevronRight, Eye } from 'lucide-react'
@@ -485,12 +486,15 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
             <div className="mt-3">
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Comprobante Yape</p>
               <input ref={paymentPhotoRef} type="file" accept="image/*" capture="environment" className="hidden"
-                onChange={e => {
+                onChange={async e => {
                   const file = e.target.files?.[0]
                   if (!file) return
-                  const reader = new FileReader()
-                  reader.onload = ev => setPaymentPhoto(ev.target.result)
-                  reader.readAsDataURL(file)
+                  const ext  = file.name.split('.').pop() || 'jpg'
+                  const path = `yape/${ticket.id}_${Date.now()}.${ext}`
+                  const { error } = await supabase.storage.from('payment-photos').upload(path, file, { upsert: true })
+                  if (error) { toast.error('Error al subir foto'); return }
+                  const { data } = supabase.storage.from('payment-photos').getPublicUrl(path)
+                  setPaymentPhoto(data.publicUrl)
                 }} />
               {paymentPhoto ? (
                 <div className="relative rounded-xl overflow-hidden border border-purple-200 dark:border-purple-800">

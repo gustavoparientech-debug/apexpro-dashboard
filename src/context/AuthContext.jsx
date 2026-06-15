@@ -59,14 +59,9 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     if (IS_DEMO) return
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null)
-      fetchProfile(session?.user ?? null).finally(() => setLoading(false))
-    })
-
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null)
-      fetchProfile(session?.user ?? null)
+      fetchProfile(session?.user ?? null).finally(() => setLoading(false))
     })
 
     return () => subscription.unsubscribe()

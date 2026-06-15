@@ -738,7 +738,12 @@ function TicketSummaryModal({ ticket, workers, vehicleTypes, onClose }) {
       `🙌 *¡Gracias por preferirnos!*`,
       `📍 Apex Pro Detailing`,
     ].filter(v => v !== null).join('\n')
-    window.open(`https://wa.me/?text=${encodeURIComponent(lines)}`, '_blank')
+    const url = `https://api.whatsapp.com/send?text=${encodeURIComponent(lines)}`
+    if (navigator.share && /android|iphone|ipad|ipod/i.test(navigator.userAgent)) {
+      navigator.share({ text: lines }).catch(() => window.open(url, '_blank'))
+    } else {
+      window.open(url, '_blank')
+    }
   }
 
   async function downloadPDF() {

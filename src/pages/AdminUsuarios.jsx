@@ -30,8 +30,10 @@ export default function AdminUsuarios() {
       supabase.from('pending_requests').select('*').order('created_at'),
     ])
     if (error) { toast.error('Error al cargar usuarios'); console.error(error) }
-    else setProfiles(profs || [])
-    setPending(pends || [])
+    const profiles = profs || []
+    setProfiles(profiles)
+    const profileIds = new Set(profiles.map(p => p.id))
+    setPending((pends || []).filter(p => !profileIds.has(p.id)))
     setLoading(false)
   }
 

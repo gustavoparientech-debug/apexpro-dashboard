@@ -414,7 +414,10 @@ export default function Configuracion() {
           <div className="flex items-center justify-between pt-3 mt-1 border-t border-gray-100 dark:border-gray-800">
             <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">Total meta diaria equipo</p>
             <p className="text-sm font-bold text-red-600 dark:text-red-400">
-              {formatMoney(activeWorkers.reduce((s, w) => s + (parseFloat(workerGoals[w.id]) || metaDiariaRef), 0))}
+              {formatMoney(activeWorkers.reduce((s, w) => {
+              const v = workerGoals[w.id]
+              return s + (v !== '' && v !== undefined && v !== null ? parseFloat(v) || 0 : metaDiariaRef)
+            }, 0))}
             </p>
           </div>
         )}

@@ -1291,10 +1291,10 @@ export default function Registro() {
           )}
 
           {/* Tarjeta total del día */}
-          <div className="bg-black/40 backdrop-blur-sm rounded-xl px-3 py-4 flex items-center justify-between w-1/2">
+          <div className="bg-black/40 backdrop-blur-sm rounded-xl px-3 py-3 flex items-center justify-between self-start">
             <div>
               <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Total del día</p>
-              <p className="text-3xl font-black text-white leading-tight">
+              <p className="text-2xl font-black text-white leading-tight whitespace-nowrap">
                 {hideTotal ? '••••••' : formatMoney(dayTotal)}
               </p>
               <p className="text-xs text-gray-400 leading-tight">

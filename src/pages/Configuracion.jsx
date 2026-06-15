@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useApp } from '../context/AppContext'
-import { formatMoney, calcRealSalary, currentMonthYear } from '../lib/utils'
+import { supabase } from '../lib/supabase'
+import { formatMoney, calcRealSalary, currentMonthYear, getWorkingDaysInMonth } from '../lib/utils'
 import Modal from '../components/ui/Modal'
 import ConfirmDialog from '../components/ui/ConfirmDialog'
 import Badge from '../components/ui/Badge'
@@ -123,7 +124,7 @@ function VehicleTypeRow({ vt, onSave, onDelete }) {
 
 export default function Configuracion() {
   const { services, vehicleTypes, monthlyCosts, workers, incidents, extrasCatalog,
-          addService, updateService, saveMonthlyCosts,
+          addService, updateService, saveMonthlyCosts, updateWorker,
           addVehicleType, updateVehicleType, deleteVehicleType,
           addExtra, updateExtra, deleteExtra } = useApp()
   const { month, year } = currentMonthYear()
@@ -157,6 +158,30 @@ export default function Configuracion() {
   const [newExtra, setNewExtra] = useState({ name: '', price: '' })
   const [showNewExtra, setShowNewExtra] = useState(false)
   const [editingExtra, setEditingExtra] = useState(null)
+
+  // Metas por trabajador
+  const [workerGoals, setWorkerGoals] = useState({})
+  const [savingGoals, setSavingGoals] = useState(false)
+  const activeWorkers = workers.filter(w => w.active)
+
+  useEffect(() => {
+    const initial = {}
+    activeWorkers.forEach(w => { initial[w.id] = w.daily_goal ?? '' })
+    setWorkerGoals(initial)
+  }, [workers])
+
+  async function handleSaveGoals() {
+    setSavingGoals(true)
+    try {
+      await Promise.all(
+        activeWorkers.map(w =>
+          updateWorker(w.id, { daily_goal: workerGoals[w.id] ? parseFloat(workerGoals[w.id]) : null })
+        )
+      )
+      toast.success('Metas guardadas')
+    } catch { toast.error('Error al guardar metas') }
+    setSavingGoals(false)
+  }
 
   async function handleAddExtra() {
     if (!newExtra.name.trim() || !newExtra.price) { toast.error('Nombre y precio requeridos'); return }
@@ -203,6 +228,10 @@ export default function Configuracion() {
 
   const fixedTotal = costItems.reduce((s, i) => s + (parseFloat(i.amount) || 0), 0)
   const incomeGoal = fixedTotal + payrollTotal + (parseFloat(costs.utility_goal) || 0)
+  const workingDaysTotal = getWorkingDaysInMonth(year, month)
+  const metaDiariaRef = activeWorkers.length > 0 && workingDaysTotal > 0
+    ? Math.round(incomeGoal / workingDaysTotal / activeWorkers.length)
+    : 0
 
   const filteredServices = activeCategory === 'all' ? services : services.filter(s => s.category === activeCategory)
 
@@ -346,6 +375,44 @@ export default function Configuracion() {
         <button className="btn-primary flex items-center gap-2" onClick={handleSaveCosts} disabled={savingCosts}>
           <Save className="w-4 h-4" />
           {savingCosts ? 'Guardando...' : 'Guardar costos'}
+        </button>
+      </div>
+
+      {/* Metas diarias por trabajador */}
+      <div className="card">
+        <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Metas diarias por trabajador</p>
+        <p className="text-xs text-gray-400 mb-4">
+          Referencia calculada: <span className="font-semibold text-gray-600 dark:text-gray-300">{formatMoney(metaDiariaRef)}/día</span> por trabajador.
+          Puedes personalizar la meta de cada uno.
+        </p>
+        <div className="space-y-3">
+          {activeWorkers.map(w => (
+            <div key={w.id} className="flex items-center gap-3">
+              <div className="flex-1">
+                <p className="text-sm font-medium text-gray-800 dark:text-gray-200">{w.name}</p>
+                <p className="text-xs text-gray-400">Ref: {formatMoney(metaDiariaRef)}</p>
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <span className="text-sm text-gray-400">S/</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="10"
+                  placeholder={metaDiariaRef}
+                  className="input w-28 text-right"
+                  value={workerGoals[w.id] ?? ''}
+                  onChange={e => setWorkerGoals(g => ({ ...g, [w.id]: e.target.value }))}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+        {activeWorkers.length === 0 && (
+          <p className="text-xs text-gray-400 text-center py-4">No hay trabajadores activos</p>
+        )}
+        <button className="btn-primary flex items-center gap-2 mt-4" onClick={handleSaveGoals} disabled={savingGoals}>
+          <Save className="w-4 h-4" />
+          {savingGoals ? 'Guardando...' : 'Guardar metas'}
         </button>
       </div>
 

@@ -2,8 +2,9 @@ import { useMemo, useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useApp } from '../context/AppContext'
 import { useAuth } from '../context/AuthContext'
+import { supabase } from '../lib/supabase'
 import { formatMoney, todayISO, getWorkingDaysInMonth, currentMonthYear, calcRealSalary } from '../lib/utils'
-import { Target, Clock, CheckCircle, Car, AlertCircle, Plus, X, ClipboardList, TrendingDown } from 'lucide-react'
+import { Target, Clock, CheckCircle, Car, AlertCircle, Plus, X, ClipboardList, TrendingDown, Pencil, Check } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 const GASTO_CATS = [
@@ -164,7 +165,11 @@ function FabMenu({ workerId, workerName }) {
 
 export default function DashboardTrabajador() {
   const { tickets, workers, vehicleTypes, monthlyCosts, loadData } = useApp()
-  const { profile } = useAuth()
+  const { profile, refreshProfile } = useAuth()
+
+  const [editingGreeting, setEditingGreeting] = useState(false)
+  const [greetingDraft,   setGreetingDraft]   = useState('')
+  const [savingGreeting,  setSavingGreeting]  = useState(false)
 
   // Recargar datos al entrar al dashboard para ver cambios de otros
   useEffect(() => { loadData() }, [])
@@ -195,18 +200,32 @@ export default function DashboardTrabajador() {
   const totalHoy  = useMemo(() => myTicketsHoy.reduce((s, t) => s + t.price_charged, 0), [myTicketsHoy])
   const { month, year } = currentMonthYear()
   const workingDaysTotal = getWorkingDaysInMonth(year, month)
-  const numWorkers = 4 // temporal: 4 trabajadores operativos
+  const activeWorkers = workers.filter(w => w.active)
+  const numWorkers = activeWorkers.length || 1
   const fixedItemsTotal = (monthlyCosts?.cost_items?.length > 0)
     ? monthlyCosts.cost_items.reduce((s, i) => s + (i.amount || 0), 0)
     : (monthlyCosts?.rent || 0) + (monthlyCosts?.supplies || 0)
-  const payrollTotal = workers.filter(w => w.active).reduce((s, w) => s + calcRealSalary(w.base_salary || 0, w.weekly_hours || 48), 0)
+  const payrollTotal = activeWorkers.reduce((s, w) => s + calcRealSalary(w.base_salary || 0, w.weekly_hours || 48), 0)
   const incomeGoal = fixedItemsTotal + payrollTotal + (monthlyCosts?.utility_goal || 2000)
-  const metaDiaria = workingDaysTotal > 0 ? Math.round(incomeGoal / workingDaysTotal / numWorkers) : 80
+  const metaDiariaRef = workingDaysTotal > 0 ? Math.round(incomeGoal / workingDaysTotal / numWorkers) : 80
+  const metaDiaria = worker?.daily_goal || metaDiariaRef
   const progreso   = Math.min(100, Math.round((totalHoy / metaDiaria) * 100))
 
   const hora   = new Date().getHours()
-  const saludo = hora < 12 ? 'Buenos días' : hora < 19 ? 'Buenas tardes' : 'Buenas noches'
+  const saludoDefault = hora < 12 ? 'Buenos días 👋' : hora < 19 ? 'Buenas tardes 👋' : 'Buenas noches 🌙'
+  const saludo = profile?.greeting || saludoDefault
   const nombre = profile?.display_name?.split(' ')[0] || worker?.name || 'equipo'
+
+  async function saveGreeting() {
+    if (!greetingDraft.trim()) return
+    setSavingGreeting(true)
+    const { error } = await supabase.from('profiles').update({ greeting: greetingDraft.trim() }).eq('id', profile.id)
+    if (error) { toast.error('Error al guardar'); setSavingGreeting(false); return }
+    await refreshProfile()
+    setEditingGreeting(false)
+    setSavingGreeting(false)
+    toast.success('Mensaje actualizado')
+  }
 
   // Fecha formateada con mayúscula
   const fechaHoy = new Date().toLocaleDateString('es-PE', {
@@ -218,7 +237,36 @@ export default function DashboardTrabajador() {
 
       {/* Saludo + fecha prominente */}
       <div className="card bg-[#1e1e1e] dark:bg-[#1e1e1e] border-0">
-        <p className="text-gray-400 text-sm mb-1">{saludo} 👋</p>
+        {editingGreeting ? (
+          <div className="flex items-center gap-2 mb-2">
+            <input
+              className="flex-1 bg-gray-800 text-white text-sm rounded-lg px-3 py-2 border border-gray-600 focus:outline-none focus:border-red-500"
+              value={greetingDraft}
+              onChange={e => setGreetingDraft(e.target.value)}
+              placeholder="Ej: ¡A romperla hoy! 💪"
+              maxLength={60}
+              autoFocus
+              onKeyDown={e => { if (e.key === 'Enter') saveGreeting(); if (e.key === 'Escape') setEditingGreeting(false) }}
+            />
+            <button onClick={saveGreeting} disabled={savingGreeting} className="p-2 bg-red-600 hover:bg-red-700 rounded-lg text-white">
+              <Check className="w-4 h-4" />
+            </button>
+            <button onClick={() => setEditingGreeting(false)} className="p-2 text-gray-400 hover:text-white">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 mb-1">
+            <p className="text-gray-400 text-sm">{saludo}</p>
+            <button
+              onClick={() => { setGreetingDraft(profile?.greeting || ''); setEditingGreeting(true) }}
+              className="p-1 text-gray-600 hover:text-gray-400 transition-colors"
+              title="Editar mensaje"
+            >
+              <Pencil className="w-3 h-3" />
+            </button>
+          </div>
+        )}
         <h1 className="text-white font-black text-2xl">{nombre}</h1>
         <div className="mt-2 flex items-center gap-2">
           <span className="bg-red-600 text-white text-xs font-bold px-2.5 py-1 rounded-lg tracking-wide uppercase">

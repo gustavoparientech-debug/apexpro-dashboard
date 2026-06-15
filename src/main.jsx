@@ -17,6 +17,7 @@ import Configuracion from './pages/Configuracion'
 import Historial from './pages/Historial'
 import Reportes from './pages/Reportes'
 import AdminUsuarios from './pages/AdminUsuarios'
+import AuthCallback from './pages/AuthCallback'
 import './index.css'
 
 function HomeRoute() {
@@ -38,6 +39,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
           <BrowserRouter>
             <Routes>
               <Route path="/login" element={<Login />} />
+              <Route path="/auth/callback" element={<AuthCallback />} />
               <Route path="/*" element={
                 <Layout>
                   <Routes>

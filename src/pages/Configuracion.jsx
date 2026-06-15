@@ -410,6 +410,14 @@ export default function Configuracion() {
         {activeWorkers.length === 0 && (
           <p className="text-xs text-gray-400 text-center py-4">No hay trabajadores activos</p>
         )}
+        {activeWorkers.length > 0 && (
+          <div className="flex items-center justify-between pt-3 mt-1 border-t border-gray-100 dark:border-gray-800">
+            <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">Total meta diaria equipo</p>
+            <p className="text-sm font-bold text-red-600 dark:text-red-400">
+              {formatMoney(activeWorkers.reduce((s, w) => s + (parseFloat(workerGoals[w.id]) || metaDiariaRef), 0))}
+            </p>
+          </div>
+        )}
         <button className="btn-primary flex items-center gap-2 mt-4" onClick={handleSaveGoals} disabled={savingGoals}>
           <Save className="w-4 h-4" />
           {savingGoals ? 'Guardando...' : 'Guardar metas'}

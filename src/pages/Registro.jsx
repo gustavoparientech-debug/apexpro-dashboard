@@ -45,18 +45,43 @@ function TimerBadge({ openedAt }) {
 }
 
 // ─── Bottom Sheet ─────────────────────────────────────────────────────────────
+function useModalVisibility(open, exitMs = 160) {
+  const [visible, setVisible] = useState(open)
+  const [animateIn, setAnimateIn] = useState(false)
+
+  useEffect(() => {
+    if (open) {
+      setVisible(true)
+      const id = requestAnimationFrame(() => setAnimateIn(true))
+      return () => cancelAnimationFrame(id)
+    } else {
+      setAnimateIn(false)
+      const id = setTimeout(() => setVisible(false), exitMs)
+      return () => clearTimeout(id)
+    }
+  }, [open, exitMs])
+
+  return { visible, animateIn }
+}
+
 function BottomSheet({ open, onClose, title, children }) {
-  if (!open) return null
+  const { visible, animateIn } = useModalVisibility(open)
+  if (!visible) return null
   return (
     <div className="fixed inset-0 z-50 flex flex-col justify-end">
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white dark:bg-gray-900 rounded-t-3xl shadow-2xl flex flex-col max-h-[94vh]">
+      <div
+        className={`absolute inset-0 bg-black/40 backdrop-blur-sm transition-opacity duration-160 ease-out ${animateIn ? 'opacity-100' : 'opacity-0'}`}
+        onClick={onClose}
+      />
+      <div
+        className={`relative bg-white dark:bg-gray-900 rounded-t-3xl shadow-2xl flex flex-col max-h-[94vh] transition-transform duration-250 ease-[cubic-bezier(0.32,0.72,0,1)] ${animateIn ? 'translate-y-0' : 'translate-y-full'}`}
+      >
         <div className="flex justify-center pt-3 pb-1">
           <div className="w-10 h-1 rounded-full bg-gray-300 dark:bg-gray-600" />
         </div>
         <div className="flex items-center justify-between px-4 py-2">
           <h2 className="text-lg font-bold text-gray-900 dark:text-white">{title}</h2>
-          <button onClick={onClose} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800">
+          <button onClick={onClose} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-transform active:scale-[0.92]">
             <X className="w-5 h-5 text-gray-500" />
           </button>
         </div>
@@ -68,14 +93,20 @@ function BottomSheet({ open, onClose, title, children }) {
 
 // ─── Full screen modal ────────────────────────────────────────────────────────
 function Modal({ open, onClose, title, children }) {
-  if (!open) return null
+  const { visible, animateIn } = useModalVisibility(open)
+  if (!visible) return null
   return (
     <div className="fixed inset-0 z-50 flex items-end lg:items-center justify-center">
-      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative bg-white dark:bg-gray-900 rounded-t-3xl lg:rounded-2xl shadow-2xl flex flex-col w-full max-w-lg max-h-[90vh]">
+      <div
+        className={`absolute inset-0 bg-black/50 transition-opacity duration-160 ease-out ${animateIn ? 'opacity-100' : 'opacity-0'}`}
+        onClick={onClose}
+      />
+      <div
+        className={`relative bg-white dark:bg-gray-900 rounded-t-3xl lg:rounded-2xl shadow-2xl flex flex-col w-full max-w-lg max-h-[90vh] transition-[transform,opacity] duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] ${animateIn ? 'translate-y-0 lg:scale-100 opacity-100' : 'translate-y-full lg:translate-y-0 lg:scale-95 opacity-0'}`}
+      >
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-800">
           <h2 className="text-base font-bold text-gray-900 dark:text-white">{title}</h2>
-          <button onClick={onClose} className="p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800">
+          <button onClick={onClose} className="p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-transform active:scale-[0.92]">
             <X className="w-5 h-5 text-gray-500" />
           </button>
         </div>
@@ -732,6 +763,17 @@ function ClosedTicketCard({ ticket, workers, vehicleTypes, onDelete, onEdit, onS
 
 // ─── Modal resumen ticket cerrado ────────────────────────────────────────────
 function TicketSummaryModal({ ticket, workers, vehicleTypes, onClose }) {
+  const [closing, setClosing] = useState(false)
+  const [animateIn, setAnimateIn] = useState(false)
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setAnimateIn(true))
+    return () => cancelAnimationFrame(id)
+  }, [])
+  function handleClose() {
+    setClosing(true)
+    setTimeout(onClose, 160)
+  }
+  const show = animateIn && !closing
   const worker  = workers.find(w => w.id === ticket.worker_id)
   const vehicle = (vehicleTypes || []).find(v => v.value === ticket.vehicle_type)
   const extras  = ticket.extras || []
@@ -847,8 +889,11 @@ function TicketSummaryModal({ ticket, workers, vehicleTypes, onClose }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white dark:bg-gray-900 rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden">
+      <div
+        className={`absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity duration-160 ease-out ${show ? 'opacity-100' : 'opacity-0'}`}
+        onClick={handleClose}
+      />
+      <div className={`relative bg-white dark:bg-gray-900 rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden transition-[transform,opacity] duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] ${show ? 'scale-100 opacity-100' : 'scale-95 opacity-0'}`}>
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-gray-800">
           <span className="font-mono font-black text-xl text-gray-900 dark:text-white">{ticket.plate || 'Sin placa'}</span>
@@ -863,7 +908,7 @@ function TicketSummaryModal({ ticket, workers, vehicleTypes, onClose }) {
               <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
               PDF
             </button>
-            <button onClick={onClose} className="p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800">
+            <button onClick={handleClose} className="p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-transform active:scale-[0.92]">
               <X className="w-4 h-4 text-gray-500" />
             </button>
           </div>

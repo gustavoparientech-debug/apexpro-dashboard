@@ -234,13 +234,12 @@ export function AppProvider({ children }) {
       const lastDay   = new Date(y, m, 0).getDate()
       const endDate   = `${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
 
-      const [workers, services, vehicleTypesRes, extrasRes, allTicketsRes, openTicketsRes, summaries, incidents, costs, expensesRes] = await Promise.all([
+      const [workers, services, vehicleTypesRes, extrasRes, ticketsRes, summaries, incidents, costs, expensesRes] = await Promise.all([
         supabase.from('workers').select('*').order('name'),
         supabase.from('services').select('*').order('category, name'),
         supabase.from('vehicle_types').select('*').eq('active', true).order('sort_order'),
         supabase.from('extras_catalog').select('*').eq('active', true).order('sort_order'),
         supabase.from('tickets').select('*').gte('date', startDate).lte('date', endDate).order('created_at', { ascending: false }),
-        supabase.from('tickets').select('*').eq('status', 'abierto'),
         supabase.from('daily_summary').select('*').gte('date', startDate).lte('date', endDate),
         supabase.from('attendance_incidents').select('*').gte('date', startDate).lte('date', endDate),
         supabase.from('monthly_costs').select('*').eq('month', m).eq('year', y).maybeSingle(),
@@ -252,10 +251,7 @@ export function AppProvider({ children }) {
 
       const workersData       = workers.data || []
       const incidentsEnriched = (incidents.data || []).map(i => enrichIncident(i, workersData))
-      // Combina tickets del mes + abiertos fuera del rango de fecha (si la columna existe)
-      const monthTickets  = allTicketsRes.data || []
-      const openOutOfRange = (openTicketsRes.data || []).filter(t => !monthTickets.find(x => x.id === t.id))
-      const allTickets    = [...openOutOfRange, ...monthTickets]
+      const allTickets        = ticketsRes.data || []
 
       initialLoadDone.current = true
       dispatch({ type: 'SET_ALL', payload: {
@@ -276,14 +272,33 @@ export function AppProvider({ children }) {
   }, [])
 
   useEffect(() => {
-    // Escuchar el evento de auth para garantizar que la sesión esté lista antes de cargar datos
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+      // TOKEN_REFRESHED es silencioso — no relanzar 10 queries por eso
+      if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN') {
         loadData()
       }
     })
     return () => subscription.unsubscribe()
   }, [loadData])
+
+  // Realtime: sincronizar tickets entre trabajadores sin recargar toda la página
+  useEffect(() => {
+    if (IS_DEMO) return
+    const channel = supabase
+      .channel('tickets-live')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'tickets' }, ({ new: t }) => {
+        dispatch(prev => prev) // no-op guard
+        dispatch({ type: 'ADD_TICKET', payload: t })
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'tickets' }, ({ new: t }) => {
+        dispatch({ type: 'UPDATE_TICKET', payload: t })
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'tickets' }, ({ old: t }) => {
+        dispatch({ type: 'DELETE_TICKET', payload: t.id })
+      })
+      .subscribe()
+    return () => supabase.removeChannel(channel)
+  }, [])
 
   // ─── CRUD Workers ───────────────────────────────────────────────────────────
   const addWorker = async (data) => {
@@ -363,35 +378,10 @@ export function AppProvider({ children }) {
       dispatch({ type: 'UPDATE_TICKET', payload: updated })
       return updated
     }
-    // Separar campos que pueden no existir en DB aún
-    const { extras, opened_at, closed_at, status, ...basicData } = data
-    const newCols = {
-      ...(extras     !== undefined && { extras }),
-      ...(opened_at  !== undefined && { opened_at }),
-      ...(closed_at  !== undefined && { closed_at }),
-      ...(status     !== undefined && { status }),
-    }
-
-    // Intentar update completo primero
     const { data: t, error } = await supabase.from('tickets').update(data).eq('id', id).select().single()
-    if (!error) {
-      dispatch({ type: 'UPDATE_TICKET', payload: t })
-      return t
-    }
-
-    // Fallback: actualizar solo campos básicos en DB, mantener nuevos en estado local
-    const current = state.tickets.find(t => t.id === id) || {}
-    if (Object.keys(basicData).length > 0) {
-      const { data: t2, error: err2 } = await supabase.from('tickets').update(basicData).eq('id', id).select().single()
-      if (err2) throw err2
-      const merged = { ...t2, ...newCols }
-      dispatch({ type: 'UPDATE_TICKET', payload: merged })
-      return merged
-    }
-    // Si solo hay campos nuevos (extras, status, etc.) sin columna en DB: actualizar solo en estado local
-    const localOnly = { ...current, ...newCols }
-    dispatch({ type: 'UPDATE_TICKET', payload: localOnly })
-    return localOnly
+    if (error) throw error
+    dispatch({ type: 'UPDATE_TICKET', payload: t })
+    return t
   }
 
   const deleteTicket = async (id) => {

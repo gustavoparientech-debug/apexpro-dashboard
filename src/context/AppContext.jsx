@@ -145,6 +145,30 @@ function enrichIncident(incident, workers) {
   return { ...incident, discount_amount: discount }
 }
 
+async function migrateBase64Photos(tickets, supabase) {
+  const toMigrate = tickets.filter(t => t.photo_url?.startsWith('data:') || t.payment_photo?.startsWith('data:'))
+  for (const ticket of toMigrate) {
+    const updates = {}
+    for (const field of ['photo_url', 'payment_photo']) {
+      const val = ticket[field]
+      if (!val?.startsWith('data:')) continue
+      try {
+        const res = await fetch(val)
+        const blob = await res.blob()
+        const path = `tickets/${ticket.id}/${field}-${Date.now()}.jpg`
+        const { error } = await supabase.storage.from('payment-photos').upload(path, blob, { upsert: true, contentType: 'image/jpeg' })
+        if (!error) {
+          const { data } = supabase.storage.from('payment-photos').getPublicUrl(path)
+          updates[field] = data.publicUrl
+        }
+      } catch { /* continuar con el siguiente */ }
+    }
+    if (Object.keys(updates).length > 0) {
+      await supabase.from('tickets').update(updates).eq('id', ticket.id)
+    }
+  }
+}
+
 function calcIncidentDiscount(data, worker) {
   if (!data.apply_discount || !worker) return 0
   if (data.type === 'tardanza' || data.type === 'permiso_horas') return calcLatenessDiscount(worker.base_salary, worker.weekly_hours, data.hours_late || 0)
@@ -307,6 +331,9 @@ export function AppProvider({ children }) {
 
       initialLoadDone.current = true
       dispatch({ type: 'SET_ALL', payload })
+
+      // Migrar fotos base64 a Storage en segundo plano (silencioso)
+      migrateBase64Photos(ticketsRes.data || [], supabase)
     } catch (err) {
       console.error('loadData error:', err)
       dispatch({ type: 'SET_ERROR', payload: err.message })

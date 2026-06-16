@@ -5,9 +5,30 @@ const AuthContext = createContext(null)
 
 const IS_DEMO = !import.meta.env.VITE_SUPABASE_URL || import.meta.env.VITE_SUPABASE_URL === 'https://placeholder.supabase.co'
 
-// En modo demo, simular usuario admin
 const DEMO_USER = { id: 'demo', email: 'demo@apexpro.pe' }
 const DEMO_PROFILE = { id: 'demo', role: 'admin', email: 'demo@apexpro.pe', display_name: 'Admin Demo', avatar_url: null, worker_id: null }
+
+// ── Caché de perfil en localStorage (5 min TTL) ──────────────────────────────
+const PROFILE_CACHE_KEY = 'apexpro_profile_v1'
+const PROFILE_CACHE_TTL = 5 * 60 * 1000
+
+function getCachedProfile(userId) {
+  try {
+    const raw = localStorage.getItem(PROFILE_CACHE_KEY)
+    if (!raw) return null
+    const { data, ts, id } = JSON.parse(raw)
+    if (id !== userId || Date.now() - ts > PROFILE_CACHE_TTL) return null
+    return data
+  } catch { return null }
+}
+
+function setCachedProfile(userId, data) {
+  try { localStorage.setItem(PROFILE_CACHE_KEY, JSON.stringify({ data, ts: Date.now(), id: userId })) } catch {}
+}
+
+function clearProfileCache() {
+  try { localStorage.removeItem(PROFILE_CACHE_KEY) } catch {}
+}
 
 export function AuthProvider({ children }) {
   const [user,           setUser]           = useState(IS_DEMO ? DEMO_USER : null)
@@ -16,9 +37,23 @@ export function AuthProvider({ children }) {
   const [profileLoading, setProfileLoading] = useState(false)
   const [deactivated,    setDeactivated]    = useState(false)
 
-  const fetchProfile = useCallback(async (authUser) => {
-    if (!authUser) { setProfile(null); setDeactivated(false); setProfileLoading(false); return }
-    setProfileLoading(true)
+  const fetchProfile = useCallback(async (authUser, { background = false } = {}) => {
+    if (!authUser) { setProfile(null); setDeactivated(false); setProfileLoading(false); clearProfileCache(); return }
+
+    // Mostrar caché inmediatamente (si existe) mientras se verifica en background
+    if (!background) {
+      const cached = getCachedProfile(authUser.id)
+      if (cached) {
+        setProfile(cached)
+        setDeactivated(false)
+        setProfileLoading(false)
+        // Verificar en background sin bloquear la UI
+        fetchProfile(authUser, { background: true })
+        return
+      }
+    }
+
+    if (!background) setProfileLoading(true)
     try {
       const { data, error } = await supabase
         .from('profiles')
@@ -26,12 +61,12 @@ export function AuthProvider({ children }) {
         .eq('id', authUser.id)
         .maybeSingle()
 
-      if (error) { console.warn('profile fetch error:', error.message); setProfile(null); setDeactivated(false); setProfileLoading(false); return }
+      if (error) { console.warn('profile fetch error:', error.message); if (!background) { setProfile(null); setDeactivated(false) }; setProfileLoading(false); return }
 
       if (!data) {
-        setProfile(null); setDeactivated(false)
+        setProfile(null); setDeactivated(false); clearProfileCache()
       } else if (data.active === false) {
-        setProfile(null); setDeactivated(true)
+        setProfile(null); setDeactivated(true); clearProfileCache()
       } else {
         setDeactivated(false)
         const updates = {}
@@ -40,14 +75,17 @@ export function AuthProvider({ children }) {
         if (!data.avatar_url && authUser.user_metadata?.avatar_url) updates.avatar_url = authUser.user_metadata.avatar_url
         if (Object.keys(updates).length > 0) {
           await supabase.from('profiles').update(updates).eq('id', authUser.id)
-          setProfile({ ...data, ...updates })
+          const merged = { ...data, ...updates }
+          setProfile(merged)
+          setCachedProfile(authUser.id, merged)
         } else {
           setProfile(data)
+          setCachedProfile(authUser.id, data)
         }
       }
     } catch (e) {
       console.error('fetchProfile error:', e)
-      setProfile(null); setDeactivated(false)
+      if (!background) { setProfile(null); setDeactivated(false) }
     } finally {
       setProfileLoading(false)
     }
@@ -56,12 +94,11 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     if (IS_DEMO) return
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null)
-      fetchProfile(session?.user ?? null).finally(() => setLoading(false))
-    })
-
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'INITIAL_SESSION') {
+        setUser(session?.user ?? null)
+        fetchProfile(session?.user ?? null).finally(() => setLoading(false))
+      }
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
         setUser(session?.user ?? null)
         fetchProfile(session?.user ?? null)
@@ -69,6 +106,7 @@ export function AuthProvider({ children }) {
       if (event === 'SIGNED_OUT') {
         setUser(null)
         setProfile(null)
+        clearProfileCache()
       }
     })
 

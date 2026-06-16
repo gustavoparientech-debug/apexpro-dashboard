@@ -152,7 +152,6 @@ function calcIncidentDiscount(data, worker) {
 export function AppProvider({ children }) {
   const [state, dispatch] = useReducer(reducer, initialState)
   const initialLoadDone = useRef(false)
-  const loadInFlight = useRef(false)
   // IDs de tickets que acabamos de insertar/actualizar localmente → ignorar el eco del Realtime
   const recentLocalIds = useRef(new Set())
 
@@ -190,11 +189,7 @@ export function AppProvider({ children }) {
 
   // ── Carga de datos ──────────────────────────────────────────────────────────
   const loadData = useCallback(async (month, year) => {
-    // Evitar llamadas paralelas
-    if (loadInFlight.current) return
-    loadInFlight.current = true
-    // Solo mostrar spinner en la primera carga; las siguientes actualizan silenciosamente
-    if (!initialLoadDone.current) dispatch({ type: 'SET_LOADING', payload: true })
+    dispatch({ type: 'SET_LOADING', payload: true })
 
     if (IS_DEMO) {
       const { month: cm, year: cy } = currentMonthYear()
@@ -238,7 +233,6 @@ export function AppProvider({ children }) {
         : { month: m, year: y, rent: monthlyCosts?.rent || 2700, supplies: monthlyCosts?.supplies || 800, utility_goal: monthlyCosts?.utility_goal || 2000 }
 
       initialLoadDone.current = true
-      loadInFlight.current = false
       dispatch({ type: 'SET_ALL', payload: {
         workers,
         services,
@@ -316,8 +310,6 @@ export function AppProvider({ children }) {
     } catch (err) {
       console.error('loadData error:', err)
       dispatch({ type: 'SET_ERROR', payload: err.message })
-    } finally {
-      loadInFlight.current = false
     }
   }, [])
 

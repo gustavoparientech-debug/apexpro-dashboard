@@ -467,11 +467,6 @@ export default function Dashboard() {
     }
   }, [tickets, dailySummaries, expenses, pastTickets, pastSummaries, pastExpenses, workers, services, incidents, monthlyCosts, bonuses, prefix, selMonth, selYear, isCurrentMonth, rangeFrom, rangeTo, hasRange])
 
-  if (loading) return (
-    <div className="flex items-center justify-center h-64">
-      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-500" />
-    </div>
-  )
 
   const semaforoClass = {
     verde:    'border-green-200 dark:border-green-900 bg-green-50 dark:bg-green-900/10',
@@ -486,6 +481,13 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-5 max-w-4xl mx-auto">
+
+      {/* Barra de carga sutil — no bloquea la pantalla */}
+      {loading && (
+        <div className="fixed top-0 left-0 right-0 h-1 z-50">
+          <div className="h-full bg-red-500 animate-pulse" style={{ width: '100%' }} />
+        </div>
+      )}
 
       {/* Header + selector de mes/día */}
       <div className="space-y-3">

@@ -260,7 +260,7 @@ function monthRangeStr(year, month) {
 }
 
 export default function Trabajadores() {
-  const { workers, tickets, incidents, services, addWorker, updateWorker, addIncident, updateIncident, deleteIncident, addExpense } = useApp()
+  const { workers, tickets, incidents, services, addWorker, updateWorker, addIncident, updateIncident, deleteIncident } = useApp()
   const { month, year } = currentMonthYear()
   const [showWorkerForm, setShowWorkerForm] = useState(false)
   const [showIncidentForm, setShowIncidentForm] = useState(false)
@@ -338,16 +338,6 @@ export default function Trabajadores() {
         toast.success('Incidencia actualizada')
       } else {
         await addIncident(data)
-        if (data.type === 'adelanto') {
-          const worker = workers.find(w => w.id === data.worker_id)
-          await addExpense({
-            date: data.date,
-            category: 'adelanto',
-            description: `Adelanto — ${worker?.name || ''}${data.observation ? ': ' + data.observation : ''}`,
-            amount: data.multa_amount || 0,
-            worker_id: data.worker_id,
-          })
-        }
         toast.success('Incidencia registrada')
       }
       setEditingIncident(null)

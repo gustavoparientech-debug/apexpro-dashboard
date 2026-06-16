@@ -1,5 +1,6 @@
-import { createContext, useContext, useEffect, useState, useCallback } from 'react'
+import { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
+import toast from 'react-hot-toast'
 
 const AuthContext = createContext(null)
 
@@ -28,6 +29,17 @@ function setCachedProfile(userId, data) {
 
 function clearProfileCache() {
   try { localStorage.removeItem(PROFILE_CACHE_KEY) } catch {}
+}
+
+// ── Sesión única por dispositivo ─────────────────────────────────────────────
+const SESSION_TOKEN_KEY = 'apexpro_session_token'
+
+function getLocalSessionToken() {
+  try { return localStorage.getItem(SESSION_TOKEN_KEY) } catch { return null }
+}
+
+function setLocalSessionToken(token) {
+  try { localStorage.setItem(SESSION_TOKEN_KEY, token) } catch {}
 }
 
 export function AuthProvider({ children }) {
@@ -91,6 +103,11 @@ export function AuthProvider({ children }) {
     }
   }, [])
 
+  // Reclama este dispositivo como la sesión activa (lo escribe en el perfil en la BD)
+  const claimSession = useCallback(async (userId, token) => {
+    try { await supabase.from('profiles').update({ session_token: token }).eq('id', userId) } catch {}
+  }, [])
+
   useEffect(() => {
     if (IS_DEMO) return
 
@@ -98,10 +115,22 @@ export function AuthProvider({ children }) {
       if (event === 'INITIAL_SESSION') {
         setUser(session?.user ?? null)
         fetchProfile(session?.user ?? null).finally(() => setLoading(false))
+        // Si este dispositivo nunca reclamó una sesión (instalación previa al feature), la reclama ahora.
+        if (session?.user && !getLocalSessionToken()) {
+          const token = crypto.randomUUID()
+          setLocalSessionToken(token)
+          claimSession(session.user.id, token)
+        }
       }
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
         setUser(session?.user ?? null)
         fetchProfile(session?.user ?? null)
+      }
+      if (event === 'SIGNED_IN' && session?.user) {
+        // Inicio de sesión real (no un refresh) — este dispositivo pasa a ser la única sesión activa.
+        const token = crypto.randomUUID()
+        setLocalSessionToken(token)
+        claimSession(session.user.id, token)
       }
       if (event === 'SIGNED_OUT') {
         setUser(null)
@@ -111,7 +140,23 @@ export function AuthProvider({ children }) {
     })
 
     return () => subscription.unsubscribe()
-  }, [fetchProfile])
+  }, [fetchProfile, claimSession])
+
+  // Escucha en tiempo real si otro dispositivo reclama la sesión y cierra esta automáticamente.
+  useEffect(() => {
+    if (IS_DEMO || !user?.id) return
+    const channel = supabase
+      .channel(`session-guard-${user.id}`)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'profiles', filter: `id=eq.${user.id}` }, ({ new: row }) => {
+        const localToken = getLocalSessionToken()
+        if (row.session_token && localToken && row.session_token !== localToken) {
+          toast.error('Tu sesión se cerró porque iniciaste sesión en otro dispositivo')
+          supabase.auth.signOut()
+        }
+      })
+      .subscribe()
+    return () => supabase.removeChannel(channel)
+  }, [user?.id])
 
   const signInWithGoogle = async () => {
     const { error } = await supabase.auth.signInWithOAuth({

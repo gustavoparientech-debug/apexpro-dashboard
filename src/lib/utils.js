@@ -129,7 +129,7 @@ export function cn(...classes) {
 }
 
 // Redimensiona/comprime una foto antes de subirla (fotos de cámara pueden pesar varios MB)
-export function compressImage(file, maxSize = 600, quality = 0.5) {
+export function compressImage(file, maxSize = 400, quality = 0.35) {
   return new Promise((resolve, reject) => {
     const img = new Image()
     const url = URL.createObjectURL(file)

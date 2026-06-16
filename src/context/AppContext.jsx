@@ -153,7 +153,6 @@ export function AppProvider({ children }) {
   const [state, dispatch] = useReducer(reducer, initialState)
   const initialLoadDone = useRef(false)
   const loadInFlight    = useRef(false)
-  const recentLocalIds  = useRef(new Set())
 
   // ── Guardar en localStorage cada vez que cambia el estado (solo demo) ──────
   // Usamos una ref para acumular TODOS los tickets/incidencias de todos los meses
@@ -245,8 +244,6 @@ export function AppProvider({ children }) {
 
     // ── Supabase ──────────────────────────────────────────────────────────────
     try {
-      await supabase.auth.getSession()
-
       const { month: cm, year: cy } = currentMonthYear()
       const m = month || cm
       const y = year || cy
@@ -321,26 +318,6 @@ export function AppProvider({ children }) {
     return () => subscription.unsubscribe()
   }, [loadData])
 
-  // Realtime: sincronizar tickets entre trabajadores sin recargar toda la página
-  useEffect(() => {
-    if (IS_DEMO) return
-    const channel = supabase
-      .channel('tickets-live')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'tickets' }, ({ new: t }) => {
-        // Ignorar eco del ticket que acabamos de insertar localmente
-        if (recentLocalIds.current.has(t.id)) return
-        dispatch({ type: 'ADD_TICKET', payload: t })
-      })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'tickets' }, ({ new: t }) => {
-        if (recentLocalIds.current.has(t.id)) return
-        dispatch({ type: 'UPDATE_TICKET', payload: t })
-      })
-      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'tickets' }, ({ old: t }) => {
-        dispatch({ type: 'DELETE_TICKET', payload: t.id })
-      })
-      .subscribe()
-    return () => supabase.removeChannel(channel)
-  }, [])
 
   // ─── CRUD Workers ───────────────────────────────────────────────────────────
   const addWorker = async (data) => {
@@ -404,8 +381,6 @@ export function AppProvider({ children }) {
     // Intentar con nuevas columnas; si no existen (SQL pendiente), usar columnas básicas
     const { data: t, error } = await supabase.from('tickets').insert(data).select().single()
     if (error) throw error
-    recentLocalIds.current.add(t.id)
-    setTimeout(() => recentLocalIds.current.delete(t.id), 5000)
     dispatch({ type: 'ADD_TICKET', payload: t })
     return t
   }
@@ -418,8 +393,6 @@ export function AppProvider({ children }) {
     }
     const { data: t, error } = await supabase.from('tickets').update(data).eq('id', id).select().single()
     if (error) throw error
-    recentLocalIds.current.add(t.id)
-    setTimeout(() => recentLocalIds.current.delete(t.id), 5000)
     dispatch({ type: 'UPDATE_TICKET', payload: t })
     return t
   }

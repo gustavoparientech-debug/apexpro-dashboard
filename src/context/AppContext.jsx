@@ -461,7 +461,9 @@ export function AppProvider({ children }) {
   const addIncident = async (data) => {
     const worker = state.workers.find(w => w.id === data.worker_id)
     const discount = calcIncidentDiscount(data, worker)
-    const enriched = { ...data, discount_amount: discount }
+    // eslint-disable-next-line no-unused-vars
+    const { multa_amount, ...dbData } = data
+    const enriched = { ...dbData, discount_amount: discount }
     if (IS_DEMO) {
       const i = { ...enriched, id: `i${Date.now()}` }
       dispatch({ type: 'ADD_INCIDENT', payload: i })
@@ -476,7 +478,9 @@ export function AppProvider({ children }) {
   const updateIncident = async (id, data) => {
     const worker = state.workers.find(w => w.id === data.worker_id)
     const discount = calcIncidentDiscount(data, worker)
-    const enriched = { ...data, discount_amount: discount }
+    // eslint-disable-next-line no-unused-vars
+    const { multa_amount, ...dbData } = data
+    const enriched = { ...dbData, discount_amount: discount }
     if (IS_DEMO) {
       const updated = { ...state.incidents.find(i => i.id === id), ...enriched }
       dispatch({ type: 'UPDATE_INCIDENT', payload: updated })

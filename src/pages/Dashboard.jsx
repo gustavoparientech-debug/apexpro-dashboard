@@ -482,12 +482,8 @@ export default function Dashboard() {
   return (
     <div className="space-y-5 max-w-4xl mx-auto">
 
-      {/* Barra de carga sutil — no bloquea la pantalla */}
-      {loading && (
-        <div className="fixed top-0 left-0 right-0 h-1 z-50">
-          <div className="h-full bg-red-500 animate-pulse" style={{ width: '100%' }} />
-        </div>
-      )}
+      {/* Barra de carga sutil — visible pero no bloquea */}
+      {loading && <div className="fixed top-0 left-0 right-0 h-0.5 z-50 bg-red-500 animate-pulse" />}
 
       {/* Header + selector de mes/día */}
       <div className="space-y-3">

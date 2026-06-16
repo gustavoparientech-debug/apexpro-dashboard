@@ -1,0 +1,114 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-06-16T00:00:00.000Z",
+  "title": "Design System: Apex Pro Dashboard",
+  "extensions": {
+    "colorMeta": {
+      "primary": { "role": "primary", "displayName": "Rojo Apex", "canonical": "oklch(57% 0.22 25)", "tonalRamp": ["#450a0a", "#7f1d1d", "#991b1b", "#b91c1c", "#dc2626", "#ef4444", "#f87171", "#fee2e2"] },
+      "ink-night": { "role": "neutral", "displayName": "Negro Taller", "canonical": "oklch(22% 0.002 0)", "tonalRamp": ["#0a0a0a", "#141414", "#1e1e1e", "#2a2a2a", "#3a3a3a", "#5a5a5a", "#8a8a8a", "#cacaca"] },
+      "success": { "role": "tertiary", "displayName": "Verde Confirmado", "canonical": "oklch(58% 0.16 145)", "tonalRamp": ["#052e16", "#14532d", "#166534", "#15803d", "#16a34a", "#22c55e", "#4ade80", "#bbf7d0"] },
+      "warning": { "role": "tertiary", "displayName": "Ámbar Atención", "canonical": "oklch(64% 0.16 60)", "tonalRamp": ["#451a03", "#78350f", "#92400e", "#b45309", "#d97706", "#f59e0b", "#fbbf24", "#fde68a"] }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "Títulos de página (Equipo, Nómina, Panel)." },
+      "title": { "displayName": "Title", "purpose": "Encabezados de modal y resumen de ticket." },
+      "body": { "displayName": "Body", "purpose": "Tablas, formularios, contenido general." },
+      "label": { "displayName": "Label", "purpose": "Metadatos y texto auxiliar bajo nombres/fechas." }
+    },
+    "shadows": [
+      { "name": "reposo", "value": "0 1px 2px rgba(0,0,0,0.05)", "purpose": "Cards y filas dentro del flujo normal." },
+      { "name": "flotante", "value": "0 10px 25px -5px rgba(0,0,0,0.15), 0 8px 10px -6px rgba(0,0,0,0.1)", "purpose": "Modales, hojas inferiores, FAB y dropdowns." },
+      { "name": "enfasis-rojo", "value": "0 8px 20px -4px rgba(220,38,38,0.35)", "purpose": "Botón de acción principal (FAB) cuando debe proyectar su propio resplandor." }
+    ],
+    "motion": [
+      { "name": "ease-out-modal", "value": "cubic-bezier(0.23, 1, 0.32, 1)", "purpose": "Entrada de modales centrados (scale + opacity)." },
+      { "name": "ease-drawer", "value": "cubic-bezier(0.32, 0.72, 0, 1)", "purpose": "Entrada de hojas inferiores (translateY)." },
+      { "name": "exit-fast", "value": "160ms ease-out", "purpose": "Salida de cualquier modal/sheet, siempre más rápida que la entrada." }
+    ],
+    "breakpoints": [
+      { "name": "lg", "value": "1024px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Acción principal de cualquier pantalla (Entrar, Guardar, Registrar).",
+      "html": "<button class=\"ds-btn-primary\">Registrar gasto</button>",
+      "css": ".ds-btn-primary { background: #dc2626; color: #ffffff; padding: 8px 16px; border-radius: 8px; font-weight: 500; font-size: 14px; border: none; transition: background 160ms ease-out, transform 160ms ease-out; } .ds-btn-primary:hover { background: #b91c1c; } .ds-btn-primary:focus-visible { outline: 2px solid #dc2626; outline-offset: 2px; } .ds-btn-primary:active { transform: scale(0.97); }"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Acción de apoyo (Cancelar, exportar PDF/Excel).",
+      "html": "<button class=\"ds-btn-secondary\">Cancelar</button>",
+      "css": ".ds-btn-secondary { background: #f3f4f6; color: #374151; padding: 8px 16px; border-radius: 8px; font-weight: 500; font-size: 14px; border: none; transition: background 160ms ease-out; } .ds-btn-secondary:hover { background: #e5e7eb; } .ds-btn-secondary:focus-visible { outline: 2px solid #dc2626; outline-offset: 2px; }"
+    },
+    {
+      "name": "Floating Action Button",
+      "kind": "custom",
+      "refersTo": "fab",
+      "description": "Botón flotante de acción rápida (registro de ticket/gasto) en móvil. Componente de marca distintivo.",
+      "html": "<button class=\"ds-fab\" aria-label=\"Nueva acción\"><svg width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"white\" stroke-width=\"2\"><line x1=\"12\" y1=\"5\" x2=\"12\" y2=\"19\"/><line x1=\"5\" y1=\"12\" x2=\"19\" y2=\"12\"/></svg></button>",
+      "css": ".ds-fab { width: 56px; height: 56px; border-radius: 9999px; background: #dc2626; display: flex; align-items: center; justify-content: center; border: none; box-shadow: 0 8px 20px -4px rgba(220,38,38,0.35); transition: background 150ms ease-out, transform 150ms ease-out; } .ds-fab:hover { background: #b91c1c; } .ds-fab:active { transform: scale(0.97); } .ds-fab:focus-visible { outline: 2px solid #ffffff; outline-offset: 3px; }"
+    },
+    {
+      "name": "Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Contenedor base para resúmenes y bloques de contenido.",
+      "html": "<div class=\"ds-card\"><p class=\"ds-card-title\">Planilla base</p><p class=\"ds-card-value\">S/ 2,819.00</p></div>",
+      "css": ".ds-card { background: #ffffff; border-radius: 12px; padding: 16px; border: 1px solid #f3f4f6; box-shadow: 0 1px 2px rgba(0,0,0,0.05); } .ds-card-title { font-size: 12px; color: #6b7280; margin: 0 0 4px; } .ds-card-value { font-size: 20px; font-weight: 700; color: #111827; margin: 0; }"
+    },
+    {
+      "name": "Text Input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Campo de formulario estándar (montos, fechas, notas).",
+      "html": "<input class=\"ds-input\" placeholder=\"Monto S/\" />",
+      "css": ".ds-input { width: 100%; background: #f9fafb; border: 1px solid #f3f4f6; border-radius: 8px; padding: 8px 12px; font-size: 14px; color: #111827; transition: box-shadow 150ms ease-out, border-color 150ms ease-out; } .ds-input::placeholder { color: #9ca3af; } .ds-input:focus { outline: none; box-shadow: 0 0 0 2px #dc2626; border-color: transparent; }"
+    },
+    {
+      "name": "Status Badge",
+      "kind": "chip",
+      "refersTo": "badge",
+      "description": "Etiqueta de estado (ratio, incidencia, descuento).",
+      "html": "<span class=\"ds-badge ds-badge-rojo\">-S/ 10.00</span>",
+      "css": ".ds-badge { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 9999px; font-size: 12px; font-weight: 500; } .ds-badge-rojo { background: rgba(220,38,38,0.12); color: #b91c1c; } .ds-badge-verde { background: rgba(22,163,74,0.12); color: #15803d; } .ds-badge-amarillo { background: rgba(217,119,6,0.12); color: #b45309; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "El Taller de Precisión",
+    "overview": "Apex Pro es la pantalla de control de un taller de detailing automotriz premium: el mismo cuidado con el que se entrega un auto recién detallado se aplica a cada pantalla. La interfaz no decora, calibra. Cada número, cada estado de ticket, cada fila de nómina está donde debe estar, con el peso visual exacto que merece — ni más, ni menos. El sistema vive en dos superficies con la misma alma: una consola de escritorio oscura y densa para el dueño, y una app de bolsillo clara y rápida para el trabajador en planta. El rojo #dc2626 es la única firma de marca que cruza ambas.",
+    "keyCharacteristics": [
+      "Acento rojo único y escaso — nunca decorativo, siempre funcional",
+      "Sidebar casi-negro como ancla de marca en escritorio; superficies claras como ancla de velocidad en móvil",
+      "Profundidad real (sombras marcadas) en cards y modales para reforzar la sensación premium",
+      "Motion ya presente (entradas/salidas en modales y FAB) como parte del lenguaje visual",
+      "Datos primero: nómina, ingresos y ratios siempre con máxima legibilidad"
+    ],
+    "rules": [
+      { "name": "La Regla del Rojo Escaso", "body": "El rojo primario ocupa menos del 10% de cualquier pantalla. Más de dos elementos rojos a la vez (fuera de badges) es señal de uso decorativo, no funcional.", "section": "colors" },
+      { "name": "La Regla de Una Sola Voz Tipográfica", "body": "Toda la app usa una única familia tipográfica. La jerarquía se construye con peso y tamaño, nunca con una fuente distinta.", "section": "typography" },
+      { "name": "La Regla de la Sombra con Propósito", "body": "Sombra marcada (Flotante) solo para elementos que se superponen al contenido (modal, FAB, dropdown). Elementos dentro del flujo usan como máximo la sombra de Reposo.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do usar el Rojo Apex solo para la acción principal de cada pantalla",
+      "Do dar sombra real a todo lo que se superpone al contenido",
+      "Do mantener una sola familia tipográfica",
+      "Do prorratear y comunicar visualmente los casos especiales de negocio",
+      "Do mantener animaciones bajo 300ms con salida más rápida que la entrada",
+      "Do respetar prefers-reduced-motion en toda animación nueva"
+    ],
+    "donts": [
+      "Don't usar border-left/right de color como acento decorativo",
+      "Don't usar texto en gradiente para énfasis",
+      "Don't repetir el mismo card en grilla infinita cuando una tabla es lo correcto",
+      "Don't poner un eyebrow en mayúsculas con tracking ancho sobre cada sección",
+      "Don't introducir una segunda familia tipográfica decorativa",
+      "Don't dejar una pantalla que podría ser cualquier SaaS genérico"
+    ]
+  }
+}

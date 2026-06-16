@@ -356,10 +356,10 @@ ${workerLines}`
           <>
             {/* KPIs */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-              <StatCard label="Ingresos del período" value={formatMoney(d.grossIncome)}  sub={`${d.cars} vehículos`} icon={DollarSign} color="orange" />
+              <StatCard label="Ingresos del período" value={formatMoney(d.grossIncome)}  sub={`${d.cars} vehículos`} icon={DollarSign} color="red" />
               <StatCard label="Ganancia neta"        value={formatMoney(d.netProfit)}    sub={`Costos proporcionales`} icon={TrendingUp} color="green" />
-              <StatCard label="Total gastos"         value={formatMoney(d.totalCosts)}   sub={`Planilla: ${formatMoney(d.payrollTotal)}`} icon={CreditCard} color="blue" />
-              <StatCard label="Vehículos"            value={d.cars}                       sub={d.cars > 0 ? `Prom: ${formatMoney(d.grossIncome / d.cars)}/carro` : '—'} icon={Car} color="purple" />
+              <StatCard label="Total gastos"         value={formatMoney(d.totalCosts)}   sub={`Planilla: ${formatMoney(d.payrollTotal)}`} icon={CreditCard} color="neutral" />
+              <StatCard label="Vehículos"            value={d.cars}                       sub={d.cars > 0 ? `Prom: ${formatMoney(d.grossIncome / d.cars)}/carro` : '—'} icon={Car} color="neutral" />
             </div>
 
             {/* Desglose ingresos */}

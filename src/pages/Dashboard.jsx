@@ -241,24 +241,24 @@ function ExpensesPanel({ expenses, workers }) {
       {/* Filtros */}
       <div className="flex flex-wrap gap-2 mb-3">
         <select value={filterCat} onChange={e => setFilterCat(e.target.value)}
-          className="text-xs border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1.5 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300">
+          className="text-xs border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1.5 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-red-600 focus:border-transparent">
           <option value="">Todas las categorías</option>
           {Object.entries(CAT_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
         </select>
         {activeWorkers.length > 0 && (
           <select value={filterWorker} onChange={e => setFilterWorker(e.target.value)}
-            className="text-xs border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1.5 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300">
+            className="text-xs border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1.5 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-red-600 focus:border-transparent">
             <option value="">Todos los trabajadores</option>
             {activeWorkers.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
           </select>
         )}
         <select value={sortBy} onChange={e => setSortBy(e.target.value)}
-          className="text-xs border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1.5 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300">
+          className="text-xs border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1.5 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-red-600 focus:border-transparent">
           {SORT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
         {(filterCat || filterWorker) && (
           <button onClick={() => { setFilterCat(''); setFilterWorker('') }}
-            className="text-xs text-red-500 border border-red-200 rounded-lg px-2 py-1.5">
+            className="text-xs text-red-500 border border-red-200 dark:border-red-900 rounded-lg px-2 py-1.5 hover:bg-red-50 dark:hover:bg-red-900/20 focus:outline-none focus:ring-2 focus:ring-red-600 transition-colors">
             Limpiar
           </button>
         )}
@@ -515,14 +515,14 @@ export default function Dashboard() {
         <div className="flex items-center gap-2 flex-wrap">
           <div className="flex items-center gap-2 bg-gray-100 dark:bg-gray-800 rounded-xl px-3 py-1.5">
             <span className="text-xs text-gray-400 shrink-0">Desde</span>
-            <input type="date" className="bg-transparent text-sm font-medium text-gray-700 dark:text-gray-200 focus:outline-none w-32"
+            <input type="date" className="bg-transparent text-sm font-medium text-gray-700 dark:text-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-600 w-32"
               value={rangeFrom || ''}
               min={`${prefix}-01`}
               max={`${prefix}-${String(lastDayOfMonth).padStart(2,'0')}`}
               onChange={e => setRangeFrom(e.target.value || null)}
             />
             <span className="text-xs text-gray-400 shrink-0">Hasta</span>
-            <input type="date" className="bg-transparent text-sm font-medium text-gray-700 dark:text-gray-200 focus:outline-none w-32"
+            <input type="date" className="bg-transparent text-sm font-medium text-gray-700 dark:text-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-600 w-32"
               value={rangeTo || ''}
               min={rangeFrom || `${prefix}-01`}
               max={`${prefix}-${String(lastDayOfMonth).padStart(2,'0')}`}
@@ -553,10 +553,10 @@ export default function Dashboard() {
 
       {/* KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <StatCard label={hasRange ? 'Ingresos del rango' : 'Ingresos del mes'}   value={formatMoney(data.totalIncome)}  sub={`${data.totalCars} vehículos`} icon={DollarSign} color="orange" />
+        <StatCard label={hasRange ? 'Ingresos del rango' : 'Ingresos del mes'}   value={formatMoney(data.totalIncome)}  sub={`${data.totalCars} vehículos`} icon={DollarSign} color="red" />
         <StatCard label="Ganancia neta est." value={formatMoney(data.netProfit)}    sub={`Costos proporcionales al día ${data.workingDaysElapsed}`} icon={TrendingUp} color="green" />
-        <StatCard label="Total gastos"       value={formatMoney(data.totalCosts)}   sub={`Planilla: ${formatMoney(data.payrollTotal)}`} icon={CreditCard} color="blue" />
-        <StatCard label="Vehículos"          value={data.totalCars}                 sub={`Prom: ${formatMoney(data.totalCars ? data.totalIncome / data.totalCars : 0)}/carro`} icon={Car} color="purple" />
+        <StatCard label="Total gastos"       value={formatMoney(data.totalCosts)}   sub={`Planilla: ${formatMoney(data.payrollTotal)}`} icon={CreditCard} color="neutral" />
+        <StatCard label="Vehículos"          value={data.totalCars}                 sub={`Prom: ${formatMoney(data.totalCars ? data.totalIncome / data.totalCars : 0)}/carro`} icon={Car} color="neutral" />
       </div>
 
       {/* Barra de progreso — solo vista mensual */}

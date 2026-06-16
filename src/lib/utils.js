@@ -127,3 +127,26 @@ export function monthName(month) {
 export function cn(...classes) {
   return classes.filter(Boolean).join(' ')
 }
+
+// Redimensiona/comprime una foto antes de subirla (fotos de cámara pueden pesar varios MB)
+export function compressImage(file, maxSize = 1024, quality = 0.7) {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    const url = URL.createObjectURL(file)
+    img.onload = () => {
+      let { width, height } = img
+      if (width > maxSize || height > maxSize) {
+        if (width > height) { height = Math.round(height * (maxSize / width)); width = maxSize }
+        else { width = Math.round(width * (maxSize / height)); height = maxSize }
+      }
+      const canvas = document.createElement('canvas')
+      canvas.width = width
+      canvas.height = height
+      canvas.getContext('2d').drawImage(img, 0, 0, width, height)
+      URL.revokeObjectURL(url)
+      canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('No se pudo comprimir la imagen')), 'image/jpeg', quality)
+    }
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('No se pudo leer la imagen')) }
+    img.src = url
+  })
+}

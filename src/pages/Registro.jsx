@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom'
 import { useApp } from '../context/AppContext'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
-import { formatMoney, todayISO } from '../lib/utils'
+import { formatMoney, todayISO, compressImage } from '../lib/utils'
 import ConfirmDialog from '../components/ui/ConfirmDialog'
 import { Plus, Camera, Search, X, Clock, CheckCircle, Trash2, PenLine, Zap, Save, ChevronLeft, ChevronRight, Eye } from 'lucide-react'
 import toast from 'react-hot-toast'
@@ -106,12 +106,16 @@ function NewTicketForm({ onSave, onClose, workers, vehicleTypes, lockedWorkerId,
     const file = e.target.files?.[0]
     if (!file) return
     setPhotoPreview(URL.createObjectURL(file))
-    const ext  = file.name.split('.').pop() || 'jpg'
-    const path = `placas/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`
-    const { error } = await supabase.storage.from('payment-photos').upload(path, file, { upsert: true })
-    if (error) { toast.error('Error al subir foto'); return }
-    const { data } = supabase.storage.from('payment-photos').getPublicUrl(path)
-    setForm(f => ({ ...f, photo_url: data.publicUrl }))
+    try {
+      const compressed = await compressImage(file)
+      const path = `placas/${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`
+      const { error } = await supabase.storage.from('payment-photos').upload(path, compressed, { upsert: true, contentType: 'image/jpeg' })
+      if (error) { toast.error('Error al subir foto'); return }
+      const { data } = supabase.storage.from('payment-photos').getPublicUrl(path)
+      setForm(f => ({ ...f, photo_url: data.publicUrl }))
+    } catch {
+      toast.error('Error al procesar la foto')
+    }
   }
 
   function handleVehicle(vt) {
@@ -500,12 +504,16 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
                 onChange={async e => {
                   const file = e.target.files?.[0]
                   if (!file) return
-                  const ext  = file.name.split('.').pop() || 'jpg'
-                  const path = `yape/${ticket.id}_${Date.now()}.${ext}`
-                  const { error } = await supabase.storage.from('payment-photos').upload(path, file, { upsert: true })
-                  if (error) { toast.error('Error al subir foto'); return }
-                  const { data } = supabase.storage.from('payment-photos').getPublicUrl(path)
-                  setPaymentPhoto(data.publicUrl)
+                  try {
+                    const compressed = await compressImage(file)
+                    const path = `yape/${ticket.id}_${Date.now()}.jpg`
+                    const { error } = await supabase.storage.from('payment-photos').upload(path, compressed, { upsert: true, contentType: 'image/jpeg' })
+                    if (error) { toast.error('Error al subir foto'); return }
+                    const { data } = supabase.storage.from('payment-photos').getPublicUrl(path)
+                    setPaymentPhoto(data.publicUrl)
+                  } catch {
+                    toast.error('Error al procesar la foto')
+                  }
                 }} />
               {paymentPhoto ? (
                 <div className="relative rounded-xl overflow-hidden border border-purple-200 dark:border-purple-800">

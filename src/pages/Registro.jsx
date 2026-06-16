@@ -908,6 +908,14 @@ function TicketSummaryModal({ ticket, workers, vehicleTypes, onClose }) {
             </div>
           )}
 
+          {/* Nota del trabajador */}
+          {ticket.notes && (
+            <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-800">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">📝 Nota</p>
+              <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{ticket.notes}</p>
+            </div>
+          )}
+
           {/* Meta */}
           <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-800 space-y-2 text-sm">
             <div className="flex justify-between">

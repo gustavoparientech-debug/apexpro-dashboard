@@ -149,6 +149,7 @@ function calcIncidentDiscount(data, worker) {
 export function AppProvider({ children }) {
   const [state, dispatch] = useReducer(reducer, initialState)
   const initialLoadDone = useRef(false)
+  const loadInFlight = useRef(false)
   // IDs de tickets que acabamos de insertar/actualizar localmente → ignorar el eco del Realtime
   const recentLocalIds = useRef(new Set())
 
@@ -186,6 +187,9 @@ export function AppProvider({ children }) {
 
   // ── Carga de datos ──────────────────────────────────────────────────────────
   const loadData = useCallback(async (month, year) => {
+    // Evitar llamadas paralelas (pero permitir llamadas secuenciales, ej. cambio de mes)
+    if (loadInFlight.current) return
+    loadInFlight.current = true
     dispatch({ type: 'SET_LOADING', payload: true })
 
     if (IS_DEMO) {
@@ -230,6 +234,7 @@ export function AppProvider({ children }) {
         : { month: m, year: y, rent: monthlyCosts?.rent || 2700, supplies: monthlyCosts?.supplies || 800, utility_goal: monthlyCosts?.utility_goal || 2000 }
 
       initialLoadDone.current = true
+      loadInFlight.current = false
       dispatch({ type: 'SET_ALL', payload: {
         workers,
         services,
@@ -310,14 +315,14 @@ export function AppProvider({ children }) {
     } catch (err) {
       console.error('loadData error:', err)
       dispatch({ type: 'SET_ERROR', payload: err.message })
+    } finally {
+      loadInFlight.current = false
     }
   }, [])
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
       if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN') {
-        // Si ya tenemos datos cargados en esta sesión, no volver a cargar
-        if (initialLoadDone.current) return
         loadData()
       }
     })

@@ -126,7 +126,7 @@ function BonusSection({ workers, bonuses, addBonus, deleteBonus, monthPrefix }) 
   )
 }
 
-const CAT_LABELS = { insumos: '🧴 Insumos', herramientas: '🔧 Herramientas', transporte: '🚌 Transporte', comida: '🍱 Comida', otro: '📦 Otro' }
+const CAT_LABELS = { insumos: '🧴 Insumos', herramientas: '🔧 Herramientas', transporte: '🚌 Transporte', comida: '🍱 Comida', adelanto: '💵 Adelanto', otro: '📦 Otro' }
 const SORT_OPTIONS = [
   { value: 'date_desc', label: 'Fecha ↓' },
   { value: 'date_asc',  label: 'Fecha ↑' },

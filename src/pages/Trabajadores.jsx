@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react'
 import { useApp } from '../context/AppContext'
 import {
   formatMoney, formatDate, calcRealSalary, calcDailySalary, calcProratedSalary,
-  calcAbsenceDiscount, calcLatenessDiscount, getRatioColor, currentMonthYear, monthName, todayISO
+  calcAbsenceDiscount, calcLatenessDiscount, calcOvertimePay, getRatioColor, currentMonthYear, monthName, todayISO
 } from '../lib/utils'
 import Modal from '../components/ui/Modal'
 import ConfirmDialog from '../components/ui/ConfirmDialog'
@@ -11,8 +11,8 @@ import { Plus, Edit2, UserX, UserCheck, AlertCircle, Clock, Calendar } from 'luc
 import toast from 'react-hot-toast'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 
-const INCIDENT_ICONS = { falta: '🔴', permiso: '🟡', tardanza: '🟠', no_marcacion: '🔵' }
-const INCIDENT_LABELS = { falta: 'Falta injustificada', permiso: 'Permiso justificado', tardanza: 'Tardanza', no_marcacion: 'No marcó entrada/salida' }
+const INCIDENT_ICONS = { falta: '🔴', permiso: '🟡', permiso_horas: '🟡', tardanza: '🟠', hora_extra: '🟢', no_marcacion: '🔵' }
+const INCIDENT_LABELS = { falta: 'Falta injustificada', permiso: 'Permiso justificado', permiso_horas: 'Permiso por horas', tardanza: 'Tardanza', hora_extra: 'Hora extra', no_marcacion: 'No marcó entrada/salida' }
 
 function WorkerForm({ initial, onSave, onClose }) {
   const [form, setForm] = useState({
@@ -95,9 +95,11 @@ function IncidentForm({ workers, onSave, onClose, initial }) {
   })
 
   const worker = workers.find(w => w.id === form.worker_id)
+  const isAddition = form.type === 'hora_extra'
   const previewDiscount = useMemo(() => {
     if (!worker || !form.apply_discount) return 0
-    if (form.type === 'tardanza') return calcLatenessDiscount(worker.base_salary, worker.weekly_hours, parseFloat(form.hours_late) || 0)
+    if (form.type === 'tardanza' || form.type === 'permiso_horas') return calcLatenessDiscount(worker.base_salary, worker.weekly_hours, parseFloat(form.hours_late) || 0)
+    if (form.type === 'hora_extra') return calcOvertimePay(worker.base_salary, worker.weekly_hours, parseFloat(form.hours_late) || 0)
     if (form.type === 'no_marcacion') return 5 * (parseInt(form.no_marcacion_count) || 1)
     return calcAbsenceDiscount(worker.base_salary, worker.weekly_hours)
   }, [worker, form])
@@ -109,6 +111,7 @@ function IncidentForm({ workers, onSave, onClose, initial }) {
       ...form,
       hours_late: parseFloat(form.hours_late) || 0,
       no_marcacion_count: parseInt(form.no_marcacion_count) || 1,
+      is_addition: isAddition,
     })
     onClose()
   }
@@ -131,16 +134,18 @@ function IncidentForm({ workers, onSave, onClose, initial }) {
           <label className="label">Tipo</label>
           <select className="input" value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value }))}>
             <option value="falta">Falta injustificada</option>
-            <option value="permiso">Permiso justificado</option>
+            <option value="permiso">Permiso justificado (día completo)</option>
+            <option value="permiso_horas">Permiso por horas</option>
             <option value="tardanza">Tardanza</option>
+            <option value="hora_extra">Hora extra</option>
             <option value="no_marcacion">No marcó entrada/salida</option>
           </select>
         </div>
       </div>
-      {form.type === 'tardanza' && (
+      {(form.type === 'tardanza' || form.type === 'permiso_horas' || form.type === 'hora_extra') && (
         <div>
-          <label className="label">Horas de tardanza</label>
-          <input type="number" className="input" min="0.25" step="0.25" max="8" value={form.hours_late} onChange={e => setForm(f => ({ ...f, hours_late: e.target.value }))} placeholder="1.5" required />
+          <label className="label">{form.type === 'hora_extra' ? 'Horas extra' : form.type === 'permiso_horas' ? 'Horas de permiso' : 'Horas de tardanza'}</label>
+          <input type="number" className="input" min="0.25" step="0.25" max="12" value={form.hours_late} onChange={e => setForm(f => ({ ...f, hours_late: e.target.value }))} placeholder="1.5" required />
         </div>
       )}
       {form.type === 'no_marcacion' && (
@@ -159,12 +164,12 @@ function IncidentForm({ workers, onSave, onClose, initial }) {
       )}
       <div className="flex items-center gap-2">
         <input type="checkbox" id="apply_discount" checked={form.apply_discount} onChange={e => setForm(f => ({ ...f, apply_discount: e.target.checked }))} />
-        <label htmlFor="apply_discount" className="text-sm text-gray-700 dark:text-gray-300 cursor-pointer">Aplicar descuento</label>
+        <label htmlFor="apply_discount" className="text-sm text-gray-700 dark:text-gray-300 cursor-pointer">{isAddition ? 'Pagar en planilla' : 'Aplicar descuento'}</label>
       </div>
       {worker && (
-        <div className={`rounded-lg p-3 text-xs ${form.apply_discount ? 'bg-red-50 dark:bg-red-900/10 border border-red-100 dark:border-red-900/30' : 'bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700'}`}>
-          <p className={form.apply_discount ? 'text-red-600 dark:text-red-400' : 'text-gray-500'}>
-            {form.apply_discount ? `Descuento: ${formatMoney(previewDiscount)}` : 'Sin descuento (solo registro)'}
+        <div className={`rounded-lg p-3 text-xs ${!form.apply_discount ? 'bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700' : isAddition ? 'bg-green-50 dark:bg-green-900/10 border border-green-100 dark:border-green-900/30' : 'bg-red-50 dark:bg-red-900/10 border border-red-100 dark:border-red-900/30'}`}>
+          <p className={!form.apply_discount ? 'text-gray-500' : isAddition ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
+            {!form.apply_discount ? 'Sin efecto en planilla (solo registro)' : isAddition ? `Se suma a su pago: +${formatMoney(previewDiscount)}` : `Descuento: ${formatMoney(previewDiscount)}`}
           </p>
         </div>
       )}
@@ -213,14 +218,15 @@ export default function Trabajadores() {
         const income = workerTickets.reduce((s, t) => s + t.price_charged, 0)
         const cars = workerTickets.length
         const workerIncidents = incidents.filter(i => i.worker_id === w.id)
-        const totalDiscounts = workerIncidents.filter(i => i.apply_discount).reduce((s, i) => s + (i.discount_amount || 0), 0)
-        const finalPay = realSalary - totalDiscounts
+        const totalDiscounts = workerIncidents.filter(i => i.apply_discount && !i.is_addition).reduce((s, i) => s + (i.discount_amount || 0), 0)
+        const totalOvertime  = workerIncidents.filter(i => i.apply_discount && i.is_addition).reduce((s, i) => s + (i.discount_amount || 0), 0)
+        const finalPay = realSalary - totalDiscounts + totalOvertime
         const ratio = realSalary > 0 ? income / realSalary : 0
         const daysInMonth = new Date(year, month, 0).getDate()
         const avgDaily = income / daysInMonth
         const avgPerCar = cars > 0 ? income / cars : 0
 
-        return { ...w, realSalary, income, cars, workerIncidents, totalDiscounts, finalPay, ratio, avgDaily, avgPerCar }
+        return { ...w, realSalary, income, cars, workerIncidents, totalDiscounts, totalOvertime, finalPay, ratio, avgDaily, avgPerCar }
       })
   }, [workers, tickets, incidents, month, year])
 
@@ -309,6 +315,7 @@ export default function Trabajadores() {
               <th className="text-right py-2 px-2">Prom/día</th>
               <th className="text-right py-2 px-2">Salario real</th>
               <th className="text-right py-2 px-2">Descuentos</th>
+              <th className="text-right py-2 px-2">Extra</th>
               <th className="text-right py-2 px-2">Pago final</th>
               <th className="text-center py-2 px-2">Ratio</th>
               <th className="text-center py-2 px-2">Incidencias</th>
@@ -339,6 +346,7 @@ export default function Trabajadores() {
                   <td className="text-right px-2 text-gray-600 dark:text-gray-400">{formatMoney(w.avgDaily)}</td>
                   <td className="text-right px-2 text-gray-600 dark:text-gray-400">{formatMoney(w.realSalary)}</td>
                   <td className="text-right px-2 text-red-500">{w.totalDiscounts > 0 ? `-${formatMoney(w.totalDiscounts)}` : '—'}</td>
+                  <td className="text-right px-2 text-green-600">{w.totalOvertime > 0 ? `+${formatMoney(w.totalOvertime)}` : '—'}</td>
                   <td className="text-right px-2 font-semibold text-gray-900 dark:text-white">{formatMoney(w.finalPay)}</td>
                   <td className="text-center px-2">
                     <Badge variant={ratioColor[rc]}>{w.ratio.toFixed(1)}x</Badge>
@@ -396,13 +404,13 @@ export default function Trabajadores() {
                   <span className="text-lg">{INCIDENT_ICONS[incident.type]}</span>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-gray-900 dark:text-white">{worker?.name} — {INCIDENT_LABELS[incident.type]}</p>
-                    <p className="text-xs text-gray-500">{formatDate(incident.date)}{incident.hours_late ? ` · ${incident.hours_late}h tarde` : ''}</p>
+                    <p className="text-xs text-gray-500">{formatDate(incident.date)}{incident.hours_late ? ` · ${incident.hours_late}h` : ''}</p>
                     {incident.observation && <p className="text-xs text-gray-400 italic mt-0.5">{incident.observation}</p>}
                   </div>
                   <div className="flex items-center gap-2">
                     {incident.apply_discount
-                      ? <span className="text-xs font-semibold text-red-500">-{formatMoney(incident.discount_amount)}</span>
-                      : <Badge variant="gray">Sin desc.</Badge>
+                      ? <span className={`text-xs font-semibold ${incident.is_addition ? 'text-green-600' : 'text-red-500'}`}>{incident.is_addition ? '+' : '-'}{formatMoney(incident.discount_amount)}</span>
+                      : <Badge variant="gray">Sin efecto</Badge>
                     }
                     <button onClick={() => { setEditingIncident(incident); setShowIncidentForm(true) }} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded">
                       <Edit2 className="w-3.5 h-3.5 text-gray-400" />

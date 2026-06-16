@@ -5,7 +5,7 @@ import Badge from '../components/ui/Badge'
 import { Download, FileSpreadsheet, Pencil, Check, X } from 'lucide-react'
 import toast from 'react-hot-toast'
 
-const INCIDENT_LABELS = { falta: 'Falta injustificada', permiso: 'Permiso justificado', tardanza: 'Tardanza', no_marcacion: 'No marcó entrada/salida' }
+const INCIDENT_LABELS = { falta: 'Falta injustificada', permiso: 'Permiso justificado', permiso_horas: 'Permiso por horas', tardanza: 'Tardanza', hora_extra: 'Hora extra', no_marcacion: 'No marcó entrada/salida' }
 
 export default function Nomina() {
   const { workers, incidents, updateWorker } = useApp()
@@ -38,15 +38,19 @@ export default function Nomina() {
           : calcRealSalary(w.base_salary, w.weekly_hours)
         const workerIncidents = incidents.filter(i => i.worker_id === w.id)
         const totalDiscounts = workerIncidents
-          .filter(i => i.apply_discount)
+          .filter(i => i.apply_discount && !i.is_addition)
           .reduce((s, i) => s + (i.discount_amount || 0), 0)
-        const finalPay = realSalary - totalDiscounts
-        return { ...w, realSalary, workerIncidents, totalDiscounts, finalPay }
+        const totalOvertime = workerIncidents
+          .filter(i => i.apply_discount && i.is_addition)
+          .reduce((s, i) => s + (i.discount_amount || 0), 0)
+        const finalPay = realSalary - totalDiscounts + totalOvertime
+        return { ...w, realSalary, workerIncidents, totalDiscounts, totalOvertime, finalPay }
       })
   }, [workers, incidents, month, year])
 
   const totalPayroll = payrollData.reduce((s, w) => s + w.finalPay, 0)
   const totalDiscounts = payrollData.reduce((s, w) => s + w.totalDiscounts, 0)
+  const totalOvertime = payrollData.reduce((s, w) => s + w.totalOvertime, 0)
   const totalBase = payrollData.reduce((s, w) => s + w.realSalary, 0)
 
   function exportExcel() {
@@ -58,6 +62,7 @@ export default function Nomina() {
           'Salario Base': w.base_salary,
           'Salario Real Mensual': w.realSalary.toFixed(2),
           'Descuentos': w.totalDiscounts.toFixed(2),
+          'Hora Extra': w.totalOvertime.toFixed(2),
           'Pago Final': w.finalPay.toFixed(2),
         }))
         rows.push({
@@ -66,6 +71,7 @@ export default function Nomina() {
           'Salario Base': '',
           'Salario Real Mensual': totalBase.toFixed(2),
           'Descuentos': totalDiscounts.toFixed(2),
+          'Hora Extra': totalOvertime.toFixed(2),
           'Pago Final': totalPayroll.toFixed(2),
         })
         const ws = XLSX.utils.json_to_sheet(rows)
@@ -88,7 +94,7 @@ export default function Nomina() {
         doc.setFontSize(10)
         let y = 35
         payrollData.forEach(w => {
-          doc.text(`${w.name}: S/${w.realSalary.toFixed(2)} - S/${w.totalDiscounts.toFixed(2)} = S/${w.finalPay.toFixed(2)}`, 14, y)
+          doc.text(`${w.name}: S/${w.realSalary.toFixed(2)} - S/${w.totalDiscounts.toFixed(2)} + S/${w.totalOvertime.toFixed(2)} = S/${w.finalPay.toFixed(2)}`, 14, y)
           y += 8
         })
         y += 4
@@ -144,6 +150,7 @@ export default function Nomina() {
               <th className="text-left py-2 pr-4">Nombre</th>
               <th className="text-right py-2 px-2">Salario real</th>
               <th className="text-right py-2 px-2">Descuentos</th>
+              <th className="text-right py-2 px-2">Hora extra</th>
               <th className="text-right py-2 px-2">Pago final</th>
               <th className="text-center py-2 px-2">Incidencias</th>
             </tr>
@@ -191,6 +198,7 @@ export default function Nomina() {
                   </td>
                   <td className="text-right px-2 text-gray-700 dark:text-gray-300">{formatMoney(w.realSalary)}</td>
                   <td className="text-right px-2 text-red-500">{w.totalDiscounts > 0 ? `-${formatMoney(w.totalDiscounts)}` : '—'}</td>
+                  <td className="text-right px-2 text-green-600">{w.totalOvertime > 0 ? `+${formatMoney(w.totalOvertime)}` : '—'}</td>
                   <td className="text-right px-2 font-bold text-gray-900 dark:text-white">{formatMoney(w.finalPay)}</td>
                   <td className="text-center px-2 text-xs text-gray-500">{w.workerIncidents.length}</td>
                 </tr>
@@ -200,6 +208,7 @@ export default function Nomina() {
               <td className="py-3 pr-4 font-bold text-red-700 dark:text-red-400">TOTAL PLANILLA</td>
               <td className="text-right px-2 font-bold text-red-700 dark:text-red-400">{formatMoney(totalBase)}</td>
               <td className="text-right px-2 font-bold text-red-500">-{formatMoney(totalDiscounts)}</td>
+              <td className="text-right px-2 font-bold text-green-600">+{formatMoney(totalOvertime)}</td>
               <td className="text-right px-2 font-bold text-red-600 dark:text-red-400 text-base">{formatMoney(totalPayroll)}</td>
               <td />
             </tr>

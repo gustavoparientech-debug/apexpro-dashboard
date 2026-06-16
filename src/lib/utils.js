@@ -108,11 +108,21 @@ export function calcAbsenceDiscount(baseSalary, weeklyHours) {
   return calcDailySalary(baseSalary, weeklyHours)
 }
 
-// Descuento por tardanza
-export function calcLatenessDiscount(baseSalary, weeklyHours, hoursLate) {
+// Tarifa por hora (misma base para tardanza, permiso por horas, y hora extra)
+export function calcHourlyRate(baseSalary, weeklyHours) {
   const dailySalary = calcDailySalary(baseSalary, weeklyHours)
   const dailyHours = weeklyHours / 6
-  return (dailySalary / dailyHours) * hoursLate
+  return dailySalary / dailyHours
+}
+
+// Descuento por tardanza o permiso por horas
+export function calcLatenessDiscount(baseSalary, weeklyHours, hoursLate) {
+  return calcHourlyRate(baseSalary, weeklyHours) * hoursLate
+}
+
+// Pago de horas extra
+export function calcOvertimePay(baseSalary, weeklyHours, hoursExtra) {
+  return calcHourlyRate(baseSalary, weeklyHours) * hoursExtra
 }
 
 // Ganancia neta de un ticket

@@ -86,8 +86,6 @@ const initialState = {
   error: null,
 }
 
-// Caché en memoria de la última carga exitosa (persiste entre re-renders sin localStorage)
-let memoryCache = null
 
 function reducer(state, action) {
   switch (action.type) {
@@ -192,10 +190,11 @@ export function AppProvider({ children }) {
 
   // ── Carga de datos ──────────────────────────────────────────────────────────
   const loadData = useCallback(async (month, year) => {
-    // Evitar llamadas paralelas (pero permitir llamadas secuenciales, ej. cambio de mes)
+    // Evitar llamadas paralelas
     if (loadInFlight.current) return
     loadInFlight.current = true
-    dispatch({ type: 'SET_LOADING', payload: true })
+    // Solo mostrar spinner en la primera carga; las siguientes actualizan silenciosamente
+    if (!initialLoadDone.current) dispatch({ type: 'SET_LOADING', payload: true })
 
     if (IS_DEMO) {
       const { month: cm, year: cy } = currentMonthYear()
@@ -264,13 +263,6 @@ export function AppProvider({ children }) {
       const lastDay   = new Date(y, m, 0).getDate()
       const endDate   = `${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
 
-      // Si hay datos en memoria, mostrarlos inmediatamente sin spinner
-      // y actualizar en segundo plano (stale-while-revalidate)
-      const hasCachedMemory = memoryCache && !month && !year
-      if (hasCachedMemory) {
-        dispatch({ type: 'SET_ALL', payload: memoryCache })
-      }
-
       // Caché de datos estáticos en localStorage (10 min TTL)
       const staticCached = (!month && !year) ? getStaticCache() : null
 
@@ -306,7 +298,8 @@ export function AppProvider({ children }) {
 
       const incidentsEnriched = (incidents.data || []).map(i => enrichIncident(i, workersData))
 
-      const newPayload = {
+      initialLoadDone.current = true
+      dispatch({ type: 'SET_ALL', payload: {
         workers:        workersData,
         services:       servicesData,
         vehicleTypes:   vehicleTypesData,
@@ -316,17 +309,10 @@ export function AppProvider({ children }) {
         incidents:      incidentsEnriched,
         monthlyCosts:   costs.data || { month: m, year: y, rent: 2700, supplies: 800, utility_goal: 2000 },
         expenses:       expensesRes.error ? [] : (expensesRes.data || []),
-      }
-
-      // Guardar en memoria para la próxima carga (instant)
-      if (!month && !year) memoryCache = newPayload
-
-      initialLoadDone.current = true
-      dispatch({ type: 'SET_ALL', payload: newPayload })
+      }})
     } catch (err) {
       console.error('loadData error:', err)
-      // Si hay caché en memoria, no mostrar error — el usuario ya ve datos
-      if (!memoryCache) dispatch({ type: 'SET_ERROR', payload: err.message })
+      dispatch({ type: 'SET_ERROR', payload: err.message })
     } finally {
       loadInFlight.current = false
     }

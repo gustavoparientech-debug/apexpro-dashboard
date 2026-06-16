@@ -86,9 +86,14 @@ const initialState = {
   error: null,
 }
 
+// Caché en memoria de la última carga exitosa (persiste entre re-renders sin localStorage)
+let memoryCache = null
+
 function reducer(state, action) {
   switch (action.type) {
     case 'SET_ALL':           return { ...state, ...action.payload, loading: false }
+    // Actualiza solo datos dinámicos sin mostrar spinner
+    case 'SET_DYNAMIC':       return { ...state, tickets: action.payload.tickets, dailySummaries: action.payload.dailySummaries, incidents: action.payload.incidents, monthlyCosts: action.payload.monthlyCosts, expenses: action.payload.expenses }
     case 'SET_LOADING':       return { ...state, loading: action.payload }
     case 'SET_ERROR':         return { ...state, error: action.payload, loading: false }
     case 'ADD_WORKER':        return { ...state, workers: [...state.workers, action.payload] }
@@ -259,49 +264,49 @@ export function AppProvider({ children }) {
       const lastDay   = new Date(y, m, 0).getDate()
       const endDate   = `${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
 
-      // Datos estáticos: intentar caché primero (evita 4 queries en recargas frecuentes)
-      const cached = (!month && !year) ? getStaticCache() : null
+      // Si hay datos en memoria, mostrarlos inmediatamente sin spinner
+      // y actualizar en segundo plano (stale-while-revalidate)
+      const hasCachedMemory = memoryCache && !month && !year
+      if (hasCachedMemory) {
+        dispatch({ type: 'SET_ALL', payload: memoryCache })
+      }
 
-      const dynamicPromises = [
+      // Caché de datos estáticos en localStorage (10 min TTL)
+      const staticCached = (!month && !year) ? getStaticCache() : null
+
+      const [ticketsRes, summaries, incidents, costs, expensesRes, ...staticResults] = await Promise.all([
         supabase.from('tickets').select('*').gte('date', startDate).lte('date', endDate).order('created_at', { ascending: false }),
         supabase.from('daily_summary').select('*').gte('date', startDate).lte('date', endDate),
         supabase.from('attendance_incidents').select('*').gte('date', startDate).lte('date', endDate),
         supabase.from('monthly_costs').select('*').eq('month', m).eq('year', y).maybeSingle(),
         supabase.from('worker_expenses').select('*').gte('date', startDate).lte('date', endDate).order('date', { ascending: false }),
-      ]
-
-      const staticPromises = cached ? [] : [
-        supabase.from('workers').select('*').order('name'),
-        supabase.from('services').select('*').order('category, name'),
-        supabase.from('vehicle_types').select('*').eq('active', true).order('sort_order'),
-        supabase.from('extras_catalog').select('*').eq('active', true).order('sort_order'),
-      ]
-
-      const results = await Promise.all([...dynamicPromises, ...staticPromises])
-      const [ticketsRes, summaries, incidents, costs, expensesRes] = results
-      const [workersRes, servicesRes, vehicleTypesRes, extrasRes] = cached
-        ? [null, null, null, null]
-        : results.slice(5)
+        ...(!staticCached ? [
+          supabase.from('workers').select('*').order('name'),
+          supabase.from('services').select('*').order('category, name'),
+          supabase.from('vehicle_types').select('*').eq('active', true).order('sort_order'),
+          supabase.from('extras_catalog').select('*').eq('active', true).order('sort_order'),
+        ] : []),
+      ])
 
       let workersData, servicesData, vehicleTypesData, extrasCatalogData
 
-      if (cached) {
-        workersData       = cached.workers
-        servicesData      = cached.services
-        vehicleTypesData  = cached.vehicleTypes
-        extrasCatalogData = cached.extrasCatalog
+      if (staticCached) {
+        workersData       = staticCached.workers
+        servicesData      = staticCached.services
+        vehicleTypesData  = staticCached.vehicleTypes
+        extrasCatalogData = staticCached.extrasCatalog
       } else {
-        workersData       = workersRes.data || []
-        servicesData      = servicesRes.data || []
-        vehicleTypesData  = vehicleTypesRes.data?.length ? vehicleTypesRes.data : DEMO_VEHICLE_TYPES
-        extrasCatalogData = extrasRes.data?.length ? extrasRes.data : DEMO_EXTRAS_CATALOG
+        const [wR, sR, vtR, exR] = staticResults
+        workersData       = wR?.data || []
+        servicesData      = sR?.data || []
+        vehicleTypesData  = vtR?.data?.length ? vtR.data : DEMO_VEHICLE_TYPES
+        extrasCatalogData = exR?.data?.length ? exR.data : DEMO_EXTRAS_CATALOG
         setStaticCache({ workers: workersData, services: servicesData, vehicleTypes: vehicleTypesData, extrasCatalog: extrasCatalogData })
       }
 
       const incidentsEnriched = (incidents.data || []).map(i => enrichIncident(i, workersData))
 
-      initialLoadDone.current = true
-      dispatch({ type: 'SET_ALL', payload: {
+      const newPayload = {
         workers:        workersData,
         services:       servicesData,
         vehicleTypes:   vehicleTypesData,
@@ -311,10 +316,17 @@ export function AppProvider({ children }) {
         incidents:      incidentsEnriched,
         monthlyCosts:   costs.data || { month: m, year: y, rent: 2700, supplies: 800, utility_goal: 2000 },
         expenses:       expensesRes.error ? [] : (expensesRes.data || []),
-      }})
+      }
+
+      // Guardar en memoria para la próxima carga (instant)
+      if (!month && !year) memoryCache = newPayload
+
+      initialLoadDone.current = true
+      dispatch({ type: 'SET_ALL', payload: newPayload })
     } catch (err) {
       console.error('loadData error:', err)
-      dispatch({ type: 'SET_ERROR', payload: err.message })
+      // Si hay caché en memoria, no mostrar error — el usuario ya ve datos
+      if (!memoryCache) dispatch({ type: 'SET_ERROR', payload: err.message })
     } finally {
       loadInFlight.current = false
     }

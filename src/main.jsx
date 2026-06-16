@@ -8,6 +8,30 @@ import { AuthProvider, useAuth } from './context/AuthContext'
 import Layout from './components/layout/Layout'
 import './index.css'
 
+// Cuando un nuevo Service Worker toma control (tras un despliegue nuevo), recargar
+// la página para evitar que la app quede referenciando archivos JS viejos que ya no existen.
+if ('serviceWorker' in navigator) {
+  let reloaded = false
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (reloaded) return
+    reloaded = true
+    window.location.reload()
+  })
+}
+
+// Si un chunk JS de una versión vieja ya no existe (tras un despliegue), recargar
+// una sola vez en vez de dejar la app colgada en el spinner de carga.
+window.addEventListener('unhandledrejection', (event) => {
+  const msg = String(event.reason?.message || '')
+  if (/Failed to fetch dynamically imported module|error loading dynamically imported module|Importing a module script failed/i.test(msg)) {
+    const key = 'apexpro_chunk_reload'
+    if (!sessionStorage.getItem(key)) {
+      sessionStorage.setItem(key, '1')
+      window.location.reload()
+    }
+  }
+})
+
 // Páginas críticas — carga inmediata
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'

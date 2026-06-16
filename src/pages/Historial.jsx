@@ -103,9 +103,9 @@ function TicketHistory() {
       {/* Resumen */}
       {!loading && allTickets.length > 0 && (
         <div className="rounded-xl overflow-hidden border border-gray-100 dark:border-gray-800">
-          <div className="flex items-center justify-between px-4 py-3 bg-blue-50 dark:bg-blue-900/20">
-            <span className="text-sm text-blue-700 dark:text-blue-300 font-medium">{allTickets.length} tickets</span>
-            <span className="text-sm font-bold text-blue-700 dark:text-blue-300">{formatMoney(totalIncome)}</span>
+          <div className="flex items-center justify-between px-4 py-3 bg-gray-50 dark:bg-gray-800/60">
+            <span className="text-sm text-gray-600 dark:text-gray-300 font-medium">{allTickets.length} tickets</span>
+            <span className="text-sm font-bold text-gray-900 dark:text-white">{formatMoney(totalIncome)}</span>
           </div>
         </div>
       )}
@@ -285,7 +285,7 @@ function ClientList() {
       </div>
 
       <div className="flex items-center justify-between text-sm">
-        <span className="text-blue-600 dark:text-blue-400 font-medium">{filtered.length} placas</span>
+        <span className="text-gray-700 dark:text-gray-300 font-medium">{filtered.length} placas</span>
         <span className="text-gray-400">de {clients.length} totales</span>
       </div>
 
@@ -343,7 +343,7 @@ function ClientList() {
                   ) : (
                     <button
                       onClick={() => { setEditing(c.plate); setEditForm({ name: meta.name || '', phone: meta.phone || '' }) }}
-                      className="mt-3 w-full flex items-center justify-center gap-2 py-2 text-sm text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800 rounded-xl hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors">
+                      className="mt-3 w-full flex items-center justify-center gap-2 py-2 text-sm text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
                       <Pencil className="w-3.5 h-3.5" /> Editar nombre y teléfono
                     </button>
                   )}

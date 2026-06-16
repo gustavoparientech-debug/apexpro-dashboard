@@ -9,27 +9,6 @@ const NO_MARCACION_COST = 5
 
 const IS_DEMO = !import.meta.env.VITE_SUPABASE_URL || import.meta.env.VITE_SUPABASE_URL === 'https://placeholder.supabase.co'
 
-// ─── Caché de toda la página (sessionStorage — dura solo la sesión del navegador) ─
-const SESSION_CACHE_KEY = 'apexpro_session_v1'
-const SESSION_CACHE_TTL = 90 * 1000 // 90 segundos — datos "frescos" suficiente
-
-function getSessionCache(prefix) {
-  try {
-    const raw = sessionStorage.getItem(SESSION_CACHE_KEY)
-    if (!raw) return null
-    const { data, ts, p } = JSON.parse(raw)
-    if (p !== prefix) return null // diferente mes
-    if (Date.now() - ts > SESSION_CACHE_TTL) return null
-    return data
-  } catch { return null }
-}
-
-function setSessionCache(prefix, data) {
-  try {
-    sessionStorage.setItem(SESSION_CACHE_KEY, JSON.stringify({ data, ts: Date.now(), p: prefix }))
-  } catch {}
-}
-
 // ─── Caché de datos estáticos (workers, services, vehicle_types, extras) ──────
 const STATIC_CACHE_KEY = 'apexpro_static_v1'
 const STATIC_CACHE_TTL = 30 * 60 * 1000 // 30 minutos
@@ -285,15 +264,6 @@ export function AppProvider({ children }) {
       const lastDay   = new Date(y, m, 0).getDate()
       const endDate   = `${prefix}-${String(lastDay).padStart(2, '0')}`
 
-      // Si hay caché de sesión válida (< 90s), mostrar inmediatamente y salir
-      const sessionCached = getSessionCache(prefix)
-      if (sessionCached) {
-        initialLoadDone.current = true
-        loadInFlight.current = false
-        dispatch({ type: 'SET_ALL', payload: sessionCached })
-        return
-      }
-
       // Caché de datos estáticos en localStorage (30 min TTL)
       const staticCached = getStaticCache()
 
@@ -340,9 +310,6 @@ export function AppProvider({ children }) {
         monthlyCosts:   costs.data || { month: m, year: y, rent: 2700, supplies: 800, utility_goal: 2000 },
         expenses:       expensesRes.error ? [] : (expensesRes.data || []),
       }
-
-      // Guardar en sessionStorage para la próxima carga en los próximos 90s
-      if (!month && !year) setSessionCache(prefix, payload)
 
       initialLoadDone.current = true
       dispatch({ type: 'SET_ALL', payload })
@@ -448,7 +415,6 @@ export function AppProvider({ children }) {
     if (error) throw error
     recentLocalIds.current.add(t.id)
     setTimeout(() => recentLocalIds.current.delete(t.id), 5000)
-    sessionStorage.removeItem(SESSION_CACHE_KEY)
     dispatch({ type: 'ADD_TICKET', payload: t })
     return t
   }
@@ -463,7 +429,6 @@ export function AppProvider({ children }) {
     if (error) throw error
     recentLocalIds.current.add(t.id)
     setTimeout(() => recentLocalIds.current.delete(t.id), 5000)
-    sessionStorage.removeItem(SESSION_CACHE_KEY)
     dispatch({ type: 'UPDATE_TICKET', payload: t })
     return t
   }

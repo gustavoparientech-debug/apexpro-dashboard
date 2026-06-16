@@ -443,7 +443,7 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
             {extras.map((ex, i) => (
               <div key={i} className="flex items-center justify-between">
                 <span className="text-sm text-gray-700 dark:text-gray-300">
-                  {ex.manual && <span className="text-xs bg-purple-100 dark:bg-purple-900/30 text-purple-600 px-1 rounded mr-1">manual</span>}
+                  {ex.manual && <span className="text-xs bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 px-1 rounded mr-1">manual</span>}
                   {ex.name}
                 </span>
                 <div className="flex items-center gap-2">
@@ -735,14 +735,14 @@ function ClosedTicketCard({ ticket, workers, vehicleTypes, onDelete, onEdit, onS
           </div>
           {onSummary && (
             <button onClick={e => { e.stopPropagation(); onSummary(ticket) }}
-              className="p-1.5 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg mt-0.5">
-              <Eye className="w-3.5 h-3.5 text-green-500" />
+              className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg mt-0.5">
+              <Eye className="w-3.5 h-3.5 text-gray-400" />
             </button>
           )}
           {onEdit && (
             <button onClick={e => { e.stopPropagation(); onEdit(ticket) }}
-              className="p-1.5 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg mt-0.5">
-              <PenLine className="w-3.5 h-3.5 text-blue-400" />
+              className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg mt-0.5">
+              <PenLine className="w-3.5 h-3.5 text-gray-400" />
             </button>
           )}
           {onDelete && (
@@ -1312,11 +1312,11 @@ export default function Registro() {
               {/* Selector fecha compacto */}
               {canAdmin ? (
                 <div className="flex items-center gap-1 mt-1">
-                  <select className="bg-transparent text-gray-300 text-xs font-medium focus:outline-none cursor-pointer"
+                  <select className="bg-transparent text-gray-300 text-xs font-medium rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70 cursor-pointer"
                     value={selMonth} onChange={e => handleMonthChange(+e.target.value, selYear)}>
                     {MONTHS.map((m, i) => <option key={i+1} value={i+1} className="bg-gray-800">{m}</option>)}
                   </select>
-                  <select className="bg-transparent text-gray-300 text-xs font-medium focus:outline-none cursor-pointer"
+                  <select className="bg-transparent text-gray-300 text-xs font-medium rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70 cursor-pointer"
                     value={selYear} onChange={e => handleMonthChange(selMonth, +e.target.value)}>
                     {[cy-1, cy, cy+1].map(y => <option key={y} value={y} className="bg-gray-800">{y}</option>)}
                   </select>
@@ -1344,7 +1344,7 @@ export default function Registro() {
                 <ChevronLeft className="w-3.5 h-3.5 text-white" />
               </button>
               <input type="date"
-                className="bg-white/10 text-white text-xs font-medium flex-1 focus:outline-none text-center rounded-lg px-2 py-1 cursor-pointer min-w-0"
+                className="bg-white/10 text-white text-xs font-medium flex-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70 text-center rounded-lg px-2 py-1 cursor-pointer min-w-0"
                 value={selectedDate}
                 min={`${selYear}-${String(selMonth).padStart(2,'0')}-01`}
                 max={`${selYear}-${String(selMonth).padStart(2,'0')}-${new Date(selYear, selMonth, 0).getDate()}`}
@@ -1599,8 +1599,8 @@ export default function Registro() {
                   {canAdmin && (
                     <>
                       <button onClick={() => setEditingExpense({ ...exp })}
-                        className="p-1.5 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg">
-                        <PenLine className="w-3.5 h-3.5 text-blue-400" />
+                        className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg">
+                        <PenLine className="w-3.5 h-3.5 text-gray-400" />
                       </button>
                       <button onClick={async () => { try { await deleteExpense(exp.id); toast.success('Gasto eliminado') } catch { toast.error('Error al eliminar') } }}
                         className="p-1.5 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg">

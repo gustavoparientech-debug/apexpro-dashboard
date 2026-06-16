@@ -333,8 +333,8 @@ function ExpensesPanel({ expenses, workers }) {
                 {canAdmin && (
                   <>
                     <button onClick={() => setEditingExp({ ...exp })}
-                      className="p-1 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg flex-shrink-0">
-                      <Pencil className="w-3 h-3 text-blue-400" />
+                      className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg flex-shrink-0">
+                      <Pencil className="w-3 h-3 text-gray-400" />
                     </button>
                     <button onClick={async () => { try { await deleteExpense(exp.id); toast.success('Eliminado') } catch { toast.error('Error') } }}
                       className="p-1 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg flex-shrink-0">
@@ -664,7 +664,7 @@ export default function Dashboard() {
                   <p className="text-sm font-semibold text-gray-900 dark:text-white">{r.worker.name}</p>
                   <p className="text-xs text-gray-400">{r.cars} vehículos · prom {formatMoney(r.cars > 0 ? r.income / r.cars : 0)}</p>
                 </div>
-                <p className="text-sm font-bold text-blue-600 dark:text-blue-400">{formatMoney(r.income)}</p>
+                <p className="text-sm font-bold text-gray-900 dark:text-white">{formatMoney(r.income)}</p>
               </div>
             ))}
           </div>

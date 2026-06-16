@@ -6,7 +6,7 @@ import { supabase } from '../lib/supabase'
 const IS_DEMO = !import.meta.env.VITE_SUPABASE_URL || import.meta.env.VITE_SUPABASE_URL === 'https://placeholder.supabase.co'
 import {
   formatMoney, formatDate, getSemaforoColor, calcRealSalary, calcTicketProfit,
-  getWorkingDaysInMonth, getWorkingDaysElapsed, getWorkingDaysRemaining,
+  getWorkingDaysInMonth, getWorkingDaysElapsed, getWorkingDaysRemaining, getWorkingDaysInRange,
   currentMonthYear, monthName
 } from '../lib/utils'
 import StatCard from '../components/ui/StatCard'
@@ -414,21 +414,30 @@ export default function Dashboard() {
     const supplies = monthlyCosts?.supplies || 0
     const totalCosts  = fixedItemsTotal + payrollTotal + monthBonusAmt + workerExpTotal
 
-    const workingDaysTotal    = getWorkingDaysInMonth(selYear, selMonth)
-    const workingDaysElapsed  = isCurrentMonth ? getWorkingDaysElapsed(selYear, selMonth) : workingDaysTotal
-    const workingDaysRemaining = isCurrentMonth ? getWorkingDaysRemaining(selYear, selMonth) : 0
+    const monthWorkingDaysTotal = getWorkingDaysInMonth(selYear, selMonth)
+    const rangeWorkingDays = hasRange ? getWorkingDaysInRange(rangeFrom, rangeTo) : null
+
+    // Días hábiles a mostrar: del rango filtrado si hay rango, si no del mes
+    const workingDaysTotal    = hasRange ? rangeWorkingDays : monthWorkingDaysTotal
+    const workingDaysElapsed  = hasRange ? rangeWorkingDays : (isCurrentMonth ? getWorkingDaysElapsed(selYear, selMonth) : monthWorkingDaysTotal)
+    const workingDaysRemaining = hasRange ? 0 : (isCurrentMonth ? getWorkingDaysRemaining(selYear, selMonth) : 0)
 
     const fixedCosts = fixedItemsTotal + payrollTotal + monthBonusAmt
-    const proportionalFixed = (isCurrentMonth && !hasRange && workingDaysTotal > 0)
-      ? fixedCosts * (workingDaysElapsed / workingDaysTotal)
-      : fixedCosts
+    // Costos fijos prorrateados a los días hábiles realmente filtrados (rango o transcurridos del mes)
+    const proportionalFixed = hasRange
+      ? (monthWorkingDaysTotal > 0 ? fixedCosts * (rangeWorkingDays / monthWorkingDaysTotal) : 0)
+      : (isCurrentMonth && monthWorkingDaysTotal > 0 ? fixedCosts * (workingDaysElapsed / monthWorkingDaysTotal) : fixedCosts)
     const netProfit = totalIncome - proportionalFixed - workerExpTotal
-    const incomeGoal  = fixedItemsTotal + payrollTotal + monthBonusAmt + utilityGoal
+    const incomeGoal  = hasRange
+      ? proportionalFixed + utilityGoal * (monthWorkingDaysTotal > 0 ? rangeWorkingDays / monthWorkingDaysTotal : 0)
+      : fixedItemsTotal + payrollTotal + monthBonusAmt + utilityGoal
     const progressPct = incomeGoal > 0 ? (totalIncome / incomeGoal) * 100 : 0
     const semaforo    = getSemaforoColor(progressPct)
 
     const avgDailyActual  = workingDaysElapsed  > 0 ? totalIncome / workingDaysElapsed  : 0
-    const avgDailyNeeded  = workingDaysTotal    > 0 ? incomeGoal / workingDaysTotal : 0
+    const avgDailyNeeded  = hasRange
+      ? (rangeWorkingDays > 0 ? incomeGoal / rangeWorkingDays : 0)
+      : (monthWorkingDaysTotal > 0 ? incomeGoal / monthWorkingDaysTotal : 0)
     const totalCars = periodTickets.length
 
     const efectivo      = periodTickets.filter(t => t.payment_method === 'efectivo').reduce((s, t) => s + t.price_charged, 0)
@@ -554,7 +563,7 @@ export default function Dashboard() {
       {/* KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <StatCard label={hasRange ? 'Ingresos del rango' : 'Ingresos del mes'}   value={formatMoney(data.totalIncome)}  sub={`${data.totalCars} vehículos`} icon={DollarSign} color="red" />
-        <StatCard label="Ganancia neta est." value={formatMoney(data.netProfit)}    sub={`Costos proporcionales al día ${data.workingDaysElapsed}`} icon={TrendingUp} color="green" />
+        <StatCard label="Ganancia neta est." value={formatMoney(data.netProfit)}    sub={hasRange ? `Costos prop. a ${data.workingDaysElapsed} días hábiles` : `Costos proporcionales al día ${data.workingDaysElapsed}`} icon={TrendingUp} color="green" />
         <StatCard label="Total gastos"       value={formatMoney(data.totalCosts)}   sub={`Planilla: ${formatMoney(data.payrollTotal)}`} icon={CreditCard} color="neutral" />
         <StatCard label="Vehículos"          value={data.totalCars}                 sub={`Prom: ${formatMoney(data.totalCars ? data.totalIncome / data.totalCars : 0)}/carro`} icon={Car} color="neutral" />
       </div>
@@ -583,7 +592,7 @@ export default function Dashboard() {
           </div>
           <div className="space-y-2">
             <div className="flex justify-between"><span className="text-xs text-gray-500">Promedio actual/día</span><span className="font-semibold text-sm text-gray-900 dark:text-white">{formatMoney(data.avgDailyActual)}</span></div>
-            {isCurrentMonth && <div className="flex justify-between"><span className="text-xs text-gray-500">Necesario para cerrar</span><span className={`font-semibold text-sm ${data.avgDailyNeeded > data.avgDailyActual ? 'text-red-500' : 'text-green-500'}`}>{formatMoney(data.avgDailyNeeded)}</span></div>}
+            {(isCurrentMonth || hasRange) && <div className="flex justify-between"><span className="text-xs text-gray-500">Necesario para cerrar</span><span className={`font-semibold text-sm ${data.avgDailyNeeded > data.avgDailyActual ? 'text-red-500' : 'text-green-500'}`}>{formatMoney(data.avgDailyNeeded)}</span></div>}
           </div>
         </div>
         <div className="card">
@@ -592,7 +601,7 @@ export default function Dashboard() {
             <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">Días hábiles</p>
           </div>
           <div className="space-y-2">
-            <div className="flex justify-between"><span className="text-xs text-gray-500">Trabajados</span><span className="font-semibold text-sm text-gray-900 dark:text-white">{data.workingDaysElapsed} de {data.workingDaysTotal}</span></div>
+            <div className="flex justify-between"><span className="text-xs text-gray-500">{hasRange ? 'Días hábiles en rango' : 'Trabajados'}</span><span className="font-semibold text-sm text-gray-900 dark:text-white">{hasRange ? data.workingDaysElapsed : `${data.workingDaysElapsed} de ${data.workingDaysTotal}`}</span></div>
             {isCurrentMonth && <div className="flex justify-between"><span className="text-xs text-gray-500">Restantes</span><span className="font-semibold text-sm text-red-500">{data.workingDaysRemaining} días</span></div>}
           </div>
         </div>

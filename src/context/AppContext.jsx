@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase'
 import {
   DEMO_WORKERS, DEMO_SERVICES, DEMO_TICKETS, DEMO_INCIDENTS, DEMO_MONTHLY_COSTS
 } from '../lib/demoData'
-import { calcRealSalary, calcLatenessDiscount, calcAbsenceDiscount, currentMonthYear } from '../lib/utils'
+import { calcRealSalary, calcLatenessDiscount, calcAbsenceDiscount, calcOvertimePay, currentMonthYear } from '../lib/utils'
 
 const NO_MARCACION_COST = 5
 
@@ -130,10 +130,14 @@ function enrichIncident(incident, workers) {
   if (!worker) return incident
   let discount = 0
   if (incident.apply_discount) {
-    if (incident.type === 'tardanza') {
+    if (incident.type === 'tardanza' || incident.type === 'permiso_horas') {
       discount = calcLatenessDiscount(worker.base_salary, worker.weekly_hours, incident.hours_late || 0)
+    } else if (incident.type === 'hora_extra') {
+      discount = calcOvertimePay(worker.base_salary, worker.weekly_hours, incident.hours_late || 0)
     } else if (incident.type === 'no_marcacion') {
       discount = NO_MARCACION_COST * (incident.no_marcacion_count || 1)
+    } else if (incident.type === 'multa') {
+      discount = incident.discount_amount || 0
     } else {
       discount = calcAbsenceDiscount(worker.base_salary, worker.weekly_hours)
     }
@@ -143,8 +147,10 @@ function enrichIncident(incident, workers) {
 
 function calcIncidentDiscount(data, worker) {
   if (!data.apply_discount || !worker) return 0
-  if (data.type === 'tardanza') return calcLatenessDiscount(worker.base_salary, worker.weekly_hours, data.hours_late || 0)
+  if (data.type === 'tardanza' || data.type === 'permiso_horas') return calcLatenessDiscount(worker.base_salary, worker.weekly_hours, data.hours_late || 0)
+  if (data.type === 'hora_extra') return calcOvertimePay(worker.base_salary, worker.weekly_hours, data.hours_late || 0)
   if (data.type === 'no_marcacion') return NO_MARCACION_COST * (data.no_marcacion_count || 1)
+  if (data.type === 'multa') return parseFloat(data.multa_amount) || data.discount_amount || 0
   return calcAbsenceDiscount(worker.base_salary, worker.weekly_hours)
 }
 

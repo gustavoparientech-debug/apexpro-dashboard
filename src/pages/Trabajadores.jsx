@@ -11,8 +11,8 @@ import { Plus, Edit2, UserX, UserCheck, AlertCircle, Clock, Calendar } from 'luc
 import toast from 'react-hot-toast'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 
-const INCIDENT_ICONS = { falta: '🔴', permiso: '🟡', permiso_horas: '🟡', tardanza: '🟠', hora_extra: '🟢', no_marcacion: '🔵' }
-const INCIDENT_LABELS = { falta: 'Falta injustificada', permiso: 'Permiso justificado', permiso_horas: 'Permiso por horas', tardanza: 'Tardanza', hora_extra: 'Hora extra', no_marcacion: 'No marcó entrada/salida' }
+const INCIDENT_ICONS = { falta: '🔴', permiso: '🟡', permiso_horas: '🟡', tardanza: '🟠', hora_extra: '🟢', no_marcacion: '🔵', multa: '🚫' }
+const INCIDENT_LABELS = { falta: 'Falta injustificada', permiso: 'Permiso justificado', permiso_horas: 'Permiso por horas', tardanza: 'Tardanza', hora_extra: 'Hora extra', no_marcacion: 'No marcó entrada/salida', multa: 'Multa' }
 
 function WorkerForm({ initial, onSave, onClose }) {
   const [form, setForm] = useState({
@@ -84,11 +84,21 @@ function WorkerForm({ initial, onSave, onClose }) {
 
 function IncidentForm({ workers, onSave, onClose, initial }) {
   const activeWorkers = workers.filter(w => w.active)
+
+  function splitHours(decimal) {
+    const h = Math.floor(parseFloat(decimal) || 0)
+    const m = Math.round(((parseFloat(decimal) || 0) - h) * 60)
+    return { h: String(h), m: String(m) }
+  }
+
+  const initHours = initial?.hours_late ? splitHours(initial.hours_late) : { h: '', m: '0' }
   const [form, setForm] = useState({
     worker_id: initial?.worker_id || '',
     date: initial?.date || new Date().toISOString().slice(0, 10),
     type: initial?.type || 'falta',
-    hours_late: initial?.hours_late || '',
+    hours_h: initHours.h,
+    hours_m: initHours.m,
+    multa_amount: initial?.discount_amount && initial?.type === 'multa' ? String(initial.discount_amount) : '',
     no_marcacion_count: initial?.no_marcacion_count || 1,
     apply_discount: initial?.apply_discount !== false,
     observation: initial?.observation || '',
@@ -96,25 +106,37 @@ function IncidentForm({ workers, onSave, onClose, initial }) {
 
   const worker = workers.find(w => w.id === form.worker_id)
   const isAddition = form.type === 'hora_extra'
+  const hoursDecimal = (parseInt(form.hours_h) || 0) + (parseInt(form.hours_m) || 0) / 60
+
   const previewDiscount = useMemo(() => {
     if (!worker || !form.apply_discount) return 0
-    if (form.type === 'tardanza' || form.type === 'permiso_horas') return calcLatenessDiscount(worker.base_salary, worker.weekly_hours, parseFloat(form.hours_late) || 0)
-    if (form.type === 'hora_extra') return calcOvertimePay(worker.base_salary, worker.weekly_hours, parseFloat(form.hours_late) || 0)
+    if (form.type === 'tardanza' || form.type === 'permiso_horas') return calcLatenessDiscount(worker.base_salary, worker.weekly_hours, hoursDecimal)
+    if (form.type === 'hora_extra') return calcOvertimePay(worker.base_salary, worker.weekly_hours, hoursDecimal)
     if (form.type === 'no_marcacion') return 5 * (parseInt(form.no_marcacion_count) || 1)
+    if (form.type === 'multa') return parseFloat(form.multa_amount) || 0
     return calcAbsenceDiscount(worker.base_salary, worker.weekly_hours)
-  }, [worker, form])
+  }, [worker, form, hoursDecimal])
 
   async function handleSubmit(e) {
     e.preventDefault()
     if (!form.worker_id) { toast.error('Selecciona un trabajador'); return }
+    if (form.type === 'multa' && !form.observation.trim()) { toast.error('La multa requiere una nota explicativa'); return }
     await onSave({
-      ...form,
-      hours_late: parseFloat(form.hours_late) || 0,
+      worker_id: form.worker_id,
+      date: form.date,
+      type: form.type,
+      hours_late: hoursDecimal,
       no_marcacion_count: parseInt(form.no_marcacion_count) || 1,
+      apply_discount: form.type === 'multa' ? true : form.apply_discount,
+      observation: form.observation,
       is_addition: isAddition,
+      multa_amount: form.type === 'multa' ? parseFloat(form.multa_amount) || 0 : undefined,
     })
     onClose()
   }
+
+  const hasHours = form.type === 'tardanza' || form.type === 'permiso_horas' || form.type === 'hora_extra'
+  const typeLabel = form.type === 'hora_extra' ? 'Horas extra' : form.type === 'permiso_horas' ? 'Horas de permiso' : 'Horas de tardanza'
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
@@ -133,19 +155,39 @@ function IncidentForm({ workers, onSave, onClose, initial }) {
         <div>
           <label className="label">Tipo</label>
           <select className="input" value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value }))}>
-            <option value="falta">Falta injustificada</option>
-            <option value="permiso">Permiso justificado (día completo)</option>
-            <option value="permiso_horas">Permiso por horas</option>
-            <option value="tardanza">Tardanza</option>
-            <option value="hora_extra">Hora extra</option>
-            <option value="no_marcacion">No marcó entrada/salida</option>
+            <option value="falta">🔴 Falta injustificada</option>
+            <option value="permiso">🟡 Permiso justificado (día completo)</option>
+            <option value="permiso_horas">🟡 Permiso por horas</option>
+            <option value="tardanza">🟠 Tardanza</option>
+            <option value="hora_extra">🟢 Hora extra</option>
+            <option value="no_marcacion">🔵 No marcó entrada/salida</option>
+            <option value="multa">🚫 Multa</option>
           </select>
         </div>
       </div>
-      {(form.type === 'tardanza' || form.type === 'permiso_horas' || form.type === 'hora_extra') && (
+      {hasHours && (
         <div>
-          <label className="label">{form.type === 'hora_extra' ? 'Horas extra' : form.type === 'permiso_horas' ? 'Horas de permiso' : 'Horas de tardanza'}</label>
-          <input type="number" className="input" min="0.25" step="0.25" max="12" value={form.hours_late} onChange={e => setForm(f => ({ ...f, hours_late: e.target.value }))} placeholder="1.5" required />
+          <label className="label">{typeLabel}</label>
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1 flex-1">
+              <input
+                type="number" className="input text-center" min="0" max="23" step="1"
+                value={form.hours_h}
+                onChange={e => setForm(f => ({ ...f, hours_h: e.target.value }))}
+                placeholder="0" required
+              />
+              <span className="text-sm text-gray-500 shrink-0">h</span>
+            </div>
+            <div className="flex items-center gap-1 flex-1">
+              <select className="input text-center" value={form.hours_m} onChange={e => setForm(f => ({ ...f, hours_m: e.target.value }))}>
+                <option value="0">00</option>
+                <option value="15">15</option>
+                <option value="30">30</option>
+                <option value="45">45</option>
+              </select>
+              <span className="text-sm text-gray-500 shrink-0">min</span>
+            </div>
+          </div>
         </div>
       )}
       {form.type === 'no_marcacion' && (
@@ -162,20 +204,41 @@ function IncidentForm({ workers, onSave, onClose, initial }) {
           </p>
         </div>
       )}
-      <div className="flex items-center gap-2">
-        <input type="checkbox" id="apply_discount" checked={form.apply_discount} onChange={e => setForm(f => ({ ...f, apply_discount: e.target.checked }))} />
-        <label htmlFor="apply_discount" className="text-sm text-gray-700 dark:text-gray-300 cursor-pointer">{isAddition ? 'Pagar en planilla' : 'Aplicar descuento'}</label>
-      </div>
+      {form.type === 'multa' && (
+        <div>
+          <label className="label">Monto de la multa (S/)</label>
+          <input
+            type="number" className="input" min="0" step="0.50"
+            value={form.multa_amount}
+            onChange={e => setForm(f => ({ ...f, multa_amount: e.target.value }))}
+            placeholder="0.00" required
+          />
+        </div>
+      )}
+      {form.type !== 'multa' && (
+        <div className="flex items-center gap-2">
+          <input type="checkbox" id="apply_discount" checked={form.apply_discount} onChange={e => setForm(f => ({ ...f, apply_discount: e.target.checked }))} />
+          <label htmlFor="apply_discount" className="text-sm text-gray-700 dark:text-gray-300 cursor-pointer">{isAddition ? 'Pagar en planilla' : 'Aplicar descuento'}</label>
+        </div>
+      )}
       {worker && (
-        <div className={`rounded-lg p-3 text-xs ${!form.apply_discount ? 'bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700' : isAddition ? 'bg-green-50 dark:bg-green-900/10 border border-green-100 dark:border-green-900/30' : 'bg-red-50 dark:bg-red-900/10 border border-red-100 dark:border-red-900/30'}`}>
-          <p className={!form.apply_discount ? 'text-gray-500' : isAddition ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
-            {!form.apply_discount ? 'Sin efecto en planilla (solo registro)' : isAddition ? `Se suma a su pago: +${formatMoney(previewDiscount)}` : `Descuento: ${formatMoney(previewDiscount)}`}
+        <div className={`rounded-lg p-3 text-xs ${!form.apply_discount && form.type !== 'multa' ? 'bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700' : isAddition ? 'bg-green-50 dark:bg-green-900/10 border border-green-100 dark:border-green-900/30' : 'bg-red-50 dark:bg-red-900/10 border border-red-100 dark:border-red-900/30'}`}>
+          <p className={!form.apply_discount && form.type !== 'multa' ? 'text-gray-500' : isAddition ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
+            {!form.apply_discount && form.type !== 'multa' ? 'Sin efecto en planilla (solo registro)' : isAddition ? `Se suma a su pago: +${formatMoney(previewDiscount)}` : `Descuento: ${formatMoney(previewDiscount)}`}
           </p>
         </div>
       )}
       <div>
-        <label className="label">Observación</label>
-        <textarea className="input resize-none" rows={2} value={form.observation} onChange={e => setForm(f => ({ ...f, observation: e.target.value }))} placeholder="Motivo o detalle..." />
+        <label className="label">
+          {form.type === 'multa' ? <span>Motivo de la multa <span className="text-red-500">*</span></span> : 'Observación'}
+        </label>
+        <textarea
+          className="input resize-none" rows={2}
+          value={form.observation}
+          onChange={e => setForm(f => ({ ...f, observation: e.target.value }))}
+          placeholder={form.type === 'multa' ? 'Describe el motivo para que el trabajador lo entienda...' : 'Motivo o detalle...'}
+          required={form.type === 'multa'}
+        />
       </div>
       <div className="flex gap-3 pt-2">
         <button type="button" className="btn-secondary flex-1" onClick={onClose}>Cancelar</button>
@@ -404,7 +467,7 @@ export default function Trabajadores() {
                   <span className="text-lg">{INCIDENT_ICONS[incident.type]}</span>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-gray-900 dark:text-white">{worker?.name} — {INCIDENT_LABELS[incident.type]}</p>
-                    <p className="text-xs text-gray-500">{formatDate(incident.date)}{incident.hours_late ? ` · ${incident.hours_late}h` : ''}</p>
+                    <p className="text-xs text-gray-500">{formatDate(incident.date)}{incident.hours_late ? ` · ${Math.floor(incident.hours_late)}h ${Math.round((incident.hours_late % 1) * 60)}min` : ''}</p>
                     {incident.observation && <p className="text-xs text-gray-400 italic mt-0.5">{incident.observation}</p>}
                   </div>
                   <div className="flex items-center gap-2">

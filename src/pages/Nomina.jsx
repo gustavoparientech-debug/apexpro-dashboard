@@ -5,7 +5,7 @@ import Badge from '../components/ui/Badge'
 import { Download, FileSpreadsheet, Pencil, Check, X } from 'lucide-react'
 import toast from 'react-hot-toast'
 
-const INCIDENT_LABELS = { falta: 'Falta injustificada', permiso: 'Permiso justificado', permiso_horas: 'Permiso por horas', tardanza: 'Tardanza', hora_extra: 'Hora extra', no_marcacion: 'No marcó entrada/salida' }
+const INCIDENT_LABELS = { falta: 'Falta injustificada', permiso: 'Permiso justificado', permiso_horas: 'Permiso por horas', tardanza: 'Tardanza', hora_extra: 'Hora extra', no_marcacion: 'No marcó entrada/salida', multa: 'Multa' }
 
 export default function Nomina() {
   const { workers, incidents, updateWorker } = useApp()
@@ -229,10 +229,12 @@ export default function Nomina() {
                     <div key={i.id} className="flex items-center gap-3 text-xs">
                       <span className="text-gray-500">{formatDate(i.date)}</span>
                       <span className="text-gray-600 dark:text-gray-400">{INCIDENT_LABELS[i.type]}</span>
-                      {i.type === 'tardanza' && <span className="text-gray-400">{i.hours_late}h</span>}
+                      {(i.type === 'tardanza' || i.type === 'permiso_horas' || i.type === 'hora_extra') && i.hours_late > 0 && <span className="text-gray-400">{Math.floor(i.hours_late)}h {Math.round((i.hours_late % 1) * 60)}min</span>}
                       {i.type === 'no_marcacion' && <span className="text-gray-400">{i.no_marcacion_count || 1} vez{(i.no_marcacion_count || 1) > 1 ? 'es' : ''} · S/ 5 c/u</span>}
                       {i.apply_discount
-                        ? <Badge variant="rojo">-{formatMoney(i.discount_amount)}</Badge>
+                        ? i.is_addition
+                          ? <Badge variant="verde">+{formatMoney(i.discount_amount)}</Badge>
+                          : <Badge variant="rojo">-{formatMoney(i.discount_amount)}</Badge>
                         : <Badge variant="gray">Sin descuento</Badge>
                       }
                       {i.observation && <span className="text-gray-400 italic">{i.observation}</span>}

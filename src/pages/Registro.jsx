@@ -102,15 +102,16 @@ function NewTicketForm({ onSave, onClose, workers, vehicleTypes, lockedWorkerId,
   const activeWorkers = workers.filter(w => w.active)
   const activeVehicles = (vehicleTypes || []).filter(v => v.active !== false)
 
-  function handlePhoto(e) {
+  async function handlePhoto(e) {
     const file = e.target.files?.[0]
     if (!file) return
-    const reader = new FileReader()
-    reader.onload = ev => {
-      setPhotoPreview(ev.target.result)
-      setForm(f => ({ ...f, photo_url: ev.target.result }))
-    }
-    reader.readAsDataURL(file)
+    setPhotoPreview(URL.createObjectURL(file))
+    const ext  = file.name.split('.').pop() || 'jpg'
+    const path = `placas/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`
+    const { error } = await supabase.storage.from('payment-photos').upload(path, file, { upsert: true })
+    if (error) { toast.error('Error al subir foto'); return }
+    const { data } = supabase.storage.from('payment-photos').getPublicUrl(path)
+    setForm(f => ({ ...f, photo_url: data.publicUrl }))
   }
 
   function handleVehicle(vt) {

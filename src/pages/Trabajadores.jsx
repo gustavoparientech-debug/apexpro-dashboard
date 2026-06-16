@@ -11,8 +11,8 @@ import { Plus, Edit2, UserX, UserCheck, AlertCircle, Clock, Calendar } from 'luc
 import toast from 'react-hot-toast'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 
-const INCIDENT_ICONS = { falta: '🔴', permiso: '🟡', permiso_horas: '🟡', tardanza: '🟠', hora_extra: '🟢', no_marcacion: '🔵', multa: '🚫' }
-const INCIDENT_LABELS = { falta: 'Falta injustificada', permiso: 'Permiso justificado', permiso_horas: 'Permiso por horas', tardanza: 'Tardanza', hora_extra: 'Hora extra', no_marcacion: 'No marcó entrada/salida', multa: 'Multa' }
+const INCIDENT_ICONS = { falta: '🔴', permiso: '🟡', permiso_horas: '🟡', tardanza: '🟠', hora_extra: '🟢', no_marcacion: '🔵', multa: '🚫', adelanto: '💵' }
+const INCIDENT_LABELS = { falta: 'Falta injustificada', permiso: 'Permiso justificado', permiso_horas: 'Permiso por horas', tardanza: 'Tardanza', hora_extra: 'Hora extra', no_marcacion: 'No marcó entrada/salida', multa: 'Multa', adelanto: 'Adelanto de sueldo' }
 
 function WorkerForm({ initial, onSave, onClose }) {
   const [form, setForm] = useState({
@@ -127,7 +127,7 @@ function IncidentForm({ workers, onSave, onClose, initial }) {
       type: form.type,
       hours_late: hoursDecimal,
       no_marcacion_count: parseInt(form.no_marcacion_count) || 1,
-      apply_discount: form.type === 'multa' ? true : form.apply_discount,
+      apply_discount: (form.type === 'multa' || form.type === 'adelanto') ? true : form.apply_discount,
       observation: form.observation,
       is_addition: isAddition,
       multa_amount: form.type === 'multa' ? parseFloat(form.multa_amount) || 0 : undefined,
@@ -162,6 +162,7 @@ function IncidentForm({ workers, onSave, onClose, initial }) {
             <option value="hora_extra">🟢 Hora extra</option>
             <option value="no_marcacion">🔵 No marcó entrada/salida</option>
             <option value="multa">🚫 Multa</option>
+            <option value="adelanto">💵 Adelanto de sueldo</option>
           </select>
         </div>
       </div>
@@ -204,9 +205,9 @@ function IncidentForm({ workers, onSave, onClose, initial }) {
           </p>
         </div>
       )}
-      {form.type === 'multa' && (
+      {(form.type === 'multa' || form.type === 'adelanto') && (
         <div>
-          <label className="label">Monto de la multa (S/)</label>
+          <label className="label">{form.type === 'adelanto' ? 'Monto del adelanto (S/)' : 'Monto de la multa (S/)'}</label>
           <input
             type="number" className="input" min="0" step="0.50"
             value={form.multa_amount}
@@ -215,16 +216,22 @@ function IncidentForm({ workers, onSave, onClose, initial }) {
           />
         </div>
       )}
-      {form.type !== 'multa' && (
+      {form.type !== 'multa' && form.type !== 'adelanto' && (
         <div className="flex items-center gap-2">
           <input type="checkbox" id="apply_discount" checked={form.apply_discount} onChange={e => setForm(f => ({ ...f, apply_discount: e.target.checked }))} />
           <label htmlFor="apply_discount" className="text-sm text-gray-700 dark:text-gray-300 cursor-pointer">{isAddition ? 'Pagar en planilla' : 'Aplicar descuento'}</label>
         </div>
       )}
       {worker && (
-        <div className={`rounded-lg p-3 text-xs ${!form.apply_discount && form.type !== 'multa' ? 'bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700' : isAddition ? 'bg-green-50 dark:bg-green-900/10 border border-green-100 dark:border-green-900/30' : 'bg-red-50 dark:bg-red-900/10 border border-red-100 dark:border-red-900/30'}`}>
-          <p className={!form.apply_discount && form.type !== 'multa' ? 'text-gray-500' : isAddition ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
-            {!form.apply_discount && form.type !== 'multa' ? 'Sin efecto en planilla (solo registro)' : isAddition ? `Se suma a su pago: +${formatMoney(previewDiscount)}` : `Descuento: ${formatMoney(previewDiscount)}`}
+        <div className={`rounded-lg p-3 text-xs ${!form.apply_discount && form.type !== 'multa' && form.type !== 'adelanto' ? 'bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700' : isAddition ? 'bg-green-50 dark:bg-green-900/10 border border-green-100 dark:border-green-900/30' : 'bg-red-50 dark:bg-red-900/10 border border-red-100 dark:border-red-900/30'}`}>
+          <p className={!form.apply_discount && form.type !== 'multa' && form.type !== 'adelanto' ? 'text-gray-500' : isAddition ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
+            {!form.apply_discount && form.type !== 'multa' && form.type !== 'adelanto'
+              ? 'Sin efecto en planilla (solo registro)'
+              : isAddition
+                ? `Se suma a su pago: +${formatMoney(previewDiscount)}`
+                : form.type === 'adelanto'
+                  ? `Se descuenta del sueldo: -${formatMoney(previewDiscount)}`
+                  : `Descuento: ${formatMoney(previewDiscount)}`}
           </p>
         </div>
       )}

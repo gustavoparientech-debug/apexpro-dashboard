@@ -136,7 +136,7 @@ function enrichIncident(incident, workers) {
       discount = calcOvertimePay(worker.base_salary, worker.weekly_hours, incident.hours_late || 0)
     } else if (incident.type === 'no_marcacion') {
       discount = NO_MARCACION_COST * (incident.no_marcacion_count || 1)
-    } else if (incident.type === 'multa') {
+    } else if (incident.type === 'multa' || incident.type === 'adelanto') {
       discount = incident.discount_amount || 0
     } else {
       discount = calcAbsenceDiscount(worker.base_salary, worker.weekly_hours)
@@ -174,7 +174,7 @@ function calcIncidentDiscount(data, worker) {
   if (data.type === 'tardanza' || data.type === 'permiso_horas') return calcLatenessDiscount(worker.base_salary, worker.weekly_hours, data.hours_late || 0)
   if (data.type === 'hora_extra') return calcOvertimePay(worker.base_salary, worker.weekly_hours, data.hours_late || 0)
   if (data.type === 'no_marcacion') return NO_MARCACION_COST * (data.no_marcacion_count || 1)
-  if (data.type === 'multa') return parseFloat(data.multa_amount) || data.discount_amount || 0
+  if (data.type === 'multa' || data.type === 'adelanto') return parseFloat(data.multa_amount) || data.discount_amount || 0
   return calcAbsenceDiscount(worker.base_salary, worker.weekly_hours)
 }
 

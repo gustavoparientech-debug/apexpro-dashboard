@@ -81,6 +81,22 @@ export function calcRealSalary(baseSalary, weeklyHours) {
   return baseSalary * (weeklyHours / 48)
 }
 
+// Salario prorrateado cuando un trabajador se retira a mitad de mes:
+// paga solo los días hábiles trabajados (desde el inicio del mes, o su ingreso si fue después)
+// hasta su fecha de salida.
+export function calcProratedSalary(baseSalary, weeklyHours, year, month, terminatedAt, hireDate) {
+  const monthStart = `${year}-${String(month).padStart(2, '0')}-01`
+  const monthEndDate = new Date(year, month, 0)
+  const monthEnd = `${year}-${String(month).padStart(2, '0')}-${String(monthEndDate.getDate()).padStart(2, '0')}`
+
+  const from = hireDate && hireDate > monthStart ? hireDate : monthStart
+  const to = terminatedAt < monthEnd ? terminatedAt : monthEnd
+  if (to < from) return 0
+
+  const daysWorked = getWorkingDaysInRange(from, to)
+  return calcDailySalary(baseSalary, weeklyHours) * daysWorked
+}
+
 // Calcula salario diario
 export function calcDailySalary(baseSalary, weeklyHours) {
   const realMonthly = calcRealSalary(baseSalary, weeklyHours)

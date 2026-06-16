@@ -1,8 +1,8 @@
 import { useState, useMemo } from 'react'
 import { useApp } from '../context/AppContext'
 import {
-  formatMoney, formatDate, calcRealSalary, calcDailySalary,
-  calcAbsenceDiscount, calcLatenessDiscount, getRatioColor, currentMonthYear, monthName
+  formatMoney, formatDate, calcRealSalary, calcDailySalary, calcProratedSalary,
+  calcAbsenceDiscount, calcLatenessDiscount, getRatioColor, currentMonthYear, monthName, todayISO
 } from '../lib/utils'
 import Modal from '../components/ui/Modal'
 import ConfirmDialog from '../components/ui/ConfirmDialog'
@@ -180,6 +180,10 @@ function IncidentForm({ workers, onSave, onClose, initial }) {
   )
 }
 
+function monthRangeStr(year, month) {
+  return `${year}-${String(month).padStart(2, '0')}-01`
+}
+
 export default function Trabajadores() {
   const { workers, tickets, incidents, services, addWorker, updateWorker, addIncident, updateIncident, deleteIncident } = useApp()
   const { month, year } = currentMonthYear()
@@ -188,25 +192,36 @@ export default function Trabajadores() {
   const [editingWorker, setEditingWorker] = useState(null)
   const [editingIncident, setEditingIncident] = useState(null)
   const [deactivateTarget, setDeactivateTarget] = useState(null)
+  const [terminationDate, setTerminationDate] = useState(todayISO())
   const [deleteIncidentTarget, setDeleteIncidentTarget] = useState(null)
   const [selectedWorker, setSelectedWorker] = useState(null)
 
-  const workerStats = useMemo(() => {
-    return workers.map(w => {
-      const realSalary = calcRealSalary(w.base_salary, w.weekly_hours)
-      const workerTickets = tickets.filter(t => t.worker_id === w.id)
-      const income = workerTickets.reduce((s, t) => s + t.price_charged, 0)
-      const cars = workerTickets.length
-      const workerIncidents = incidents.filter(i => i.worker_id === w.id)
-      const totalDiscounts = workerIncidents.filter(i => i.apply_discount).reduce((s, i) => s + (i.discount_amount || 0), 0)
-      const finalPay = realSalary - totalDiscounts
-      const ratio = realSalary > 0 ? income / realSalary : 0
-      const daysInMonth = new Date(year, month, 0).getDate()
-      const avgDaily = income / daysInMonth
-      const avgPerCar = cars > 0 ? income / cars : 0
+  const monthStart = monthRangeStr(year, month)
 
-      return { ...w, realSalary, income, cars, workerIncidents, totalDiscounts, finalPay, ratio, avgDaily, avgPerCar }
-    })
+  function leftThisMonth(w) {
+    return !w.active && w.terminated_at && w.terminated_at >= monthStart
+  }
+
+  const workerStats = useMemo(() => {
+    return workers
+      .filter(w => w.active || leftThisMonth(w))
+      .map(w => {
+        const realSalary = leftThisMonth(w)
+          ? calcProratedSalary(w.base_salary, w.weekly_hours, year, month, w.terminated_at, w.hire_date)
+          : calcRealSalary(w.base_salary, w.weekly_hours)
+        const workerTickets = tickets.filter(t => t.worker_id === w.id)
+        const income = workerTickets.reduce((s, t) => s + t.price_charged, 0)
+        const cars = workerTickets.length
+        const workerIncidents = incidents.filter(i => i.worker_id === w.id)
+        const totalDiscounts = workerIncidents.filter(i => i.apply_discount).reduce((s, i) => s + (i.discount_amount || 0), 0)
+        const finalPay = realSalary - totalDiscounts
+        const ratio = realSalary > 0 ? income / realSalary : 0
+        const daysInMonth = new Date(year, month, 0).getDate()
+        const avgDaily = income / daysInMonth
+        const avgPerCar = cars > 0 ? income / cars : 0
+
+        return { ...w, realSalary, income, cars, workerIncidents, totalDiscounts, finalPay, ratio, avgDaily, avgPerCar }
+      })
   }, [workers, tickets, incidents, month, year])
 
   const chartData = workerStats.filter(w => w.active).map(w => ({ name: w.name, income: w.income, salario: w.realSalary }))
@@ -228,8 +243,13 @@ export default function Trabajadores() {
 
   async function handleToggleActive(worker) {
     try {
-      await updateWorker(worker.id, { active: !worker.active })
-      toast.success(worker.active ? 'Trabajador dado de baja' : 'Trabajador reactivado')
+      if (worker.active) {
+        await updateWorker(worker.id, { active: false, terminated_at: terminationDate })
+        toast.success('Trabajador dado de baja')
+      } else {
+        await updateWorker(worker.id, { active: true, terminated_at: null })
+        toast.success('Trabajador reactivado')
+      }
     } catch (err) {
       toast.error('Error: ' + err.message)
     }
@@ -307,7 +327,10 @@ export default function Trabajadores() {
                       </div>
                       <div>
                         <p className="font-medium text-gray-900 dark:text-white">{w.name}</p>
-                        <p className="text-xs text-gray-400">{w.weekly_hours}h/sem</p>
+                        <p className="text-xs text-gray-400">
+                          {w.weekly_hours}h/sem
+                          {leftThisMonth(w) && <span className="text-amber-500"> · Se retiró el {formatDate(w.terminated_at)}</span>}
+                        </p>
                       </div>
                     </div>
                   </td>
@@ -330,7 +353,7 @@ export default function Trabajadores() {
                       <button onClick={() => { setEditingWorker(w); setShowWorkerForm(true) }} className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded">
                         <Edit2 className="w-3.5 h-3.5 text-gray-400" />
                       </button>
-                      <button onClick={() => setDeactivateTarget(w)} className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded">
+                      <button onClick={() => { setTerminationDate(todayISO()); setDeactivateTarget(w) }} className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded">
                         {w.active ? <UserX className="w-3.5 h-3.5 text-gray-400" /> : <UserCheck className="w-3.5 h-3.5 text-green-500" />}
                       </button>
                     </div>
@@ -404,17 +427,31 @@ export default function Trabajadores() {
         <IncidentForm workers={workers} onSave={handleSaveIncident} onClose={() => { setShowIncidentForm(false); setEditingIncident(null) }} initial={editingIncident} />
       </Modal>
 
-      <ConfirmDialog
-        open={!!deactivateTarget}
-        onClose={() => setDeactivateTarget(null)}
-        onConfirm={() => handleToggleActive(deactivateTarget)}
-        title={deactivateTarget?.active ? '¿Dar de baja?' : '¿Reactivar trabajador?'}
-        message={deactivateTarget?.active
-          ? `${deactivateTarget?.name} quedará inactivo pero su historial se conserva.`
-          : `${deactivateTarget?.name} volverá a aparecer en los registros.`}
-        confirmLabel={deactivateTarget?.active ? 'Dar de baja' : 'Reactivar'}
-        variant={deactivateTarget?.active ? 'danger' : 'primary'}
-      />
+      {deactivateTarget?.active ? (
+        <Modal open={!!deactivateTarget} onClose={() => setDeactivateTarget(null)} title="¿Dar de baja?" size="sm">
+          <p className="text-gray-600 dark:text-gray-400 text-sm mb-4">
+            {deactivateTarget?.name} quedará inactivo. Su pago de este mes se calculará solo por los días que trabajó.
+          </p>
+          <div className="mb-6">
+            <label className="label">Fecha de salida</label>
+            <input type="date" className="input" value={terminationDate} onChange={e => setTerminationDate(e.target.value)} max={todayISO()} />
+          </div>
+          <div className="flex gap-3 justify-end">
+            <button className="btn-secondary" onClick={() => setDeactivateTarget(null)}>Cancelar</button>
+            <button className="btn-danger" onClick={() => { handleToggleActive(deactivateTarget); setDeactivateTarget(null) }}>Dar de baja</button>
+          </div>
+        </Modal>
+      ) : (
+        <ConfirmDialog
+          open={!!deactivateTarget}
+          onClose={() => setDeactivateTarget(null)}
+          onConfirm={() => handleToggleActive(deactivateTarget)}
+          title="¿Reactivar trabajador?"
+          message={`${deactivateTarget?.name} volverá a aparecer en los registros.`}
+          confirmLabel="Reactivar"
+          variant="primary"
+        />
+      )}
 
       <ConfirmDialog
         open={!!deleteIncidentTarget}

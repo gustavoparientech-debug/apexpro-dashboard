@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from 'react'
 import { useApp } from '../context/AppContext'
-import { formatMoney, formatDate, calcRealSalary, currentMonthYear, monthName } from '../lib/utils'
+import { formatMoney, formatDate, calcRealSalary, calcProratedSalary, currentMonthYear, monthName } from '../lib/utils'
 import Badge from '../components/ui/Badge'
 import { Download, FileSpreadsheet, Pencil, Check, X } from 'lucide-react'
 import toast from 'react-hot-toast'
@@ -23,12 +23,19 @@ export default function Nomina() {
   }
   const { month, year } = currentMonthYear()
   const tableRef = useRef(null)
+  const monthStart = `${year}-${String(month).padStart(2, '0')}-01`
+
+  function leftThisMonth(w) {
+    return !w.active && w.terminated_at && w.terminated_at >= monthStart
+  }
 
   const payrollData = useMemo(() => {
     return workers
-      .filter(w => w.active)
+      .filter(w => w.active || leftThisMonth(w))
       .map(w => {
-        const realSalary = calcRealSalary(w.base_salary, w.weekly_hours)
+        const realSalary = leftThisMonth(w)
+          ? calcProratedSalary(w.base_salary, w.weekly_hours, year, month, w.terminated_at, w.hire_date)
+          : calcRealSalary(w.base_salary, w.weekly_hours)
         const workerIncidents = incidents.filter(i => i.worker_id === w.id)
         const totalDiscounts = workerIncidents
           .filter(i => i.apply_discount)
@@ -36,7 +43,7 @@ export default function Nomina() {
         const finalPay = realSalary - totalDiscounts
         return { ...w, realSalary, workerIncidents, totalDiscounts, finalPay }
       })
-  }, [workers, incidents])
+  }, [workers, incidents, month, year])
 
   const totalPayroll = payrollData.reduce((s, w) => s + w.finalPay, 0)
   const totalDiscounts = payrollData.reduce((s, w) => s + w.totalDiscounts, 0)
@@ -171,7 +178,10 @@ export default function Nomina() {
                       </div>
                     ) : (
                       <div className="flex items-center gap-1.5">
-                        <p className="text-xs text-gray-400">Base: {formatMoney(w.base_salary)} · {w.weekly_hours}h/sem</p>
+                        <p className="text-xs text-gray-400">
+                          Base: {formatMoney(w.base_salary)} · {w.weekly_hours}h/sem
+                          {leftThisMonth(w) && <span className="text-amber-500"> · Se retiró el {formatDate(w.terminated_at)}</span>}
+                        </p>
                         <button onClick={() => setEditingWorker({ id: w.id, base_salary: w.base_salary, weekly_hours: w.weekly_hours })}
                           className="p-0.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded">
                           <Pencil className="w-3 h-3 text-gray-400" />

@@ -1,4 +1,4 @@
-import { createContext, useContext, useReducer, useEffect, useCallback, useRef } from 'react'
+import { createContext, useContext, useReducer, useEffect, useCallback, useRef, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 import {
   DEMO_WORKERS, DEMO_SERVICES, DEMO_TICKETS, DEMO_INCIDENTS, DEMO_MONTHLY_COSTS
@@ -8,6 +8,26 @@ import { calcRealSalary, calcLatenessDiscount, calcAbsenceDiscount, currentMonth
 const NO_MARCACION_COST = 5
 
 const IS_DEMO = !import.meta.env.VITE_SUPABASE_URL || import.meta.env.VITE_SUPABASE_URL === 'https://placeholder.supabase.co'
+
+// ─── Caché de datos estáticos (workers, services, vehicle_types, extras) ──────
+const STATIC_CACHE_KEY = 'apexpro_static_v1'
+const STATIC_CACHE_TTL = 10 * 60 * 1000 // 10 minutos
+
+function getStaticCache() {
+  try {
+    const raw = localStorage.getItem(STATIC_CACHE_KEY)
+    if (!raw) return null
+    const { data, ts } = JSON.parse(raw)
+    if (Date.now() - ts > STATIC_CACHE_TTL) return null
+    return data
+  } catch { return null }
+}
+
+function setStaticCache(data) {
+  try {
+    localStorage.setItem(STATIC_CACHE_KEY, JSON.stringify({ data, ts: Date.now() }))
+  } catch {}
+}
 
 // ─── localStorage helpers ─────────────────────────────────────────────────────
 const LS_KEY = 'apexpro_data_v2'
@@ -128,8 +148,9 @@ function calcIncidentDiscount(data, worker) {
 // ─── Provider ────────────────────────────────────────────────────────────────
 export function AppProvider({ children }) {
   const [state, dispatch] = useReducer(reducer, initialState)
-  // Evita guardar en LS durante la carga inicial
   const initialLoadDone = useRef(false)
+  // IDs de tickets que acabamos de insertar/actualizar localmente → ignorar el eco del Realtime
+  const recentLocalIds = useRef(new Set())
 
   // ── Guardar en localStorage cada vez que cambia el estado (solo demo) ──────
   // Usamos una ref para acumular TODOS los tickets/incidencias de todos los meses
@@ -224,7 +245,6 @@ export function AppProvider({ children }) {
 
     // ── Supabase ──────────────────────────────────────────────────────────────
     try {
-      // Esperar a que Supabase restaure la sesión desde localStorage antes de lanzar queries
       await supabase.auth.getSession()
 
       const { month: cm, year: cy } = currentMonthYear()
@@ -234,36 +254,58 @@ export function AppProvider({ children }) {
       const lastDay   = new Date(y, m, 0).getDate()
       const endDate   = `${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
 
-      const [workers, services, vehicleTypesRes, extrasRes, ticketsRes, summaries, incidents, costs, expensesRes] = await Promise.all([
-        supabase.from('workers').select('*').order('name'),
-        supabase.from('services').select('*').order('category, name'),
-        supabase.from('vehicle_types').select('*').eq('active', true).order('sort_order'),
-        supabase.from('extras_catalog').select('*').eq('active', true).order('sort_order'),
+      // Datos estáticos: intentar caché primero (evita 4 queries en recargas frecuentes)
+      const cached = (!month && !year) ? getStaticCache() : null
+
+      const dynamicPromises = [
         supabase.from('tickets').select('*').gte('date', startDate).lte('date', endDate).order('created_at', { ascending: false }),
         supabase.from('daily_summary').select('*').gte('date', startDate).lte('date', endDate),
         supabase.from('attendance_incidents').select('*').gte('date', startDate).lte('date', endDate),
         supabase.from('monthly_costs').select('*').eq('month', m).eq('year', y).maybeSingle(),
         supabase.from('worker_expenses').select('*').gte('date', startDate).lte('date', endDate).order('date', { ascending: false }),
-      ])
+      ]
 
-      if (workers.error) console.warn('workers error:', workers.error.message)
-      if (services.error) console.warn('services error:', services.error.message)
+      const staticPromises = cached ? [] : [
+        supabase.from('workers').select('*').order('name'),
+        supabase.from('services').select('*').order('category, name'),
+        supabase.from('vehicle_types').select('*').eq('active', true).order('sort_order'),
+        supabase.from('extras_catalog').select('*').eq('active', true).order('sort_order'),
+      ]
 
-      const workersData       = workers.data || []
+      const results = await Promise.all([...dynamicPromises, ...staticPromises])
+      const [ticketsRes, summaries, incidents, costs, expensesRes] = results
+      const [workersRes, servicesRes, vehicleTypesRes, extrasRes] = cached
+        ? [null, null, null, null]
+        : results.slice(5)
+
+      let workersData, servicesData, vehicleTypesData, extrasCatalogData
+
+      if (cached) {
+        workersData       = cached.workers
+        servicesData      = cached.services
+        vehicleTypesData  = cached.vehicleTypes
+        extrasCatalogData = cached.extrasCatalog
+      } else {
+        workersData       = workersRes.data || []
+        servicesData      = servicesRes.data || []
+        vehicleTypesData  = vehicleTypesRes.data?.length ? vehicleTypesRes.data : DEMO_VEHICLE_TYPES
+        extrasCatalogData = extrasRes.data?.length ? extrasRes.data : DEMO_EXTRAS_CATALOG
+        setStaticCache({ workers: workersData, services: servicesData, vehicleTypes: vehicleTypesData, extrasCatalog: extrasCatalogData })
+      }
+
       const incidentsEnriched = (incidents.data || []).map(i => enrichIncident(i, workersData))
-      const allTickets        = ticketsRes.data || []
 
       initialLoadDone.current = true
       dispatch({ type: 'SET_ALL', payload: {
         workers:        workersData,
-        services:       services.data || [],
-        vehicleTypes:   vehicleTypesRes.data?.length ? vehicleTypesRes.data : DEMO_VEHICLE_TYPES,
-        extrasCatalog:  extrasRes.data?.length ? extrasRes.data : DEMO_EXTRAS_CATALOG,
-        tickets:        allTickets,
+        services:       servicesData,
+        vehicleTypes:   vehicleTypesData,
+        extrasCatalog:  extrasCatalogData,
+        tickets:        ticketsRes.data || [],
         dailySummaries: summaries.data || [],
         incidents:      incidentsEnriched,
         monthlyCosts:   costs.data || { month: m, year: y, rent: 2700, supplies: 800, utility_goal: 2000 },
-        expenses:       expensesRes.error ? (console.error('expenses fetch error:', expensesRes.error), []) : (expensesRes.data || []),
+        expenses:       expensesRes.error ? [] : (expensesRes.data || []),
       }})
     } catch (err) {
       console.error('loadData error:', err)
@@ -273,8 +315,9 @@ export function AppProvider({ children }) {
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      // TOKEN_REFRESHED es silencioso — no relanzar 10 queries por eso
       if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN') {
+        // Si ya tenemos datos cargados en esta sesión, no volver a cargar
+        if (initialLoadDone.current) return
         loadData()
       }
     })
@@ -287,10 +330,12 @@ export function AppProvider({ children }) {
     const channel = supabase
       .channel('tickets-live')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'tickets' }, ({ new: t }) => {
-        dispatch(prev => prev) // no-op guard
+        // Ignorar eco del ticket que acabamos de insertar localmente
+        if (recentLocalIds.current.has(t.id)) return
         dispatch({ type: 'ADD_TICKET', payload: t })
       })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'tickets' }, ({ new: t }) => {
+        if (recentLocalIds.current.has(t.id)) return
         dispatch({ type: 'UPDATE_TICKET', payload: t })
       })
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'tickets' }, ({ old: t }) => {
@@ -309,6 +354,7 @@ export function AppProvider({ children }) {
     }
     const { data: w, error } = await supabase.from('workers').insert(data).select().single()
     if (error) throw error
+    localStorage.removeItem(STATIC_CACHE_KEY)
     dispatch({ type: 'ADD_WORKER', payload: w })
     return w
   }
@@ -321,6 +367,7 @@ export function AppProvider({ children }) {
     }
     const { data: w, error } = await supabase.from('workers').update(data).eq('id', id).select().single()
     if (error) throw error
+    localStorage.removeItem(STATIC_CACHE_KEY)
     dispatch({ type: 'UPDATE_WORKER', payload: w })
     return w
   }
@@ -359,17 +406,11 @@ export function AppProvider({ children }) {
     }
     // Intentar con nuevas columnas; si no existen (SQL pendiente), usar columnas básicas
     const { data: t, error } = await supabase.from('tickets').insert(data).select().single()
-    if (!error) {
-      dispatch({ type: 'ADD_TICKET', payload: t })
-      return t
-    }
-    // Fallback: insertar sin las columnas nuevas
-    const { status, opened_at, extras, ...basicData } = data
-    const { data: t2, error: err2 } = await supabase.from('tickets').insert(basicData).select().single()
-    if (err2) throw err2
-    const withDefaults = { ...t2, status: status || 'abierto', opened_at: opened_at || new Date().toISOString(), extras: extras || [] }
-    dispatch({ type: 'ADD_TICKET', payload: withDefaults })
-    return withDefaults
+    if (error) throw error
+    recentLocalIds.current.add(t.id)
+    setTimeout(() => recentLocalIds.current.delete(t.id), 5000)
+    dispatch({ type: 'ADD_TICKET', payload: t })
+    return t
   }
 
   const updateTicket = async (id, data) => {
@@ -380,6 +421,8 @@ export function AppProvider({ children }) {
     }
     const { data: t, error } = await supabase.from('tickets').update(data).eq('id', id).select().single()
     if (error) throw error
+    recentLocalIds.current.add(t.id)
+    setTimeout(() => recentLocalIds.current.delete(t.id), 5000)
     dispatch({ type: 'UPDATE_TICKET', payload: t })
     return t
   }

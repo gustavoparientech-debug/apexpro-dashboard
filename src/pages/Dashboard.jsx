@@ -405,8 +405,8 @@ export default function Dashboard() {
       : (monthlyCosts?.rent || 0) + (monthlyCosts?.supplies || 0)
     const payrollTotal = workers.filter(w => w.active).reduce((s, w) => {
       const real = calcRealSalary(w.base_salary, w.weekly_hours)
-      // Solo descuentos reales (no adelanto que es timing, no hora_extra que suma)
-      const disc = incidents.filter(i => i.worker_id === w.id && i.apply_discount && !i.is_addition && i.type !== 'adelanto' && i.date?.startsWith(prefix))
+      // Descuentos reales (sin hora_extra que suma). Adelanto sí se resta porque ya aparece como expense
+      const disc = incidents.filter(i => i.worker_id === w.id && i.apply_discount && !i.is_addition && i.date?.startsWith(prefix))
         .reduce((d, i) => d + (i.discount_amount || 0), 0)
       const overtime = incidents.filter(i => i.worker_id === w.id && i.apply_discount && i.is_addition && i.date?.startsWith(prefix))
         .reduce((d, i) => d + (i.discount_amount || 0), 0)

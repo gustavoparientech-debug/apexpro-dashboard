@@ -130,7 +130,7 @@ function IncidentForm({ workers, onSave, onClose, initial }) {
       apply_discount: (form.type === 'multa' || form.type === 'adelanto') ? true : form.apply_discount,
       observation: form.observation,
       is_addition: isAddition,
-      multa_amount: form.type === 'multa' ? parseFloat(form.multa_amount) || 0 : undefined,
+      multa_amount: (form.type === 'multa' || form.type === 'adelanto') ? parseFloat(form.multa_amount) || 0 : undefined,
     })
     onClose()
   }

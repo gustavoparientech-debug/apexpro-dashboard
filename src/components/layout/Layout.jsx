@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { NavLink, useLocation, Navigate, useNavigate } from 'react-router-dom'
 import { useTheme } from '../../context/ThemeContext'
 import { useAuth } from '../../context/AuthContext'
@@ -23,30 +23,51 @@ function GastoSheet({ onClose, fixedWorkerId }) {
   const { addExpense, workers } = useApp()
   const [form, setForm] = useState({ date: todayISO(), amount: '', category: '', notes: '', worker_id: fixedWorkerId || '' })
   const [busy, setBusy] = useState(false)
+  const [mounted, setMounted] = useState(false)
+  const [closing, setClosing] = useState(false)
+
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setMounted(true))
+    return () => cancelAnimationFrame(id)
+  }, [])
+
+  function handleClose() {
+    setClosing(true)
+    setTimeout(onClose, 180)
+  }
+
   async function handleSave() {
     if (!form.amount) { toast.error('Ingresa el monto'); return }
     setBusy(true)
     try {
       await addExpense({ ...form, amount: parseFloat(form.amount) })
       toast.success('Gasto registrado')
-      onClose()
+      handleClose()
     } catch { toast.error('Error al guardar') }
     finally { setBusy(false) }
   }
+
+  const show = mounted && !closing
+
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center">
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-lg bg-white dark:bg-gray-900 rounded-t-3xl p-5 space-y-4">
+      <div
+        className={`absolute inset-0 bg-black/40 backdrop-blur-sm transition-opacity duration-200 ease-out ${show ? 'opacity-100' : 'opacity-0'}`}
+        onClick={handleClose}
+      />
+      <div
+        className={`relative w-full max-w-lg bg-white dark:bg-gray-900 rounded-t-3xl p-5 space-y-4 transition-transform duration-250 ease-[cubic-bezier(0.23,1,0.32,1)] ${show ? 'translate-y-0' : 'translate-y-full'}`}
+      >
         <div className="flex items-center justify-between mb-1">
           <h2 className="text-lg font-bold text-gray-900 dark:text-white">Registrar gasto</h2>
-          <button onClick={onClose}><X className="w-5 h-5 text-gray-400" /></button>
+          <button onClick={handleClose}><X className="w-5 h-5 text-gray-400" /></button>
         </div>
         <input type="date" className="input" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} />
         <input type="number" className="input" placeholder="Monto S/" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} />
         <div className="grid grid-cols-3 gap-2">
           {GASTO_CATS.map(c => (
             <button key={c.value} type="button" onClick={() => setForm(f => ({ ...f, category: c.value }))}
-              className={`py-2 px-2 rounded-xl border text-xs font-medium transition-all ${form.category === c.value ? 'border-red-500 bg-red-50 dark:bg-red-900/20 text-red-600' : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300'}`}>
+              className={`py-2 px-2 rounded-xl border text-xs font-medium transition-colors duration-150 ease-out ${form.category === c.value ? 'border-red-500 bg-red-50 dark:bg-red-900/20 text-red-600' : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300'}`}>
               {c.label}
             </button>
           ))}
@@ -59,7 +80,7 @@ function GastoSheet({ onClose, fixedWorkerId }) {
         )}
         <input className="input" placeholder="Notas (opcional)" value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
         <button onClick={handleSave} disabled={busy}
-          className="w-full py-3 rounded-2xl bg-red-600 hover:bg-red-700 text-white font-bold transition-all active:scale-95">
+          className="w-full py-3 rounded-2xl bg-red-600 hover:bg-red-700 text-white font-bold transition-transform duration-150 ease-out active:scale-[0.97]">
           {busy ? 'Guardando…' : 'Registrar gasto'}
         </button>
       </div>
@@ -79,22 +100,29 @@ function GlobalFab({ canAdmin, workerWorkerId }) {
 
   return (
     <>
-      {open && <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-30" onClick={() => setOpen(false)} />}
+      {open && (
+        <div
+          className="fixed inset-0 bg-black/30 backdrop-blur-sm z-30 transition-opacity duration-200 ease-out animate-[fadeIn_200ms_ease-out]"
+          onClick={() => setOpen(false)}
+        />
+      )}
       <div className="fixed bottom-20 right-4 lg:bottom-6 lg:right-6 z-40 flex flex-col items-end gap-2">
         {open && (
           <>
             <button onClick={() => { setOpen(false); setShowGasto(true) }}
-              className="flex items-center gap-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm font-semibold px-4 py-2.5 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 transition-all whitespace-nowrap">
+              style={{ transformOrigin: 'bottom right', animationDelay: '40ms' }}
+              className="flex items-center gap-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm font-semibold px-4 py-2.5 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 transition-colors whitespace-nowrap animate-[popIn_180ms_cubic-bezier(0.23,1,0.32,1)_backwards]">
               <TrendingDown className="w-4 h-4 text-amber-500" /> Registrar gasto
             </button>
             <button onClick={handleNewTicket}
-              className="flex items-center gap-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm font-semibold px-4 py-2.5 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 transition-all whitespace-nowrap">
+              style={{ transformOrigin: 'bottom right' }}
+              className="flex items-center gap-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm font-semibold px-4 py-2.5 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 transition-colors whitespace-nowrap animate-[popIn_180ms_cubic-bezier(0.23,1,0.32,1)_backwards]">
               <ClipboardList className="w-4 h-4 text-red-600" /> Nuevo ticket
             </button>
           </>
         )}
         <button onClick={() => setOpen(v => !v)}
-          className={`w-14 h-14 rounded-full shadow-xl flex items-center justify-center transition-all duration-200 ${open ? 'bg-gray-700' : 'bg-red-600 hover:bg-red-700'}`}>
+          className={`w-14 h-14 rounded-full shadow-xl flex items-center justify-center transition-colors duration-150 ease-out active:scale-[0.97] ${open ? 'bg-gray-700' : 'bg-red-600 hover:bg-red-700'}`}>
           {open ? <X className="w-6 h-6 text-white" /> : <Plus className="w-6 h-6 text-white" />}
         </button>
       </div>

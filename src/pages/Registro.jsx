@@ -356,8 +356,9 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
 
   const extrasTotal = extras.reduce((s, e) => s + (e.price || 0), 0)
   const totalBruto = parseFloat(basePrice || 0) + extrasTotal
-  const isTransferencia = ticket.payment_method === 'transferencia'
-  const isMixto = ticket.payment_method === 'mixto'
+  const effectivePayment = ticket.payment_method || 'yape'
+  const isTransferencia = effectivePayment === 'transferencia'
+  const isMixto = effectivePayment === 'mixto'
   const TRANSFER_FEE = 0.04
   const total = isTransferencia ? Math.round(totalBruto * (1 - TRANSFER_FEE) * 100) / 100 : totalBruto
   const mixtoSum = (parseFloat(mixtoYape) || 0) + (parseFloat(mixtoEfectivo) || 0)
@@ -401,20 +402,17 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
   }
 
   async function handleClose() {
-    if (!ticket.payment_method) {
-      toast.error('Selecciona el método de pago antes de cerrar')
-      return
-    }
     if (isMixto && !mixtoOk) {
       toast.error(`La suma debe ser ${formatMoney(total)} (falta ${formatMoney(total - mixtoSum)})`)
       return
     }
     await onUpdate(ticket.id, {
-      status:        'cerrado',
-      price_charged: total,
+      status:         'cerrado',
+      price_charged:  total,
       extras,
       notes,
-      closed_at:     new Date().toISOString(),
+      payment_method: effectivePayment,
+      closed_at:      new Date().toISOString(),
       ...(paymentPhoto && { payment_photo: paymentPhoto }),
       ...(isMixto && { mixto_yape: parseFloat(mixtoYape) || 0, mixto_efectivo: parseFloat(mixtoEfectivo) || 0 }),
     })
@@ -557,7 +555,7 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
               <button key={p.value} type="button"
                 onClick={() => onUpdate(ticket.id, { payment_method: p.value })}
                 className={`py-2 rounded-xl border text-xs font-medium transition-all ${
-                  ticket.payment_method === p.value
+                  effectivePayment === p.value
                     ? 'border-red-500 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400'
                     : 'border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400'
                 }`}>

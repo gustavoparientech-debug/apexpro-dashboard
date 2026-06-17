@@ -1226,7 +1226,8 @@ export default function Registro() {
 
   // Tickets abiertos (sin filtro de fecha)
   const openTickets = useMemo(
-    () => tickets.filter(t => t.status === 'abierto'),
+    () => [...tickets.filter(t => t.status === 'abierto')]
+      .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0)),
     [tickets]
   )
 

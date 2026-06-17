@@ -1278,7 +1278,13 @@ export default function Registro() {
     const map = {}
     closedToday.forEach(t => {
       const pm = t.payment_method || 'efectivo'
-      map[pm] = (map[pm] || 0) + (t.price_charged || 0)
+      if (pm === 'mixto') {
+        // Distribuir el pago mixto entre yape y efectivo
+        map['yape']     = (map['yape']     || 0) + (t.mixto_yape     || 0)
+        map['efectivo'] = (map['efectivo'] || 0) + (t.mixto_efectivo || 0)
+      } else {
+        map[pm] = (map[pm] || 0) + (t.price_charged || 0)
+      }
     })
     const total = Object.values(map).reduce((s, v) => s + v, 0)
     return Object.entries(map).map(([method, amount]) => ({ method, amount, pct: total > 0 ? Math.round(amount / total * 100) : 0 }))

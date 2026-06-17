@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import { cn, todayISO } from '../../lib/utils'
 import { IncidentForm } from '../../pages/Trabajadores'
+import UpdateBanner from '../UpdateBanner'
 import toast from 'react-hot-toast'
 
 const GASTO_CATS = [
@@ -371,6 +372,7 @@ export default function Layout({ children }) {
         </main>
 
         <GlobalFab canAdmin={isAdmin || isDemo} workerWorkerId={profile?.worker_id} />
+        <UpdateBanner />
 
         {/* Bottom nav móvil */}
         <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-30 bg-[#1e1e1e] border-t border-white/10 flex">

@@ -82,7 +82,7 @@ function WorkerForm({ initial, onSave, onClose }) {
   )
 }
 
-function IncidentForm({ workers, onSave, onClose, initial }) {
+export function IncidentForm({ workers, onSave, onClose, initial }) {
   const activeWorkers = workers.filter(w => w.active)
 
   function splitHours(decimal) {

@@ -5,7 +5,8 @@ import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { formatMoney, todayISO, compressImage } from '../lib/utils'
 import ConfirmDialog from '../components/ui/ConfirmDialog'
-import { Plus, Camera, Search, X, Clock, CheckCircle, Trash2, PenLine, Zap, Save, ChevronLeft, ChevronRight, Eye, EyeOff } from 'lucide-react'
+import { Plus, Camera, Search, X, Clock, CheckCircle, Trash2, PenLine, Zap, Save, ChevronLeft, ChevronRight, Eye, EyeOff, AlertCircle } from 'lucide-react'
+import { IncidentForm } from './Trabajadores'
 import toast from 'react-hot-toast'
 
 const PAYMENT_OPTIONS = [
@@ -1230,7 +1231,7 @@ const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto
 export default function Registro() {
   const {
     tickets, dailySummaries, workers, vehicleTypes, extrasCatalog, expenses,
-    addTicket, updateTicket, deleteTicket, addDailySummary, deleteDailySummary, updateExpense, deleteExpense, loadData,
+    addTicket, updateTicket, deleteTicket, addDailySummary, deleteDailySummary, updateExpense, deleteExpense, addIncident, loadData,
   } = useApp()
   const { profile, isAdmin, isDemo } = useAuth()
 
@@ -1251,7 +1252,9 @@ export default function Registro() {
       window.history.replaceState({}, '')
     }
   }, [location.state])
-  const [showQuickForm, setShowQuickForm]  = useState(false)
+  const [showQuickForm,    setShowQuickForm]    = useState(false)
+  const [showFabMenu,      setShowFabMenu]      = useState(false)
+  const [showIncidentForm, setShowIncidentForm] = useState(false)
   const [activeTicket, setActiveTicket]    = useState(null)
   const [editingTicket, setEditingTicket]  = useState(null)
   const [summaryTicket, setSummaryTicket]  = useState(null)
@@ -1505,11 +1508,35 @@ export default function Registro() {
         </div>
       </div>
 
-      {/* Botón nuevo ticket */}
-      <button onClick={() => setShowNewForm(true)}
-        className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl bg-red-600 hover:bg-red-700 text-white font-bold text-base shadow-lg shadow-red-200 dark:shadow-red-900/30 active:scale-95 transition-all">
-        <Plus className="w-5 h-5" /> Nuevo ticket
-      </button>
+      {/* Botón nuevo ticket / FAB con menú para admin */}
+      {canAdmin ? (
+        <div className="relative">
+          {showFabMenu && (
+            <>
+              <div className="fixed inset-0 z-30" onClick={() => setShowFabMenu(false)} />
+              <div className="absolute bottom-full mb-2 left-0 right-0 z-40 flex flex-col gap-2">
+                <button onClick={() => { setShowFabMenu(false); setShowIncidentForm(true) }}
+                  className="flex items-center gap-2 py-3 px-4 rounded-2xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-base shadow-lg active:scale-95 transition-all">
+                  <AlertCircle className="w-5 h-5" /> Nueva incidencia
+                </button>
+                <button onClick={() => { setShowFabMenu(false); setShowNewForm(true) }}
+                  className="flex items-center gap-2 py-3 px-4 rounded-2xl bg-red-600 hover:bg-red-700 text-white font-bold text-base shadow-lg active:scale-95 transition-all">
+                  <Plus className="w-5 h-5" /> Nuevo ticket
+                </button>
+              </div>
+            </>
+          )}
+          <button onClick={() => setShowFabMenu(v => !v)}
+            className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl bg-red-600 hover:bg-red-700 text-white font-bold text-base shadow-lg shadow-red-200 dark:shadow-red-900/30 active:scale-95 transition-all">
+            <Plus className={`w-5 h-5 transition-transform ${showFabMenu ? 'rotate-45' : ''}`} /> Nuevo
+          </button>
+        </div>
+      ) : (
+        <button onClick={() => setShowNewForm(true)}
+          className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl bg-red-600 hover:bg-red-700 text-white font-bold text-base shadow-lg shadow-red-200 dark:shadow-red-900/30 active:scale-95 transition-all">
+          <Plus className="w-5 h-5" /> Nuevo ticket
+        </button>
+      )}
 
       {/* CAJA EN TIEMPO REAL */}
       {cajaStats.length > 0 && (
@@ -1782,6 +1809,18 @@ export default function Registro() {
       <BottomSheet open={showQuickForm} onClose={() => setShowQuickForm(false)} title="Ingreso rápido">
         <QuickSummaryForm onSave={handleSaveSummary} onClose={() => setShowQuickForm(false)} />
       </BottomSheet>
+
+      {/* Modal — Nueva incidencia (admin) */}
+      <Modal open={showIncidentForm} onClose={() => setShowIncidentForm(false)} title="Registrar incidencia">
+        <IncidentForm
+          workers={workers}
+          onClose={() => setShowIncidentForm(false)}
+          onSave={async (data) => {
+            await addIncident(data)
+            setShowIncidentForm(false)
+          }}
+        />
+      </Modal>
 
       {/* Modal — Resumen ticket */}
       {summaryTicket && (

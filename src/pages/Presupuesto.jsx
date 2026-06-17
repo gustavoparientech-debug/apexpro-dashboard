@@ -107,27 +107,24 @@ export default function Presupuesto() {
   // Cargar config desde Supabase
   useEffect(() => {
     async function load() {
-      try {
-        // Mostrar localStorage mientras carga Supabase
-        const raw = localStorage.getItem(LS_KEY)
-        if (raw) setConfig(mergeConfig(JSON.parse(raw)))
+      // Mostrar localStorage mientras carga Supabase
+      const raw = localStorage.getItem(LS_KEY)
+      if (raw) setConfig(mergeConfig(JSON.parse(raw)))
 
-        const { data } = await supabase
-          .from('app_settings')
-          .select('value')
-          .eq('key', SB_KEY)
-          .single()
+      const { data, error } = await supabase
+        .from('app_settings')
+        .select('value')
+        .eq('key', SB_KEY)
+        .maybeSingle()
 
-        if (data?.value) {
-          const merged = mergeConfig(data.value)
-          setConfig(merged)
-          localStorage.setItem(LS_KEY, JSON.stringify(data.value))
-        }
-      } catch {
-        // fallback a default ya establecido
-      } finally {
-        setLoading(false)
+      if (error) {
+        toast.error(`Error al cargar: ${error.message}`)
+      } else if (data?.value) {
+        const merged = mergeConfig(data.value)
+        setConfig(merged)
+        localStorage.setItem(LS_KEY, JSON.stringify(data.value))
       }
+      setLoading(false)
     }
     load()
   }, [])
@@ -135,13 +132,14 @@ export default function Presupuesto() {
   async function persistConfig(cfg) {
     setConfig(cfg)
     localStorage.setItem(LS_KEY, JSON.stringify(cfg))
-    try {
-      await supabase.from('app_settings').upsert(
-        { key: SB_KEY, value: cfg, updated_at: new Date().toISOString() },
-        { onConflict: 'key' }
-      )
-    } catch {
-      toast.error('Error al guardar en la nube')
+    const { error } = await supabase.from('app_settings').upsert(
+      { key: SB_KEY, value: cfg, updated_at: new Date().toISOString() },
+      { onConflict: 'key' }
+    )
+    if (error) {
+      toast.error(`Error al guardar: ${error.message}`)
+    } else {
+      toast.success('Guardado en la nube ✓')
     }
   }
 

@@ -1256,11 +1256,11 @@ export default function Registro() {
     loadData(m, y)
   }
 
-  // Tickets abiertos (sin filtro de fecha)
+  // Tickets abiertos: solo mostrar desde el día que se creó en adelante
   const openTickets = useMemo(
-    () => [...tickets.filter(t => t.status === 'abierto')]
+    () => [...tickets.filter(t => t.status === 'abierto' && (t.date || '') <= selectedDate)]
       .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0)),
-    [tickets]
+    [tickets, selectedDate]
   )
 
   // Tickets cerrados del día seleccionado — más reciente primero

@@ -6,9 +6,10 @@ import { useApp } from '../../context/AppContext'
 import {
   LayoutDashboard, ClipboardList, Users, Wallet, TrendingUp,
   Settings, History, BarChart2, Sun, Moon, Menu, X, ChevronRight, UserCog, LogOut,
-  Plus, TrendingDown
+  Plus, TrendingDown, AlertCircle
 } from 'lucide-react'
 import { cn, todayISO } from '../../lib/utils'
+import { IncidentForm } from '../../pages/Trabajadores'
 import toast from 'react-hot-toast'
 
 const GASTO_CATS = [
@@ -88,10 +89,33 @@ function GastoSheet({ onClose, fixedWorkerId }) {
   )
 }
 
+function IncidentSheet({ workers, onSave, onClose }) {
+  const [mounted, setMounted] = useState(false)
+  const [closing, setClosing] = useState(false)
+  useEffect(() => { const id = requestAnimationFrame(() => setMounted(true)); return () => cancelAnimationFrame(id) }, [])
+  function handleClose() { setClosing(true); setTimeout(onClose, 180) }
+  return (
+    <div className="fixed inset-0 z-50 flex flex-col justify-end">
+      <div className={`absolute inset-0 bg-black/50 transition-opacity duration-200 ${mounted && !closing ? 'opacity-100' : 'opacity-0'}`} onClick={handleClose} />
+      <div className={`relative bg-white dark:bg-gray-900 rounded-t-3xl max-h-[92vh] flex flex-col transition-transform duration-200 ease-out ${mounted && !closing ? 'translate-y-0' : 'translate-y-full'}`}>
+        <div className="flex items-center justify-between px-5 pt-4 pb-2 border-b border-gray-100 dark:border-gray-800">
+          <h2 className="font-bold text-gray-900 dark:text-white">Registrar incidencia</h2>
+          <button onClick={handleClose} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800"><X className="w-5 h-5" /></button>
+        </div>
+        <div className="overflow-y-auto flex-1 p-4">
+          <IncidentForm workers={workers} onClose={handleClose} onSave={onSave} />
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function GlobalFab({ canAdmin, workerWorkerId }) {
   const navigate = useNavigate()
+  const { addIncident, workers } = useApp()
   const [open, setOpen] = useState(false)
   const [showGasto, setShowGasto] = useState(false)
+  const [showIncident, setShowIncident] = useState(false)
 
   function handleNewTicket() {
     navigate('/registro', { state: { autoNew: true } })
@@ -109,6 +133,13 @@ function GlobalFab({ canAdmin, workerWorkerId }) {
       <div className="fixed bottom-20 right-4 lg:bottom-6 lg:right-6 z-40 flex flex-col items-end gap-2">
         {open && (
           <>
+            {canAdmin && (
+              <button onClick={() => { setOpen(false); setShowIncident(true) }}
+                style={{ transformOrigin: 'bottom right', animationDelay: '0ms' }}
+                className="flex items-center gap-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm font-semibold px-4 py-2.5 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 transition-colors whitespace-nowrap animate-[popIn_180ms_cubic-bezier(0.23,1,0.32,1)_backwards]">
+                <AlertCircle className="w-4 h-4 text-orange-500" /> Nueva incidencia
+              </button>
+            )}
             <button onClick={() => { setOpen(false); setShowGasto(true) }}
               style={{ transformOrigin: 'bottom right', animationDelay: '40ms' }}
               className="flex items-center gap-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm font-semibold px-4 py-2.5 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 transition-colors whitespace-nowrap animate-[popIn_180ms_cubic-bezier(0.23,1,0.32,1)_backwards]">
@@ -130,6 +161,13 @@ function GlobalFab({ canAdmin, workerWorkerId }) {
         <GastoSheet
           onClose={() => setShowGasto(false)}
           fixedWorkerId={canAdmin ? undefined : workerWorkerId}
+        />
+      )}
+      {showIncident && (
+        <IncidentSheet
+          workers={workers}
+          onClose={() => setShowIncident(false)}
+          onSave={async (data) => { await addIncident(data); setShowIncident(false) }}
         />
       )}
     </>

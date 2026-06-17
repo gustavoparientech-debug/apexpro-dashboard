@@ -1,7 +1,8 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef } from 'react'
 import { useAuth } from '../context/AuthContext'
-import { Edit2, Check, X, ChevronDown, ChevronUp, FileText } from 'lucide-react'
+import { Edit2, Check, X, ChevronDown, ChevronUp, FileText, MessageCircle, Share2 } from 'lucide-react'
 import toast from 'react-hot-toast'
+import jsPDF from 'jspdf'
 
 // ─── Configuración por defecto ────────────────────────────────────────────────
 const DEFAULT_CONFIG = {
@@ -157,6 +158,139 @@ export default function Presupuesto() {
   const selectedCount = Object.values(selected).filter(Boolean).length
 
   const tierBrand = BRANDS.find(b => b.tier === selectedTier)
+
+  const vtLabel = VEHICLE_TYPES.find(v => v.id === vehicleType)
+  const tierLabel = BRANDS.find(b => b.tier === selectedTier)
+
+  function generateWhatsApp() {
+    if (selectedCount === 0) { toast.error('Selecciona al menos un paño'); return }
+    const brandInfo = selectedBrand || tierLabel?.label
+    const vtEmoji = vtLabel?.emoji || ''
+    const vtName = vtLabel?.label || ''
+    const selectedRows = rows.filter(r => selected[r.id])
+
+    let msg = `🔧 *PRESUPUESTO - APEX PRO*\n`
+    msg += `✨ _Planchado & Pintura Profesional_\n`
+    msg += `━━━━━━━━━━━━━━━━━━━━\n\n`
+    msg += `${vtEmoji} *Vehículo:* ${vtName}${brandInfo ? ` · ${brandInfo}` : ''}\n`
+    msg += `💰 *Precio base:* ${formatMoney(basePrice)}/paño\n\n`
+    msg += `📋 *Trabajos a realizar:*\n`
+    selectedRows.forEach(r => {
+      msg += `  🔹 ${r.label} — ${formatMoney(r.price)}\n`
+    })
+    msg += `\n━━━━━━━━━━━━━━━━━━━━\n`
+    msg += `💵 *TOTAL: ${formatMoney(total)}*\n`
+    msg += `━━━━━━━━━━━━━━━━━━━━\n\n`
+    msg += `✅ Incluye mano de obra, materiales y garantía de trabajo.\n`
+    msg += `📞 Para consultas y citas, contáctenos.\n\n`
+    msg += `_Apex Pro — Calidad que se nota_ 🚗✨`
+
+    const url = `https://wa.me/?text=${encodeURIComponent(msg)}`
+    window.open(url, '_blank')
+  }
+
+  function generatePDF() {
+    if (selectedCount === 0) { toast.error('Selecciona al menos un paño'); return }
+    const doc = new jsPDF({ unit: 'mm', format: 'a4' })
+    const W = 210
+    const margin = 20
+    let y = 0
+
+    // Header background
+    doc.setFillColor(30, 64, 175)
+    doc.rect(0, 0, W, 42, 'F')
+
+    // Title
+    doc.setTextColor(255, 255, 255)
+    doc.setFontSize(22)
+    doc.setFont('helvetica', 'bold')
+    doc.text('APEX PRO', margin, 18)
+    doc.setFontSize(11)
+    doc.setFont('helvetica', 'normal')
+    doc.text('Planchado & Pintura Profesional', margin, 27)
+    doc.setFontSize(9)
+    doc.text('PRESUPUESTO', W - margin, 18, { align: 'right' })
+    const today = new Date().toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric' })
+    doc.text(`Fecha: ${today}`, W - margin, 25, { align: 'right' })
+    y = 52
+
+    // Vehicle info card
+    doc.setFillColor(239, 246, 255)
+    doc.roundedRect(margin, y, W - margin * 2, 22, 3, 3, 'F')
+    doc.setTextColor(30, 64, 175)
+    doc.setFontSize(10)
+    doc.setFont('helvetica', 'bold')
+    const vtName = vtLabel?.label || ''
+    const brandInfo = selectedBrand || tierLabel?.label || ''
+    doc.text(`Vehículo: ${vtName}${brandInfo ? `  ·  ${brandInfo}` : ''}`, margin + 5, y + 9)
+    doc.setTextColor(100, 116, 139)
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(9)
+    doc.text(`Precio base: ${formatMoney(basePrice)}/paño  ·  ${selectedCount} paño${selectedCount !== 1 ? 's' : ''} seleccionado${selectedCount !== 1 ? 's' : ''}`, margin + 5, y + 17)
+    y += 30
+
+    // Table header
+    doc.setFillColor(30, 64, 175)
+    doc.rect(margin, y, W - margin * 2, 8, 'F')
+    doc.setTextColor(255, 255, 255)
+    doc.setFontSize(8.5)
+    doc.setFont('helvetica', 'bold')
+    doc.text('Paño / Trabajo', margin + 4, y + 5.5)
+    doc.text('Multiplicador', W - margin - 45, y + 5.5, { align: 'center' })
+    doc.text('Precio', W - margin - 4, y + 5.5, { align: 'right' })
+    y += 8
+
+    // Table rows
+    const selectedRows = rows.filter(r => selected[r.id])
+    selectedRows.forEach((r, i) => {
+      if (i % 2 === 0) {
+        doc.setFillColor(248, 250, 252)
+        doc.rect(margin, y, W - margin * 2, 7.5, 'F')
+      }
+      doc.setTextColor(30, 41, 59)
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(9)
+      doc.text(r.label, margin + 4, y + 5)
+      doc.setTextColor(100, 116, 139)
+      doc.text(`${r.mult}x`, W - margin - 45, y + 5, { align: 'center' })
+      doc.setTextColor(30, 41, 59)
+      doc.setFont('helvetica', 'bold')
+      doc.text(formatMoney(r.price), W - margin - 4, y + 5, { align: 'right' })
+      y += 7.5
+    })
+
+    // Total
+    y += 4
+    doc.setFillColor(30, 64, 175)
+    doc.roundedRect(margin, y, W - margin * 2, 14, 3, 3, 'F')
+    doc.setTextColor(255, 255, 255)
+    doc.setFontSize(11)
+    doc.setFont('helvetica', 'bold')
+    doc.text('TOTAL PRESUPUESTO', margin + 5, y + 9)
+    doc.setFontSize(13)
+    doc.text(formatMoney(total), W - margin - 5, y + 9, { align: 'right' })
+    y += 22
+
+    // Footer note
+    doc.setFillColor(243, 244, 246)
+    doc.roundedRect(margin, y, W - margin * 2, 18, 3, 3, 'F')
+    doc.setTextColor(100, 116, 139)
+    doc.setFontSize(8)
+    doc.setFont('helvetica', 'italic')
+    doc.text('✓ Incluye mano de obra, materiales y garantía de trabajo.', margin + 5, y + 7)
+    doc.text('Este presupuesto tiene validez de 15 días a partir de la fecha de emisión.', margin + 5, y + 13)
+
+    // Footer strip
+    doc.setFillColor(30, 64, 175)
+    doc.rect(0, 287, W, 10, 'F')
+    doc.setTextColor(255, 255, 255)
+    doc.setFontSize(8)
+    doc.setFont('helvetica', 'normal')
+    doc.text('Apex Pro — Calidad que se nota', W / 2, 293, { align: 'center' })
+
+    doc.save(`presupuesto-apexpro-${today.replace(/\//g, '-')}.pdf`)
+    toast.success('PDF descargado')
+  }
 
   return (
     <div className="space-y-4 max-w-2xl mx-auto pb-8">
@@ -335,6 +469,24 @@ export default function Presupuesto() {
           </div>
         </div>
       </div>
+
+      {/* Botones de exportar */}
+      {selectedCount > 0 && (
+        <div className="grid grid-cols-2 gap-3">
+          <button
+            onClick={generateWhatsApp}
+            className="flex items-center justify-center gap-2 py-3.5 rounded-2xl bg-green-500 hover:bg-green-600 active:scale-95 text-white font-bold text-sm transition-all shadow-lg shadow-green-200 dark:shadow-green-900/30">
+            <MessageCircle className="w-5 h-5" />
+            WhatsApp
+          </button>
+          <button
+            onClick={generatePDF}
+            className="flex items-center justify-center gap-2 py-3.5 rounded-2xl bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-bold text-sm transition-all shadow-lg shadow-blue-200 dark:shadow-blue-900/30">
+            <FileText className="w-5 h-5" />
+            PDF
+          </button>
+        </div>
+      )}
 
       {/* Comparativa por tipo de vehículo */}
       <div className="card overflow-hidden p-0">

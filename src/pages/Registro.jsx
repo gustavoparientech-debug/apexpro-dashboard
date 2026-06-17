@@ -1042,7 +1042,7 @@ function EditClosedTicket({ ticket, workers, vehicleTypes, onSave, onClose }) {
     vehicle_type:   ticket.vehicle_type || '',
     worker_id:      ticket.worker_id || '',
     price_charged:  ticket.price_charged || '',
-    payment_method: ticket.payment_method || '',
+    payment_method: ticket.payment_method || 'yape',
     date:           ticket.date || todayISO(),
     notes:          ticket.notes || '',
   })

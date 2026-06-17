@@ -185,10 +185,11 @@ function NewTicketForm({ onSave, onClose, workers, vehicleTypes, lockedWorkerId,
     try {
       await onSave({
         ...form,
-        price_charged: parseFloat(form.price_charged) || 0,
-        status:     'abierto',
-        opened_at:  new Date().toISOString(),
-        extras:     [],
+        price_charged:  parseFloat(form.price_charged) || 0,
+        payment_method: form.payment_method || 'yape',
+        status:         'abierto',
+        opened_at:      new Date().toISOString(),
+        extras:         [],
       })
       onClose()
     } finally { setSubmitting(false) }

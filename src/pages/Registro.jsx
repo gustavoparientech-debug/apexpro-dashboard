@@ -1268,7 +1268,7 @@ export default function Registro() {
   // Tickets cerrados del día seleccionado — más reciente primero
   const closedToday = useMemo(
     () => {
-      const filtered = tickets.filter(t => (t.status === 'cerrado' || !t.status) && t.date === selectedDate)
+      const filtered = tickets.filter(t => (t.status === 'cerrado' || !t.status) && t.date === selectedDate && (!t.hidden_from_workers || canAdmin))
       // Si tienen closed_at (columna agregada en DB), ordenar por ese campo
       const hasClosed = filtered.some(t => t.closed_at)
       if (hasClosed) {

@@ -41,6 +41,13 @@ const VEHICLE_TYPES = [
   { id: 'pickup', label: 'Pickup', emoji: '🛻' },
 ]
 
+const DAMAGE_LEVELS = [
+  { id: 'none',     label: 'Solo pintura', short: '—',        pct: 0,   color: 'border-gray-200 text-gray-500 dark:border-gray-600 dark:text-gray-400' },
+  { id: 'leve',     label: 'Leve',         short: 'Leve',     pct: 0.3, color: 'border-yellow-400 text-yellow-700 dark:border-yellow-600 dark:text-yellow-400' },
+  { id: 'moderado', label: 'Moderado',     short: 'Mod.',     pct: 0.6, color: 'border-orange-400 text-orange-700 dark:border-orange-500 dark:text-orange-400' },
+  { id: 'severo',   label: 'Severo',       short: 'Severo',   pct: 1.0, color: 'border-red-500 text-red-700 dark:border-red-500 dark:text-red-400' },
+]
+
 const LS_KEY = 'apexpro_presupuesto_config'
 const SB_KEY = 'presupuesto_config'
 
@@ -100,6 +107,7 @@ export default function Presupuesto() {
   const [selectedTier, setSelectedTier] = useState('economy')
   const [selectedBrand, setSelectedBrand] = useState('')
   const [selected, setSelected] = useState({})
+  const [damage, setDamage] = useState({}) // panelId -> 'none'|'leve'|'moderado'|'severo'
   const [editingPrices, setEditingPrices] = useState(false)
   const [pricesDraft, setPricesDraft] = useState(config.basePrices)
   const [showBrands, setShowBrands] = useState(false)
@@ -165,20 +173,33 @@ export default function Presupuesto() {
 
   function togglePanel(id) {
     setSelected(s => ({ ...s, [id]: !s[id] }))
+    setDamage(d => ({ ...d, [id]: d[id] || 'none' }))
   }
 
   function toggleAll() {
     const allSelected = config.panels.every(p => selected[p.id])
     const next = {}
-    config.panels.forEach(p => { next[p.id] = !allSelected })
+    const dmg = {}
+    config.panels.forEach(p => {
+      next[p.id] = !allSelected
+      if (!allSelected) dmg[p.id] = damage[p.id] || 'none'
+    })
     setSelected(next)
+    if (!allSelected) setDamage(d => ({ ...d, ...dmg }))
+  }
+
+  function setDamageLevel(id, level) {
+    setDamage(d => ({ ...d, [id]: level }))
   }
 
   const rows = useMemo(() => config.panels.map(p => {
     const mult = p.mult[vehicleType]
-    const price = Math.round(basePrice * mult)
-    return { ...p, mult, price }
-  }), [config, vehicleType, basePrice])
+    const paintPrice = Math.round(basePrice * mult)
+    const dmgLevel = DAMAGE_LEVELS.find(d => d.id === (damage[p.id] || 'none'))
+    const planchadoPrice = dmgLevel ? Math.round(paintPrice * dmgLevel.pct) : 0
+    const price = paintPrice + planchadoPrice
+    return { ...p, mult, paintPrice, planchadoPrice, price, damageId: damage[p.id] || 'none' }
+  }), [config, vehicleType, basePrice, damage])
 
   const total = useMemo(() =>
     rows.filter(r => selected[r.id]).reduce((s, r) => s + r.price, 0),
@@ -216,6 +237,7 @@ export default function Presupuesto() {
     const vtEmoji = vtLabel?.emoji || ''
     const vtName = vtLabel?.label || ''
     const selectedRows = rows.filter(r => selected[r.id])
+    const hasDamage = selectedRows.some(r => r.damageId !== 'none')
 
     let msg = `🔧 *PRESUPUESTO - APEX PRO*\n`
     msg += `✨ _Planchado & Pintura Profesional_\n`
@@ -223,8 +245,16 @@ export default function Presupuesto() {
     msg += `${vtEmoji} *Vehículo:* ${vtName} · ${brand}\n\n`
     msg += `📋 *Trabajos a realizar:*\n`
     selectedRows.forEach(r => {
-      msg += `  🔹 ${r.label} — ${formatMoney(r.price)}\n`
+      const dmg = DAMAGE_LEVELS.find(d => d.id === r.damageId)
+      const dmgTag = r.damageId !== 'none' ? ` _(+ planchado ${dmg?.label})_` : ''
+      msg += `  🔹 ${r.label}${dmgTag} — ${formatMoney(r.price)}\n`
     })
+    if (hasDamage) {
+      const totalPintura = selectedRows.reduce((s, r) => s + r.paintPrice, 0)
+      const totalPlanchado = selectedRows.reduce((s, r) => s + r.planchadoPrice, 0)
+      msg += `\n🎨 Pintura: ${formatMoney(totalPintura)}\n`
+      msg += `🔨 Planchado: ${formatMoney(totalPlanchado)}\n`
+    }
     msg += `\n━━━━━━━━━━━━━━━━━━━━\n`
     msg += `💲 Subtotal: ${formatMoney(total)}\n`
     if (discountPct > 0) {
@@ -290,18 +320,49 @@ export default function Presupuesto() {
 
     const selectedRows = rows.filter(r => selected[r.id])
     selectedRows.forEach((r, i) => {
+      const hasDmg = r.damageId !== 'none'
+      const rowH = hasDmg ? 12 : 7.5
       if (i % 2 === 0) {
         doc.setFillColor(254, 242, 242)
-        doc.rect(margin, y, W - margin * 2, 7.5, 'F')
+        doc.rect(margin, y, W - margin * 2, rowH, 'F')
       }
       doc.setTextColor(30, 41, 59)
       doc.setFont('helvetica', 'normal')
       doc.setFontSize(9)
       doc.text(r.label, margin + 4, y + 5)
+      if (hasDmg) {
+        const dmg = DAMAGE_LEVELS.find(d => d.id === r.damageId)
+        doc.setFontSize(7.5)
+        doc.setTextColor(180, 80, 0)
+        doc.text(`+ planchado ${dmg?.label} (+${formatMoney(r.planchadoPrice)})`, margin + 4, y + 9.5)
+      }
+      doc.setTextColor(30, 41, 59)
       doc.setFont('helvetica', 'bold')
-      doc.text(formatMoney(r.price), W - margin - 4, y + 5, { align: 'right' })
-      y += 7.5
+      doc.setFontSize(9)
+      doc.text(formatMoney(r.price), W - margin - 4, y + (hasDmg ? 7 : 5), { align: 'right' })
+      y += rowH
     })
+
+    // Resumen pintura / planchado si aplica
+    const totalPlanchado = selectedRows.reduce((s, r) => s + r.planchadoPrice, 0)
+    if (totalPlanchado > 0) {
+      y += 2
+      const totalPintura = selectedRows.reduce((s, r) => s + r.paintPrice, 0)
+      doc.setFillColor(249, 250, 251)
+      doc.rect(margin, y, W - margin * 2, 7.5, 'F')
+      doc.setTextColor(80, 80, 80)
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(8.5)
+      doc.text('Pintura', margin + 4, y + 5)
+      doc.text(formatMoney(totalPintura), W - margin - 4, y + 5, { align: 'right' })
+      y += 7.5
+      doc.setFillColor(255, 237, 213)
+      doc.rect(margin, y, W - margin * 2, 7.5, 'F')
+      doc.setTextColor(154, 52, 18)
+      doc.text('Planchado', margin + 4, y + 5)
+      doc.text(formatMoney(totalPlanchado), W - margin - 4, y + 5, { align: 'right' })
+      y += 7.5
+    }
 
     y += 4
 
@@ -497,7 +558,7 @@ export default function Presupuesto() {
         {/* Columnas header */}
         <div className="grid grid-cols-[1fr_auto_auto_auto] gap-0 text-[10px] font-semibold text-gray-400 uppercase tracking-wide px-4 py-2 bg-gray-50 dark:bg-gray-800/50 border-b border-gray-100 dark:border-gray-800">
           <span>Paño</span>
-          <span className="w-16 text-center">Multiplicador</span>
+          <span className="w-16 text-center">Mult.</span>
           <span className="w-20 text-right">Precio</span>
           <span className="w-8 text-center">✓</span>
         </div>
@@ -505,30 +566,62 @@ export default function Presupuesto() {
         {/* Filas */}
         <div className="divide-y divide-gray-50 dark:divide-gray-800/50">
           {rows.map(row => (
-            <div key={row.id}
-              onClick={() => togglePanel(row.id)}
-              className={`grid grid-cols-[1fr_auto_auto_auto] items-center gap-0 px-4 py-2.5 cursor-pointer transition-colors ${
-                selected[row.id] ? 'bg-red-50 dark:bg-red-900/10' : 'hover:bg-gray-50 dark:hover:bg-gray-800/30'
-              }`}>
-              <span className="text-sm text-gray-800 dark:text-gray-200 font-medium">{row.label}</span>
-              <div className="w-16 flex justify-center" onClick={e => canAdmin && e.stopPropagation()}>
-                {canAdmin
-                  ? <EditableCell value={row.mult} onSave={val => updateMult(row.id, vehicleType, val)} />
-                  : <span className="font-mono text-xs text-gray-500">{row.mult}x</span>
-                }
-              </div>
-              <span className="w-20 text-right text-sm font-bold text-gray-900 dark:text-white">
-                {formatMoney(row.price)}
-              </span>
-              <div className="w-8 flex justify-center">
-                <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${
-                  selected[row.id]
-                    ? 'bg-red-600 border-red-600'
-                    : 'border-gray-300 dark:border-gray-600'
+            <div key={row.id} className={`transition-colors ${selected[row.id] ? 'bg-red-50 dark:bg-red-900/10' : ''}`}>
+              {/* Fila principal */}
+              <div
+                onClick={() => togglePanel(row.id)}
+                className={`grid grid-cols-[1fr_auto_auto_auto] items-center gap-0 px-4 py-2.5 cursor-pointer ${
+                  !selected[row.id] ? 'hover:bg-gray-50 dark:hover:bg-gray-800/30' : ''
                 }`}>
-                  {selected[row.id] && <Check className="w-3 h-3 text-white" />}
+                <div>
+                  <span className="text-sm text-gray-800 dark:text-gray-200 font-medium">{row.label}</span>
+                  {selected[row.id] && row.planchadoPrice > 0 && (
+                    <p className="text-[10px] text-orange-600 dark:text-orange-400 leading-tight">
+                      +{formatMoney(row.planchadoPrice)} planchado
+                    </p>
+                  )}
+                </div>
+                <div className="w-16 flex justify-center" onClick={e => canAdmin && e.stopPropagation()}>
+                  {canAdmin
+                    ? <EditableCell value={row.mult} onSave={val => updateMult(row.id, vehicleType, val)} />
+                    : <span className="font-mono text-xs text-gray-500">{row.mult}x</span>
+                  }
+                </div>
+                <span className="w-20 text-right text-sm font-bold text-gray-900 dark:text-white">
+                  {formatMoney(row.price)}
+                </span>
+                <div className="w-8 flex justify-center">
+                  <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${
+                    selected[row.id] ? 'bg-red-600 border-red-600' : 'border-gray-300 dark:border-gray-600'
+                  }`}>
+                    {selected[row.id] && <Check className="w-3 h-3 text-white" />}
+                  </div>
                 </div>
               </div>
+
+              {/* Selector de daño — solo si está seleccionado */}
+              {selected[row.id] && (
+                <div className="flex items-center gap-1.5 px-4 pb-2.5" onClick={e => e.stopPropagation()}>
+                  <span className="text-[10px] text-gray-400 mr-0.5">Planchado:</span>
+                  {DAMAGE_LEVELS.map(lvl => (
+                    <button key={lvl.id}
+                      onClick={() => setDamageLevel(row.id, lvl.id)}
+                      className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border transition-all ${
+                        row.damageId === lvl.id
+                          ? lvl.id === 'none'
+                            ? 'bg-gray-200 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300'
+                            : lvl.id === 'leve'
+                              ? 'bg-yellow-100 border-yellow-400 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
+                              : lvl.id === 'moderado'
+                                ? 'bg-orange-100 border-orange-400 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'
+                                : 'bg-red-100 border-red-500 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                          : 'border-gray-200 dark:border-gray-700 text-gray-400 dark:text-gray-500'
+                      }`}>
+                      {lvl.short}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           ))}
         </div>

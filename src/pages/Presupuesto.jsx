@@ -188,11 +188,31 @@ export default function Presupuesto() {
   const selectedCount = Object.values(selected).filter(Boolean).length
   const tierBrand = BRANDS.find(b => b.tier === selectedTier)
   const vtLabel = VEHICLE_TYPES.find(v => v.id === vehicleType)
-  const tierLabel = BRANDS.find(b => b.tier === selectedTier)
 
-  function generateWhatsApp() {
+  // Descuento progresivo: 2 paños=5%, +1% por paño adicional, máx 20%
+  const discountPct = selectedCount >= 2 ? Math.min(20, 3 + selectedCount) : 0
+  const discountAmt = Math.round(total * discountPct / 100)
+  const totalFinal = total - discountAmt
+
+  const [exportBrandModal, setExportBrandModal] = useState(false)
+  const [exportBrandInput, setExportBrandInput] = useState('')
+  const [exportTarget, setExportTarget] = useState(null) // 'whatsapp' | 'pdf'
+
+  function openExportModal(target) {
     if (selectedCount === 0) { toast.error('Selecciona al menos un paño'); return }
-    const brandInfo = selectedBrand || tierLabel?.label
+    setExportBrandInput(selectedBrand || '')
+    setExportTarget(target)
+    setExportBrandModal(true)
+  }
+
+  function doExport() {
+    const brand = exportBrandInput.trim() || 'Otro'
+    setExportBrandModal(false)
+    if (exportTarget === 'whatsapp') buildWhatsApp(brand)
+    else buildPDF(brand)
+  }
+
+  function buildWhatsApp(brand) {
     const vtEmoji = vtLabel?.emoji || ''
     const vtName = vtLabel?.label || ''
     const selectedRows = rows.filter(r => selected[r.id])
@@ -200,14 +220,20 @@ export default function Presupuesto() {
     let msg = `🔧 *PRESUPUESTO - APEX PRO*\n`
     msg += `✨ _Planchado & Pintura Profesional_\n`
     msg += `━━━━━━━━━━━━━━━━━━━━\n\n`
-    msg += `${vtEmoji} *Vehículo:* ${vtName}${brandInfo ? ` · ${brandInfo}` : ''}\n`
-    msg += `💰 *Precio base:* ${formatMoney(basePrice)}/paño\n\n`
+    msg += `${vtEmoji} *Vehículo:* ${vtName} · ${brand}\n\n`
     msg += `📋 *Trabajos a realizar:*\n`
     selectedRows.forEach(r => {
       msg += `  🔹 ${r.label} — ${formatMoney(r.price)}\n`
     })
     msg += `\n━━━━━━━━━━━━━━━━━━━━\n`
-    msg += `💵 *TOTAL: ${formatMoney(total)}*\n`
+    msg += `💲 Subtotal: ${formatMoney(total)}\n`
+    if (discountPct > 0) {
+      msg += `🎁 Descuento (${discountPct}%): -${formatMoney(discountAmt)}\n`
+      msg += `━━━━━━━━━━━━━━━━━━━━\n`
+      msg += `💵 *TOTAL: ${formatMoney(totalFinal)}*\n`
+    } else {
+      msg += `💵 *TOTAL: ${formatMoney(total)}*\n`
+    }
     msg += `━━━━━━━━━━━━━━━━━━━━\n\n`
     msg += `✅ Incluye mano de obra, materiales y garantía de trabajo.\n`
     msg += `📞 Para consultas y citas, contáctenos.\n\n`
@@ -216,8 +242,7 @@ export default function Presupuesto() {
     window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank')
   }
 
-  function generatePDF() {
-    if (selectedCount === 0) { toast.error('Selecciona al menos un paño'); return }
+  function buildPDF(brand) {
     const doc = new jsPDF({ unit: 'mm', format: 'a4' })
     const W = 210
     const margin = 20
@@ -241,30 +266,25 @@ export default function Presupuesto() {
     doc.text(`Fecha: ${today}`, W - margin, 25, { align: 'right' })
     y = 52
 
+    // Info vehículo
     doc.setFillColor(255, 245, 245)
-    doc.roundedRect(margin, y, W - margin * 2, 22, 3, 3, 'F')
+    doc.roundedRect(margin, y, W - margin * 2, 16, 3, 3, 'F')
     doc.setDrawColor(185, 28, 28)
     doc.setLineWidth(0.5)
-    doc.roundedRect(margin, y, W - margin * 2, 22, 3, 3, 'S')
+    doc.roundedRect(margin, y, W - margin * 2, 16, 3, 3, 'S')
     doc.setTextColor(185, 28, 28)
     doc.setFontSize(10)
     doc.setFont('helvetica', 'bold')
-    const vtName = vtLabel?.label || ''
-    const brandInfo = selectedBrand || tierLabel?.label || ''
-    doc.text(`Vehículo: ${vtName}${brandInfo ? `  ·  ${brandInfo}` : ''}`, margin + 5, y + 9)
-    doc.setTextColor(100, 116, 139)
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(9)
-    doc.text(`Precio base: ${formatMoney(basePrice)}/paño  ·  ${selectedCount} paño${selectedCount !== 1 ? 's' : ''} seleccionado${selectedCount !== 1 ? 's' : ''}`, margin + 5, y + 17)
-    y += 30
+    doc.text(`${vtLabel?.label || ''} · ${brand}`, margin + 5, y + 10)
+    y += 24
 
+    // Tabla header — solo Paño y Precio
     doc.setFillColor(185, 28, 28)
     doc.rect(margin, y, W - margin * 2, 8, 'F')
     doc.setTextColor(255, 255, 255)
     doc.setFontSize(8.5)
     doc.setFont('helvetica', 'bold')
     doc.text('Paño / Trabajo', margin + 4, y + 5.5)
-    doc.text('Multiplicador', W - margin - 45, y + 5.5, { align: 'center' })
     doc.text('Precio', W - margin - 4, y + 5.5, { align: 'right' })
     y += 8
 
@@ -278,23 +298,43 @@ export default function Presupuesto() {
       doc.setFont('helvetica', 'normal')
       doc.setFontSize(9)
       doc.text(r.label, margin + 4, y + 5)
-      doc.setTextColor(100, 116, 139)
-      doc.text(`${r.mult}x`, W - margin - 45, y + 5, { align: 'center' })
-      doc.setTextColor(30, 41, 59)
       doc.setFont('helvetica', 'bold')
       doc.text(formatMoney(r.price), W - margin - 4, y + 5, { align: 'right' })
       y += 7.5
     })
 
     y += 4
+
+    // Subtotal + descuento
+    if (discountPct > 0) {
+      doc.setFillColor(249, 250, 251)
+      doc.rect(margin, y, W - margin * 2, 7.5, 'F')
+      doc.setTextColor(100, 116, 139)
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(9)
+      doc.text('Subtotal', margin + 4, y + 5)
+      doc.text(formatMoney(total), W - margin - 4, y + 5, { align: 'right' })
+      y += 7.5
+
+      doc.setFillColor(254, 242, 242)
+      doc.rect(margin, y, W - margin * 2, 7.5, 'F')
+      doc.setTextColor(185, 28, 28)
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(9)
+      doc.text(`Descuento (${discountPct}%)`, margin + 4, y + 5)
+      doc.text(`-${formatMoney(discountAmt)}`, W - margin - 4, y + 5, { align: 'right' })
+      y += 11
+    }
+
+    // Total final
     doc.setFillColor(185, 28, 28)
     doc.roundedRect(margin, y, W - margin * 2, 14, 3, 3, 'F')
     doc.setTextColor(255, 255, 255)
     doc.setFontSize(11)
     doc.setFont('helvetica', 'bold')
-    doc.text('TOTAL PRESUPUESTO', margin + 5, y + 9)
+    doc.text('TOTAL', margin + 5, y + 9)
     doc.setFontSize(13)
-    doc.text(formatMoney(total), W - margin - 5, y + 9, { align: 'right' })
+    doc.text(formatMoney(totalFinal), W - margin - 5, y + 9, { align: 'right' })
     y += 22
 
     doc.setFillColor(243, 244, 246)
@@ -498,11 +538,15 @@ export default function Presupuesto() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs text-gray-500">{selectedCount} paño{selectedCount !== 1 ? 's' : ''} seleccionado{selectedCount !== 1 ? 's' : ''}</p>
-              <p className="text-xs text-gray-400 mt-0.5">Precio base: {formatMoney(basePrice)}/paño{selectedBrand ? ` · ${selectedBrand}` : ''}</p>
+              {discountPct > 0 && (
+                <p className="text-xs text-green-600 font-semibold mt-0.5">🎁 Descuento {discountPct}% aplicado</p>
+              )}
             </div>
             <div className="text-right">
-              <p className="text-xs text-gray-500 mb-0.5">Total presupuesto</p>
-              <p className="text-2xl font-black text-red-600 dark:text-red-400">{formatMoney(total)}</p>
+              {discountPct > 0 && (
+                <p className="text-xs text-gray-400 line-through">{formatMoney(total)}</p>
+              )}
+              <p className="text-2xl font-black text-red-600 dark:text-red-400">{formatMoney(totalFinal)}</p>
             </div>
           </div>
         </div>
@@ -512,17 +556,46 @@ export default function Presupuesto() {
       {selectedCount > 0 && (
         <div className="grid grid-cols-2 gap-3">
           <button
-            onClick={generateWhatsApp}
+            onClick={() => openExportModal('whatsapp')}
             className="flex items-center justify-center gap-2 py-3.5 rounded-2xl bg-green-500 hover:bg-green-600 active:scale-95 text-white font-bold text-sm transition-all shadow-lg shadow-green-200 dark:shadow-green-900/30">
             <MessageCircle className="w-5 h-5" />
             WhatsApp
           </button>
           <button
-            onClick={generatePDF}
+            onClick={() => openExportModal('pdf')}
             className="flex items-center justify-center gap-2 py-3.5 rounded-2xl bg-red-600 hover:bg-red-700 active:scale-95 text-white font-bold text-sm transition-all shadow-lg shadow-red-200 dark:shadow-red-900/30">
             <FileText className="w-5 h-5" />
             PDF
           </button>
+        </div>
+      )}
+
+      {/* Modal: pedir marca */}
+      {exportBrandModal && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 px-4 pb-6"
+          onClick={() => setExportBrandModal(false)}>
+          <div className="bg-white dark:bg-gray-900 rounded-2xl w-full max-w-sm p-5 shadow-2xl"
+            onClick={e => e.stopPropagation()}>
+            <p className="font-bold text-gray-900 dark:text-white mb-1">¿Marca del vehículo?</p>
+            <p className="text-xs text-gray-500 mb-3">Déjalo vacío si no aplica (aparecerá como "Otro")</p>
+            <input
+              type="text"
+              placeholder="Ej: Toyota, BMW, Otro..."
+              value={exportBrandInput}
+              onChange={e => setExportBrandInput(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && doExport()}
+              autoFocus
+              className="input w-full mb-4"
+            />
+            <div className="grid grid-cols-2 gap-2">
+              <button onClick={() => setExportBrandModal(false)}
+                className="btn-secondary py-2.5 text-sm rounded-xl">Cancelar</button>
+              <button onClick={doExport}
+                className="btn-primary py-2.5 text-sm rounded-xl">
+                {exportTarget === 'whatsapp' ? '📲 Enviar' : '📄 Descargar'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

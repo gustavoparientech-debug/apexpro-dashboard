@@ -10,8 +10,10 @@ const NO_MARCACION_COST = 5
 const IS_DEMO = !import.meta.env.VITE_SUPABASE_URL || import.meta.env.VITE_SUPABASE_URL === 'https://placeholder.supabase.co'
 
 // ─── Caché de datos estáticos (workers, services, vehicle_types, extras) ──────
-const STATIC_CACHE_KEY = 'apexpro_static_v1'
-const STATIC_CACHE_TTL = 30 * 60 * 1000 // 30 minutos
+const STATIC_CACHE_KEY  = 'apexpro_static_v1'
+const DYNAMIC_CACHE_KEY = 'apexpro_dynamic_v1'
+const STATIC_CACHE_TTL  = 30 * 60 * 1000 //  30 min
+const DYNAMIC_CACHE_TTL =  5 * 60 * 1000 //   5 min
 
 function getStaticCache() {
   try {
@@ -24,9 +26,24 @@ function getStaticCache() {
 }
 
 function setStaticCache(data) {
+  try { localStorage.setItem(STATIC_CACHE_KEY, JSON.stringify({ data, ts: Date.now() })) } catch {}
+}
+
+function getDynamicCache(prefix) {
   try {
-    localStorage.setItem(STATIC_CACHE_KEY, JSON.stringify({ data, ts: Date.now() }))
-  } catch {}
+    const raw = localStorage.getItem(DYNAMIC_CACHE_KEY)
+    if (!raw) return null
+    const { data, ts, key } = JSON.parse(raw)
+    if (key !== prefix || Date.now() - ts > DYNAMIC_CACHE_TTL) return null
+    return data
+  } catch { return null }
+}
+
+function setDynamicCache(prefix, data) {
+  try { localStorage.setItem(DYNAMIC_CACHE_KEY, JSON.stringify({ data, ts: Date.now(), key: prefix })) } catch {}
+}
+function invalidateDynamicCache() {
+  try { localStorage.removeItem(DYNAMIC_CACHE_KEY) } catch {}
 }
 
 // ─── localStorage helpers ─────────────────────────────────────────────────────
@@ -143,6 +160,36 @@ function enrichIncident(incident, workers) {
     }
   }
   return { ...incident, discount_amount: discount }
+}
+
+async function refreshInBackground({ m, y, prefix, startDate, endDate, staticCached, supabase, dispatch, enrichIncident }) {
+  try {
+    const [ticketsRes, summaries, incidents, costs, expensesRes] = await Promise.all([
+      supabase.from('tickets').select('*').gte('date', startDate).lte('date', endDate).order('created_at', { ascending: false }),
+      supabase.from('daily_summary').select('*').gte('date', startDate).lte('date', endDate),
+      supabase.from('attendance_incidents').select('*').gte('date', startDate).lte('date', endDate),
+      supabase.from('monthly_costs').select('*').eq('month', m).eq('year', y).maybeSingle(),
+      supabase.from('worker_expenses').select('*').gte('date', startDate).lte('date', endDate).order('date', { ascending: false }),
+    ])
+
+    const ticketsData   = ticketsRes.data || []
+    const summariesData = summaries.data || []
+    const incidentsRaw  = incidents.data || []
+    const costsData     = costs.data || { month: m, year: y, rent: 2700, supplies: 800, utility_goal: 2000 }
+    const expensesData  = expensesRes.error ? [] : (expensesRes.data || [])
+
+    setDynamicCache(prefix, { tickets: ticketsData, dailySummaries: summariesData, incidents: incidentsRaw, monthlyCosts: costsData, expenses: expensesData })
+
+    const incidentsEnriched = incidentsRaw.map(i => enrichIncident(i, staticCached.workers))
+    dispatch({ type: 'SET_DYNAMIC', payload: {
+      tickets: ticketsData, dailySummaries: summariesData, incidents: incidentsEnriched,
+      monthlyCosts: costsData, expenses: expensesData,
+    }})
+
+    migrateBase64Photos(ticketsData, supabase)
+  } catch (err) {
+    console.warn('background refresh error:', err)
+  }
 }
 
 async function migrateBase64Photos(tickets, supabase) {
@@ -277,14 +324,36 @@ export function AppProvider({ children }) {
       const { month: cm, year: cy } = currentMonthYear()
       const m = month || cm
       const y = year || cy
-      const prefix = `${y}-${String(m).padStart(2, '0')}`
+      const prefix    = `${y}-${String(m).padStart(2, '0')}`
       const startDate = `${prefix}-01`
       const lastDay   = new Date(y, m, 0).getDate()
       const endDate   = `${prefix}-${String(lastDay).padStart(2, '0')}`
 
-      // Caché de datos estáticos en localStorage (30 min TTL)
-      const staticCached = getStaticCache()
+      const staticCached  = getStaticCache()
+      const dynamicCached = getDynamicCache(prefix)
 
+      // ── FASE 1: mostrar caché al instante (sin spinner) ───────────────────
+      if (staticCached && dynamicCached) {
+        const incidentsEnriched = dynamicCached.incidents.map(i => enrichIncident(i, staticCached.workers))
+        dispatch({ type: 'SET_ALL', payload: {
+          workers:        staticCached.workers,
+          services:       staticCached.services,
+          vehicleTypes:   staticCached.vehicleTypes,
+          extrasCatalog:  staticCached.extrasCatalog,
+          tickets:        dynamicCached.tickets,
+          dailySummaries: dynamicCached.dailySummaries,
+          incidents:      incidentsEnriched,
+          monthlyCosts:   dynamicCached.monthlyCosts,
+          expenses:       dynamicCached.expenses,
+        }})
+        initialLoadDone.current = true
+        loadInFlight.current = false
+        // ── FASE 2: refrescar en fondo silenciosamente ─────────────────────
+        refreshInBackground({ m, y, prefix, startDate, endDate, staticCached, supabase, dispatch, enrichIncident })
+        return
+      }
+
+      // ── Sin caché: fetch normal con spinner ───────────────────────────────
       const [ticketsRes, summaries, incidents, costs, expensesRes, ...staticResults] = await Promise.all([
         supabase.from('tickets').select('*').gte('date', startDate).lte('date', endDate).order('created_at', { ascending: false }),
         supabase.from('daily_summary').select('*').gte('date', startDate).lte('date', endDate),
@@ -300,12 +369,9 @@ export function AppProvider({ children }) {
       ])
 
       let workersData, servicesData, vehicleTypesData, extrasCatalogData
-
       if (staticCached) {
-        workersData       = staticCached.workers
-        servicesData      = staticCached.services
-        vehicleTypesData  = staticCached.vehicleTypes
-        extrasCatalogData = staticCached.extrasCatalog
+        workersData = staticCached.workers; servicesData = staticCached.services
+        vehicleTypesData = staticCached.vehicleTypes; extrasCatalogData = staticCached.extrasCatalog
       } else {
         const [wR, sR, vtR, exR] = staticResults
         workersData       = wR?.data || []
@@ -315,25 +381,24 @@ export function AppProvider({ children }) {
         setStaticCache({ workers: workersData, services: servicesData, vehicleTypes: vehicleTypesData, extrasCatalog: extrasCatalogData })
       }
 
-      const incidentsEnriched = (incidents.data || []).map(i => enrichIncident(i, workersData))
+      const ticketsData   = ticketsRes.data || []
+      const summariesData = summaries.data || []
+      const incidentsRaw  = incidents.data || []
+      const costsData     = costs.data || { month: m, year: y, rent: 2700, supplies: 800, utility_goal: 2000 }
+      const expensesData  = expensesRes.error ? [] : (expensesRes.data || [])
 
-      const payload = {
-        workers:        workersData,
-        services:       servicesData,
-        vehicleTypes:   vehicleTypesData,
-        extrasCatalog:  extrasCatalogData,
-        tickets:        ticketsRes.data || [],
-        dailySummaries: summaries.data || [],
-        incidents:      incidentsEnriched,
-        monthlyCosts:   costs.data || { month: m, year: y, rent: 2700, supplies: 800, utility_goal: 2000 },
-        expenses:       expensesRes.error ? [] : (expensesRes.data || []),
-      }
+      setDynamicCache(prefix, { tickets: ticketsData, dailySummaries: summariesData, incidents: incidentsRaw, monthlyCosts: costsData, expenses: expensesData })
+
+      const incidentsEnriched = incidentsRaw.map(i => enrichIncident(i, workersData))
+
+      dispatch({ type: 'SET_ALL', payload: {
+        workers: workersData, services: servicesData, vehicleTypes: vehicleTypesData, extrasCatalog: extrasCatalogData,
+        tickets: ticketsData, dailySummaries: summariesData, incidents: incidentsEnriched,
+        monthlyCosts: costsData, expenses: expensesData,
+      }})
 
       initialLoadDone.current = true
-      dispatch({ type: 'SET_ALL', payload })
-
-      // Migrar fotos base64 a Storage en segundo plano (silencioso)
-      migrateBase64Photos(ticketsRes.data || [], supabase)
+      migrateBase64Photos(ticketsData, supabase)
     } catch (err) {
       console.error('loadData error:', err)
       dispatch({ type: 'SET_ERROR', payload: err.message })
@@ -350,6 +415,24 @@ export function AppProvider({ children }) {
     })
     return () => subscription.unsubscribe()
   }, [loadData])
+
+  // ── Realtime: sincronizar tickets entre dispositivos ────────────────────────
+  useEffect(() => {
+    if (IS_DEMO) return
+    const channel = supabase
+      .channel('tickets-realtime')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'tickets' }, ({ new: t }) => {
+        dispatch({ type: 'ADD_TICKET', payload: t })
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'tickets' }, ({ new: t }) => {
+        dispatch({ type: 'UPDATE_TICKET', payload: t })
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'tickets' }, ({ old: t }) => {
+        dispatch({ type: 'DELETE_TICKET', payload: t.id })
+      })
+      .subscribe()
+    return () => supabase.removeChannel(channel)
+  }, [])
 
 
   // ─── CRUD Workers ───────────────────────────────────────────────────────────
@@ -414,6 +497,7 @@ export function AppProvider({ children }) {
     // Intentar con nuevas columnas; si no existen (SQL pendiente), usar columnas básicas
     const { data: t, error } = await supabase.from('tickets').insert(data).select().single()
     if (error) throw error
+    invalidateDynamicCache()
     dispatch({ type: 'ADD_TICKET', payload: t })
     return t
   }
@@ -426,6 +510,7 @@ export function AppProvider({ children }) {
     }
     const { data: t, error } = await supabase.from('tickets').update(data).eq('id', id).select().single()
     if (error) throw error
+    invalidateDynamicCache()
     dispatch({ type: 'UPDATE_TICKET', payload: t })
     return t
   }
@@ -434,6 +519,7 @@ export function AppProvider({ children }) {
     if (IS_DEMO) { dispatch({ type: 'DELETE_TICKET', payload: id }); return }
     const { error } = await supabase.from('tickets').delete().eq('id', id)
     if (error) throw error
+    invalidateDynamicCache()
     dispatch({ type: 'DELETE_TICKET', payload: id })
   }
 
@@ -446,6 +532,7 @@ export function AppProvider({ children }) {
     }
     const { data: s, error } = await supabase.from('daily_summary').insert(data).select().single()
     if (error) throw error
+    invalidateDynamicCache()
     dispatch({ type: 'ADD_SUMMARY', payload: s })
     return s
   }
@@ -454,6 +541,7 @@ export function AppProvider({ children }) {
     if (IS_DEMO) { dispatch({ type: 'DELETE_SUMMARY', payload: id }); return }
     const { error } = await supabase.from('daily_summary').delete().eq('id', id)
     if (error) throw error
+    invalidateDynamicCache()
     dispatch({ type: 'DELETE_SUMMARY', payload: id })
   }
 
@@ -471,6 +559,7 @@ export function AppProvider({ children }) {
     }
     const { data: i, error } = await supabase.from('attendance_incidents').insert(enriched).select().single()
     if (error) throw error
+    invalidateDynamicCache()
     dispatch({ type: 'ADD_INCIDENT', payload: { ...i, discount_amount: discount } })
     return i
   }
@@ -488,6 +577,7 @@ export function AppProvider({ children }) {
     }
     const { data: i, error } = await supabase.from('attendance_incidents').update(enriched).eq('id', id).select().single()
     if (error) throw error
+    invalidateDynamicCache()
     dispatch({ type: 'UPDATE_INCIDENT', payload: { ...i, discount_amount: discount } })
     return i
   }
@@ -496,6 +586,7 @@ export function AppProvider({ children }) {
     if (IS_DEMO) { dispatch({ type: 'DELETE_INCIDENT', payload: id }); return }
     const { error } = await supabase.from('attendance_incidents').delete().eq('id', id)
     if (error) throw error
+    invalidateDynamicCache()
     dispatch({ type: 'DELETE_INCIDENT', payload: id })
   }
 
@@ -596,6 +687,7 @@ export function AppProvider({ children }) {
     const payload = { ...data, worker_id: data.worker_id || null }
     const { data: e, error } = await supabase.from('worker_expenses').insert(payload).select().single()
     if (error) { console.error('addExpense error:', error); throw error }
+    invalidateDynamicCache()
     dispatch({ type: 'ADD_EXPENSE', payload: e })
     return e
   }
@@ -609,6 +701,7 @@ export function AppProvider({ children }) {
     const payload = { ...data, worker_id: data.worker_id || null }
     const { data: e, error } = await supabase.from('worker_expenses').update(payload).eq('id', id).select().single()
     if (error) { console.error('updateExpense error:', error); throw error }
+    invalidateDynamicCache()
     dispatch({ type: 'SET_EXPENSES', payload: state.expenses.map(ex => ex.id === id ? e : ex) })
     return e
   }
@@ -617,6 +710,7 @@ export function AppProvider({ children }) {
     if (IS_DEMO) { dispatch({ type: 'SET_EXPENSES', payload: state.expenses.filter(e => e.id !== id) }); return }
     const { error } = await supabase.from('worker_expenses').delete().eq('id', id)
     if (error) throw error
+    invalidateDynamicCache()
     dispatch({ type: 'SET_EXPENSES', payload: state.expenses.filter(e => e.id !== id) })
   }
 

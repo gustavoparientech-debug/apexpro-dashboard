@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { formatMoney, todayISO, compressImage } from '../lib/utils'
 import ConfirmDialog from '../components/ui/ConfirmDialog'
-import { Plus, Camera, Search, X, Clock, CheckCircle, Trash2, PenLine, Zap, Save, ChevronLeft, ChevronRight, Eye } from 'lucide-react'
+import { Plus, Camera, Search, X, Clock, CheckCircle, Trash2, PenLine, Zap, Save, ChevronLeft, ChevronRight, Eye, EyeOff } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 const PAYMENT_OPTIONS = [
@@ -751,7 +751,7 @@ function serviceDuration(ticket) {
 }
 
 // ─── Tarjeta ticket cerrado ───────────────────────────────────────────────────
-function ClosedTicketCard({ ticket, workers, vehicleTypes, onDelete, onEdit, onSummary }) {
+function ClosedTicketCard({ ticket, workers, vehicleTypes, onDelete, onEdit, onSummary, onToggleHide }) {
   const worker  = workers.find(w => w.id === ticket.worker_id)
   const vehicle = (vehicleTypes || []).find(v => v.value === ticket.vehicle_type)
   const extras  = ticket.extras || []
@@ -763,7 +763,7 @@ function ClosedTicketCard({ ticket, workers, vehicleTypes, onDelete, onEdit, onS
 
   return (
     <>
-      <div className="card flex items-start gap-3 border-l-4 border-l-green-400 cursor-pointer active:scale-[0.99] transition-all"
+      <div className={`card flex items-start gap-3 border-l-4 cursor-pointer active:scale-[0.99] transition-all ${ticket.hidden_from_workers ? 'border-l-gray-400 opacity-60' : 'border-l-green-400'}`}
         onClick={() => onSummary?.(ticket)}>
         {ticket.photo_url ? (
           <img src={ticket.photo_url} alt="placa" className="w-12 h-12 object-cover rounded-xl flex-none" />
@@ -776,6 +776,9 @@ function ClosedTicketCard({ ticket, workers, vehicleTypes, onDelete, onEdit, onS
           <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
             <span className="font-mono font-bold text-gray-900 dark:text-white text-sm">{ticket.plate || 'Sin placa'}</span>
             <span className="text-xs bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-1.5 py-0.5 rounded-full">Cerrado</span>
+            {ticket.hidden_from_workers && (
+              <span className="text-xs bg-gray-100 dark:bg-gray-800 text-gray-500 px-1.5 py-0.5 rounded-full">Oculto</span>
+            )}
             {extras.length > 0 && (
               <span className="text-xs bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 px-1.5 py-0.5 rounded-full">
                 +{extras.length} adicional{extras.length > 1 ? 'es' : ''}
@@ -807,10 +810,14 @@ function ClosedTicketCard({ ticket, workers, vehicleTypes, onDelete, onEdit, onS
               }
             </p>
           </div>
-          {onSummary && (
-            <button onClick={e => { e.stopPropagation(); onSummary(ticket) }}
+          {onToggleHide && (
+            <button onClick={e => { e.stopPropagation(); onToggleHide(ticket) }}
+              title={ticket.hidden_from_workers ? 'Mostrar a trabajadores' : 'Ocultar a trabajadores'}
               className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg mt-0.5">
-              <Eye className="w-3.5 h-3.5 text-gray-400" />
+              {ticket.hidden_from_workers
+                ? <EyeOff className="w-3.5 h-3.5 text-gray-400" />
+                : <Eye className="w-3.5 h-3.5 text-gray-400" />
+              }
             </button>
           )}
           {onEdit && (
@@ -1360,6 +1367,14 @@ export default function Registro() {
     catch { toast.error('Error al eliminar') }
   }
 
+  async function handleToggleHideTicket(ticket) {
+    const newVal = !ticket.hidden_from_workers
+    try {
+      await updateTicket(ticket.id, { hidden_from_workers: newVal })
+      toast.success(newVal ? 'Ticket oculto para trabajadores' : 'Ticket visible para trabajadores')
+    } catch { toast.error('Error al actualizar') }
+  }
+
   async function handleSaveSummary(data) {
     try { await addDailySummary(data); toast.success('Registrado') }
     catch { toast.error('Error al guardar') }
@@ -1590,7 +1605,8 @@ export default function Registro() {
               <ClosedTicketCard key={t.id} ticket={t} workers={workers} vehicleTypes={vehicleTypes}
                 onDelete={canAdmin ? handleDeleteTicket : null}
                 onEdit={canAdmin ? (tk) => setEditingTicket(tk) : null}
-                onSummary={(tk) => setSummaryTicket(tk)} />
+                onSummary={(tk) => setSummaryTicket(tk)}
+                onToggleHide={canAdmin ? handleToggleHideTicket : null} />
             ))}
             {daySummaries.map(s => (
               <div key={s.id} className="card flex items-center gap-3 border-dashed">

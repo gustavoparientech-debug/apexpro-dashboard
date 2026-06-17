@@ -185,6 +185,7 @@ export default function DashboardTrabajador() {
   // Si está vinculado, filtrar por su worker_id; si no, mostrar todos los del día
   const myTicketsHoy = useMemo(() =>
     tickets.filter(t => {
+      if (t.hidden_from_workers) return false
       const isToday  = t.date === today
       const isClosed = t.status === 'cerrado' || !t.status
       if (!linked) return isToday && isClosed

@@ -2,14 +2,47 @@ import { useMemo, useRef, useState } from 'react'
 import { useApp } from '../context/AppContext'
 import { formatMoney, formatDate, calcRealSalary, calcProratedSalary, currentMonthYear, monthName } from '../lib/utils'
 import Badge from '../components/ui/Badge'
-import { Download, FileSpreadsheet, Pencil, Check, X } from 'lucide-react'
+import { Download, FileSpreadsheet, Pencil, Check, X, Trash2 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 const INCIDENT_LABELS = { falta: 'Falta injustificada', permiso: 'Permiso justificado', permiso_horas: 'Permiso por horas', tardanza: 'Tardanza', hora_extra: 'Hora extra', no_marcacion: 'No marcó entrada/salida', multa: 'Multa', adelanto: 'Adelanto de sueldo' }
 
 export default function Nomina() {
-  const { workers, incidents, updateWorker } = useApp()
+  const { workers, incidents, updateWorker, updateIncident, deleteIncident } = useApp()
   const [editingWorker, setEditingWorker] = useState(null)
+  const [editingIncident, setEditingIncident] = useState(null) // incident being edited
+  const [incDraft, setIncDraft] = useState({})
+  const [confirmDelete, setConfirmDelete] = useState(null)
+
+  function openEditIncident(inc) {
+    setIncDraft({
+      date: inc.date,
+      type: inc.type,
+      hours_late: inc.hours_late ?? 0,
+      no_marcacion_count: inc.no_marcacion_count ?? 1,
+      multa_amount: inc.multa_amount ?? inc.discount_amount ?? 0,
+      observation: inc.observation ?? '',
+      apply_discount: inc.apply_discount ?? true,
+      worker_id: inc.worker_id,
+    })
+    setEditingIncident(inc)
+  }
+
+  async function saveIncident() {
+    try {
+      await updateIncident(editingIncident.id, incDraft)
+      toast.success('Incidencia actualizada')
+      setEditingIncident(null)
+    } catch { toast.error('Error al guardar') }
+  }
+
+  async function doDeleteIncident(id) {
+    try {
+      await deleteIncident(id)
+      toast.success('Incidencia eliminada')
+      setConfirmDelete(null)
+    } catch { toast.error('Error al eliminar') }
+  }
 
   async function handleSaveWorker() {
     try {
@@ -109,6 +142,7 @@ export default function Nomina() {
   }
 
   return (
+    <>
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
@@ -226,18 +260,28 @@ export default function Nomina() {
                 <p className="text-sm font-medium text-gray-800 dark:text-gray-200 mb-2">{w.name}</p>
                 <div className="space-y-1 pl-3">
                   {w.workerIncidents.map(i => (
-                    <div key={i.id} className="flex items-center gap-3 text-xs">
-                      <span className="text-gray-500">{formatDate(i.date)}</span>
-                      <span className="text-gray-600 dark:text-gray-400">{INCIDENT_LABELS[i.type]}</span>
-                      {(i.type === 'tardanza' || i.type === 'permiso_horas' || i.type === 'hora_extra') && i.hours_late > 0 && <span className="text-gray-400">{Math.floor(i.hours_late)}h {Math.round((i.hours_late % 1) * 60)}min</span>}
-                      {i.type === 'no_marcacion' && <span className="text-gray-400">{i.no_marcacion_count || 1} vez{(i.no_marcacion_count || 1) > 1 ? 'es' : ''} · S/ 5 c/u</span>}
+                    <div key={i.id} className="flex items-center gap-2 text-xs group py-0.5">
+                      <span className="text-gray-500 shrink-0">{formatDate(i.date)}</span>
+                      <span className="text-gray-600 dark:text-gray-400 shrink-0">{INCIDENT_LABELS[i.type]}</span>
+                      {(i.type === 'tardanza' || i.type === 'permiso_horas' || i.type === 'hora_extra') && i.hours_late > 0 && <span className="text-gray-400 shrink-0">{Math.floor(i.hours_late)}h {Math.round((i.hours_late % 1) * 60)}min</span>}
+                      {i.type === 'no_marcacion' && <span className="text-gray-400 shrink-0">{i.no_marcacion_count || 1} vez{(i.no_marcacion_count || 1) > 1 ? 'es' : ''} · S/ 5 c/u</span>}
                       {i.apply_discount
                         ? i.is_addition
                           ? <Badge variant="verde">+{formatMoney(i.discount_amount)}</Badge>
                           : <Badge variant="rojo">-{formatMoney(i.discount_amount)}</Badge>
                         : <Badge variant="gray">Sin descuento</Badge>
                       }
-                      {i.observation && <span className="text-gray-400 italic">{i.observation}</span>}
+                      {i.observation && <span className="text-gray-400 italic truncate max-w-[200px]">{i.observation}</span>}
+                      <div className="ml-auto flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                        <button onClick={() => openEditIncident(i)}
+                          className="p-1 rounded hover:bg-blue-50 dark:hover:bg-blue-900/20 text-blue-500">
+                          <Pencil className="w-3 h-3" />
+                        </button>
+                        <button onClick={() => setConfirmDelete(i)}
+                          className="p-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 text-red-500">
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -247,5 +291,96 @@ export default function Nomina() {
         </div>
       )}
     </div>
+
+    {/* Modal editar incidencia */}
+    {editingIncident && (
+      <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 px-4 pb-4"
+        onClick={() => setEditingIncident(null)}>
+        <div className="bg-white dark:bg-gray-900 rounded-2xl w-full max-w-sm p-5 shadow-2xl space-y-3"
+          onClick={e => e.stopPropagation()}>
+          <p className="font-bold text-gray-900 dark:text-white">Editar incidencia</p>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-gray-500 mb-1 block">Fecha</label>
+              <input type="date" className="input w-full text-sm"
+                value={incDraft.date}
+                onChange={e => setIncDraft(d => ({ ...d, date: e.target.value }))} />
+            </div>
+            <div>
+              <label className="text-xs text-gray-500 mb-1 block">Tipo</label>
+              <select className="input w-full text-sm"
+                value={incDraft.type}
+                onChange={e => setIncDraft(d => ({ ...d, type: e.target.value }))}>
+                {Object.entries(INCIDENT_LABELS).map(([k, v]) => (
+                  <option key={k} value={k}>{v}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {(incDraft.type === 'tardanza' || incDraft.type === 'permiso_horas' || incDraft.type === 'hora_extra') && (
+            <div>
+              <label className="text-xs text-gray-500 mb-1 block">Horas</label>
+              <input type="number" step="0.5" min="0" className="input w-full text-sm"
+                value={incDraft.hours_late}
+                onChange={e => setIncDraft(d => ({ ...d, hours_late: parseFloat(e.target.value) || 0 }))} />
+            </div>
+          )}
+
+          {incDraft.type === 'no_marcacion' && (
+            <div>
+              <label className="text-xs text-gray-500 mb-1 block">Cantidad de veces</label>
+              <input type="number" min="1" className="input w-full text-sm"
+                value={incDraft.no_marcacion_count}
+                onChange={e => setIncDraft(d => ({ ...d, no_marcacion_count: parseInt(e.target.value) || 1 }))} />
+            </div>
+          )}
+
+          {(incDraft.type === 'multa' || incDraft.type === 'adelanto') && (
+            <div>
+              <label className="text-xs text-gray-500 mb-1 block">Monto (S/)</label>
+              <input type="number" min="0" step="0.01" className="input w-full text-sm"
+                value={incDraft.multa_amount}
+                onChange={e => setIncDraft(d => ({ ...d, multa_amount: parseFloat(e.target.value) || 0 }))} />
+            </div>
+          )}
+
+          <div>
+            <label className="text-xs text-gray-500 mb-1 block">Observación</label>
+            <input type="text" className="input w-full text-sm" placeholder="Opcional..."
+              value={incDraft.observation}
+              onChange={e => setIncDraft(d => ({ ...d, observation: e.target.value }))} />
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 pt-1">
+            <button onClick={() => setEditingIncident(null)} className="btn-secondary py-2.5 text-sm rounded-xl">Cancelar</button>
+            <button onClick={saveIncident} className="btn-primary py-2.5 text-sm rounded-xl">Guardar</button>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* Modal confirmar eliminar */}
+    {confirmDelete && (
+      <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 px-4 pb-4"
+        onClick={() => setConfirmDelete(null)}>
+        <div className="bg-white dark:bg-gray-900 rounded-2xl w-full max-w-sm p-5 shadow-2xl"
+          onClick={e => e.stopPropagation()}>
+          <p className="font-bold text-gray-900 dark:text-white mb-1">¿Eliminar incidencia?</p>
+          <p className="text-sm text-gray-500 mb-4">
+            {INCIDENT_LABELS[confirmDelete.type]} del {formatDate(confirmDelete.date)} — {formatMoney(confirmDelete.discount_amount)}
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            <button onClick={() => setConfirmDelete(null)} className="btn-secondary py-2.5 text-sm rounded-xl">Cancelar</button>
+            <button onClick={() => doDeleteIncident(confirmDelete.id)}
+              className="py-2.5 text-sm rounded-xl bg-red-600 hover:bg-red-700 text-white font-semibold transition-colors">
+              Eliminar
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+  </>
   )
 }

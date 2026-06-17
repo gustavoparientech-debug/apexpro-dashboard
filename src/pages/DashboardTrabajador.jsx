@@ -194,6 +194,7 @@ export default function DashboardTrabajador() {
 
   const myOpen = useMemo(() =>
     tickets.filter(t => {
+      if (t.hidden_from_workers) return false
       if (!linked) return t.status === 'abierto'
       return t.worker_id === profile.worker_id && t.status === 'abierto'
     }), [tickets, profile, linked])

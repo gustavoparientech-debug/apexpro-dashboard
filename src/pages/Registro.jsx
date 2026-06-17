@@ -694,7 +694,7 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
 }
 
 // ─── Tarjeta ticket abierto ───────────────────────────────────────────────────
-function ActiveTicketCard({ ticket, workers, vehicleTypes, onClick }) {
+function ActiveTicketCard({ ticket, workers, vehicleTypes, onClick, onToggleHide }) {
   const worker  = workers.find(w => w.id === ticket.worker_id)
   const vehicle = (vehicleTypes || []).find(v => v.value === ticket.vehicle_type)
   const extras  = ticket.extras || []
@@ -702,34 +702,48 @@ function ActiveTicketCard({ ticket, workers, vehicleTypes, onClick }) {
   const total = (ticket.price_charged || 0) + extrasTotal
 
   return (
-    <button onClick={onClick}
-      className="w-full card flex items-start gap-3 text-left hover:shadow-md transition-shadow border-l-4 border-l-amber-400">
-      {ticket.photo_url ? (
-        <img src={ticket.photo_url} alt="placa" className="w-14 h-14 object-cover rounded-xl flex-none" />
-      ) : (
-        <div className="w-14 h-14 bg-gray-100 dark:bg-gray-800 rounded-xl flex-none flex items-center justify-center text-2xl">
-          {vehicle?.emoji || '🚗'}
-        </div>
-      )}
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 mb-0.5">
-          <span className="font-mono font-black text-gray-900 dark:text-white">
-            {ticket.plate || 'Sin placa'}
-          </span>
-          <span className="text-xs bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 px-1.5 py-0.5 rounded-full font-medium">
-            Abierto
-          </span>
-        </div>
-        <p className="text-xs text-gray-500">{vehicle?.label || ticket.vehicle_type} · {worker?.name || '—'}</p>
-        {extras.length > 0 && (
-          <p className="text-xs text-gray-400 mt-0.5">{extras.length} extra{extras.length > 1 ? 's' : ''}</p>
+    <div className={`card flex items-start gap-3 border-l-4 ${ticket.hidden_from_workers ? 'border-l-gray-400 opacity-60' : 'border-l-amber-400'}`}>
+      <button onClick={onClick} className="flex items-start gap-3 flex-1 text-left min-w-0">
+        {ticket.photo_url ? (
+          <img src={ticket.photo_url} alt="placa" className="w-14 h-14 object-cover rounded-xl flex-none" />
+        ) : (
+          <div className="w-14 h-14 bg-gray-100 dark:bg-gray-800 rounded-xl flex-none flex items-center justify-center text-2xl">
+            {vehicle?.emoji || '🚗'}
+          </div>
         )}
-      </div>
-      <div className="text-right flex-none">
-        <TimerBadge openedAt={ticket.opened_at} />
-        <p className="text-sm font-bold text-red-600 mt-0.5">{formatMoney(total)}</p>
-      </div>
-    </button>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-0.5">
+            <span className="font-mono font-black text-gray-900 dark:text-white">
+              {ticket.plate || 'Sin placa'}
+            </span>
+            <span className="text-xs bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 px-1.5 py-0.5 rounded-full font-medium">
+              Abierto
+            </span>
+            {ticket.hidden_from_workers && (
+              <span className="text-xs bg-gray-100 dark:bg-gray-800 text-gray-500 px-1.5 py-0.5 rounded-full">Oculto</span>
+            )}
+          </div>
+          <p className="text-xs text-gray-500">{vehicle?.label || ticket.vehicle_type} · {worker?.name || '—'}</p>
+          {extras.length > 0 && (
+            <p className="text-xs text-gray-400 mt-0.5">{extras.length} extra{extras.length > 1 ? 's' : ''}</p>
+          )}
+        </div>
+        <div className="text-right flex-none">
+          <TimerBadge openedAt={ticket.opened_at} />
+          <p className="text-sm font-bold text-red-600 mt-0.5">{formatMoney(total)}</p>
+        </div>
+      </button>
+      {onToggleHide && (
+        <button onClick={() => onToggleHide(ticket)}
+          title={ticket.hidden_from_workers ? 'Mostrar a trabajadores' : 'Ocultar a trabajadores'}
+          className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg mt-1 flex-none">
+          {ticket.hidden_from_workers
+            ? <EyeOff className="w-4 h-4 text-gray-400" />
+            : <Eye className="w-4 h-4 text-gray-400" />
+          }
+        </button>
+      )}
+    </div>
   )
 }
 
@@ -1580,7 +1594,8 @@ export default function Registro() {
           <div className="space-y-2">
             {openTickets.map(t => (
               <ActiveTicketCard key={t.id} ticket={t} workers={workers} vehicleTypes={vehicleTypes}
-                onClick={() => setActiveTicket(t.id)} />
+                onClick={() => setActiveTicket(t.id)}
+                onToggleHide={canAdmin ? handleToggleHideTicket : null} />
             ))}
           </div>
         )}

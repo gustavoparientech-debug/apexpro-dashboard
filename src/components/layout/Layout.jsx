@@ -6,7 +6,7 @@ import { useApp } from '../../context/AppContext'
 import {
   LayoutDashboard, ClipboardList, Users, Wallet, TrendingUp,
   Settings, History, BarChart2, Sun, Moon, Menu, X, ChevronRight, UserCog, LogOut,
-  Plus, TrendingDown, AlertCircle
+  Plus, TrendingDown, AlertCircle, Calculator
 } from 'lucide-react'
 import { cn, todayISO } from '../../lib/utils'
 import { IncidentForm } from '../../pages/Trabajadores'
@@ -183,12 +183,14 @@ const ADMIN_NAV = [
   { to: '/configuracion', label: 'Config',    icon: Settings },
   { to: '/historial',     label: 'Historial', icon: History },
   { to: '/reportes',      label: 'Reportes',  icon: BarChart2 },
-  { to: '/usuarios',      label: 'Usuarios',  icon: UserCog },
+  { to: '/usuarios',      label: 'Usuarios',    icon: UserCog },
+  { to: '/presupuesto',   label: 'Presupuesto', icon: Calculator },
 ]
 
 const WORKER_NAV = [
-  { to: '/',         label: 'Inicio',   icon: LayoutDashboard },
-  { to: '/registro', label: 'Registro', icon: ClipboardList },
+  { to: '/',              label: 'Inicio',      icon: LayoutDashboard },
+  { to: '/registro',      label: 'Registro',    icon: ClipboardList },
+  { to: '/presupuesto',   label: 'Presupuesto', icon: Calculator },
 ]
 
 function NavItem({ item, collapsed, onClick }) {
@@ -247,7 +249,14 @@ export default function Layout({ children }) {
   }
 
   const NAV = isAdmin ? ADMIN_NAV : WORKER_NAV
-  const mobileNav = NAV.slice(0, 5)
+  const ADMIN_MOBILE = [
+    ADMIN_NAV.find(n => n.to === '/'),
+    ADMIN_NAV.find(n => n.to === '/registro'),
+    ADMIN_NAV.find(n => n.to === '/trabajadores'),
+    ADMIN_NAV.find(n => n.to === '/nomina'),
+    ADMIN_NAV.find(n => n.to === '/presupuesto'),
+  ]
+  const mobileNav = isAdmin ? ADMIN_MOBILE : NAV
 
   const currentPage = NAV.find(i => {
     if (i.to === '/') return location.pathname === '/'

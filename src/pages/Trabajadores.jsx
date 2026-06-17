@@ -270,6 +270,7 @@ export default function Trabajadores() {
   const [terminationDate, setTerminationDate] = useState(todayISO())
   const [deleteIncidentTarget, setDeleteIncidentTarget] = useState(null)
   const [selectedWorker, setSelectedWorker] = useState(null)
+  const [incFilter, setIncFilter] = useState({ worker: '', type: '', sort: 'date_desc' })
 
   const monthStart = monthRangeStr(year, month)
 
@@ -475,9 +476,57 @@ export default function Trabajadores() {
       {/* Lista de incidencias del mes */}
       {incidents.length > 0 && (
         <div className="card">
-          <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Incidencias del mes</p>
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+              Incidencias del mes
+              <span className="ml-2 text-xs font-normal text-gray-400">{incidents.length} total</span>
+            </p>
+            {(incFilter.worker || incFilter.type || incFilter.sort !== 'date_desc') && (
+              <button onClick={() => setIncFilter({ worker: '', type: '', sort: 'date_desc' })}
+                className="text-xs text-red-500 hover:underline">Limpiar filtros</button>
+            )}
+          </div>
+
+          {/* Filtros */}
+          <div className="flex flex-wrap gap-2 mb-4">
+            <select value={incFilter.worker} onChange={e => setIncFilter(f => ({ ...f, worker: e.target.value }))}
+              className="text-xs border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1.5 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-1 focus:ring-red-500">
+              <option value="">Todos los trabajadores</option>
+              {workers.filter(w => incidents.some(i => i.worker_id === w.id)).map(w => (
+                <option key={w.id} value={w.id}>{w.name}</option>
+              ))}
+            </select>
+
+            <select value={incFilter.type} onChange={e => setIncFilter(f => ({ ...f, type: e.target.value }))}
+              className="text-xs border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1.5 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-1 focus:ring-red-500">
+              <option value="">Todos los tipos</option>
+              {[...new Set(incidents.map(i => i.type))].map(t => (
+                <option key={t} value={t}>{INCIDENT_LABELS[t]}</option>
+              ))}
+            </select>
+
+            <select value={incFilter.sort} onChange={e => setIncFilter(f => ({ ...f, sort: e.target.value }))}
+              className="text-xs border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1.5 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-1 focus:ring-red-500">
+              <option value="date_desc">Más reciente primero</option>
+              <option value="date_asc">Más antiguo primero</option>
+              <option value="worker">Por trabajador</option>
+              <option value="amount_desc">Mayor monto primero</option>
+              <option value="amount_asc">Menor monto primero</option>
+            </select>
+          </div>
+
           <div className="space-y-2">
-            {incidents.map(incident => {
+            {[...incidents]
+              .filter(i => (!incFilter.worker || i.worker_id === incFilter.worker) && (!incFilter.type || i.type === incFilter.type))
+              .sort((a, b) => {
+                if (incFilter.sort === 'date_asc')    return a.date.localeCompare(b.date)
+                if (incFilter.sort === 'date_desc')   return b.date.localeCompare(a.date)
+                if (incFilter.sort === 'worker')      return (workers.find(w => w.id === a.worker_id)?.name || '').localeCompare(workers.find(w => w.id === b.worker_id)?.name || '')
+                if (incFilter.sort === 'amount_desc') return (b.discount_amount || 0) - (a.discount_amount || 0)
+                if (incFilter.sort === 'amount_asc')  return (a.discount_amount || 0) - (b.discount_amount || 0)
+                return 0
+              })
+              .map(incident => {
               const worker = workers.find(w => w.id === incident.worker_id)
               return (
                 <div key={incident.id} className="flex items-start gap-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-800/50">

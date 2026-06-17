@@ -564,9 +564,9 @@ export default function Presupuesto() {
         </div>
 
         {/* Columnas header */}
-        <div className="grid grid-cols-[1fr_auto_auto_auto] gap-0 text-[10px] font-semibold text-gray-400 uppercase tracking-wide px-4 py-2 bg-gray-50 dark:bg-gray-800/50 border-b border-gray-100 dark:border-gray-800">
+        <div className={`grid gap-0 text-[10px] font-semibold text-gray-400 uppercase tracking-wide px-4 py-2 bg-gray-50 dark:bg-gray-800/50 border-b border-gray-100 dark:border-gray-800 ${canAdmin ? 'grid-cols-[1fr_auto_auto_auto]' : 'grid-cols-[1fr_auto_auto]'}`}>
           <span>Paño</span>
-          <span className="w-16 text-center">Mult.</span>
+          {canAdmin && <span className="w-16 text-center">Mult.</span>}
           <span className="w-20 text-right">Precio</span>
           <span className="w-8 text-center">✓</span>
         </div>
@@ -578,7 +578,7 @@ export default function Presupuesto() {
               {/* Fila principal */}
               <div
                 onClick={() => togglePanel(row.id)}
-                className={`grid grid-cols-[1fr_auto_auto_auto] items-center gap-0 px-4 py-2.5 cursor-pointer ${
+                className={`grid items-center gap-0 px-4 py-2.5 cursor-pointer ${canAdmin ? 'grid-cols-[1fr_auto_auto_auto]' : 'grid-cols-[1fr_auto_auto]'} ${
                   !selected[row.id] ? 'hover:bg-gray-50 dark:hover:bg-gray-800/30' : ''
                 }`}>
                 <div>
@@ -589,12 +589,11 @@ export default function Presupuesto() {
                     </p>
                   )}
                 </div>
-                <div className="w-16 flex justify-center" onClick={e => canAdmin && e.stopPropagation()}>
-                  {canAdmin
-                    ? <EditableCell value={row.mult} onSave={val => updateMult(row.id, vehicleType, val)} />
-                    : <span className="font-mono text-xs text-gray-500">{row.mult}x</span>
-                  }
-                </div>
+                {canAdmin && (
+                  <div className="w-16 flex justify-center" onClick={e => e.stopPropagation()}>
+                    <EditableCell value={row.mult} onSave={val => updateMult(row.id, vehicleType, val)} />
+                  </div>
+                )}
                 <span className="w-20 text-right text-sm font-bold text-gray-900 dark:text-white">
                   {formatMoney(row.price)}
                 </span>
@@ -700,8 +699,8 @@ export default function Presupuesto() {
         </div>
       )}
 
-      {/* Comparativa por tipo de vehículo */}
-      <div className="card overflow-hidden p-0">
+      {/* Comparativa por tipo de vehículo — solo admin */}
+      {canAdmin && <div className="card overflow-hidden p-0">
         <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-800">
           <p className="font-bold text-gray-900 dark:text-white text-sm">Comparativa por vehículo</p>
           <p className="text-xs text-gray-500">Precio total si se seleccionan todos los paños</p>
@@ -717,7 +716,7 @@ export default function Presupuesto() {
             )
           })}
         </div>
-      </div>
+      </div>}
 
       {canAdmin && (
         <div className="text-center text-xs text-gray-400 pb-2">

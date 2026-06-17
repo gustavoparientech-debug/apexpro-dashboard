@@ -118,7 +118,7 @@ function Modal({ open, onClose, title, children }) {
 }
 
 // ─── Formulario nuevo ticket (simplificado) ───────────────────────────────────
-function NewTicketForm({ onSave, onClose, workers, vehicleTypes, lockedWorkerId, canAdmin, defaultDate }) {
+function NewTicketForm({ onSave, onClose, workers, vehicleTypes, lockedWorkerId, canAdmin, defaultDate, allTickets }) {
   const [form, setForm] = useState({
     date:          defaultDate || todayISO(),
     worker_id:     lockedWorkerId || '',
@@ -127,9 +127,23 @@ function NewTicketForm({ onSave, onClose, workers, vehicleTypes, lockedWorkerId,
     notes:         '',
     plate:         '',
     photo_url:     '',
+    client_name:   '',
+    client_phone:  '',
   })
   const [photoPreview, setPhotoPreview] = useState('')
   const fileRef = useRef()
+
+  // Auto-rellenar datos del cliente si la placa ya tiene historial
+  function handlePlateChange(val) {
+    const plate = val.toUpperCase()
+    setForm(f => {
+      if (plate.length >= 3) {
+        const prev = (allTickets || []).find(t => t.plate === plate && (t.client_name || t.client_phone))
+        if (prev) return { ...f, plate, client_name: prev.client_name || f.client_name, client_phone: prev.client_phone || f.client_phone }
+      }
+      return { ...f, plate }
+    })
+  }
 
   const activeWorkers = workers.filter(w => w.active)
   const activeVehicles = (vehicleTypes || []).filter(v => v.active !== false)
@@ -224,11 +238,24 @@ function NewTicketForm({ onSave, onClose, workers, vehicleTypes, lockedWorkerId,
           <div className="relative">
             <input className="input pr-10 uppercase tracking-widest font-mono text-lg"
               placeholder="AAA-123" value={form.plate}
-              onChange={e => setForm(f => ({ ...f, plate: e.target.value.toUpperCase() }))}
+              onChange={e => handlePlateChange(e.target.value)}
               maxLength={8} />
             <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           </div>
         </div>
+
+        {/* Datos del cliente (opcional) */}
+        {form.plate.length >= 3 && (
+          <div className="bg-gray-50 dark:bg-gray-800/50 rounded-2xl p-3 space-y-2">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Datos del cliente (opcional)</p>
+            <input className="input text-sm" placeholder="Nombre"
+              value={form.client_name}
+              onChange={e => setForm(f => ({ ...f, client_name: e.target.value }))} />
+            <input className="input text-sm" placeholder="Teléfono (9 dígitos)" type="tel" maxLength={9}
+              value={form.client_phone}
+              onChange={e => setForm(f => ({ ...f, client_phone: e.target.value.replace(/\D/g, '') }))} />
+          </div>
+        )}
 
         {/* Tipo de vehículo */}
         <div>
@@ -1312,6 +1339,13 @@ export default function Registro() {
   async function handleSaveTicket(data) {
     try {
       await addTicket(data)
+      // Sincronizar datos del cliente con vehicle_clients si se proporcionaron
+      if (data.plate && (data.client_name || data.client_phone)) {
+        await supabase.from('vehicle_clients').upsert(
+          { plate: data.plate, name: data.client_name || null, phone: data.client_phone || null },
+          { onConflict: 'plate', ignoreDuplicates: false }
+        )
+      }
       toast.success('Ticket abierto')
     } catch (err) { toast.error('Error: ' + err.message) }
   }
@@ -1690,6 +1724,7 @@ export default function Registro() {
           lockedWorkerId={(isAdmin || isDemo) ? null : profile?.worker_id}
           canAdmin={canAdmin}
           defaultDate={selectedDate}
+          allTickets={tickets}
         />
       </BottomSheet>
 

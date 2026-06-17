@@ -1273,9 +1273,9 @@ export default function Registro() {
   // Tickets abiertos: solo mostrar cuando se ve el día de hoy o posterior (nunca en días pasados)
   const openTickets = useMemo(
     () => selectedDate < todayISO() ? [] :
-      [...tickets.filter(t => t.status === 'abierto')]
+      [...tickets.filter(t => t.status === 'abierto' && (!t.hidden_from_workers || canAdmin))]
         .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0)),
-    [tickets, selectedDate]
+    [tickets, selectedDate, canAdmin]
   )
 
   // Tickets cerrados del día seleccionado — más reciente primero

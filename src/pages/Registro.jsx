@@ -12,8 +12,9 @@ const PAYMENT_OPTIONS = [
   { value: 'efectivo',     label: '💵 Efectivo' },
   { value: 'yape',         label: '📱 Yape' },
   { value: 'transferencia',label: '🏦 Transferencia' },
+  { value: 'mixto',        label: '💵+📱 Mixto' },
 ]
-const PAYMENT_LABELS = { efectivo: '💵 Efectivo', yape: '📱 Yape', transferencia: '🏦 Transferencia' }
+const PAYMENT_LABELS = { efectivo: '💵 Efectivo', yape: '📱 Yape', transferencia: '🏦 Transferencia', mixto: '💵+📱 Mixto' }
 
 // ─── Timer hook ───────────────────────────────────────────────────────────────
 function useElapsedMs(openedAt) {
@@ -322,13 +323,18 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
   const [saving,        setSaving]        = useState(false)
   const [notes,         setNotes]         = useState(ticket.notes || '')
   const [paymentPhoto,  setPaymentPhoto]  = useState(ticket.payment_photo || '')
+  const [mixtoYape,     setMixtoYape]     = useState(ticket.mixto_yape || '')
+  const [mixtoEfectivo, setMixtoEfectivo] = useState(ticket.mixto_efectivo || '')
   const paymentPhotoRef = useRef()
 
   const extrasTotal = extras.reduce((s, e) => s + (e.price || 0), 0)
   const totalBruto = parseFloat(basePrice || 0) + extrasTotal
   const isTransferencia = ticket.payment_method === 'transferencia'
+  const isMixto = ticket.payment_method === 'mixto'
   const TRANSFER_FEE = 0.04
   const total = isTransferencia ? Math.round(totalBruto * (1 - TRANSFER_FEE) * 100) / 100 : totalBruto
+  const mixtoSum = (parseFloat(mixtoYape) || 0) + (parseFloat(mixtoEfectivo) || 0)
+  const mixtoOk = !isMixto || Math.abs(mixtoSum - total) < 0.01
 
   async function addCatalogExtra(extra) {
     const newExtras = [...extras, { name: extra.name, price: extra.price }]
@@ -359,6 +365,7 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
         extras,
         notes,
         ...(paymentPhoto && { payment_photo: paymentPhoto }),
+        ...(isMixto && { mixto_yape: parseFloat(mixtoYape) || 0, mixto_efectivo: parseFloat(mixtoEfectivo) || 0 }),
       })
       toast.success('Ticket actualizado')
       onClose()
@@ -371,6 +378,10 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
       toast.error('Selecciona el método de pago antes de cerrar')
       return
     }
+    if (isMixto && !mixtoOk) {
+      toast.error(`La suma debe ser ${formatMoney(total)} (falta ${formatMoney(total - mixtoSum)})`)
+      return
+    }
     await onUpdate(ticket.id, {
       status:        'cerrado',
       price_charged: total,
@@ -378,6 +389,7 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
       notes,
       closed_at:     new Date().toISOString(),
       ...(paymentPhoto && { payment_photo: paymentPhoto }),
+      ...(isMixto && { mixto_yape: parseFloat(mixtoYape) || 0, mixto_efectivo: parseFloat(mixtoEfectivo) || 0 }),
     })
     toast.success('Ticket cerrado')
     onClose()
@@ -527,39 +539,72 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
             ))}
           </div>
 
-          {/* Foto comprobante Yape */}
-          {ticket.payment_method === 'yape' && (
-            <div className="mt-3">
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Comprobante Yape</p>
-              <input ref={paymentPhotoRef} type="file" accept="image/*" capture="environment" className="hidden"
-                onChange={async e => {
-                  const file = e.target.files?.[0]
-                  if (!file) return
-                  try {
-                    const compressed = await compressImage(file)
-                    const path = `yape/${ticket.id}_${Date.now()}.jpg`
-                    const { error } = await supabase.storage.from('payment-photos').upload(path, compressed, { upsert: true, contentType: 'image/jpeg' })
-                    if (error) { toast.error('Error al subir foto'); return }
-                    const { data } = supabase.storage.from('payment-photos').getPublicUrl(path)
-                    setPaymentPhoto(data.publicUrl)
-                  } catch {
-                    toast.error('Error al procesar la foto')
-                  }
-                }} />
-              {paymentPhoto ? (
-                <div className="relative rounded-xl overflow-hidden border border-purple-200 dark:border-purple-800">
-                  <img src={paymentPhoto} alt="comprobante" className="w-full h-32 object-cover" />
-                  <button onClick={() => setPaymentPhoto('')}
-                    className="absolute top-2 right-2 bg-black/50 text-white rounded-full p-1">
-                    <X className="w-4 h-4" />
-                  </button>
+          {/* Foto comprobante Yape o Mixto */}
+          <input ref={paymentPhotoRef} type="file" accept="image/*" capture="environment" className="hidden"
+            onChange={async e => {
+              const file = e.target.files?.[0]
+              if (!file) return
+              try {
+                const compressed = await compressImage(file)
+                const path = `yape/${ticket.id}_${Date.now()}.jpg`
+                const { error } = await supabase.storage.from('payment-photos').upload(path, compressed, { upsert: true, contentType: 'image/jpeg' })
+                if (error) { toast.error('Error al subir foto'); return }
+                const { data } = supabase.storage.from('payment-photos').getPublicUrl(path)
+                setPaymentPhoto(data.publicUrl)
+              } catch { toast.error('Error al procesar la foto') }
+            }} />
+
+          {(ticket.payment_method === 'yape' || isMixto) && (
+            <div className="mt-3 space-y-3">
+              {isMixto && (
+                <div>
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Desglose del pago</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-xs text-purple-500 font-medium mb-1 block">📱 Yape S/</label>
+                      <input type="number" className="input text-sm" min="0" step="0.50"
+                        value={mixtoYape} placeholder="0"
+                        onChange={e => {
+                          setMixtoYape(e.target.value)
+                          const yape = parseFloat(e.target.value) || 0
+                          const resto = Math.max(0, total - yape)
+                          setMixtoEfectivo(resto > 0 ? String(Math.round(resto * 100) / 100) : '')
+                        }} />
+                    </div>
+                    <div>
+                      <label className="text-xs text-green-600 font-medium mb-1 block">💵 Efectivo S/</label>
+                      <input type="number" className="input text-sm" min="0" step="0.50"
+                        value={mixtoEfectivo} placeholder="0"
+                        onChange={e => setMixtoEfectivo(e.target.value)} />
+                    </div>
+                  </div>
+                  {!mixtoOk && mixtoSum > 0 && (
+                    <p className="text-xs text-orange-500 mt-1">
+                      Suma: {formatMoney(mixtoSum)} — faltan {formatMoney(total - mixtoSum)}
+                    </p>
+                  )}
+                  {mixtoOk && mixtoSum > 0 && (
+                    <p className="text-xs text-green-600 mt-1">✓ Suma correcta</p>
+                  )}
                 </div>
-              ) : (
-                <button onClick={() => paymentPhotoRef.current.click()}
-                  className="w-full h-20 border-2 border-dashed border-purple-300 dark:border-purple-700 rounded-xl flex items-center justify-center gap-2 text-purple-400 hover:border-purple-500 hover:text-purple-500 transition-colors text-sm font-medium">
-                  <Camera className="w-5 h-5" /> Foto del Yape
-                </button>
               )}
+              <div>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Comprobante Yape</p>
+                {paymentPhoto ? (
+                  <div className="relative rounded-xl overflow-hidden border border-purple-200 dark:border-purple-800">
+                    <img src={paymentPhoto} alt="comprobante" className="w-full h-32 object-cover" />
+                    <button onClick={() => setPaymentPhoto('')}
+                      className="absolute top-2 right-2 bg-black/50 text-white rounded-full p-1">
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <button onClick={() => paymentPhotoRef.current.click()}
+                    className="w-full h-20 border-2 border-dashed border-purple-300 dark:border-purple-700 rounded-xl flex items-center justify-center gap-2 text-purple-400 hover:border-purple-500 hover:text-purple-500 transition-colors text-sm font-medium">
+                    <Camera className="w-5 h-5" /> Foto del Yape
+                  </button>
+                )}
+              </div>
             </div>
           )}
         </div>
@@ -725,6 +770,8 @@ function ClosedTicketCard({ ticket, workers, vehicleTypes, onDelete, onEdit, onS
             <p className="text-xs font-medium">
               {ticket.payment_method === 'yape'
                 ? <span className="text-purple-500">📱 Yape</span>
+                : ticket.payment_method === 'mixto'
+                ? <span className="text-gray-600">💵+📱 Mixto</span>
                 : ticket.payment_method === 'efectivo'
                 ? <span className="text-green-600">💵 Efectivo</span>
                 : ticket.payment_method === 'transferencia'
@@ -1407,6 +1454,7 @@ export default function Registro() {
                 efectivo:      { label: 'Efectivo',      icon: '💵', color: 'text-green-600',  bar: 'bg-green-500',  ring: 'bg-green-100 dark:bg-green-900/30' },
                 yape:          { label: 'Yape',          icon: '📱', color: 'text-purple-600', bar: 'bg-purple-500', ring: 'bg-purple-100 dark:bg-purple-900/30' },
                 transferencia: { label: 'Transferencia', icon: '🏦', color: 'text-blue-600',   bar: 'bg-blue-500',   ring: 'bg-blue-100 dark:bg-blue-900/30' },
+                mixto:         { label: 'Mixto',         icon: '💵', color: 'text-gray-600',   bar: 'bg-gray-400',   ring: 'bg-gray-100 dark:bg-gray-800' },
               }[method] || { label: method, icon: '💳', color: 'text-gray-600', bar: 'bg-gray-400', ring: 'bg-gray-100' }
               return (
                 <div key={method} className="card py-3 px-3">

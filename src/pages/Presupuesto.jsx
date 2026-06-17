@@ -1,6 +1,7 @@
-import { useState, useMemo, useRef } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useAuth } from '../context/AuthContext'
-import { Edit2, Check, X, ChevronDown, ChevronUp, FileText, MessageCircle, Share2 } from 'lucide-react'
+import { supabase } from '../lib/supabase'
+import { Edit2, Check, X, ChevronDown, ChevronUp, FileText, MessageCircle } from 'lucide-react'
 import toast from 'react-hot-toast'
 import jsPDF from 'jspdf'
 
@@ -41,24 +42,17 @@ const VEHICLE_TYPES = [
 ]
 
 const LS_KEY = 'apexpro_presupuesto_config'
+const SB_KEY = 'presupuesto_config'
 
-function loadConfig() {
-  try {
-    const raw = localStorage.getItem(LS_KEY)
-    if (!raw) return DEFAULT_CONFIG
-    const saved = JSON.parse(raw)
-    return {
-      basePrices: { ...DEFAULT_CONFIG.basePrices, ...saved.basePrices },
-      panels: DEFAULT_CONFIG.panels.map(p => {
-        const sp = saved.panels?.find(x => x.id === p.id)
-        return sp ? { ...p, mult: { ...p.mult, ...sp.mult } } : p
-      }),
-    }
-  } catch { return DEFAULT_CONFIG }
-}
-
-function saveConfig(cfg) {
-  try { localStorage.setItem(LS_KEY, JSON.stringify(cfg)) } catch {}
+function mergeConfig(saved) {
+  if (!saved) return DEFAULT_CONFIG
+  return {
+    basePrices: { ...DEFAULT_CONFIG.basePrices, ...saved.basePrices },
+    panels: DEFAULT_CONFIG.panels.map(p => {
+      const sp = saved.panels?.find(x => x.id === p.id)
+      return sp ? { ...p, mult: { ...p.mult, ...sp.mult } } : p
+    }),
+  }
 }
 
 function formatMoney(n) {
@@ -79,14 +73,14 @@ function EditableCell({ value, onSave }) {
 
   if (!editing) return (
     <button onClick={() => { setVal(String(value)); setEditing(true) }}
-      className="flex items-center gap-1 text-blue-600 dark:text-blue-400 font-mono text-xs hover:underline">
+      className="flex items-center gap-1 text-red-500 dark:text-red-400 font-mono text-xs hover:underline">
       {value}<Edit2 className="w-2.5 h-2.5" />
     </button>
   )
   return (
     <div className="flex items-center gap-1">
       <input type="number" step="0.1" min="0.1" value={val} onChange={e => setVal(e.target.value)}
-        className="w-14 text-xs border border-blue-400 rounded px-1 py-0.5 font-mono dark:bg-gray-800 dark:text-white"
+        className="w-14 text-xs border border-red-400 rounded px-1 py-0.5 font-mono dark:bg-gray-800 dark:text-white"
         onKeyDown={e => { if (e.key === 'Enter') handleSave(); if (e.key === 'Escape') setEditing(false) }}
         autoFocus />
       <button onClick={handleSave} className="text-green-600"><Check className="w-3.5 h-3.5" /></button>
@@ -100,7 +94,8 @@ export default function Presupuesto() {
   const { isAdmin, isDemo } = useAuth()
   const canAdmin = isAdmin || isDemo
 
-  const [config, setConfig] = useState(loadConfig)
+  const [config, setConfig] = useState(() => mergeConfig(null))
+  const [loading, setLoading] = useState(true)
   const [vehicleType, setVehicleType] = useState('auto')
   const [selectedTier, setSelectedTier] = useState('economy')
   const [selectedBrand, setSelectedBrand] = useState('')
@@ -109,15 +104,54 @@ export default function Presupuesto() {
   const [pricesDraft, setPricesDraft] = useState(config.basePrices)
   const [showBrands, setShowBrands] = useState(false)
 
+  // Cargar config desde Supabase
+  useEffect(() => {
+    async function load() {
+      try {
+        // Mostrar localStorage mientras carga Supabase
+        const raw = localStorage.getItem(LS_KEY)
+        if (raw) setConfig(mergeConfig(JSON.parse(raw)))
+
+        const { data } = await supabase
+          .from('app_settings')
+          .select('value')
+          .eq('key', SB_KEY)
+          .single()
+
+        if (data?.value) {
+          const merged = mergeConfig(data.value)
+          setConfig(merged)
+          localStorage.setItem(LS_KEY, JSON.stringify(data.value))
+        }
+      } catch {
+        // fallback a default ya establecido
+      } finally {
+        setLoading(false)
+      }
+    }
+    load()
+  }, [])
+
+  async function persistConfig(cfg) {
+    setConfig(cfg)
+    localStorage.setItem(LS_KEY, JSON.stringify(cfg))
+    try {
+      await supabase.from('app_settings').upsert(
+        { key: SB_KEY, value: cfg, updated_at: new Date().toISOString() },
+        { onConflict: 'key' }
+      )
+    } catch {
+      toast.error('Error al guardar en la nube')
+    }
+  }
+
   const basePrice = config.basePrices[selectedTier]
 
   function updateMult(panelId, vt, val) {
     const newPanels = config.panels.map(p =>
       p.id === panelId ? { ...p, mult: { ...p.mult, [vt]: val } } : p
     )
-    const newCfg = { ...config, panels: newPanels }
-    setConfig(newCfg)
-    saveConfig(newCfg)
+    persistConfig({ ...config, panels: newPanels })
   }
 
   function saveBasePrices() {
@@ -126,9 +160,7 @@ export default function Presupuesto() {
     const pr = parseFloat(pricesDraft.premium)
     if ([e, s, pr].some(isNaN)) { toast.error('Valores inválidos'); return }
     if (e > s || s > pr) { toast.error('Economy ≤ Standard ≤ Premium'); return }
-    const newCfg = { ...config, basePrices: { economy: e, standard: s, premium: pr } }
-    setConfig(newCfg)
-    saveConfig(newCfg)
+    persistConfig({ ...config, basePrices: { economy: e, standard: s, premium: pr } })
     setEditingPrices(false)
     toast.success('Precios guardados')
   }
@@ -156,9 +188,7 @@ export default function Presupuesto() {
   )
 
   const selectedCount = Object.values(selected).filter(Boolean).length
-
   const tierBrand = BRANDS.find(b => b.tier === selectedTier)
-
   const vtLabel = VEHICLE_TYPES.find(v => v.id === vehicleType)
   const tierLabel = BRANDS.find(b => b.tier === selectedTier)
 
@@ -185,8 +215,7 @@ export default function Presupuesto() {
     msg += `📞 Para consultas y citas, contáctenos.\n\n`
     msg += `_Apex Pro — Calidad que se nota_ 🚗✨`
 
-    const url = `https://wa.me/?text=${encodeURIComponent(msg)}`
-    window.open(url, '_blank')
+    window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank')
   }
 
   function generatePDF() {
@@ -196,16 +225,16 @@ export default function Presupuesto() {
     const margin = 20
     let y = 0
 
-    // Header background
-    doc.setFillColor(30, 64, 175)
+    doc.setFillColor(185, 28, 28)
     doc.rect(0, 0, W, 42, 'F')
+    doc.setFillColor(127, 0, 0)
+    doc.rect(0, 36, W, 6, 'F')
 
-    // Title
     doc.setTextColor(255, 255, 255)
     doc.setFontSize(22)
     doc.setFont('helvetica', 'bold')
     doc.text('APEX PRO', margin, 18)
-    doc.setFontSize(11)
+    doc.setFontSize(10)
     doc.setFont('helvetica', 'normal')
     doc.text('Planchado & Pintura Profesional', margin, 27)
     doc.setFontSize(9)
@@ -214,10 +243,12 @@ export default function Presupuesto() {
     doc.text(`Fecha: ${today}`, W - margin, 25, { align: 'right' })
     y = 52
 
-    // Vehicle info card
-    doc.setFillColor(239, 246, 255)
+    doc.setFillColor(255, 245, 245)
     doc.roundedRect(margin, y, W - margin * 2, 22, 3, 3, 'F')
-    doc.setTextColor(30, 64, 175)
+    doc.setDrawColor(185, 28, 28)
+    doc.setLineWidth(0.5)
+    doc.roundedRect(margin, y, W - margin * 2, 22, 3, 3, 'S')
+    doc.setTextColor(185, 28, 28)
     doc.setFontSize(10)
     doc.setFont('helvetica', 'bold')
     const vtName = vtLabel?.label || ''
@@ -229,8 +260,7 @@ export default function Presupuesto() {
     doc.text(`Precio base: ${formatMoney(basePrice)}/paño  ·  ${selectedCount} paño${selectedCount !== 1 ? 's' : ''} seleccionado${selectedCount !== 1 ? 's' : ''}`, margin + 5, y + 17)
     y += 30
 
-    // Table header
-    doc.setFillColor(30, 64, 175)
+    doc.setFillColor(185, 28, 28)
     doc.rect(margin, y, W - margin * 2, 8, 'F')
     doc.setTextColor(255, 255, 255)
     doc.setFontSize(8.5)
@@ -240,11 +270,10 @@ export default function Presupuesto() {
     doc.text('Precio', W - margin - 4, y + 5.5, { align: 'right' })
     y += 8
 
-    // Table rows
     const selectedRows = rows.filter(r => selected[r.id])
     selectedRows.forEach((r, i) => {
       if (i % 2 === 0) {
-        doc.setFillColor(248, 250, 252)
+        doc.setFillColor(254, 242, 242)
         doc.rect(margin, y, W - margin * 2, 7.5, 'F')
       }
       doc.setTextColor(30, 41, 59)
@@ -259,9 +288,8 @@ export default function Presupuesto() {
       y += 7.5
     })
 
-    // Total
     y += 4
-    doc.setFillColor(30, 64, 175)
+    doc.setFillColor(185, 28, 28)
     doc.roundedRect(margin, y, W - margin * 2, 14, 3, 3, 'F')
     doc.setTextColor(255, 255, 255)
     doc.setFontSize(11)
@@ -271,17 +299,15 @@ export default function Presupuesto() {
     doc.text(formatMoney(total), W - margin - 5, y + 9, { align: 'right' })
     y += 22
 
-    // Footer note
     doc.setFillColor(243, 244, 246)
     doc.roundedRect(margin, y, W - margin * 2, 18, 3, 3, 'F')
     doc.setTextColor(100, 116, 139)
     doc.setFontSize(8)
     doc.setFont('helvetica', 'italic')
-    doc.text('✓ Incluye mano de obra, materiales y garantía de trabajo.', margin + 5, y + 7)
-    doc.text('Este presupuesto tiene validez de 15 días a partir de la fecha de emisión.', margin + 5, y + 13)
+    doc.text('Incluye mano de obra, materiales y garantia de trabajo.', margin + 5, y + 7)
+    doc.text('Este presupuesto tiene validez de 15 dias a partir de la fecha de emision.', margin + 5, y + 13)
 
-    // Footer strip
-    doc.setFillColor(30, 64, 175)
+    doc.setFillColor(185, 28, 28)
     doc.rect(0, 287, W, 10, 'F')
     doc.setTextColor(255, 255, 255)
     doc.setFontSize(8)
@@ -296,10 +322,24 @@ export default function Presupuesto() {
     <div className="space-y-4 max-w-2xl mx-auto pb-8">
 
       {/* Header */}
-      <div className="rounded-2xl bg-gradient-to-br from-blue-600 to-blue-800 p-5 text-white">
-        <h1 className="text-xl font-black tracking-tight">Presupuesto</h1>
-        <p className="text-blue-200 text-sm mt-0.5">Planchado & Pintura</p>
+      <div className="rounded-2xl bg-gradient-to-br from-red-600 via-red-700 to-gray-900 p-5 text-white relative overflow-hidden">
+        <div className="absolute inset-0 opacity-10"
+          style={{ backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(255,255,255,0.05) 10px, rgba(255,255,255,0.05) 20px)' }} />
+        <div className="relative">
+          <div className="flex items-center gap-2 mb-1">
+            <div className="w-2 h-6 bg-white rounded-full opacity-80" />
+            <h1 className="text-xl font-black tracking-tight">PRESUPUESTO</h1>
+          </div>
+          <p className="text-red-200 text-sm">Planchado & Pintura · Apex Pro</p>
+        </div>
       </div>
+
+      {loading && (
+        <div className="flex items-center justify-center py-4 text-xs text-gray-400 gap-2">
+          <div className="w-3.5 h-3.5 border-2 border-red-400 border-t-transparent rounded-full animate-spin" />
+          Cargando configuración...
+        </div>
+      )}
 
       {/* Controles: Tipo vehículo + Marca */}
       <div className="card space-y-4">
@@ -311,7 +351,7 @@ export default function Presupuesto() {
               <button key={vt.id} onClick={() => setVehicleType(vt.id)}
                 className={`py-2.5 rounded-xl border text-sm font-medium flex items-center justify-center gap-1.5 transition-all ${
                   vehicleType === vt.id
-                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400'
+                    ? 'border-red-500 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400'
                     : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400'
                 }`}>
                 <span>{vt.emoji}</span> {vt.label}
@@ -328,7 +368,7 @@ export default function Presupuesto() {
               <button key={b.tier} onClick={() => { setSelectedTier(b.tier); setSelectedBrand('') }}
                 className={`py-2 rounded-xl border text-xs font-semibold transition-all ${
                   selectedTier === b.tier
-                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400'
+                    ? 'border-red-500 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400'
                     : 'border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400'
                 }`}>
                 {b.label}
@@ -356,7 +396,7 @@ export default function Presupuesto() {
                   }}
                   className={`text-xs px-2.5 py-1 rounded-full border transition-all ${
                     selectedBrand === brand
-                      ? 'bg-blue-600 text-white border-blue-600'
+                      ? 'bg-red-600 text-white border-red-600'
                       : b.tier === 'premium'
                         ? 'border-amber-300 text-amber-700 dark:text-amber-400 dark:border-amber-700'
                         : b.tier === 'standard'
@@ -377,7 +417,7 @@ export default function Presupuesto() {
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Precio base por paño</p>
               {!editingPrices
                 ? <button onClick={() => { setPricesDraft({ ...config.basePrices }); setEditingPrices(true) }}
-                    className="text-xs text-blue-600 flex items-center gap-1"><Edit2 className="w-3 h-3" />Editar</button>
+                    className="text-xs text-red-600 flex items-center gap-1"><Edit2 className="w-3 h-3" />Editar</button>
                 : <div className="flex gap-2">
                     <button onClick={saveBasePrices} className="text-xs text-green-600 font-semibold">Guardar</button>
                     <button onClick={() => setEditingPrices(false)} className="text-xs text-gray-400">Cancelar</button>
@@ -392,7 +432,7 @@ export default function Presupuesto() {
                     ? <input type="number" min="100" max="1000" step="10"
                         value={pricesDraft[b.tier]}
                         onChange={e => setPricesDraft(d => ({ ...d, [b.tier]: e.target.value }))}
-                        className="w-full text-xs text-center border border-blue-400 rounded-lg px-1 py-1 font-mono dark:bg-gray-800 dark:text-white" />
+                        className="w-full text-xs text-center border border-red-400 rounded-lg px-1 py-1 font-mono dark:bg-gray-800 dark:text-white" />
                     : <p className="text-sm font-bold text-gray-900 dark:text-white">{formatMoney(config.basePrices[b.tier])}</p>
                   }
                 </div>
@@ -408,10 +448,10 @@ export default function Presupuesto() {
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-800">
           <div>
             <p className="font-bold text-gray-900 dark:text-white text-sm">Paños del vehículo</p>
-            <p className="text-xs text-gray-500">Base: {formatMoney(basePrice)}/paño · {VEHICLE_TYPES.find(v => v.id === vehicleType)?.emoji} {VEHICLE_TYPES.find(v => v.id === vehicleType)?.label}{selectedBrand ? ` · ${selectedBrand}` : ''}</p>
+            <p className="text-xs text-gray-500">Base: {formatMoney(basePrice)}/paño · {vtLabel?.emoji} {vtLabel?.label}{selectedBrand ? ` · ${selectedBrand}` : ''}</p>
           </div>
           <button onClick={toggleAll}
-            className="text-xs text-blue-600 dark:text-blue-400 font-semibold px-3 py-1.5 rounded-lg bg-blue-50 dark:bg-blue-900/20">
+            className="text-xs text-red-600 dark:text-red-400 font-semibold px-3 py-1.5 rounded-lg bg-red-50 dark:bg-red-900/20">
             {config.panels.every(p => selected[p.id]) ? 'Deseleccionar todo' : 'Seleccionar todo'}
           </button>
         </div>
@@ -430,7 +470,7 @@ export default function Presupuesto() {
             <div key={row.id}
               onClick={() => togglePanel(row.id)}
               className={`grid grid-cols-[1fr_auto_auto_auto] items-center gap-0 px-4 py-2.5 cursor-pointer transition-colors ${
-                selected[row.id] ? 'bg-blue-50 dark:bg-blue-900/10' : 'hover:bg-gray-50 dark:hover:bg-gray-800/30'
+                selected[row.id] ? 'bg-red-50 dark:bg-red-900/10' : 'hover:bg-gray-50 dark:hover:bg-gray-800/30'
               }`}>
               <span className="text-sm text-gray-800 dark:text-gray-200 font-medium">{row.label}</span>
               <div className="w-16 flex justify-center" onClick={e => canAdmin && e.stopPropagation()}>
@@ -445,7 +485,7 @@ export default function Presupuesto() {
               <div className="w-8 flex justify-center">
                 <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${
                   selected[row.id]
-                    ? 'bg-blue-600 border-blue-600'
+                    ? 'bg-red-600 border-red-600'
                     : 'border-gray-300 dark:border-gray-600'
                 }`}>
                   {selected[row.id] && <Check className="w-3 h-3 text-white" />}
@@ -456,7 +496,7 @@ export default function Presupuesto() {
         </div>
 
         {/* Total */}
-        <div className="border-t-2 border-blue-100 dark:border-blue-900/30 px-4 py-3 bg-blue-50 dark:bg-blue-900/10">
+        <div className="border-t-2 border-red-100 dark:border-red-900/30 px-4 py-3 bg-red-50 dark:bg-red-900/10">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs text-gray-500">{selectedCount} paño{selectedCount !== 1 ? 's' : ''} seleccionado{selectedCount !== 1 ? 's' : ''}</p>
@@ -464,7 +504,7 @@ export default function Presupuesto() {
             </div>
             <div className="text-right">
               <p className="text-xs text-gray-500 mb-0.5">Total presupuesto</p>
-              <p className="text-2xl font-black text-blue-600 dark:text-blue-400">{formatMoney(total)}</p>
+              <p className="text-2xl font-black text-red-600 dark:text-red-400">{formatMoney(total)}</p>
             </div>
           </div>
         </div>
@@ -481,7 +521,7 @@ export default function Presupuesto() {
           </button>
           <button
             onClick={generatePDF}
-            className="flex items-center justify-center gap-2 py-3.5 rounded-2xl bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-bold text-sm transition-all shadow-lg shadow-blue-200 dark:shadow-blue-900/30">
+            className="flex items-center justify-center gap-2 py-3.5 rounded-2xl bg-red-600 hover:bg-red-700 active:scale-95 text-white font-bold text-sm transition-all shadow-lg shadow-red-200 dark:shadow-red-900/30">
             <FileText className="w-5 h-5" />
             PDF
           </button>
@@ -507,7 +547,6 @@ export default function Presupuesto() {
         </div>
       </div>
 
-      {/* Nota admin */}
       {canAdmin && (
         <div className="text-center text-xs text-gray-400 pb-2">
           <FileText className="w-3.5 h-3.5 inline mr-1" />

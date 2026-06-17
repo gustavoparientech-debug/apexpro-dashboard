@@ -227,8 +227,9 @@ export default function Configuracion() {
   const payrollTotal = useMemo(() => {
     return workers.filter(w => w.active).reduce((s, w) => {
       const realSalary = calcRealSalary(w.base_salary, w.weekly_hours)
-      const discounts = incidents.filter(i => i.worker_id === w.id && i.apply_discount).reduce((d, i) => d + (i.discount_amount || 0), 0)
-      return s + realSalary - discounts
+      const discounts = incidents.filter(i => i.worker_id === w.id && i.apply_discount && !i.is_addition).reduce((d, i) => d + (i.discount_amount || 0), 0)
+      const overtime  = incidents.filter(i => i.worker_id === w.id && i.apply_discount && i.is_addition).reduce((d, i) => d + (i.discount_amount || 0), 0)
+      return s + realSalary - discounts + overtime
     }, 0)
   }, [workers, incidents])
 

@@ -549,10 +549,18 @@ export default function Presupuesto() {
             <p className="font-bold text-gray-900 dark:text-white text-sm">Paños del vehículo</p>
             <p className="text-xs text-gray-500">Base: {formatMoney(basePrice)}/paño · {vtLabel?.emoji} {vtLabel?.label}{selectedBrand ? ` · ${selectedBrand}` : ''}</p>
           </div>
-          <button onClick={toggleAll}
-            className="text-xs text-red-600 dark:text-red-400 font-semibold px-3 py-1.5 rounded-lg bg-red-50 dark:bg-red-900/20">
-            {config.panels.every(p => selected[p.id]) ? 'Deseleccionar todo' : 'Seleccionar todo'}
-          </button>
+          <div className="flex items-center gap-2">
+            {selectedCount > 0 && (
+              <button onClick={() => { setSelected({}); setDamage({}) }}
+                className="text-xs text-gray-400 dark:text-gray-500 font-semibold px-3 py-1.5 rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
+                Limpiar
+              </button>
+            )}
+            <button onClick={toggleAll}
+              className="text-xs text-red-600 dark:text-red-400 font-semibold px-3 py-1.5 rounded-lg bg-red-50 dark:bg-red-900/20">
+              {config.panels.every(p => selected[p.id]) ? 'Deseleccionar todo' : 'Seleccionar todo'}
+            </button>
+          </div>
         </div>
 
         {/* Columnas header */}

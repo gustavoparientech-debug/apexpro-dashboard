@@ -171,6 +171,25 @@ export default function DashboardTrabajador() {
   const [greetingDraft,   setGreetingDraft]   = useState('')
   const [savingGreeting,  setSavingGreeting]  = useState(false)
   const [refreshing,      setRefreshing]      = useState(false)
+  const [uploadingPhoto,  setUploadingPhoto]  = useState(false)
+
+  async function handlePhotoUpload(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploadingPhoto(true)
+    try {
+      const ext = file.name.split('.').pop()
+      const path = `avatars/${profile.id}.${ext}`
+      const { error: upErr } = await supabase.storage.from('payment-photos').upload(path, file, { upsert: true, contentType: file.type })
+      if (upErr) throw upErr
+      const { data } = supabase.storage.from('payment-photos').getPublicUrl(path)
+      const url = data.publicUrl + '?t=' + Date.now()
+      await supabase.from('profiles').update({ avatar_url: url }).eq('id', profile.id)
+      await refreshProfile()
+      toast.success('Foto actualizada')
+    } catch (err) { toast.error('Error al subir foto') }
+    finally { setUploadingPhoto(false) }
+  }
 
   async function handleRefresh() {
     setRefreshing(true)
@@ -308,7 +327,26 @@ export default function DashboardTrabajador() {
           </div>
         )}
         <div className="flex items-start justify-between">
-          <h1 className="text-white font-black text-2xl">{nombre}</h1>
+          <div className="flex items-center gap-3">
+            {/* Avatar con opción de subir foto */}
+            <label className="relative cursor-pointer flex-shrink-0 group">
+              <input type="file" accept="image/*" className="hidden" onChange={handlePhotoUpload} disabled={uploadingPhoto} />
+              {profile?.avatar_url ? (
+                <img src={profile.avatar_url} alt={nombre} className="w-14 h-14 rounded-2xl object-cover border-2 border-white/20 group-hover:opacity-80 transition-opacity" />
+              ) : (
+                <div className="w-14 h-14 rounded-2xl bg-red-600/80 flex items-center justify-center border-2 border-white/10 group-hover:bg-red-500/80 transition-colors">
+                  <span className="text-white font-black text-xl">{nombre[0]?.toUpperCase()}</span>
+                </div>
+              )}
+              <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-white flex items-center justify-center shadow-md">
+                {uploadingPhoto
+                  ? <svg className="w-3 h-3 animate-spin text-gray-400" fill="none" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeDasharray="32" strokeDashoffset="8"/></svg>
+                  : <svg className="w-2.5 h-2.5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                }
+              </div>
+            </label>
+            <h1 className="text-white font-black text-2xl">{nombre}</h1>
+          </div>
           <button onClick={handleRefresh} disabled={refreshing}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 transition-all text-white text-xs font-semibold">
             <svg className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>

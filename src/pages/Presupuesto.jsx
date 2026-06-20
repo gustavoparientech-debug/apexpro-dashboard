@@ -182,31 +182,46 @@ export default function Presupuesto() {
   const [catVehicle, setCatVehicle] = useState('auto')
   const [catSelected, setCatSelected] = useState({})
   const [catDiscountPct, setCatDiscountPct] = useState(0)
+  const [catPriceOverrides, setCatPriceOverrides] = useState({}) // { [id]: number | { [vehicle]: number } }
 
   // Cargar config desde Supabase
   useEffect(() => {
     async function load() {
-      // Mostrar localStorage mientras carga Supabase
       const raw = localStorage.getItem(LS_KEY)
       if (raw) setConfig(mergeConfig(JSON.parse(raw)))
 
-      const { data, error } = await supabase
-        .from('app_settings')
-        .select('value')
-        .eq('key', SB_KEY)
-        .maybeSingle()
+      const [{ data, error }, { data: catData2 }] = await Promise.all([
+        supabase.from('app_settings').select('value').eq('key', SB_KEY).maybeSingle(),
+        supabase.from('app_settings').select('value').eq('key', 'cat_prices').maybeSingle(),
+      ])
 
-      if (error) {
-        toast.error(`Error al cargar: ${error.message}`)
-      } else if (data?.value) {
+      if (error) toast.error(`Error al cargar: ${error.message}`)
+      else if (data?.value) {
         const merged = mergeConfig(data.value)
         setConfig(merged)
         localStorage.setItem(LS_KEY, JSON.stringify(data.value))
       }
+      if (catData2?.value) setCatPriceOverrides(catData2.value)
       setLoading(false)
     }
     load()
   }, [])
+
+  async function saveCatPriceOverride(id, vehicleKey, newPrice) {
+    const next = {
+      ...catPriceOverrides,
+      [id]: vehicleKey
+        ? { ...(typeof catPriceOverrides[id] === 'object' ? catPriceOverrides[id] : {}), [vehicleKey]: newPrice }
+        : newPrice,
+    }
+    setCatPriceOverrides(next)
+    const { error } = await supabase.from('app_settings').upsert(
+      { key: 'cat_prices', value: next, updated_at: new Date().toISOString() },
+      { onConflict: 'key' }
+    )
+    if (error) toast.error(`Error al guardar: ${error.message}`)
+    else toast.success('Precio actualizado ✓')
+  }
 
   async function persistConfig(cfg) {
     setConfig(cfg)
@@ -300,16 +315,26 @@ export default function Presupuesto() {
     ...CERAMICO_DATA, ...PPF_DATA, ...POLARIZADOS_DATA, ...LAVADOS_DATA
   ], [])
 
+  function getEffectivePrice(s, vehicleKey) {
+    const ov = catPriceOverrides[s.id]
+    if (ov !== undefined) {
+      if (typeof ov === 'object') return ov[vehicleKey] ?? s.prices?.[vehicleKey] ?? 0
+      return ov
+    }
+    return s.price ?? (s.prices?.[vehicleKey] ?? 0)
+  }
+
   const catRows = useMemo(() =>
     ALL_CAT_DATA
       .filter(s => catSelected[s.id])
       .map(s => ({
         id: s.id,
         label: s.brand ? `${s.brand} — ${s.cobertura}` : s.name,
-        price: s.price ?? (s.prices?.[catVehicle] ?? 0),
+        price: getEffectivePrice(s, catVehicle),
         desc: s.desc,
       })),
-    [ALL_CAT_DATA, catSelected, catVehicle]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [ALL_CAT_DATA, catSelected, catVehicle, catPriceOverrides]
   )
   const catTotal = catRows.reduce((s, r) => s + r.price, 0)
   const catDiscountAmt = Math.round(catTotal * catDiscountPct / 100)
@@ -798,7 +823,13 @@ export default function Presupuesto() {
                           <p className="text-sm font-medium text-gray-800 dark:text-gray-200">{s.cobertura}</p>
                           <p className="text-xs text-gray-500 dark:text-gray-400">{s.desc}</p>
                         </div>
-                        <p className="text-sm font-bold text-red-600 dark:text-red-400 flex-shrink-0">{formatMoney(s.price)}</p>
+                        <div className="flex-shrink-0 flex flex-col items-end gap-0.5" onClick={e => e.stopPropagation()}>
+                          <p className="text-sm font-bold text-red-600 dark:text-red-400">{formatMoney(getEffectivePrice(s, catVehicle))}</p>
+                          {canAdmin && (
+                            <EditableCell value={getEffectivePrice(s, catVehicle)}
+                              onSave={v => saveCatPriceOverride(s.id, null, v)} />
+                          )}
+                        </div>
                       </button>
                     ))}
                   </div>
@@ -806,7 +837,8 @@ export default function Presupuesto() {
               ) : (
                 // Otras categorías: lista simple con tag
                 data.map(s => {
-                  const price = s.prices?.[catVehicle] ?? 0
+                  const price = getEffectivePrice(s, catVehicle)
+                  const vKey = s.prices ? catVehicle : null
                   return (
                     <button key={s.id} onClick={() => setCatSelected(p => ({ ...p, [s.id]: !p[s.id] }))}
                       className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all text-left ${
@@ -834,7 +866,13 @@ export default function Presupuesto() {
                         </div>
                         <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 leading-tight">{s.desc}</p>
                       </div>
-                      <p className="text-sm font-bold text-red-600 dark:text-red-400 flex-shrink-0">{formatMoney(price)}</p>
+                      <div className="flex-shrink-0 flex flex-col items-end gap-0.5" onClick={e => e.stopPropagation()}>
+                        <p className="text-sm font-bold text-red-600 dark:text-red-400">{formatMoney(price)}</p>
+                        {canAdmin && (
+                          <EditableCell value={price}
+                            onSave={v => saveCatPriceOverride(s.id, vKey, v)} />
+                        )}
+                      </div>
                     </button>
                   )
                 })

@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { useApp } from '../context/AppContext'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
@@ -437,7 +437,7 @@ export default function DashboardTrabajador() {
         <div>
           <div className="flex items-center justify-between mb-2">
             <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">Citas de hoy</p>
-            <button onClick={() => navigate('/citas')} className="text-xs text-red-500 font-semibold">Ver todas</button>
+            <Link to="/citas" className="text-xs text-red-500 font-semibold">Ver todas</Link>
           </div>
           <div className="space-y-2">
             {citasDelDia.map(c => {

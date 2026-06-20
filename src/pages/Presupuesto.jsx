@@ -359,7 +359,9 @@ export default function Presupuesto() {
 
   // Descuento proporcional: 0% con 1 paño, sube linealmente hasta 25% con todos los paños
   const totalPanels = config.panels.length
-  const discountPct = selectedCount >= 2 ? Math.max(3, Math.round((selectedCount / totalPanels) * 25)) : 0
+  const autoDiscountPct = selectedCount >= 2 ? Math.max(3, Math.round((selectedCount / totalPanels) * 25)) : 0
+  const [manualDiscountPct, setManualDiscountPct] = useState(null) // null = usar automático
+  const discountPct = manualDiscountPct !== null ? manualDiscountPct : autoDiscountPct
   const discountAmt = Math.round(total * discountPct / 100)
   const totalFinal = total - discountAmt
 
@@ -1304,13 +1306,40 @@ export default function Presupuesto() {
           ))}
         </div>
 
+        {/* Descuento manual */}
+        {selectedCount > 0 && (
+          <div className="px-4 py-3 border-t border-gray-100 dark:border-gray-800">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Descuento</p>
+              {manualDiscountPct !== null && (
+                <button onClick={() => setManualDiscountPct(null)}
+                  className="text-[10px] text-gray-400 hover:text-red-500 underline">
+                  Auto ({autoDiscountPct}%)
+                </button>
+              )}
+            </div>
+            <div className="flex gap-2 flex-wrap">
+              {[0, 5, 10, 15, 20, 25, 30].map(pct => (
+                <button key={pct} onClick={() => setManualDiscountPct(pct === discountPct && manualDiscountPct === pct ? null : pct)}
+                  className={`flex-1 min-w-[46px] py-2 rounded-xl text-xs font-bold border transition-all ${
+                    discountPct === pct
+                      ? 'border-red-500 bg-red-600 text-white'
+                      : 'border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:border-red-300'
+                  }`}>
+                  {pct === 0 ? 'Sin desc.' : `${pct}%`}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Total */}
         <div className="border-t-2 border-red-100 dark:border-red-900/30 px-4 py-3 bg-red-50 dark:bg-red-900/10">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs text-gray-500">{selectedCount} paño{selectedCount !== 1 ? 's' : ''} seleccionado{selectedCount !== 1 ? 's' : ''}</p>
               {discountPct > 0 && (
-                <p className="text-xs text-green-600 font-semibold mt-0.5">🎁 Descuento {discountPct}% aplicado</p>
+                <p className="text-xs text-green-600 font-semibold mt-0.5">🎁 Descuento {discountPct}% {manualDiscountPct !== null ? 'manual' : 'automático'}</p>
               )}
             </div>
             <div className="text-right">

@@ -485,13 +485,14 @@ export default function Dashboard() {
       .sort((a, b) => b.income - a.income)
 
     const displayCosts = hasRange ? proportionalFixed + workerExpTotal : totalCosts
+    const proportionRatio = hasRange && monthWorkingDaysTotal > 0 ? rangeWorkingDays / monthWorkingDaysTotal : 1
     return {
       totalIncome, netProfit, totalCosts, displayCosts, payrollTotal, rent, supplies, utilityGoal,
       incomeGoal, progressPct, semaforo, totalCars, avgDailyActual, avgDailyNeeded,
       workingDaysElapsed, workingDaysRemaining, workingDaysTotal,
       bestDay, efectivo, yape, transferencia, onTrack, projectedIncome, dailyData,
       workerRanking, monthBonusAmt, workerExpTotal, periodExpenses, costItemsData,
-      proportionalFixed,
+      proportionalFixed, proportionRatio,
     }
   }, [tickets, dailySummaries, expenses, pastTickets, pastSummaries, pastExpenses, workers, services, incidents, monthlyCosts, bonuses, prefix, selMonth, selYear, isCurrentMonth, rangeFrom, rangeTo, hasRange])
 
@@ -659,17 +660,19 @@ export default function Dashboard() {
 
       {/* Desglose gastos */}
       <div className="card">
-        <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Desglose de gastos</p>
+        <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">
+          Desglose de gastos{hasRange && <span className="ml-2 text-xs font-normal text-amber-500">proporcional al rango</span>}
+        </p>
         {(data.costItemsData && data.costItemsData.length > 0)
-          ? data.costItemsData.map((item, i) => <Row key={i} label={`📌 ${item.name}`} value={formatMoney(item.amount)} />)
-          : (<><Row label="🏠 Alquiler" value={formatMoney(data.rent)} /><Row label="🧴 Insumos" value={formatMoney(data.supplies)} /></>)
+          ? data.costItemsData.map((item, i) => <Row key={i} label={`📌 ${item.name}`} value={formatMoney(item.amount * data.proportionRatio)} />)
+          : (<><Row label="🏠 Alquiler" value={formatMoney(data.rent * data.proportionRatio)} /><Row label="🧴 Insumos" value={formatMoney(data.supplies * data.proportionRatio)} /></>)
         }
-        <Row label="👷 Planilla" value={formatMoney(data.payrollTotal)} />
-        {data.monthBonusAmt > 0 && <Row label="🎁 Bonos" value={formatMoney(data.monthBonusAmt)} />}
+        <Row label="👷 Planilla" value={formatMoney(data.payrollTotal * data.proportionRatio)} />
+        {data.monthBonusAmt > 0 && <Row label="🎁 Bonos" value={formatMoney(data.monthBonusAmt * data.proportionRatio)} />}
         {data.workerExpTotal > 0 && <Row label="💸 Gastos personal" value={formatMoney(data.workerExpTotal)} />}
         <div className="flex items-center justify-between pt-2 mt-1 border-t border-gray-100 dark:border-gray-800">
           <span className="text-sm font-bold text-gray-700 dark:text-gray-300">Total gastos</span>
-          <span className="text-sm font-black text-red-600">{formatMoney(data.totalCosts)}</span>
+          <span className="text-sm font-black text-red-600">{formatMoney(data.displayCosts)}</span>
         </div>
       </div>
 

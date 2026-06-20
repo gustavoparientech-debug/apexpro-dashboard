@@ -375,38 +375,41 @@ export default function Presupuesto() {
     ]
     const activeTotal = totalFinal + catTotal
 
-    let msg = `*COTIZACION APEX PRO*\n`
-    msg += `Fecha: ${today}\n`
-    msg += `--------------------------------\n`
-    if (nombre) msg += `Cliente: ${nombre}\n`
-    if (celular) msg += `Celular: ${celular}\n`
+    let msg = `🔴⚫ *APEX PRO DETAILING* ⚫🔴\n`
+    msg += `📋 *COTIZACIÓN*\n`
+    msg += `📅 Fecha: ${today}\n`
+    msg += `━━━━━━━━━━━━━━━━━━━━\n`
+    if (nombre) msg += `👤 *Cliente:* ${nombre}\n`
+    if (celular) msg += `📞 *Celular:* ${celular}\n`
     const vehLine = [catVehicleLabel || vtLabel?.label, marca, modelo].filter(Boolean).join(' ')
     if (vehLine || placa || anio) {
       msg += `\n`
-      if (vehLine)  msg += `Vehiculo: ${vehLine}\n`
-      if (placa)    msg += `Placa: ${placa.toUpperCase()}\n`
-      if (anio)     msg += `Anio: ${anio}${color ? `  Color: ${color}` : ''}\n`
+      if (vehLine)  msg += `🚗 *Vehículo:* ${vehLine}\n`
+      if (placa)    msg += `🔑 *Placa:* ${placa.toUpperCase()}\n`
+      if (anio)     msg += `📆 *Año:* ${anio}${color ? `  · Color: ${color}` : ''}\n`
     }
-    msg += `\n*SERVICIOS:*\n`
+    msg += `\n✨ *SERVICIOS:*\n`
+    msg += `━━━━━━━━━━━━━━━━━━━━\n`
     allRows.forEach((r, idx) => {
-      msg += `${idx + 1}. ${r.label}\n`
-      msg += `   Precio: ${formatMoney(r.price)}\n`
+      msg += `${idx + 1}️⃣ ${r.label}\n`
+      msg += `   💲 ${formatMoney(r.price)}\n`
     })
-    msg += `\n--------------------------------\n`
+    msg += `━━━━━━━━━━━━━━━━━━━━\n`
     if (planchadoRows.length > 0 && discountPct > 0) {
-      msg += `Subtotal: ${formatMoney(total)}\n`
-      msg += `Descuento (${discountPct}%): -${formatMoney(discountAmt)}\n`
+      msg += `💲 Subtotal: ${formatMoney(total)}\n`
+      msg += `🎁 Descuento (${discountPct}%): -${formatMoney(discountAmt)}\n`
     }
-    msg += `*TOTAL: ${formatMoney(activeTotal)}*\n`
-    msg += `--------------------------------\n\n`
-    if (observaciones) msg += `Nota: ${observaciones}\n\n`
+    msg += `💵 *TOTAL: ${formatMoney(activeTotal)}*\n`
+    msg += `━━━━━━━━━━━━━━━━━━━━\n\n`
+    if (observaciones) msg += `📝 *Nota:* ${observaciones}\n\n`
     if (condiciones) msg += `${condiciones}\n\n`
     else {
-      msg += `- 50% adelanto / 50% contra entrega\n`
-      msg += `- Vigencia: 15 dias\n`
-      msg += `- Precios incluyen IGV\n\n`
+      msg += `✅ 50% adelanto / 50% contra entrega\n`
+      msg += `⏳ Vigencia: 15 días\n`
+      msg += `💰 Precios incluyen IGV\n\n`
     }
-    msg += `Apex Pro Detailing\nCalle Idelfonzo Lopez N 700 Zamacola, Arequipa\nTel: 959240309`
+    msg += `📍 Calle Idelfonzo Lopez N° 700 Zamacola, Arequipa\n`
+    msg += `📞 959240309`
 
     window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank')
   }

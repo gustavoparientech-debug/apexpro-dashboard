@@ -293,18 +293,29 @@ export default function Presupuesto() {
     return []
   }, [category])
 
+  // Todas las filas seleccionadas en TODAS las categorías (no solo la activa)
+  const ALL_CAT_DATA = useMemo(() => [
+    ...CERAMICO_DATA, ...PPF_DATA, ...POLARIZADOS_DATA, ...LAVADOS_DATA
+  ], [])
+
   const catRows = useMemo(() =>
-    catData
+    ALL_CAT_DATA
       .filter(s => catSelected[s.id])
       .map(s => ({
         id: s.id,
-        label: category === 'polarizados' ? `${s.brand} — ${s.cobertura}` : s.name,
-        price: category === 'polarizados' ? s.price : (s.prices?.[catVehicle] ?? 0),
+        label: s.brand ? `${s.brand} — ${s.cobertura}` : s.name,
+        price: s.price ?? (s.prices?.[catVehicle] ?? 0),
         desc: s.desc,
       })),
-    [catData, catSelected, catVehicle, category]
+    [ALL_CAT_DATA, catSelected, catVehicle]
   )
   const catTotal = catRows.reduce((s, r) => s + r.price, 0)
+
+  // Filas actuales de la categoría visible (para el catData useMemo que ya existe)
+  const catRows_current = useMemo(() =>
+    catData.filter(s => catSelected[s.id]).length,
+    [catData, catSelected]
+  )
 
   const [exportModal, setExportModal] = useState(false)
   const [exportTarget, setExportTarget] = useState(null)
@@ -327,9 +338,10 @@ export default function Presupuesto() {
     return next
   }
 
+  const totalItemsSelected = selectedCount + catRows.length
+
   function openExportModal(target) {
-    const hasItems = category === 'planchado' ? selectedCount > 0 : catRows.length > 0
-    if (!hasItems) { toast.error('Selecciona al menos un servicio'); return }
+    if (totalItemsSelected === 0) { toast.error('Selecciona al menos un servicio'); return }
     setExportForm(f => ({ ...f, marca: selectedBrand || '' }))
     setExportTarget(target)
     setExportModal(true)
@@ -350,9 +362,9 @@ export default function Presupuesto() {
     const cat = CATEGORIES.find(c => c.id === category)
     const catVehicleLabel = CAT_VEHICLES[category]?.find(v => v.id === catVehicle)?.label || ''
 
-    const isPlanchado = category === 'planchado'
-    const activeRows = isPlanchado ? rows.filter(r => selected[r.id]) : catRows
-    const activeTotal = isPlanchado ? totalFinal : catTotal
+    const planchadoRows = rows.filter(r => selected[r.id])
+    const activeRows = [...planchadoRows, ...catRows]
+    const activeTotal = totalFinal + catTotal
 
     let msg = `🔧 *COTIZACIÓN - APEX PRO*\n`
     msg += `✨ _${cat?.label}${cat?.sub ? ' ' + cat.sub : ''}_\n`
@@ -526,9 +538,19 @@ export default function Presupuesto() {
     doc.text('TOTAL', W - mR - 2, y + 4.2, { align: 'right' })
     y += 6
 
-    const isPlanchado = category === 'planchado'
-    const pdfRows = isPlanchado ? rows.filter(r => selected[r.id]) : catRows
-    const pdfTotal = isPlanchado ? totalFinal : catTotal
+    const planchadoRowsPDF = rows.filter(r => selected[r.id])
+    const pdfRows = [
+      ...planchadoRowsPDF.map(r => ({
+        ...r,
+        label: r.damageId !== 'none'
+          ? `${r.label} + Planchado (${DAMAGE_LEVELS.find(d => d.id === r.damageId)?.label})`
+          : `Pintado de ${r.label}`,
+        _isPlanchado: true,
+      })),
+      ...catRows,
+    ]
+    const pdfTotal = totalFinal + catTotal
+    const isPlanchado = false // rows already labeled above
 
     pdfRows.forEach((r, i) => {
       const hasDmg = isPlanchado && r.damageId !== 'none'
@@ -802,27 +824,6 @@ export default function Presupuesto() {
               )}
             </div>
 
-            {/* Total + botones export */}
-            {catRows.length > 0 && (
-              <div className="card">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm text-gray-600 dark:text-gray-400">{catRows.length} servicio{catRows.length !== 1 ? 's' : ''}</p>
-                  <p className="text-2xl font-black text-red-600 dark:text-red-400">{formatMoney(catTotal)}</p>
-                </div>
-              </div>
-            )}
-            {catRows.length > 0 && (
-              <div className="grid grid-cols-2 gap-3">
-                <button onClick={() => openExportModal('whatsapp')}
-                  className="flex items-center justify-center gap-2 py-3.5 rounded-2xl bg-green-500 hover:bg-green-600 active:scale-95 text-white font-bold text-sm transition-all shadow-lg">
-                  <MessageCircle className="w-5 h-5" />WhatsApp
-                </button>
-                <button onClick={() => openExportModal('pdf')}
-                  className="flex items-center justify-center gap-2 py-3.5 rounded-2xl bg-red-600 hover:bg-red-700 active:scale-95 text-white font-bold text-sm transition-all shadow-lg">
-                  <FileText className="w-5 h-5" />PDF
-                </button>
-              </div>
-            )}
           </div>
         )
       })()}
@@ -1040,19 +1041,29 @@ export default function Presupuesto() {
       </div>
 
       {/* Botones de exportar (planchado) */}
-      {selectedCount > 0 && (
-        <div className="grid grid-cols-2 gap-3">
-          <button onClick={() => openExportModal('whatsapp')}
-            className="flex items-center justify-center gap-2 py-3.5 rounded-2xl bg-green-500 hover:bg-green-600 active:scale-95 text-white font-bold text-sm transition-all shadow-lg shadow-green-200 dark:shadow-green-900/30">
-            <MessageCircle className="w-5 h-5" />WhatsApp
-          </button>
-          <button onClick={() => openExportModal('pdf')}
-            className="flex items-center justify-center gap-2 py-3.5 rounded-2xl bg-red-600 hover:bg-red-700 active:scale-95 text-white font-bold text-sm transition-all shadow-lg shadow-red-200 dark:shadow-red-900/30">
-            <FileText className="w-5 h-5" />PDF
-          </button>
+      </>)}
+
+      {/* ── Barra de exportación unificada (todas las categorías) ── */}
+      {totalItemsSelected > 0 && (
+        <div className="sticky bottom-4 z-20 space-y-2">
+          <div className="card flex items-center justify-between py-3 shadow-lg border border-red-100 dark:border-red-900/30">
+            <div>
+              <p className="text-xs text-gray-500 dark:text-gray-400">{totalItemsSelected} servicio{totalItemsSelected !== 1 ? 's' : ''} seleccionado{totalItemsSelected !== 1 ? 's' : ''}</p>
+              <p className="text-xl font-black text-red-600 dark:text-red-400">{formatMoney(totalFinal + catTotal)}</p>
+            </div>
+            <div className="flex gap-2">
+              <button onClick={() => openExportModal('whatsapp')}
+                className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-green-500 hover:bg-green-600 active:scale-95 text-white font-bold text-sm transition-all">
+                <MessageCircle className="w-4 h-4" />WA
+              </button>
+              <button onClick={() => openExportModal('pdf')}
+                className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 active:scale-95 text-white font-bold text-sm transition-all">
+                <FileText className="w-4 h-4" />PDF
+              </button>
+            </div>
+          </div>
         </div>
       )}
-      </>)}
 
       {/* Modal: datos del cliente y vehículo */}
       {exportModal && (

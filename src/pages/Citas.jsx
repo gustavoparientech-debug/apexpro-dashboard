@@ -322,12 +322,10 @@ export default function Citas() {
             {proxCount > 0 ? `${proxCount} próxima${proxCount !== 1 ? 's' : ''}` : 'Sin citas próximas'}
           </p>
         </div>
-        {canAdmin && (
-          <button onClick={() => { setEditing(null); setShowForm(true) }}
-            className="flex items-center gap-2 bg-red-600 hover:bg-red-700 active:scale-95 text-white text-sm font-bold px-4 py-2.5 rounded-2xl shadow-md shadow-red-200 dark:shadow-red-900/30 transition-all">
-            <Plus className="w-4 h-4" /> Nueva cita
-          </button>
-        )}
+        <button onClick={() => { setEditing(null); setShowForm(true) }}
+          className="flex items-center gap-2 bg-red-600 hover:bg-red-700 active:scale-95 text-white text-sm font-bold px-4 py-2.5 rounded-2xl shadow-md shadow-red-200 dark:shadow-red-900/30 transition-all">
+          <Plus className="w-4 h-4" /> Nueva cita
+        </button>
       </div>
 
       {/* Stats row */}
@@ -375,7 +373,7 @@ export default function Citas() {
           <p className="text-gray-500 dark:text-gray-400 font-medium">
             {filter === 'hoy' ? 'No hay citas para hoy' : filter === 'pasadas' ? 'No hay citas pasadas' : 'No hay citas próximas'}
           </p>
-          {canAdmin && filter !== 'pasadas' && (
+          {filter !== 'pasadas' && (
             <button onClick={() => { setEditing(null); setShowForm(true) }}
               className="mt-4 text-sm text-red-600 font-semibold hover:underline">
               + Agregar cita

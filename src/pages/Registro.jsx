@@ -1262,6 +1262,12 @@ export default function Registro() {
 
   const canAdmin = isAdmin || isDemo
 
+  // Filtro por rango de fechas (solo admin)
+  const [showRange, setShowRange] = useState(false)
+  const [rangeFrom, setRangeFrom] = useState('')
+  const [rangeTo,   setRangeTo]   = useState('')
+  const hasRange = canAdmin && showRange && rangeFrom && rangeTo
+
   // Recargar cuando cambia mes/año (solo admin)
   function handleMonthChange(m, y) {
     setSelMonth(m)
@@ -1282,10 +1288,17 @@ export default function Registro() {
     [tickets, selectedDate, canAdmin]
   )
 
-  // Tickets cerrados del día seleccionado — más reciente primero
+  // Tickets cerrados del día seleccionado (o rango) — más reciente primero
   const closedToday = useMemo(
     () => {
-      const filtered = tickets.filter(t => (t.status === 'cerrado' || !t.status) && t.date === selectedDate && (!t.hidden_from_workers || canAdmin))
+      const filtered = tickets.filter(t => {
+        if (t.status !== 'cerrado' && t.status) return false
+        if (!t.hidden_from_workers || canAdmin) {
+          if (hasRange) return t.date >= rangeFrom && t.date <= rangeTo
+          return t.date === selectedDate
+        }
+        return false
+      })
       // Si tienen closed_at (columna agregada en DB), ordenar por ese campo
       const hasClosed = filtered.some(t => t.closed_at)
       if (hasClosed) {
@@ -1299,17 +1312,20 @@ export default function Registro() {
       // el más reciente ya está primero — no hace falta re-ordenar)
       return filtered
     },
-    [tickets, selectedDate]
+    [tickets, selectedDate, hasRange, rangeFrom, rangeTo, canAdmin]
   )
 
-  const daySummaries = useMemo(() => dailySummaries.filter(d => d.date === selectedDate), [dailySummaries, selectedDate])
+  const daySummaries = useMemo(() => hasRange
+    ? dailySummaries.filter(d => d.date >= rangeFrom && d.date <= rangeTo)
+    : dailySummaries.filter(d => d.date === selectedDate),
+  [dailySummaries, selectedDate, hasRange, rangeFrom, rangeTo])
 
   const expensesToday = useMemo(() => {
-    const all = (expenses || []).filter(e => e.date === selectedDate)
+    const all = (expenses || []).filter(e => hasRange ? (e.date >= rangeFrom && e.date <= rangeTo) : e.date === selectedDate)
     // Trabajadores solo ven sus propios gastos
     if (!canAdmin) return all.filter(e => e.worker_id === profile?.worker_id)
     return all
-  }, [expenses, selectedDate, canAdmin, profile])
+  }, [expenses, selectedDate, canAdmin, profile, hasRange, rangeFrom, rangeTo])
 
   const expensesTodayTotal = useMemo(
     () => expensesToday.reduce((s, e) => s + (e.amount || 0), 0),
@@ -1488,16 +1504,38 @@ export default function Registro() {
             </div>
           )}
 
-          {/* Tarjeta total del día */}
+          {/* Filtro rango (solo admin) */}
+          {canAdmin && (
+            <div className="flex items-center gap-2">
+              <button onClick={() => { setShowRange(v => !v); setRangeFrom(''); setRangeTo('') }}
+                className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-xl transition-colors font-semibold ${showRange ? 'bg-red-500 text-white' : 'bg-white/10 text-gray-300 hover:bg-white/20'}`}>
+                <Search className="w-3 h-3" />
+                {showRange ? 'Rango activo' : 'Filtrar rango'}
+              </button>
+              {showRange && (
+                <div className="flex items-center gap-1.5 flex-1">
+                  <input type="date" className="bg-white/10 text-white text-xs rounded-lg px-2 py-1 focus:outline-none flex-1 min-w-0"
+                    value={rangeFrom} onChange={e => setRangeFrom(e.target.value)} />
+                  <span className="text-gray-400 text-xs">–</span>
+                  <input type="date" className="bg-white/10 text-white text-xs rounded-lg px-2 py-1 focus:outline-none flex-1 min-w-0"
+                    value={rangeTo} min={rangeFrom} onChange={e => setRangeTo(e.target.value)} />
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Tarjeta total del día / rango */}
           <div className="bg-black/40 backdrop-blur-sm rounded-xl px-3 py-3 flex items-center justify-between self-start">
             <div>
-              <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Total del día</p>
+              <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">
+                {hasRange ? `Total ${rangeFrom.slice(8)}/${rangeFrom.slice(5,7)} – ${rangeTo.slice(8)}/${rangeTo.slice(5,7)}` : 'Total del día'}
+              </p>
               <p className="text-2xl font-black text-white leading-tight whitespace-nowrap">
                 {hideTotal ? '••••••' : formatMoney(dayTotal)}
               </p>
               <p className="text-xs text-gray-400 leading-tight">
-                {fechaLabel.split(',')[0]}
-                {selectedDate !== today && <span className="ml-1 text-amber-400">· Lectura</span>}
+                {hasRange ? `${closedToday.length} tickets en el rango` : fechaLabel.split(',')[0]}
+                {!hasRange && selectedDate !== today && <span className="ml-1 text-amber-400">· Lectura</span>}
               </p>
             </div>
             <button onClick={() => setHideTotal(v => !v)}
@@ -1633,7 +1671,7 @@ export default function Registro() {
       <div>
         <div className="flex items-center gap-3 mb-2">
           <h2 className="text-sm font-bold text-gray-600 dark:text-gray-400 uppercase tracking-wide">
-            {selectedDate === today ? 'Cerrados hoy' : `Cerrados el ${selectedDate.split('-').reverse().join('/')}`}
+            {hasRange ? `Cerrados ${rangeFrom.split('-').reverse().join('/')} – ${rangeTo.split('-').reverse().join('/')}` : selectedDate === today ? 'Cerrados hoy' : `Cerrados el ${selectedDate.split('-').reverse().join('/')}`}
           </h2>
         </div>
 

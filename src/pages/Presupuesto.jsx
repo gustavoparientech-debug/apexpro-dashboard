@@ -596,7 +596,7 @@ export default function Presupuesto() {
 
     // Subtotal / descuento / total
     const numCol = W - mR - 35
-    if (isPlanchado && discountPct > 0) {
+    if (planchadoRowsPDF.length > 0 && discountPct > 0) {
       doc.setFontSize(8)
       doc.setFont('helvetica', 'normal')
       doc.setTextColor(100, 100, 100)

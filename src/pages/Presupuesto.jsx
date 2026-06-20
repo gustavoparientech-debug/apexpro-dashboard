@@ -1062,6 +1062,51 @@ export default function Presupuesto() {
               </div>
             )}
 
+            {/* Ítem personalizado */}
+            <div className="card">
+              {showManualForm ? (
+                <div className="space-y-2">
+                  <p className="text-xs font-bold text-blue-600 dark:text-blue-400 mb-1">✏️ Ítem personalizado</p>
+                  <input className="input text-sm py-1.5 w-full" placeholder="Título (ej: Tratamiento especial)"
+                    value={manualDraft.titulo} onChange={e => setManualDraft(d => ({ ...d, titulo: e.target.value }))} />
+                  <input className="input text-sm py-1.5 w-full" placeholder="Descripción (opcional)"
+                    value={manualDraft.descripcion} onChange={e => setManualDraft(d => ({ ...d, descripcion: e.target.value }))} />
+                  <div className="flex gap-2">
+                    <div className="flex items-center gap-1 flex-1">
+                      <span className="text-xs text-gray-500">S/</span>
+                      <input type="number" className="input text-sm py-1.5 flex-1" placeholder="0.00"
+                        value={manualDraft.monto} onChange={e => setManualDraft(d => ({ ...d, monto: e.target.value }))} />
+                    </div>
+                    <button onClick={addManualItem} className="px-4 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold">Agregar</button>
+                    <button onClick={() => { setShowManualForm(false); setManualDraft({ titulo: '', descripcion: '', monto: '' }) }}
+                      className="px-3 py-1.5 rounded-xl border border-gray-200 dark:border-gray-700 text-gray-400 text-sm">✕</button>
+                  </div>
+                </div>
+              ) : (
+                <button onClick={() => setShowManualForm(true)}
+                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-dashed border-blue-300 dark:border-blue-700 text-blue-500 text-xs font-semibold hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors">
+                  ✏️ Agregar ítem personalizado
+                </button>
+              )}
+              {manualItems.length > 0 && (
+                <div className="mt-2 space-y-1.5 pt-2 border-t border-gray-100 dark:border-gray-800">
+                  {manualItems.map(item => (
+                    <div key={item.id} className="flex items-center gap-2">
+                      <button onClick={() => setManualItems(items => items.filter(i => i.id !== item.id))}
+                        className="w-5 h-5 flex-shrink-0 flex items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30 text-red-500 hover:bg-red-200">
+                        <X className="w-3 h-3" />
+                      </button>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium text-gray-700 dark:text-gray-300">{item.titulo}</p>
+                        {item.descripcion && <p className="text-[10px] text-gray-400 truncate">{item.descripcion}</p>}
+                      </div>
+                      <p className="text-xs font-bold text-blue-600">{formatMoney(item.monto)}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
           </div>
         )
       })()}

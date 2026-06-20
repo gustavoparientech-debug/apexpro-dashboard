@@ -16,7 +16,7 @@ import {
   CreditCard, Smartphone, Calendar, Award, Trophy, Gift, Plus, Trash2, Banknote,
   ChevronLeft, ChevronRight, X, Pencil
 } from 'lucide-react'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 import toast from 'react-hot-toast'
 
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
@@ -524,8 +524,8 @@ export default function Dashboard() {
     periodTickets.forEach(t => { byDate[t.date] = (byDate[t.date] || 0) + t.price_charged })
     periodSummaries.forEach(d => { byDate[d.date] = (byDate[d.date] || 0) + d.total_income })
     const bestDay = Object.entries(byDate).sort((a, b) => b[1] - a[1])[0]
-    const dailyData = Object.entries(byDate).sort((a, b) => a[0].localeCompare(b[0])).slice(-10)
-      .map(([date, amount]) => ({ date: formatDate(date), amount }))
+    const dailyData = Object.entries(byDate).sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([date, amount]) => ({ date, label: formatDate(date), amount }))
 
     const projectedIncome = workingDaysTotal > 0 && workingDaysElapsed > 0 ? (totalIncome / workingDaysElapsed) * workingDaysTotal : 0
     const onTrack = projectedIncome >= incomeGoal
@@ -747,24 +747,62 @@ export default function Dashboard() {
       <BonusSection workers={workers} bonuses={bonuses} addBonus={addBonus} deleteBonus={deleteBonus} monthPrefix={prefix} />
 
       {/* Gráfico diario */}
-      {data.dailyData.length > 0 && (
-        <div className="card">
-          <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">Ingresos por día</p>
-          <div className="h-48">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={data.dailyData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" className="dark:opacity-20" />
-                <XAxis dataKey="date" tick={{ fontSize: 11 }} />
-                <YAxis tick={{ fontSize: 11 }} tickFormatter={v => `S/${v}`}
-                  tickCount={6} allowDecimals={false}
-                  domain={[0, dataMax => Math.ceil(dataMax / 100) * 100]} />
-                <Tooltip formatter={v => formatMoney(v)} />
-                <Bar dataKey="amount" fill="#dc2626" radius={[4, 4, 0, 0]} name="Ingresos" />
-              </BarChart>
-            </ResponsiveContainer>
+      {data.dailyData.length > 0 && (() => {
+        const maxAmt = Math.max(...data.dailyData.map(d => d.amount))
+        const todayStr = new Date().toISOString().slice(0, 10)
+        return (
+          <div className="card overflow-hidden">
+            <div className="flex items-center justify-between mb-1">
+              <p className="text-sm font-bold text-gray-900 dark:text-white">Ingresos por día</p>
+              <span className="text-xs text-gray-400">{data.dailyData.length} días</span>
+            </div>
+            <p className="text-xs text-gray-400 mb-4">Mejor día: <span className="font-semibold text-gray-600 dark:text-gray-300">{data.bestDay ? `${formatDate(data.bestDay[0])} · ${formatMoney(data.bestDay[1])}` : '—'}</span></p>
+            <div className="overflow-x-auto -mx-4 px-4">
+              <div style={{ minWidth: Math.max(data.dailyData.length * 36, 300) }} className="h-52">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={data.dailyData} margin={{ top: 4, right: 4, left: -16, bottom: 0 }} barCategoryGap="25%">
+                    <defs>
+                      <linearGradient id="barGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#ef4444" stopOpacity={1} />
+                        <stop offset="100%" stopColor="#b91c1c" stopOpacity={0.85} />
+                      </linearGradient>
+                      <linearGradient id="barGradTop" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#f97316" stopOpacity={1} />
+                        <stop offset="100%" stopColor="#dc2626" stopOpacity={0.9} />
+                      </linearGradient>
+                      <linearGradient id="barGradToday" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#6366f1" stopOpacity={1} />
+                        <stop offset="100%" stopColor="#4f46e5" stopOpacity={0.85} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
+                    <XAxis dataKey="label" tick={{ fontSize: 9, fill: '#9ca3af' }} tickLine={false} axisLine={false} interval={0} angle={-35} textAnchor="end" height={36} />
+                    <YAxis tick={{ fontSize: 10, fill: '#9ca3af' }} tickFormatter={v => `S/${v}`} tickCount={5} axisLine={false} tickLine={false} width={48} />
+                    <Tooltip
+                      cursor={{ fill: 'rgba(0,0,0,0.04)', radius: 6 }}
+                      contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.12)', fontSize: 12, padding: '8px 14px' }}
+                      formatter={(v) => [formatMoney(v), 'Ingresos']}
+                      labelStyle={{ fontWeight: 700, marginBottom: 2 }}
+                    />
+                    <Bar dataKey="amount" radius={[6, 6, 2, 2]} maxBarSize={32}>
+                      {data.dailyData.map((d) => {
+                        const isTop = d.amount === maxAmt
+                        const isToday = d.date === todayStr
+                        return <Cell key={d.date} fill={isToday ? 'url(#barGradToday)' : isTop ? 'url(#barGradTop)' : 'url(#barGrad)'} />
+                      })}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+            <div className="flex items-center gap-4 mt-3 pt-3 border-t border-gray-100 dark:border-gray-800">
+              <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full" style={{background:'linear-gradient(#f97316,#dc2626)'}} /><span className="text-xs text-gray-400">Mejor día</span></div>
+              <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full" style={{background:'linear-gradient(#6366f1,#4f46e5)'}} /><span className="text-xs text-gray-400">Hoy</span></div>
+              <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full" style={{background:'linear-gradient(#ef4444,#b91c1c)'}} /><span className="text-xs text-gray-400">Días anteriores</span></div>
+            </div>
           </div>
-        </div>
-      )}
+        )
+      })()}
     </div>
   )
 }

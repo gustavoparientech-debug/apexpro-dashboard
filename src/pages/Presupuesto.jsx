@@ -358,7 +358,6 @@ export default function Presupuesto() {
     doc.setFontSize(8)
     doc.setFont('helvetica', 'normal')
     doc.text('N°', tX + 4, tY + 6)
-    doc.text('C-1', tX + tW * 0.35, tY + 6, { align: 'center' })
     doc.setFont('helvetica', 'bold')
     doc.text(String(numCotizacion), tX + tW - 4, tY + 6, { align: 'right' })
     doc.rect(tX, tY + rH, tW, rH)

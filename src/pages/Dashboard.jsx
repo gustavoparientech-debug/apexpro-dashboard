@@ -339,6 +339,8 @@ function ExpensesPanel({ expenses, workers }) {
                   <p className="text-xs font-semibold text-gray-700 dark:text-gray-300">{CAT_LABELS[exp.category] || exp.category || 'Gasto'}</p>
                   <div className="flex items-center gap-1.5 flex-wrap">
                     {worker && <span className="text-xs text-gray-400">{worker.name}</span>}
+                    {exp.method === 'efectivo' && <span className="text-xs font-medium text-green-600 bg-green-50 dark:bg-green-900/20 px-1.5 py-0.5 rounded-md">💵 Efectivo</span>}
+                    {exp.method === 'yape'     && <span className="text-xs font-medium text-purple-600 bg-purple-50 dark:bg-purple-900/20 px-1.5 py-0.5 rounded-md">💜 Yape</span>}
                     {exp.notes && <span className="text-xs text-gray-400 italic truncate">· {exp.notes}</span>}
                     <span className="text-xs text-gray-300 dark:text-gray-600">{exp.date}</span>
                   </div>

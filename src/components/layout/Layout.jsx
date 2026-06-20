@@ -99,7 +99,7 @@ const GASTO_CATS = [
 
 function GastoSheet({ onClose, fixedWorkerId }) {
   const { addExpense, workers } = useApp()
-  const [form, setForm] = useState({ date: todayISO(), amount: '', category: '', notes: '', worker_id: fixedWorkerId || '' })
+  const [form, setForm] = useState({ date: todayISO(), amount: '', category: '', notes: '', worker_id: fixedWorkerId || '', method: '' })
   const [busy, setBusy] = useState(false)
   const [mounted, setMounted] = useState(false)
   const [closing, setClosing] = useState(false)
@@ -156,6 +156,15 @@ function GastoSheet({ onClose, fixedWorkerId }) {
             {workers.filter(w => w.active).map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
           </select>
         )}
+        {/* Método de pago */}
+        <div className="grid grid-cols-2 gap-2">
+          {[{ value: 'efectivo', label: '💵 Efectivo' }, { value: 'yape', label: '💜 Yape' }].map(m => (
+            <button key={m.value} type="button" onClick={() => setForm(f => ({ ...f, method: f.method === m.value ? '' : m.value }))}
+              className={`py-2.5 rounded-xl border text-sm font-semibold transition-colors ${form.method === m.value ? (m.value === 'efectivo' ? 'border-green-500 bg-green-50 dark:bg-green-900/20 text-green-700' : 'border-purple-500 bg-purple-50 dark:bg-purple-900/20 text-purple-700') : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300'}`}>
+              {m.label}
+            </button>
+          ))}
+        </div>
         <input className="input" placeholder="Notas (opcional)" value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
         <button onClick={handleSave} disabled={busy}
           className="w-full py-3 rounded-2xl bg-red-600 hover:bg-red-700 text-white font-bold transition-transform duration-150 ease-out active:scale-[0.97]">

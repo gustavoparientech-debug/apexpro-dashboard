@@ -371,6 +371,63 @@ function ExpensesPanel({ expenses, workers }) {
   )
 }
 
+const RANK_SORTS = [
+  { value: 'income',   label: 'Ingresos' },
+  { value: 'cars',     label: 'Vehículos' },
+  { value: 'avgCar',   label: 'Prom/carro' },
+  { value: 'avgDay',   label: 'Prom/día' },
+]
+
+function RankingPanel({ ranking, workingDaysElapsed }) {
+  const [sort, setSort] = useState('income')
+
+  const sorted = useMemo(() => {
+    const days = workingDaysElapsed || 1
+    return [...ranking]
+      .map(r => ({ ...r, avgCar: r.cars > 0 ? r.income / r.cars : 0, avgDay: r.income / days }))
+      .sort((a, b) => b[sort] - a[sort])
+  }, [ranking, sort, workingDaysElapsed])
+
+  const valueLabel = r => {
+    if (sort === 'cars')   return `${r.cars} veh.`
+    if (sort === 'avgCar') return formatMoney(r.avgCar)
+    if (sort === 'avgDay') return formatMoney(r.avgDay)
+    return formatMoney(r.income)
+  }
+
+  return (
+    <div className="card">
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <Trophy className="w-4 h-4 text-amber-500" />
+          <p className="text-sm font-bold text-gray-900 dark:text-white">Ranking de trabajadores</p>
+        </div>
+      </div>
+      <div className="flex gap-1.5 flex-wrap mb-4">
+        {RANK_SORTS.map(s => (
+          <button key={s.value} onClick={() => setSort(s.value)}
+            className={`text-xs px-3 py-1.5 rounded-full font-semibold transition-colors ${sort === s.value ? 'bg-red-600 text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'}`}>
+            {s.label}
+          </button>
+        ))}
+      </div>
+      <div className="space-y-3">
+        {sorted.map((r, i) => (
+          <div key={r.worker.id} className="flex items-center gap-3">
+            <span className={`w-6 text-center text-sm font-black ${i === 0 ? 'text-amber-500' : i === 1 ? 'text-gray-400' : i === 2 ? 'text-amber-700' : 'text-gray-400'}`}>{i + 1}</span>
+            <div className="w-8 h-8 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center text-red-600 font-bold text-xs flex-none">{r.worker.name[0]}</div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-gray-900 dark:text-white">{r.worker.name}</p>
+              <p className="text-xs text-gray-400">{r.cars} veh. · prom {formatMoney(r.avgCar)}/carro · {formatMoney(r.avgDay)}/día</p>
+            </div>
+            <p className="text-sm font-bold text-gray-900 dark:text-white">{valueLabel(r)}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export default function Dashboard() {
   const { tickets, dailySummaries, expenses, workers, services, incidents, monthlyCosts, bonuses, addBonus, deleteBonus, loading } = useApp()
   const { month: cm, year: cy } = currentMonthYear()
@@ -683,25 +740,7 @@ export default function Dashboard() {
 
       {/* Ranking trabajadores */}
       {data.workerRanking.length > 0 && (
-        <div className="card">
-          <div className="flex items-center gap-2 mb-4">
-            <Trophy className="w-4 h-4 text-amber-500" />
-            <p className="text-sm font-bold text-gray-900 dark:text-white">Ranking de trabajadores</p>
-          </div>
-          <div className="space-y-3">
-            {data.workerRanking.map((r, i) => (
-              <div key={r.worker.id} className="flex items-center gap-3">
-                <span className={`w-6 text-center text-sm font-black ${i === 0 ? 'text-amber-500' : i === 1 ? 'text-gray-400' : i === 2 ? 'text-amber-700' : 'text-gray-400'}`}>{i + 1}</span>
-                <div className="w-8 h-8 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center text-red-600 font-bold text-xs flex-none">{r.worker.name[0]}</div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-gray-900 dark:text-white">{r.worker.name}</p>
-                  <p className="text-xs text-gray-400">{r.cars} vehículos · prom {formatMoney(r.cars > 0 ? r.income / r.cars : 0)}</p>
-                </div>
-                <p className="text-sm font-bold text-gray-900 dark:text-white">{formatMoney(r.income)}</p>
-              </div>
-            ))}
-          </div>
-        </div>
+        <RankingPanel ranking={data.workerRanking} workingDaysElapsed={data.workingDaysElapsed} />
       )}
 
       {/* Bonos */}

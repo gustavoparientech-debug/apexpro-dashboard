@@ -228,6 +228,22 @@ export default function Presupuesto() {
   const [exportTarget, setExportTarget] = useState(null)
   const DEFAULT_CONDICIONES = 'Forma de pago: 50% de adelanto y 50% contra entrega. Vigencia: 15 dias calendario. Tiempo de entrega: maximo 3 dias habiles tras recibir el vehiculo. Precios incluyen IGV.'
   const [exportForm, setExportForm] = useState({ nombre: '', celular: '', ruc: '', marca: '', modelo: '', placa: '', anio: '', color: '', observaciones: '', condiciones: DEFAULT_CONDICIONES })
+  const [cotizacionNum, setCotizacionNum] = useState(150)
+
+  useEffect(() => {
+    supabase.from('app_settings').select('value').eq('key', 'cotizacion_counter').maybeSingle()
+      .then(({ data }) => { if (data?.value?.num) setCotizacionNum(data.value.num) })
+  }, [])
+
+  async function getNextCotizacionNum() {
+    const next = cotizacionNum + 1
+    setCotizacionNum(next)
+    await supabase.from('app_settings').upsert(
+      { key: 'cotizacion_counter', value: { num: next }, updated_at: new Date().toISOString() },
+      { onConflict: 'key' }
+    )
+    return next
+  }
 
   function openExportModal(target) {
     if (selectedCount === 0) { toast.error('Selecciona al menos un paño'); return }
@@ -236,10 +252,13 @@ export default function Presupuesto() {
     setExportModal(true)
   }
 
-  function doExport() {
+  async function doExport() {
     setExportModal(false)
     if (exportTarget === 'whatsapp') buildWhatsApp()
-    else buildPDF()
+    else {
+      const num = await getNextCotizacionNum()
+      buildPDF(num)
+    }
   }
 
   function buildWhatsApp() {
@@ -290,7 +309,7 @@ export default function Presupuesto() {
     window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank')
   }
 
-  function buildPDF() {
+  function buildPDF(numCotizacion) {
     const { nombre, celular, ruc, marca, modelo, placa, anio, color, observaciones, condiciones } = exportForm
     const doc = new jsPDF({ unit: 'mm', format: 'a4' })
     const W = 210
@@ -339,9 +358,9 @@ export default function Presupuesto() {
     doc.setFontSize(8)
     doc.setFont('helvetica', 'normal')
     doc.text('N°', tX + 4, tY + 6)
-    doc.text('C-1', tX + tW * 0.4, tY + 6, { align: 'center' })
+    doc.text('C-1', tX + tW * 0.35, tY + 6, { align: 'center' })
     doc.setFont('helvetica', 'bold')
-    doc.text(today.split('/').slice(2).join('') || '', tX + tW - 4, tY + 6, { align: 'right' })
+    doc.text(String(numCotizacion), tX + tW - 4, tY + 6, { align: 'right' })
     doc.rect(tX, tY + rH, tW, rH)
     doc.setFont('helvetica', 'normal')
     doc.text('Fecha:', tX + 4, tY + rH + 6)

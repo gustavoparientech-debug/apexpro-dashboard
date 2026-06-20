@@ -183,11 +183,22 @@ export default function Configuracion() {
     if (totalPorc > 100) { toast.error(`Total porcentajes ${totalPorc}% supera el 100%`); return }
     setSavingReparto(true)
     try {
+      const monto = parseFloat(repartoMonto) || 0
+      // Guardar reparto en app_settings
       await supabase.from('app_settings').upsert(
-        { key: 'reparto', value: { monto: parseFloat(repartoMonto) || 0, porcentajes: repartoPorc }, updated_at: new Date().toISOString() },
+        { key: 'reparto', value: { monto, porcentajes: repartoPorc }, updated_at: new Date().toISOString() },
         { onConflict: 'key' }
       )
-      toast.success('Reparto guardado')
+      // Aplicar reparto como meta diaria de cada trabajador
+      const newGoals = {}
+      await Promise.all(activeWorkers.map(w => {
+        const porc = parseFloat(repartoPorc[w.id]) || 0
+        const goal = monto > 0 && porc > 0 ? Math.round(monto * porc / 100) : (workerGoals[w.id] !== '' ? parseFloat(workerGoals[w.id]) || null : null)
+        newGoals[w.id] = goal ?? ''
+        return updateWorker(w.id, { daily_goal: goal })
+      }))
+      setWorkerGoals(newGoals)
+      toast.success('Reparto guardado y aplicado como meta diaria ✓')
     } catch { toast.error('Error al guardar') }
     setSavingReparto(false)
   }

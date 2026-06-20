@@ -140,6 +140,8 @@ function ExpensesPanel({ expenses, workers }) {
   const canAdmin = isAdmin || isDemo
   const [filterCat,    setFilterCat]    = useState('')
   const [filterWorker, setFilterWorker] = useState('')
+  const [filterFrom,   setFilterFrom]   = useState('')
+  const [filterTo,     setFilterTo]     = useState('')
   const [sortBy,       setSortBy]       = useState('date_desc')
   const [editingExp,   setEditingExp]   = useState(null)
   const [showAdd,      setShowAdd]      = useState(false)
@@ -161,6 +163,8 @@ function ExpensesPanel({ expenses, workers }) {
     let list = [...expenses]
     if (filterCat)    list = list.filter(e => e.category === filterCat)
     if (filterWorker) list = list.filter(e => e.worker_id === filterWorker)
+    if (filterFrom)   list = list.filter(e => e.date >= filterFrom)
+    if (filterTo)     list = list.filter(e => e.date <= filterTo)
     list.sort((a, b) => {
       if (sortBy === 'date_desc')   return b.date.localeCompare(a.date)
       if (sortBy === 'date_asc')    return a.date.localeCompare(b.date)
@@ -169,7 +173,7 @@ function ExpensesPanel({ expenses, workers }) {
       return 0
     })
     return list
-  }, [expenses, filterCat, filterWorker, sortBy])
+  }, [expenses, filterCat, filterWorker, filterFrom, filterTo, sortBy])
 
   const total = filtered.reduce((s, e) => s + (e.amount || 0), 0)
   const activeWorkers = workers.filter(w => expenses.some(e => e.worker_id === w.id))
@@ -256,8 +260,18 @@ function ExpensesPanel({ expenses, workers }) {
           className="text-xs border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1.5 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-red-600 focus:border-transparent">
           {SORT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
-        {(filterCat || filterWorker) && (
-          <button onClick={() => { setFilterCat(''); setFilterWorker('') }}
+        <div className="flex items-center gap-1.5 border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1 bg-white dark:bg-gray-800">
+          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide whitespace-nowrap">Desde</span>
+          <input type="date" className="text-xs bg-transparent text-gray-700 dark:text-gray-300 focus:outline-none"
+            value={filterFrom} onChange={e => setFilterFrom(e.target.value)} />
+        </div>
+        <div className="flex items-center gap-1.5 border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1 bg-white dark:bg-gray-800">
+          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide whitespace-nowrap">Hasta</span>
+          <input type="date" className="text-xs bg-transparent text-gray-700 dark:text-gray-300 focus:outline-none"
+            value={filterTo} min={filterFrom} onChange={e => setFilterTo(e.target.value)} />
+        </div>
+        {(filterCat || filterWorker || filterFrom || filterTo) && (
+          <button onClick={() => { setFilterCat(''); setFilterWorker(''); setFilterFrom(''); setFilterTo('') }}
             className="text-xs text-red-500 border border-red-200 dark:border-red-900 rounded-lg px-2 py-1.5 hover:bg-red-50 dark:hover:bg-red-900/20 focus:outline-none focus:ring-2 focus:ring-red-600 transition-colors">
             Limpiar
           </button>

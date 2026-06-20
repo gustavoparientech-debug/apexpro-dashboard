@@ -319,10 +319,10 @@ export default function Presupuesto() {
     doc.setTextColor(40, 40, 40)
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(7)
-    doc.text('📍 Calle Idelfonzo Lopez N° 700 Zamacola', mL, 39)
-    doc.text('   Arequipa - Arequipa - Cerro Colorado', mL, 43)
-    doc.text('📞 959240309', mL, 47)
-    doc.text('✉  Apexprodetailing0@gmail.com', mL, 51)
+    doc.text('Calle Idelfonzo Lopez N 700 Zamacola', mL, 39)
+    doc.text('Arequipa - Arequipa - Cerro Colorado', mL, 43)
+    doc.text('Tel: 959240309', mL, 47)
+    doc.text('Apexprodetailing0@gmail.com', mL, 51)
 
     // "COTIZACIÓN" centrado
     doc.setTextColor(0, 0, 0)
@@ -357,9 +357,12 @@ export default function Presupuesto() {
 
     // ── Datos Cliente ────────────────────────────────────────────
     const sectionHeader = (label, yPos) => {
-      doc.setFillColor(40, 40, 40)
+      doc.setFillColor(189, 189, 189)
       doc.rect(mL, yPos, cW, 6.5, 'F')
-      doc.setTextColor(255, 255, 255)
+      doc.setDrawColor(150, 150, 150)
+      doc.setLineWidth(0.3)
+      doc.rect(mL, yPos, cW, 6.5, 'S')
+      doc.setTextColor(20, 20, 20)
       doc.setFontSize(7.5)
       doc.setFont('helvetica', 'bold')
       doc.text(label, mL + 3, yPos + 4.5)

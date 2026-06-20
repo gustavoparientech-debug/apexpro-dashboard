@@ -521,16 +521,10 @@ export default function Configuracion() {
           )
         })()}
 
-        <div className="flex gap-3 mt-4">
-          <button className="btn-primary flex items-center gap-2" onClick={handleSaveGoals} disabled={savingGoals}>
-            <Save className="w-4 h-4" />
-            {savingGoals ? 'Guardando...' : 'Guardar metas'}
-          </button>
-          <button className="btn-primary flex items-center gap-2" onClick={handleSaveReparto} disabled={savingReparto}>
-            <Save className="w-4 h-4" />
-            {savingReparto ? 'Guardando...' : 'Guardar reparto'}
-          </button>
-        </div>
+        <button className="btn-primary flex items-center gap-2 mt-4" onClick={handleSaveReparto} disabled={savingReparto}>
+          <Save className="w-4 h-4" />
+          {savingReparto ? 'Guardando...' : 'Guardar'}
+        </button>
       </div>
 
       {/* Catálogo de extras */}

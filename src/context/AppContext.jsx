@@ -488,6 +488,52 @@ export function AppProvider({ children }) {
   }
 
   // ─── CRUD Tickets ───────────────────────────────────────────────────────────
+  function playCloseSound() {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)()
+      // Click satisfactorio: transiente corto + tono cálido que decae
+      const click = ctx.createOscillator()
+      const clickGain = ctx.createGain()
+      click.connect(clickGain)
+      clickGain.connect(ctx.destination)
+      click.type = 'sine'
+      click.frequency.setValueAtTime(900, ctx.currentTime)
+      click.frequency.exponentialRampToValueAtTime(300, ctx.currentTime + 0.06)
+      clickGain.gain.setValueAtTime(0.25, ctx.currentTime)
+      clickGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.08)
+      click.start(ctx.currentTime)
+      click.stop(ctx.currentTime + 0.08)
+
+      // Campana suave que inspira
+      const bell = ctx.createOscillator()
+      const bellGain = ctx.createGain()
+      bell.connect(bellGain)
+      bellGain.connect(ctx.destination)
+      bell.type = 'sine'
+      bell.frequency.value = 880 // A5
+      bellGain.gain.setValueAtTime(0, ctx.currentTime + 0.05)
+      bellGain.gain.linearRampToValueAtTime(0.15, ctx.currentTime + 0.1)
+      bellGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.7)
+      bell.start(ctx.currentTime + 0.05)
+      bell.stop(ctx.currentTime + 0.7)
+
+      // Armónico que da brillo
+      const shine = ctx.createOscillator()
+      const shineGain = ctx.createGain()
+      shine.connect(shineGain)
+      shineGain.connect(ctx.destination)
+      shine.type = 'sine'
+      shine.frequency.value = 1320 // E6
+      shineGain.gain.setValueAtTime(0, ctx.currentTime + 0.07)
+      shineGain.gain.linearRampToValueAtTime(0.07, ctx.currentTime + 0.12)
+      shineGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5)
+      shine.start(ctx.currentTime + 0.07)
+      shine.stop(ctx.currentTime + 0.5)
+
+      setTimeout(() => ctx.close(), 1000)
+    } catch {}
+  }
+
   function playTicketSound() {
     try {
       const ctx = new (window.AudioContext || window.webkitAudioContext)()
@@ -526,6 +572,7 @@ export function AppProvider({ children }) {
   }
 
   const updateTicket = async (id, data) => {
+    if (data.status === 'cerrado') playCloseSound()
     if (IS_DEMO) {
       const updated = { ...state.tickets.find(t => t.id === id), ...data }
       dispatch({ type: 'UPDATE_TICKET', payload: updated })

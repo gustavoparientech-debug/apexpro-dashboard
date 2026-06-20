@@ -45,6 +45,9 @@ function setDynamicCache(prefix, data) {
 function invalidateDynamicCache() {
   try { localStorage.removeItem(DYNAMIC_CACHE_KEY) } catch {}
 }
+function invalidateAllCache() {
+  try { localStorage.removeItem(DYNAMIC_CACHE_KEY); localStorage.removeItem(STATIC_CACHE_KEY) } catch {}
+}
 
 // ─── localStorage helpers ─────────────────────────────────────────────────────
 const LS_KEY = 'apexpro_data_v2'
@@ -821,6 +824,7 @@ export function AppProvider({ children }) {
       ...state,
       isDemo: IS_DEMO,
       loadData,
+      invalidateAllCache,
       addWorker, updateWorker,
       addService, updateService,
       addTicket, updateTicket, deleteTicket,

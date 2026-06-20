@@ -164,7 +164,7 @@ function FabMenu({ workerId, workerName }) {
 }
 
 export default function DashboardTrabajador() {
-  const { tickets, workers, vehicleTypes, monthlyCosts, loadData } = useApp()
+  const { tickets, workers, vehicleTypes, monthlyCosts, loadData, invalidateAllCache } = useApp()
   const { profile, refreshProfile } = useAuth()
 
   const [editingGreeting, setEditingGreeting] = useState(false)
@@ -174,7 +174,9 @@ export default function DashboardTrabajador() {
 
   async function handleRefresh() {
     setRefreshing(true)
+    invalidateAllCache()
     await loadData()
+    await refreshProfile()
     setRefreshing(false)
     toast.success('Datos actualizados')
   }

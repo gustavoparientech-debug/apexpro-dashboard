@@ -66,8 +66,21 @@ function CitaSheet({ cita, onClose, onSave }) {
   const [closing, setClosing] = useState(false)
   const [busy, setBusy] = useState(false)
   const [form, setForm] = useState(cita || {
-    date: todayISO(), time: '', service: '', client: '', notes: ''
+    date: todayISO(), time: '', service: '', client: '', notes: '',
+    adelanto: '', adelantoMetodo: ''
   })
+
+  const TIME_SLOTS = []
+  for (let h = 7; h <= 21; h++) {
+    TIME_SLOTS.push(`${String(h).padStart(2,'0')}:00`)
+    if (h < 21) TIME_SLOTS.push(`${String(h).padStart(2,'0')}:30`)
+  }
+
+  function formatSlot(t) {
+    const [h, m] = t.split(':').map(Number)
+    const ampm = h >= 12 ? 'PM' : 'AM'
+    return `${h % 12 || 12}:${String(m).padStart(2,'0')} ${ampm}`
+  }
 
   useEffect(() => {
     const id = requestAnimationFrame(() => setMounted(true))
@@ -116,8 +129,12 @@ function CitaSheet({ cita, onClose, onSave }) {
           </div>
           <div>
             <label className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1 block">Hora</label>
-            <input type="time" className="input" value={form.time}
-              onChange={e => setForm(f => ({ ...f, time: e.target.value }))} />
+            <select className="input" value={form.time} onChange={e => setForm(f => ({ ...f, time: e.target.value }))}>
+              <option value="">-- Seleccionar --</option>
+              {TIME_SLOTS.map(t => (
+                <option key={t} value={t}>{formatSlot(t)}</option>
+              ))}
+            </select>
           </div>
         </div>
 
@@ -160,6 +177,33 @@ function CitaSheet({ cita, onClose, onSave }) {
           <label className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1 block">Notas (opcional)</label>
           <textarea className="input resize-none" rows={2} placeholder="Instrucciones especiales..."
             value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
+        </div>
+
+        {/* Adelanto */}
+        <div>
+          <label className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2 block">Adelanto (opcional)</label>
+          <div className="flex gap-2">
+            <div className="flex items-center gap-1.5 flex-1">
+              <span className="text-sm text-gray-500">S/</span>
+              <input type="number" min="0" step="1" placeholder="0.00" className="input flex-1"
+                value={form.adelanto || ''} onChange={e => setForm(f => ({ ...f, adelanto: e.target.value }))} />
+            </div>
+            <div className="flex gap-2">
+              {['Efectivo', 'Yape'].map(m => (
+                <button key={m} type="button"
+                  onClick={() => setForm(f => ({ ...f, adelantoMetodo: f.adelantoMetodo === m ? '' : m }))}
+                  className={`px-3 py-2 rounded-xl text-sm font-semibold border transition-all ${
+                    form.adelantoMetodo === m
+                      ? m === 'Yape'
+                        ? 'bg-purple-600 border-purple-600 text-white'
+                        : 'bg-emerald-600 border-emerald-600 text-white'
+                      : 'border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400'
+                  }`}>
+                  {m === 'Yape' ? '💜 Yape' : '💵 Efectivo'}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
 
         <button onClick={handleSave} disabled={busy}
@@ -228,6 +272,13 @@ function CitaCard({ cita, canAdmin, onEdit, onDelete, onStatus }) {
           )}
           {cita.notes && (
             <p className="text-xs text-gray-400 mt-1 line-clamp-2">{cita.notes}</p>
+          )}
+          {cita.adelanto > 0 && (
+            <p className="text-xs font-semibold mt-1">
+              <span className={cita.adelantoMetodo === 'Yape' ? 'text-purple-500' : 'text-emerald-600'}>
+                {cita.adelantoMetodo === 'Yape' ? '💜' : '💵'} Adelanto S/ {parseFloat(cita.adelanto).toFixed(2)}
+              </span>
+            </p>
           )}
         </div>
 

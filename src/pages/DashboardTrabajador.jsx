@@ -4,7 +4,7 @@ import { useApp } from '../context/AppContext'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { formatMoney, todayISO, getWorkingDaysInMonth, currentMonthYear, calcRealSalary } from '../lib/utils'
-import { Target, Clock, CheckCircle, Car, AlertCircle, Plus, X, ClipboardList, TrendingDown, Pencil, Check } from 'lucide-react'
+import { Target, Clock, CheckCircle, Car, AlertCircle, Plus, X, ClipboardList, TrendingDown, Pencil, Check, CalendarDays } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 const GASTO_CATS = [
@@ -181,8 +181,20 @@ export default function DashboardTrabajador() {
     toast.success('Datos actualizados')
   }
 
+  const [citasHoy, setCitasHoy] = useState(0)
+
   // Recargar datos al entrar al dashboard para ver cambios de otros
   useEffect(() => { loadData() }, [])
+
+  useEffect(() => {
+    supabase.from('app_settings').select('value').eq('key', 'citas').maybeSingle()
+      .then(({ data }) => {
+        if (data?.value) {
+          const hoy = todayISO()
+          setCitasHoy(data.value.filter(c => c.date === hoy).length)
+        }
+      })
+  }, [])
 
   const worker = useMemo(
     () => workers.find(w => w.id === profile?.worker_id),
@@ -387,15 +399,22 @@ export default function DashboardTrabajador() {
       })()}
 
       {/* Stats */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-3 gap-3">
         <div className="card text-center py-4">
-          <p className="text-4xl font-black text-gray-900 dark:text-white">{myTicketsHoy.length}</p>
-          <p className="text-xs text-gray-500 mt-1.5">Cerrados hoy</p>
+          <p className="text-3xl font-black text-gray-900 dark:text-white">{myTicketsHoy.length}</p>
+          <p className="text-[11px] text-gray-500 mt-1.5 leading-tight">Cerrados hoy</p>
         </div>
         <div className="card text-center py-4">
-          <p className="text-4xl font-black text-amber-500">{myOpen.length}</p>
-          <p className="text-xs text-gray-500 mt-1.5">En proceso</p>
+          <p className="text-3xl font-black text-amber-500">{myOpen.length}</p>
+          <p className="text-[11px] text-gray-500 mt-1.5 leading-tight">En proceso</p>
         </div>
+        <button onClick={() => navigate('/citas')} className="card text-center py-4 active:scale-95 transition-transform hover:border-red-200 dark:hover:border-red-900">
+          <p className="text-3xl font-black text-red-600">{citasHoy}</p>
+          <div className="flex items-center justify-center gap-1 mt-1.5">
+            <CalendarDays className="w-3 h-3 text-gray-400" />
+            <p className="text-[11px] text-gray-500 leading-tight">Citas hoy</p>
+          </div>
+        </button>
       </div>
 
       {/* Tickets abiertos */}

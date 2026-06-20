@@ -172,10 +172,14 @@ export default function DashboardTrabajador() {
   const [savingGreeting,  setSavingGreeting]  = useState(false)
   const [refreshing,      setRefreshing]      = useState(false)
   const [uploadingPhoto,  setUploadingPhoto]  = useState(false)
+  const [localAvatar,     setLocalAvatar]     = useState(null)
 
   async function handlePhotoUpload(e) {
     const file = e.target.files?.[0]
     if (!file) return
+    // Preview instantáneo antes del upload
+    const preview = URL.createObjectURL(file)
+    setLocalAvatar(preview)
     setUploadingPhoto(true)
     try {
       const blob = await compressImage(file, 400, 0.35)
@@ -183,12 +187,17 @@ export default function DashboardTrabajador() {
       const { error: upErr } = await supabase.storage.from('payment-photos').upload(path, blob, { upsert: true, contentType: 'image/jpeg' })
       if (upErr) throw upErr
       const { data } = supabase.storage.from('payment-photos').getPublicUrl(path)
-      const url = data.publicUrl + '?t=' + Date.now()
-      await supabase.from('profiles').update({ avatar_url: url }).eq('id', profile.id)
+      const remoteUrl = data.publicUrl + '?t=' + Date.now()
+      await supabase.from('profiles').update({ avatar_url: remoteUrl }).eq('id', profile.id)
       await refreshProfile()
-      toast.success('Foto actualizada')
-    } catch (err) { toast.error('Error al subir foto') }
-    finally { setUploadingPhoto(false) }
+      setLocalAvatar(null)
+      URL.revokeObjectURL(preview)
+      toast.success('Foto guardada')
+    } catch (err) {
+      setLocalAvatar(null)
+      URL.revokeObjectURL(preview)
+      toast.error('Error al subir foto')
+    } finally { setUploadingPhoto(false) }
   }
 
   async function handleRefresh() {
@@ -331,8 +340,8 @@ export default function DashboardTrabajador() {
             {/* Avatar con opción de subir foto */}
             <label className="relative cursor-pointer flex-shrink-0 group">
               <input type="file" accept="image/*" className="hidden" onChange={handlePhotoUpload} disabled={uploadingPhoto} />
-              {profile?.avatar_url ? (
-                <img src={profile.avatar_url} alt={nombre} className="w-14 h-14 rounded-2xl object-cover border-2 border-white/20 group-hover:opacity-80 transition-opacity" />
+              {(localAvatar || profile?.avatar_url) ? (
+                <img src={localAvatar || profile.avatar_url} alt={nombre} className="w-14 h-14 rounded-2xl object-cover border-2 border-white/20 group-hover:opacity-80 transition-opacity" />
               ) : (
                 <div className="w-14 h-14 rounded-2xl bg-red-600/80 flex items-center justify-center border-2 border-white/10 group-hover:bg-red-500/80 transition-colors">
                   <span className="text-white font-black text-xl">{nombre[0]?.toUpperCase()}</span>

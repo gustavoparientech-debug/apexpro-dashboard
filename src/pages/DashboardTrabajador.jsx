@@ -247,8 +247,9 @@ export default function DashboardTrabajador() {
   const payrollTotal = activeWorkers.reduce((s, w) => s + calcRealSalary(w.base_salary || 0, w.weekly_hours || 48), 0)
   const incomeGoal = fixedItemsTotal + payrollTotal + (monthlyCosts?.utility_goal || 2000)
   const metaDiariaRef = workingDaysTotal > 0 ? Math.round(incomeGoal / workingDaysTotal / numWorkers) : 80
-  const metaDiaria = (worker?.daily_goal != null) ? worker.daily_goal : metaDiariaRef
-  const progreso   = Math.min(100, Math.round((totalHoy / metaDiaria) * 100))
+  const metaDiaria = (worker?.daily_goal != null) ? Number(worker.daily_goal) : metaDiariaRef
+  const sinMeta    = metaDiaria === 0
+  const progreso   = sinMeta ? 0 : Math.min(100, Math.round((totalHoy / metaDiaria) * 100))
 
   const hora   = new Date().getHours()
   const saludoDefault = hora < 12 ? 'Buenos días 👋' : hora < 19 ? 'Buenas tardes 👋' : 'Buenas noches 🌙'
@@ -337,11 +338,13 @@ export default function DashboardTrabajador() {
       {/* Meta del día */}
       {(() => {
         const faltante = Math.max(0, metaDiaria - totalHoy)
-        const completado = progreso >= 100
-        const mitad     = progreso >= 50 && progreso < 100
+        const completado = !sinMeta && progreso >= 100
+        const mitad     = !sinMeta && progreso >= 50 && progreso < 100
         const r = 44
         const circ = 2 * Math.PI * r
-        const cardCls = completado
+        const cardCls = sinMeta
+          ? 'bg-gradient-to-b from-gray-500 to-gray-700 shadow-gray-300/30 dark:shadow-gray-900/30'
+          : completado
           ? 'bg-gradient-to-b from-emerald-500 to-emerald-700 shadow-emerald-300/40 dark:shadow-emerald-900/40'
           : mitad
           ? 'bg-gradient-to-b from-amber-400 to-amber-600 shadow-amber-300/40 dark:shadow-amber-900/40'
@@ -407,7 +410,7 @@ export default function DashboardTrabajador() {
               <p className="text-[11px] opacity-50">
                 {myTicketsHoy.length} ticket{myTicketsHoy.length !== 1 ? 's' : ''} cerrado{myTicketsHoy.length !== 1 ? 's' : ''}
               </p>
-              <p className="text-[11px] opacity-50">meta {formatMoney(metaDiaria)}</p>
+              <p className="text-[11px] opacity-50">{sinMeta ? 'sin meta asignada' : `meta ${formatMoney(metaDiaria)}`}</p>
             </div>
           </div>
         )

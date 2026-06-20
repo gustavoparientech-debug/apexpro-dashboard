@@ -180,7 +180,7 @@ export default function Configuracion() {
 
   async function handleSaveReparto() {
     const totalPorc = activeWorkers.reduce((s, w) => s + (parseFloat(repartoPorc[w.id]) || 0), 0)
-    if (totalPorc > 100) { toast.error(`Total porcentajes ${totalPorc}% supera el 100%`); return }
+
     setSavingReparto(true)
     try {
       const monto = parseFloat(repartoMonto) || 0

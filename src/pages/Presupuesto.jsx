@@ -479,9 +479,12 @@ export default function Presupuesto() {
       doc.text(`-${formatMoney(discountAmt)}`, W - mR - 2, y + 5, { align: 'right' })
       y += 9
     }
-    doc.setFillColor(185, 28, 28)
+    doc.setFillColor(189, 189, 189)
     doc.rect(mL, y, cW, 9, 'F')
-    doc.setTextColor(255, 255, 255)
+    doc.setDrawColor(150, 150, 150)
+    doc.setLineWidth(0.3)
+    doc.rect(mL, y, cW, 9, 'S')
+    doc.setTextColor(20, 20, 20)
     doc.setFontSize(10)
     doc.setFont('helvetica', 'bold')
     doc.text('TOTAL:', numCol, y + 6.3, { align: 'right' })
@@ -528,9 +531,9 @@ export default function Presupuesto() {
     doc.text('Firma Cliente', col2, y + 18)
 
     // Footer
-    doc.setFillColor(185, 28, 28)
+    doc.setFillColor(189, 189, 189)
     doc.rect(0, 290, W, 7, 'F')
-    doc.setTextColor(255, 255, 255)
+    doc.setTextColor(40, 40, 40)
     doc.setFontSize(7)
     doc.setFont('helvetica', 'normal')
     doc.text('Apex Pro Detailing  |  Calle Idelfonzo Lopez N° 700 Zamacola  |  959 240 309  |  Apexprodetailing0@gmail.com', W / 2, 294.5, { align: 'center' })

@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom'
 import { useApp } from '../context/AppContext'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
-import { formatMoney, todayISO, getWorkingDaysInMonth, currentMonthYear, calcRealSalary } from '../lib/utils'
+import { formatMoney, todayISO, getWorkingDaysInMonth, currentMonthYear, calcRealSalary, compressImage } from '../lib/utils'
 import { Target, Clock, CheckCircle, Car, AlertCircle, Plus, X, ClipboardList, TrendingDown, Pencil, Check, CalendarDays } from 'lucide-react'
 import toast from 'react-hot-toast'
 
@@ -178,9 +178,9 @@ export default function DashboardTrabajador() {
     if (!file) return
     setUploadingPhoto(true)
     try {
-      const ext = file.name.split('.').pop()
-      const path = `avatars/${profile.id}.${ext}`
-      const { error: upErr } = await supabase.storage.from('payment-photos').upload(path, file, { upsert: true, contentType: file.type })
+      const blob = await compressImage(file, 400, 0.35)
+      const path = `avatars/${profile.id}.jpg`
+      const { error: upErr } = await supabase.storage.from('payment-photos').upload(path, blob, { upsert: true, contentType: 'image/jpeg' })
       if (upErr) throw upErr
       const { data } = supabase.storage.from('payment-photos').getPublicUrl(path)
       const url = data.publicUrl + '?t=' + Date.now()

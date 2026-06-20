@@ -628,30 +628,41 @@ export default function Presupuesto() {
       doc.setFontSize(8)
       doc.setFont('helvetica', 'normal')
       doc.setTextColor(100, 100, 100)
-      doc.text('Subtotal:', numCol, y + 5, { align: 'right' })
+      doc.text('Subtotal Planchado & Pintura:', numCol, y + 5, { align: 'right' })
       doc.text(formatMoney(total), W - mR - 2, y + 5, { align: 'right' })
       y += 7
       doc.setFillColor(255, 240, 240)
       doc.rect(mL, y, cW, 7, 'F')
       doc.setTextColor(185, 28, 28)
       doc.setFont('helvetica', 'bold')
-      doc.text(`Descuento (${discountPct}%):`, numCol, y + 5, { align: 'right' })
+      doc.text(`Descuento Planchado & Pintura (${discountPct}%):`, numCol, y + 5, { align: 'right' })
       doc.text(`-${formatMoney(discountAmt)}`, W - mR - 2, y + 5, { align: 'right' })
       y += 9
     }
     // Descuento de servicios adicionales (no planchado)
     if (catRows.length > 0 && catDiscountPct > 0) {
+      // Detectar qué categorías hay en catRows
+      const ceramicoIds = new Set(CERAMICO_DATA.map(x => x.id))
+      const ppfIds = new Set(PPF_DATA.map(x => x.id))
+      const polIds = new Set(POLARIZADOS_DATA.map(x => x.id))
+      const lavIds = new Set(LAVADOS_DATA.map(x => x.id))
+      const catNames = []
+      if (catRows.some(r => ceramicoIds.has(r.id))) catNames.push('Ceramico')
+      if (catRows.some(r => ppfIds.has(r.id))) catNames.push('PPF')
+      if (catRows.some(r => polIds.has(r.id))) catNames.push('Polarizados')
+      if (catRows.some(r => lavIds.has(r.id))) catNames.push('Lavados')
+      const catLabel = catNames.join(' / ')
       doc.setFontSize(8)
       doc.setFont('helvetica', 'normal')
       doc.setTextColor(100, 100, 100)
-      doc.text('Subtotal servicios:', numCol, y + 5, { align: 'right' })
+      doc.text(`Subtotal ${catLabel}:`, numCol, y + 5, { align: 'right' })
       doc.text(formatMoney(catTotal), W - mR - 2, y + 5, { align: 'right' })
       y += 7
       doc.setFillColor(255, 240, 240)
       doc.rect(mL, y, cW, 7, 'F')
       doc.setTextColor(185, 28, 28)
       doc.setFont('helvetica', 'bold')
-      doc.text(`Descuento servicios (${catDiscountPct}%):`, numCol, y + 5, { align: 'right' })
+      doc.text(`Descuento ${catLabel} (${catDiscountPct}%):`, numCol, y + 5, { align: 'right' })
       doc.text(`-${formatMoney(catDiscountAmt)}`, W - mR - 2, y + 5, { align: 'right' })
       y += 9
     }

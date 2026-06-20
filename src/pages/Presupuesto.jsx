@@ -181,6 +181,7 @@ export default function Presupuesto() {
   // ── otras categorías ─────────────────────────────────────────────────────
   const [catVehicle, setCatVehicle] = useState('auto')
   const [catSelected, setCatSelected] = useState({})
+  const [catDiscountPct, setCatDiscountPct] = useState(0)
 
   // Cargar config desde Supabase
   useEffect(() => {
@@ -311,6 +312,8 @@ export default function Presupuesto() {
     [ALL_CAT_DATA, catSelected, catVehicle]
   )
   const catTotal = catRows.reduce((s, r) => s + r.price, 0)
+  const catDiscountAmt = Math.round(catTotal * catDiscountPct / 100)
+  const catTotalFinal = catTotal - catDiscountAmt
 
   // Filas actuales de la categoría visible (para el catData useMemo que ya existe)
   const catRows_current = useMemo(() =>
@@ -373,7 +376,7 @@ export default function Presupuesto() {
       })),
       ...catRows.map(r => ({ label: r.label, price: r.price })),
     ]
-    const activeTotal = totalFinal + catTotal
+    const activeTotal = totalFinal + catTotalFinal
 
     let msg = `🔴⚫ *APEX PRO DETAILING* ⚫🔴\n`
     msg += `📋 *COTIZACIÓN*\n`
@@ -547,7 +550,7 @@ export default function Presupuesto() {
       })),
       ...catRows,
     ]
-    const pdfTotal = totalFinal + catTotal
+    const pdfTotal = totalFinal + catTotalFinal
     const isPlanchado = false // rows already labeled above
 
     pdfRows.forEach((r, i) => {
@@ -609,6 +612,22 @@ export default function Presupuesto() {
       doc.setFont('helvetica', 'bold')
       doc.text(`Descuento (${discountPct}%):`, numCol, y + 5, { align: 'right' })
       doc.text(`-${formatMoney(discountAmt)}`, W - mR - 2, y + 5, { align: 'right' })
+      y += 9
+    }
+    // Descuento de servicios adicionales (no planchado)
+    if (catRows.length > 0 && catDiscountPct > 0) {
+      doc.setFontSize(8)
+      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(100, 100, 100)
+      doc.text('Subtotal servicios:', numCol, y + 5, { align: 'right' })
+      doc.text(formatMoney(catTotal), W - mR - 2, y + 5, { align: 'right' })
+      y += 7
+      doc.setFillColor(255, 240, 240)
+      doc.rect(mL, y, cW, 7, 'F')
+      doc.setTextColor(185, 28, 28)
+      doc.setFont('helvetica', 'bold')
+      doc.text(`Descuento servicios (${catDiscountPct}%):`, numCol, y + 5, { align: 'right' })
+      doc.text(`-${formatMoney(catDiscountAmt)}`, W - mR - 2, y + 5, { align: 'right' })
       y += 9
     }
     doc.setFillColor(189, 189, 189)
@@ -821,6 +840,35 @@ export default function Presupuesto() {
                 })
               )}
             </div>
+
+            {/* Descuento para servicios no-planchado */}
+            {catRows.length > 0 && (
+              <div className="card">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Descuento</p>
+                <div className="flex gap-2">
+                  {[0, 5, 10, 15, 20].map(pct => (
+                    <button key={pct} onClick={() => setCatDiscountPct(pct)}
+                      className={`flex-1 py-2 rounded-xl text-xs font-bold border transition-all ${
+                        catDiscountPct === pct
+                          ? 'border-red-500 bg-red-600 text-white'
+                          : 'border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400'
+                      }`}>
+                      {pct === 0 ? 'Sin desc.' : `${pct}%`}
+                    </button>
+                  ))}
+                </div>
+                {catDiscountPct > 0 && (
+                  <div className="flex justify-between mt-2 pt-2 border-t border-gray-100 dark:border-gray-800 text-xs">
+                    <span className="text-gray-500">Subtotal</span><span>{formatMoney(catTotal)}</span>
+                  </div>
+                )}
+                {catDiscountPct > 0 && (
+                  <div className="flex justify-between text-xs text-green-600 font-semibold">
+                    <span>Descuento {catDiscountPct}%</span><span>-{formatMoney(catDiscountAmt)}</span>
+                  </div>
+                )}
+              </div>
+            )}
 
           </div>
         )
@@ -1081,7 +1129,7 @@ export default function Presupuesto() {
                 <div className="flex items-center gap-3">
                   <div>
                     <p className="text-[10px] text-gray-400">{totalItemsSelected} servicio{totalItemsSelected !== 1 ? 's' : ''}</p>
-                    <p className="text-lg font-black text-red-600 dark:text-red-400">{formatMoney(totalFinal + catTotal)}</p>
+                    <p className="text-lg font-black text-red-600 dark:text-red-400">{formatMoney(totalFinal + catTotalFinal)}</p>
                   </div>
                   <button
                     onClick={() => { setSelected({}); setCatSelected({}) }}

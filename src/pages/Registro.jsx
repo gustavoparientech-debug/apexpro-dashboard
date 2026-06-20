@@ -1421,7 +1421,7 @@ export default function Registro() {
     <div className="space-y-4 max-w-2xl mx-auto">
 
       {/* Hero header */}
-      <div className="relative rounded-3xl overflow-hidden bg-gray-900 dark:bg-gray-950 min-h-[220px]">
+      <div className="relative rounded-3xl overflow-hidden bg-gray-900 dark:bg-gray-950 min-h-[160px]">
         <img src="/hero-bg.jpg" alt="" className="absolute inset-0 w-full h-full object-cover object-center" onError={e => e.target.style.display='none'} />
         <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-black/40 to-black/80" />
         <div className="relative z-10 p-5 flex flex-col gap-3">

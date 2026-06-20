@@ -1193,8 +1193,8 @@ export default function Presupuesto() {
         </div>
       )}
 
-      {/* Comparativa por tipo de vehículo — solo admin */}
-      {canAdmin && <div className="card overflow-hidden p-0">
+      {/* Comparativa y nota admin — solo en planchado */}
+      {category === 'planchado' && canAdmin && <div className="card overflow-hidden p-0">
         <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-800">
           <p className="font-bold text-gray-900 dark:text-white text-sm">Comparativa por vehículo</p>
           <p className="text-xs text-gray-500">Precio total si se seleccionan todos los paños</p>
@@ -1212,7 +1212,7 @@ export default function Presupuesto() {
         </div>
       </div>}
 
-      {canAdmin && (
+      {category === 'planchado' && canAdmin && (
         <div className="text-center text-xs text-gray-400 pb-2">
           <FileText className="w-3.5 h-3.5 inline mr-1" />
           Como admin puedes editar los multiplicadores tocando el número en cada celda.

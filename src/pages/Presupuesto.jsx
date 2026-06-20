@@ -103,6 +103,15 @@ export default function Presupuesto() {
 
   const [config, setConfig] = useState(() => mergeConfig(null))
   const [loading, setLoading] = useState(true)
+  const [logoB64, setLogoB64] = useState(null)
+
+  useEffect(() => {
+    fetch('/logo.jpg')
+      .then(r => r.blob())
+      .then(blob => new Promise(res => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.readAsDataURL(blob) }))
+      .then(b64 => setLogoB64(b64))
+      .catch(() => {})
+  }, [])
   const [vehicleType, setVehicleType] = useState('auto')
   const [selectedTier, setSelectedTier] = useState('economy')
   const [selectedBrand, setSelectedBrand] = useState('')
@@ -289,31 +298,62 @@ export default function Presupuesto() {
     const today = new Date().toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric' })
     let y = 0
 
-    // ── Header rojo ──────────────────────────────────────────────
-    doc.setFillColor(185, 28, 28)
-    doc.rect(0, 0, W, 38, 'F')
+    // ── Header blanco — formato Excel ────────────────────────────
+    // Fondo blanco (default)
 
-    // Logo / nombre empresa
-    doc.setTextColor(255, 255, 255)
-    doc.setFontSize(20)
+    // Logo izquierda
+    if (logoB64) {
+      doc.addImage(logoB64, 'PNG', mL, 4, 38, 22)
+    }
+    // Nombre empresa bajo el logo
+    doc.setTextColor(0, 0, 0)
+    doc.setFontSize(9)
     doc.setFont('helvetica', 'bold')
-    doc.text('APEX PRO', mL, 16)
-    doc.setFontSize(8)
-    doc.setFont('helvetica', 'normal')
-    doc.text('DETAILING', mL, 22)
-    doc.setFontSize(7.5)
-    doc.text('Calle Idelfonzo Lopez N° 700 Zamacola, Arequipa', mL, 29)
-    doc.text('959 240 309  |  Apexprodetailing0@gmail.com', mL, 34)
+    doc.text('APEX-PRO', mL + 19, 29, { align: 'center' })
+    doc.setTextColor(185, 28, 28)
+    doc.setFontSize(7)
+    doc.setFont('helvetica', 'bold')
+    doc.text('DETAILING', mL + 19, 33, { align: 'center' })
 
-    // N° cotización y fecha
+    // Dirección bajo nombre
+    doc.setTextColor(40, 40, 40)
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(7)
+    doc.text('📍 Calle Idelfonzo Lopez N° 700 Zamacola', mL, 39)
+    doc.text('   Arequipa - Arequipa - Cerro Colorado', mL, 43)
+    doc.text('📞 959240309', mL, 47)
+    doc.text('✉  Apexprodetailing0@gmail.com', mL, 51)
+
+    // "COTIZACIÓN" centrado
+    doc.setTextColor(0, 0, 0)
     doc.setFontSize(18)
     doc.setFont('helvetica', 'bold')
-    doc.text('COTIZACIÓN', W - mR, 15, { align: 'right' })
+    doc.text('COTIZACIÓN', W / 2, 22, { align: 'center' })
+
+    // Tabla N° / Fecha (derecha)
+    const tX = W - mR - 55, tY = 30, tW = 55, rH = 9
+    doc.setDrawColor(0, 0, 0)
+    doc.setLineWidth(0.4)
+    // Fila N°
+    doc.rect(tX, tY, tW, rH)
     doc.setFontSize(8)
     doc.setFont('helvetica', 'normal')
-    doc.text(`Fecha: ${today}`, W - mR, 28, { align: 'right' })
+    doc.text('N°', tX + 4, tY + 6)
+    doc.text('C-1', tX + tW * 0.4, tY + 6, { align: 'center' })
+    doc.setFont('helvetica', 'bold')
+    doc.text(today.split('/').slice(2).join('') || '', tX + tW - 4, tY + 6, { align: 'right' })
+    // Fila Fecha
+    doc.rect(tX, tY + rH, tW, rH)
+    doc.setFont('helvetica', 'normal')
+    doc.text('Fecha:', tX + 4, tY + rH + 6)
+    doc.text(today, tX + tW - 4, tY + rH + 6, { align: 'right' })
 
-    y = 46
+    // Línea separadora header
+    doc.setDrawColor(200, 200, 200)
+    doc.setLineWidth(0.5)
+    doc.line(mL, 57, W - mR, 57)
+
+    y = 63
 
     // ── Datos Cliente ────────────────────────────────────────────
     const sectionHeader = (label, yPos) => {

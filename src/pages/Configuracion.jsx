@@ -487,7 +487,12 @@ export default function Configuracion() {
 
         {/* Totales */}
         {activeWorkers.length > 0 && (() => {
+          const monto = parseFloat(repartoMonto) || 0
           const totalPorc = activeWorkers.reduce((s, w) => s + (parseFloat(repartoPorc[w.id]) || 0), 0)
+          const totalMeta = activeWorkers.reduce((s, w) => {
+            const porc = parseFloat(repartoPorc[w.id]) || 0
+            return s + (monto > 0 && porc > 0 ? Math.round(monto * porc / 100) : 0)
+          }, 0)
           const over = totalPorc > 100
           const ok   = Math.abs(totalPorc - 100) < 0.01
           return (
@@ -497,7 +502,7 @@ export default function Configuracion() {
                 {totalPorc}% {ok ? '✓' : over ? '⚠' : ''}
               </p>
               <p className="text-sm font-bold text-red-600 dark:text-red-400 text-right w-24">
-                {parseFloat(repartoMonto) > 0 ? formatMoney(parseFloat(repartoMonto)) : '—'}
+                {totalMeta > 0 ? formatMoney(totalMeta) : '—'}
               </p>
             </div>
           )

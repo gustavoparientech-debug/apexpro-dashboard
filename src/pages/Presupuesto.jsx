@@ -149,6 +149,28 @@ function EditableCell({ value, onSave }) {
   )
 }
 
+function EditableTextCell({ label, value, onSave }) {
+  const [editing, setEditing] = useState(false)
+  const [val, setVal] = useState(value)
+  function handleSave() { if (val.trim()) { onSave(val.trim()); setEditing(false) } }
+  if (!editing) return (
+    <button onClick={() => { setVal(value); setEditing(true) }}
+      className="flex items-center gap-1 text-xs text-gray-400 hover:text-blue-500 transition-colors text-left">
+      <Edit2 className="w-2.5 h-2.5 flex-shrink-0" /><span className="truncate max-w-[180px]">{label}</span>
+    </button>
+  )
+  return (
+    <div className="flex items-center gap-1">
+      <input value={val} onChange={e => setVal(e.target.value)}
+        className="flex-1 text-xs border border-blue-400 rounded px-1.5 py-0.5 dark:bg-gray-800 dark:text-white"
+        onKeyDown={e => { if (e.key === 'Enter') handleSave(); if (e.key === 'Escape') setEditing(false) }}
+        autoFocus />
+      <button onClick={handleSave} className="text-green-600 flex-shrink-0"><Check className="w-3 h-3" /></button>
+      <button onClick={() => setEditing(false)} className="text-red-500 flex-shrink-0"><X className="w-3 h-3" /></button>
+    </div>
+  )
+}
+
 // ─── Página principal ─────────────────────────────────────────────────────────
 export default function Presupuesto() {
   const { isAdmin, isDemo } = useAuth()
@@ -182,7 +204,11 @@ export default function Presupuesto() {
   const [catVehicle, setCatVehicle] = useState('auto')
   const [catSelected, setCatSelected] = useState({})
   const [catDiscountPct, setCatDiscountPct] = useState(0)
-  const [catPriceOverrides, setCatPriceOverrides] = useState({}) // { [id]: number | { [vehicle]: number } }
+  const [catPriceOverrides, setCatPriceOverrides] = useState({})
+  // catMeta: { overrides: { [id]: { name?, desc? } }, added: [{ id, category, name, desc, price?, prices? }], deleted: [id] }
+  const [catMeta, setCatMeta] = useState({ overrides: {}, added: [], deleted: [] })
+  const [addingService, setAddingService] = useState(null) // { category } cuando está abierto el form
+  const [addForm, setAddForm] = useState({ name: '', desc: '', price: '' })
 
   // Cargar config desde Supabase
   useEffect(() => {
@@ -190,9 +216,10 @@ export default function Presupuesto() {
       const raw = localStorage.getItem(LS_KEY)
       if (raw) setConfig(mergeConfig(JSON.parse(raw)))
 
-      const [{ data, error }, { data: catData2 }] = await Promise.all([
+      const [{ data, error }, { data: catData2 }, { data: catMetaData }] = await Promise.all([
         supabase.from('app_settings').select('value').eq('key', SB_KEY).maybeSingle(),
         supabase.from('app_settings').select('value').eq('key', 'cat_prices').maybeSingle(),
+        supabase.from('app_settings').select('value').eq('key', 'cat_meta').maybeSingle(),
       ])
 
       if (error) toast.error(`Error al cargar: ${error.message}`)
@@ -202,6 +229,7 @@ export default function Presupuesto() {
         localStorage.setItem(LS_KEY, JSON.stringify(data.value))
       }
       if (catData2?.value) setCatPriceOverrides(catData2.value)
+      if (catMetaData?.value) setCatMeta(m => ({ overrides: {}, added: [], deleted: [], ...m, ...catMetaData.value }))
       setLoading(false)
     }
     load()
@@ -221,6 +249,39 @@ export default function Presupuesto() {
     )
     if (error) toast.error(`Error al guardar: ${error.message}`)
     else toast.success('Precio actualizado ✓')
+  }
+
+  async function saveCatMeta(next) {
+    setCatMeta(next)
+    const { error } = await supabase.from('app_settings').upsert(
+      { key: 'cat_meta', value: next, updated_at: new Date().toISOString() },
+      { onConflict: 'key' }
+    )
+    if (error) toast.error(`Error al guardar: ${error.message}`)
+    else toast.success('Guardado ✓')
+  }
+
+  function updateServiceField(id, field, value) {
+    const next = { ...catMeta, overrides: { ...catMeta.overrides, [id]: { ...catMeta.overrides[id], [field]: value } } }
+    saveCatMeta(next)
+  }
+
+  function deleteService(id) {
+    const next = { ...catMeta, deleted: [...catMeta.deleted.filter(x => x !== id), id], added: catMeta.added.filter(a => a.id !== id) }
+    saveCatMeta(next)
+    setCatSelected(s => { const c = { ...s }; delete c[id]; return c })
+  }
+
+  function addNewService(cat) {
+    const id = `custom_${Date.now()}`
+    const vehicles = CAT_VEHICLES[cat] || []
+    const prices = vehicles.length > 0 ? Object.fromEntries(vehicles.map(v => [v.id, parseFloat(addForm.price) || 0])) : undefined
+    const price = vehicles.length === 0 ? parseFloat(addForm.price) || 0 : undefined
+    const newSvc = { id, category: cat, name: addForm.name, desc: addForm.desc, ...(prices ? { prices } : { price }) }
+    const next = { ...catMeta, added: [...catMeta.added, newSvc] }
+    saveCatMeta(next)
+    setAddingService(null)
+    setAddForm({ name: '', desc: '', price: '' })
   }
 
   async function persistConfig(cfg) {
@@ -302,19 +363,32 @@ export default function Presupuesto() {
   const discountAmt = Math.round(total * discountPct / 100)
   const totalFinal = total - discountAmt
 
+  function applyMeta(services, cat) {
+    const base = services
+      .filter(s => !catMeta.deleted.includes(s.id))
+      .map(s => ({ ...s, ...(catMeta.overrides[s.id] || {}) }))
+    const extras = catMeta.added.filter(a => a.category === cat)
+    return [...base, ...extras]
+  }
+
   // ── Filas para otras categorías ──────────────────────────────────────────
   const catData = useMemo(() => {
-    if (category === 'ceramico')    return CERAMICO_DATA
-    if (category === 'ppf')         return PPF_DATA
-    if (category === 'polarizados') return POLARIZADOS_DATA
-    if (category === 'lavados')     return LAVADOS_DATA
+    if (category === 'ceramico')    return applyMeta(CERAMICO_DATA, 'ceramico')
+    if (category === 'ppf')         return applyMeta(PPF_DATA, 'ppf')
+    if (category === 'polarizados') return applyMeta(POLARIZADOS_DATA, 'polarizados')
+    if (category === 'lavados')     return applyMeta(LAVADOS_DATA, 'lavados')
     return []
-  }, [category])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [category, catMeta])
 
   // Todas las filas seleccionadas en TODAS las categorías (no solo la activa)
   const ALL_CAT_DATA = useMemo(() => [
-    ...CERAMICO_DATA, ...PPF_DATA, ...POLARIZADOS_DATA, ...LAVADOS_DATA
-  ], [])
+    ...applyMeta(CERAMICO_DATA, 'ceramico'),
+    ...applyMeta(PPF_DATA, 'ppf'),
+    ...applyMeta(POLARIZADOS_DATA, 'polarizados'),
+    ...applyMeta(LAVADOS_DATA, 'lavados'),
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  ], [catMeta])
 
   function getEffectivePrice(s, vehicleKey) {
     const ov = catPriceOverrides[s.id]
@@ -847,47 +921,85 @@ export default function Presupuesto() {
                   </div>
                 ))
               ) : (
-                // Otras categorías: lista simple con tag
                 data.map(s => {
                   const price = getEffectivePrice(s, catVehicle)
                   const vKey = s.prices ? catVehicle : null
                   return (
-                    <button key={s.id} onClick={() => setCatSelected(p => ({ ...p, [s.id]: !p[s.id] }))}
-                      className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all text-left ${
-                        catSelected[s.id]
-                          ? 'border-red-500 bg-red-50 dark:bg-red-900/10'
-                          : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800'
-                      }`}>
-                      <div className={`w-4 h-4 rounded border-2 flex-shrink-0 flex items-center justify-center transition-all ${
-                        catSelected[s.id] ? 'bg-red-600 border-red-600' : 'border-gray-300 dark:border-gray-600'
-                      }`}>
-                        {catSelected[s.id] && <Check className="w-2.5 h-2.5 text-white" />}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">{s.name}</p>
-                          {s.tag && (
-                            <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${
-                              s.tag === 'Paq' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-                              : s.tag === 'Prep' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
-                              : s.tag === 'Premium' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
-                              : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
-                            }`}>{s.tag}</span>
-                          )}
-                          {s.time && <span className="text-[10px] text-gray-400">⏱ {s.time}</span>}
+                    <div key={s.id} className={`rounded-xl border transition-all ${
+                      catSelected[s.id]
+                        ? 'border-red-500 bg-red-50 dark:bg-red-900/10'
+                        : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800'
+                    }`}>
+                      <button onClick={() => setCatSelected(p => ({ ...p, [s.id]: !p[s.id] }))}
+                        className="w-full flex items-center gap-3 p-3 text-left">
+                        <div className={`w-4 h-4 rounded border-2 flex-shrink-0 flex items-center justify-center transition-all ${
+                          catSelected[s.id] ? 'bg-red-600 border-red-600' : 'border-gray-300 dark:border-gray-600'
+                        }`}>
+                          {catSelected[s.id] && <Check className="w-2.5 h-2.5 text-white" />}
                         </div>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 leading-tight">{s.desc}</p>
-                      </div>
-                      <div className="flex-shrink-0 flex flex-col items-end gap-0.5" onClick={e => e.stopPropagation()}>
-                        <p className="text-sm font-bold text-red-600 dark:text-red-400">{formatMoney(price)}</p>
-                        {canAdmin && (
-                          <EditableCell value={price}
-                            onSave={v => saveCatPriceOverride(s.id, vKey, v)} />
-                        )}
-                      </div>
-                    </button>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">{s.name}</p>
+                            {s.tag && (
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${
+                                s.tag === 'Paq' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                                : s.tag === 'Prep' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                                : s.tag === 'Premium' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                                : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
+                              }`}>{s.tag}</span>
+                            )}
+                            {s.time && <span className="text-[10px] text-gray-400">⏱ {s.time}</span>}
+                          </div>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 leading-tight">{s.desc}</p>
+                        </div>
+                        <div className="flex-shrink-0 flex flex-col items-end gap-0.5" onClick={e => e.stopPropagation()}>
+                          <p className="text-sm font-bold text-red-600 dark:text-red-400">{formatMoney(price)}</p>
+                          {canAdmin && (
+                            <EditableCell value={price} onSave={v => saveCatPriceOverride(s.id, vKey, v)} />
+                          )}
+                        </div>
+                      </button>
+                      {canAdmin && (
+                        <div className="flex gap-3 px-3 pb-2 border-t border-gray-100 dark:border-gray-700 pt-1.5" onClick={e => e.stopPropagation()}>
+                          <div className="flex-1 space-y-1">
+                            <EditableTextCell label="Nombre" value={s.name} onSave={v => updateServiceField(s.id, 'name', v)} />
+                            <EditableTextCell label="Descripción" value={s.desc} onSave={v => updateServiceField(s.id, 'desc', v)} />
+                          </div>
+                          <button onClick={() => { if (confirm(`¿Eliminar "${s.name}"?`)) deleteService(s.id) }}
+                            className="self-start mt-0.5 text-red-400 hover:text-red-600 transition-colors">
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   )
                 })
+              )}
+
+              {/* Agregar nuevo servicio (solo admin) */}
+              {canAdmin && (
+                addingService === category ? (
+                  <div className="border-2 border-dashed border-red-300 dark:border-red-700 rounded-xl p-3 space-y-2" onClick={e => e.stopPropagation()}>
+                    <p className="text-xs font-bold text-red-600">Nuevo servicio</p>
+                    <input placeholder="Nombre del servicio" value={addForm.name} onChange={e => setAddForm(f => ({ ...f, name: e.target.value }))}
+                      className="w-full text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 dark:bg-gray-800 dark:text-white" />
+                    <input placeholder="Descripción breve" value={addForm.desc} onChange={e => setAddForm(f => ({ ...f, desc: e.target.value }))}
+                      className="w-full text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 dark:bg-gray-800 dark:text-white" />
+                    <input placeholder="Precio (S/)" type="number" value={addForm.price} onChange={e => setAddForm(f => ({ ...f, price: e.target.value }))}
+                      className="w-full text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 dark:bg-gray-800 dark:text-white" />
+                    <div className="flex gap-2">
+                      <button onClick={() => { if (!addForm.name || !addForm.price) { toast.error('Nombre y precio requeridos'); return } addNewService(category) }}
+                        className="flex-1 py-2 rounded-xl bg-red-600 text-white text-sm font-bold">Agregar</button>
+                      <button onClick={() => { setAddingService(null); setAddForm({ name: '', desc: '', price: '' }) }}
+                        className="px-4 py-2 rounded-xl border border-gray-200 dark:border-gray-600 text-sm text-gray-500">Cancelar</button>
+                    </div>
+                  </div>
+                ) : (
+                  <button onClick={() => { setAddingService(category); setAddForm({ name: '', desc: '', price: '' }) }}
+                    className="w-full py-2.5 rounded-xl border-2 border-dashed border-gray-200 dark:border-gray-700 text-gray-400 text-sm hover:border-red-300 hover:text-red-500 transition-colors flex items-center justify-center gap-1.5">
+                    <span className="text-lg leading-none">+</span> Agregar servicio
+                  </button>
+                )
               )}
             </div>
 

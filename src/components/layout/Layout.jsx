@@ -34,7 +34,7 @@ function AnuncioOverlay({ profile }) {
     loadAnuncios(wid)
     const ch = supabase
       .channel('anuncios-global')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'app_settings', filter: 'key=eq.anuncios' },
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'app_settings' },
         () => loadAnuncios(wid))
       .subscribe()
     return () => { supabase.removeChannel(ch) }

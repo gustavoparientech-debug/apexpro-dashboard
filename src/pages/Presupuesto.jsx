@@ -678,7 +678,7 @@ export default function Presupuesto() {
       <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
         {CATEGORIES.map(cat => (
           <button key={cat.id}
-            onClick={() => { setCategory(cat.id); setCatSelected({}) }}
+            onClick={() => setCategory(cat.id)}
             className={`flex-shrink-0 flex flex-col items-center px-4 py-2.5 rounded-2xl text-xs font-bold transition-all border ${
               category === cat.id
                 ? 'bg-red-600 text-white border-red-600 shadow-md shadow-red-200 dark:shadow-red-900/30'

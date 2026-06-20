@@ -1561,21 +1561,36 @@ export default function Registro() {
           {showFabMenu && (
             <>
               <div className="fixed inset-0 z-30" onClick={() => setShowFabMenu(false)} />
-              <div className="absolute bottom-full mb-2 left-0 right-0 z-40 flex flex-col gap-2">
-                <button onClick={() => { setShowFabMenu(false); setShowIncidentForm(true) }}
-                  className="flex items-center gap-2 py-3 px-4 rounded-2xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-base shadow-lg active:scale-95 transition-all">
-                  <AlertCircle className="w-5 h-5" /> Nueva incidencia
-                </button>
-                <button onClick={() => { setShowFabMenu(false); setShowNewForm(true) }}
-                  className="flex items-center gap-2 py-3 px-4 rounded-2xl bg-red-600 hover:bg-red-700 text-white font-bold text-base shadow-lg active:scale-95 transition-all">
-                  <Plus className="w-5 h-5" /> Nuevo ticket
-                </button>
+              <div className="absolute bottom-full mb-3 left-0 right-0 z-40">
+                <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-100 dark:border-gray-800 overflow-hidden">
+                  <button onClick={() => { setShowFabMenu(false); setShowIncidentForm(true) }}
+                    className="w-full flex items-center gap-3 px-4 py-4 hover:bg-amber-50 dark:hover:bg-amber-900/20 active:bg-amber-100 transition-colors border-b border-gray-100 dark:border-gray-800">
+                    <div className="w-9 h-9 rounded-xl bg-amber-100 dark:bg-amber-900/40 flex items-center justify-center flex-shrink-0">
+                      <AlertCircle className="w-5 h-5 text-amber-500" />
+                    </div>
+                    <div className="text-left">
+                      <p className="text-sm font-bold text-gray-900 dark:text-white">Nueva incidencia</p>
+                      <p className="text-xs text-gray-400">Reportar un problema</p>
+                    </div>
+                  </button>
+                  <button onClick={() => { setShowFabMenu(false); setShowNewForm(true) }}
+                    className="w-full flex items-center gap-3 px-4 py-4 hover:bg-red-50 dark:hover:bg-red-900/20 active:bg-red-100 transition-colors">
+                    <div className="w-9 h-9 rounded-xl bg-red-100 dark:bg-red-900/40 flex items-center justify-center flex-shrink-0">
+                      <Plus className="w-5 h-5 text-red-600" />
+                    </div>
+                    <div className="text-left">
+                      <p className="text-sm font-bold text-gray-900 dark:text-white">Nuevo ticket</p>
+                      <p className="text-xs text-gray-400">Registrar un vehículo</p>
+                    </div>
+                  </button>
+                </div>
               </div>
             </>
           )}
           <button onClick={() => setShowFabMenu(v => !v)}
             className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl bg-red-600 hover:bg-red-700 text-white font-bold text-base shadow-lg shadow-red-200 dark:shadow-red-900/30 active:scale-95 transition-all">
-            <Plus className={`w-5 h-5 transition-transform ${showFabMenu ? 'rotate-45' : ''}`} /> Nuevo
+            <Plus className={`w-5 h-5 transition-transform duration-200 ${showFabMenu ? 'rotate-45' : ''}`} />
+            {showFabMenu ? 'Cerrar' : 'Nuevo'}
           </button>
         </div>
       ) : (

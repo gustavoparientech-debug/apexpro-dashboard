@@ -226,7 +226,8 @@ export default function Presupuesto() {
 
   const [exportModal, setExportModal] = useState(false)
   const [exportTarget, setExportTarget] = useState(null)
-  const [exportForm, setExportForm] = useState({ nombre: '', celular: '', ruc: '', marca: '', modelo: '', placa: '', anio: '', color: '', observaciones: '' })
+  const DEFAULT_CONDICIONES = 'Forma de pago: 50% de adelanto y 50% contra entrega. Vigencia: 15 dias calendario. Tiempo de entrega: maximo 3 dias habiles tras recibir el vehiculo. Precios incluyen IGV.'
+  const [exportForm, setExportForm] = useState({ nombre: '', celular: '', ruc: '', marca: '', modelo: '', placa: '', anio: '', color: '', observaciones: '', condiciones: DEFAULT_CONDICIONES })
 
   function openExportModal(target) {
     if (selectedCount === 0) { toast.error('Selecciona al menos un paño'); return }
@@ -290,7 +291,7 @@ export default function Presupuesto() {
   }
 
   function buildPDF() {
-    const { nombre, celular, ruc, marca, modelo, placa, anio, color, observaciones } = exportForm
+    const { nombre, celular, ruc, marca, modelo, placa, anio, color, observaciones, condiciones } = exportForm
     const doc = new jsPDF({ unit: 'mm', format: 'a4' })
     const W = 210
     const mL = 14, mR = 14
@@ -505,15 +506,17 @@ export default function Presupuesto() {
     }
 
     // Condiciones
-    doc.setFillColor(245, 245, 245)
-    doc.rect(mL, y, cW, 13, 'F')
-    doc.setTextColor(100, 100, 100)
-    doc.setFontSize(7)
-    doc.setFont('helvetica', 'italic')
-    doc.text('Forma de pago: 50% de adelanto y 50% contra entrega.', mL + 2, y + 4.5)
-    doc.text('Vigencia: 15 dias calendario a partir de la fecha.  |  Tiempo de entrega: maximo 3 dias habiles tras recibir el vehiculo.', mL + 2, y + 8.5)
-    doc.text('Precios incluyen IGV.', mL + 2, y + 12)
-    y += 17
+    if (condiciones) {
+      const condLines = doc.splitTextToSize(condiciones, cW - 4)
+      const condH = Math.max(10, condLines.length * 4.5 + 4)
+      doc.setFillColor(245, 245, 245)
+      doc.rect(mL, y, cW, condH, 'F')
+      doc.setTextColor(100, 100, 100)
+      doc.setFontSize(7)
+      doc.setFont('helvetica', 'italic')
+      doc.text(condLines, mL + 2, y + 4.5)
+      y += condH + 4
+    }
 
     // Firmas
     const col1 = mL, col2 = mL + cW / 2 + 5
@@ -868,6 +871,13 @@ export default function Presupuesto() {
                 <label className="text-xs text-gray-500 mb-0.5 block">Observaciones</label>
                 <input className="input w-full text-sm" placeholder="Notas adicionales..."
                   value={exportForm.observaciones} onChange={e => setExportForm(f => ({ ...f, observaciones: e.target.value }))} />
+              </div>
+
+              {/* Condiciones */}
+              <div>
+                <label className="text-xs text-gray-500 mb-0.5 block">Condiciones de pago y entrega</label>
+                <textarea rows={3} className="input w-full text-sm resize-none"
+                  value={exportForm.condiciones} onChange={e => setExportForm(f => ({ ...f, condiciones: e.target.value }))} />
               </div>
             </div>
 

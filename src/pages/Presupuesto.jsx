@@ -304,7 +304,7 @@ export default function Presupuesto() {
 
     // Logo izquierda — el logo ya incluye APEX-PRO y DETAILING
     if (logoB64) {
-      doc.addImage(logoB64, 'JPEG', mL, 2, 52, 52)
+      doc.addImage(logoB64, 'PNG', mL, 2, 52, 52)
     } else {
       doc.setTextColor(0, 0, 0)
       doc.setFontSize(14)

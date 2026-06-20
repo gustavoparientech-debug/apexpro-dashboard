@@ -414,122 +414,112 @@ export default function Configuracion() {
         </button>
       </div>
 
-      {/* Metas diarias por trabajador */}
+      {/* Metas + Reparto unificado */}
       <div className="card">
-        <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Metas diarias por trabajador</p>
-        <p className="text-xs text-gray-400 mb-4">
-          Referencia calculada: <span className="font-semibold text-gray-600 dark:text-gray-300">{formatMoney(metaDiariaRef)}/día</span> por trabajador.
-          Puedes personalizar la meta de cada uno.
-        </p>
-        <div className="space-y-3">
-          {activeWorkers.map(w => (
-            <div key={w.id} className="flex items-center gap-3">
-              <div className="flex-1">
-                <p className="text-sm font-medium text-gray-800 dark:text-gray-200">{w.name}</p>
-                <p className="text-xs text-gray-400">Ref: {formatMoney(metaDiariaRef)}</p>
-              </div>
-              <div className="flex items-center gap-1.5 shrink-0">
-                <span className="text-sm text-gray-400">S/</span>
-                <input
-                  type="number"
-                  min="0"
-                  step="10"
-                  placeholder={metaDiariaRef}
-                  className="input w-28 text-right"
-                  value={workerGoals[w.id] ?? ''}
-                  onChange={e => setWorkerGoals(g => ({ ...g, [w.id]: e.target.value }))}
-                />
-              </div>
-            </div>
-          ))}
+        <div className="flex items-start justify-between mb-1">
+          <div>
+            <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">Metas y reparto por trabajador</p>
+            <p className="text-xs text-gray-400 mt-0.5">
+              Ref. calculada: <span className="font-semibold text-gray-600 dark:text-gray-300">{formatMoney(metaDiariaRef)}/día</span> por trabajador
+            </p>
+          </div>
+          {/* Monto reparto */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            <span className="text-xs text-gray-500">Monto reparto S/</span>
+            <input type="number" min="0" step="10" placeholder="0"
+              className="input w-28 text-right text-sm"
+              value={repartoMonto}
+              onChange={e => setRepartoMonto(e.target.value)} />
+          </div>
         </div>
+
+        {/* Cabeceras */}
+        <div className="grid grid-cols-[1fr_auto_auto_auto] gap-x-3 items-center py-2 border-b border-gray-100 dark:border-gray-800 mb-1">
+          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Trabajador</span>
+          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide text-right w-28">Meta/día</span>
+          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide text-right w-20">%</span>
+          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide text-right w-20">Reparto</span>
+        </div>
+
         {activeWorkers.length === 0 && (
           <p className="text-xs text-gray-400 text-center py-4">No hay trabajadores activos</p>
         )}
-        {activeWorkers.length > 0 && (
-          <div className="flex items-center justify-between pt-3 mt-1 border-t border-gray-100 dark:border-gray-800">
-            <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">Total meta diaria equipo</p>
-            <p className="text-sm font-bold text-red-600 dark:text-red-400">
-              {formatMoney(activeWorkers.reduce((s, w) => {
-              const v = workerGoals[w.id]
-              return s + (v !== '' && v !== undefined && v !== null ? parseFloat(v) || 0 : metaDiariaRef)
-            }, 0))}
-            </p>
-          </div>
-        )}
-        <button className="btn-primary flex items-center gap-2 mt-4" onClick={handleSaveGoals} disabled={savingGoals}>
-          <Save className="w-4 h-4" />
-          {savingGoals ? 'Guardando...' : 'Guardar metas'}
-        </button>
-      </div>
 
-      {/* Reparto porcentual */}
-      <div className="card">
-        <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Reparto por trabajador</p>
-        <p className="text-xs text-gray-400 mb-4">Define un monto total y qué porcentaje corresponde a cada trabajador.</p>
-
-        {/* Monto total */}
-        <div className="flex items-center gap-2 mb-4">
-          <span className="text-sm text-gray-500">Monto total S/</span>
-          <input type="number" min="0" step="10" placeholder="0"
-            className="input w-36 text-right"
-            value={repartoMonto}
-            onChange={e => setRepartoMonto(e.target.value)} />
-        </div>
-
-        {/* Porcentajes */}
-        <div className="space-y-3">
+        <div className="space-y-1">
           {activeWorkers.map(w => {
-            const porc = parseFloat(repartoPorc[w.id]) || 0
-            const monto = parseFloat(repartoMonto) || 0
+            const porc    = parseFloat(repartoPorc[w.id]) || 0
+            const monto   = parseFloat(repartoMonto) || 0
             const asignado = Math.round(monto * porc / 100 * 100) / 100
             return (
-              <div key={w.id}>
-                <div className="flex items-center gap-3 mb-1">
+              <div key={w.id} className="grid grid-cols-[1fr_auto_auto_auto] gap-x-3 items-center py-2.5 border-b border-gray-50 dark:border-gray-800/60 last:border-0">
+                {/* Nombre */}
+                <div className="flex items-center gap-2 min-w-0">
                   <div className="w-7 h-7 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center text-xs font-bold text-red-600 flex-shrink-0">
                     {w.name[0]}
                   </div>
-                  <p className="flex-1 text-sm font-medium text-gray-800 dark:text-gray-200">{w.name}</p>
-                  <div className="flex items-center gap-1.5">
-                    <input type="number" min="0" max="100" step="1" placeholder="0"
-                      className="input w-20 text-right"
-                      value={repartoPorc[w.id] ?? ''}
-                      onChange={e => setRepartoPorc(p => ({ ...p, [w.id]: e.target.value }))} />
-                    <span className="text-sm text-gray-400">%</span>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">{w.name}</p>
+                    <p className="text-[10px] text-gray-400">Ref: {formatMoney(metaDiariaRef)}</p>
                   </div>
-                  <span className="text-sm font-bold text-gray-700 dark:text-gray-300 w-20 text-right">
-                    {monto > 0 ? formatMoney(asignado) : '—'}
-                  </span>
                 </div>
-                {/* Barra visual */}
-                <div className="ml-10 bg-gray-100 dark:bg-gray-700 rounded-full h-1.5">
-                  <div className="bg-red-500 rounded-full h-1.5 transition-all duration-300"
-                    style={{ width: `${Math.min(porc, 100)}%` }} />
+                {/* Meta diaria */}
+                <div className="flex items-center gap-1 w-28 justify-end">
+                  <span className="text-xs text-gray-400">S/</span>
+                  <input type="number" min="0" step="10" placeholder={metaDiariaRef}
+                    className="input w-20 text-right text-sm"
+                    value={workerGoals[w.id] ?? ''}
+                    onChange={e => setWorkerGoals(g => ({ ...g, [w.id]: e.target.value }))} />
                 </div>
+                {/* Porcentaje */}
+                <div className="flex items-center gap-1 w-20 justify-end">
+                  <input type="number" min="0" max="100" step="1" placeholder="0"
+                    className="input w-14 text-right text-sm"
+                    value={repartoPorc[w.id] ?? ''}
+                    onChange={e => setRepartoPorc(p => ({ ...p, [w.id]: e.target.value }))} />
+                  <span className="text-xs text-gray-400">%</span>
+                </div>
+                {/* Monto reparto */}
+                <p className={`text-sm font-bold text-right w-20 ${asignado > 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-300 dark:text-gray-600'}`}>
+                  {monto > 0 && porc > 0 ? formatMoney(asignado) : '—'}
+                </p>
               </div>
             )
           })}
         </div>
 
-        {/* Total porcentajes */}
+        {/* Totales */}
         {activeWorkers.length > 0 && (() => {
-          const total = activeWorkers.reduce((s, w) => s + (parseFloat(repartoPorc[w.id]) || 0), 0)
-          const over = total > 100
-          const ok = Math.abs(total - 100) < 0.01
+          const totalGoal = activeWorkers.reduce((s, w) => {
+            const v = workerGoals[w.id]
+            return s + (v !== '' && v !== undefined && v !== null ? parseFloat(v) || 0 : metaDiariaRef)
+          }, 0)
+          const totalPorc = activeWorkers.reduce((s, w) => s + (parseFloat(repartoPorc[w.id]) || 0), 0)
+          const over = totalPorc > 100
+          const ok   = Math.abs(totalPorc - 100) < 0.01
           return (
-            <div className={`flex items-center justify-between pt-3 mt-3 border-t ${over ? 'border-red-200 dark:border-red-900' : 'border-gray-100 dark:border-gray-800'}`}>
-              <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">Total porcentajes</p>
-              <p className={`text-sm font-bold ${over ? 'text-red-500' : ok ? 'text-green-600' : 'text-gray-600 dark:text-gray-300'}`}>
-                {total}% {ok ? '✓' : over ? '⚠ excede 100%' : `— faltan ${100 - total}%`}
+            <div className="grid grid-cols-[1fr_auto_auto_auto] gap-x-3 items-center pt-3 mt-1 border-t border-gray-200 dark:border-gray-700">
+              <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">Totales</p>
+              <p className="text-sm font-bold text-red-600 dark:text-red-400 text-right w-28">{formatMoney(totalGoal)}</p>
+              <p className={`text-sm font-bold text-right w-20 ${over ? 'text-red-500' : ok ? 'text-emerald-600' : 'text-gray-500'}`}>
+                {totalPorc}% {ok ? '✓' : over ? '⚠' : ''}
+              </p>
+              <p className="text-sm font-bold text-red-600 dark:text-red-400 text-right w-20">
+                {parseFloat(repartoMonto) > 0 ? formatMoney(parseFloat(repartoMonto)) : '—'}
               </p>
             </div>
           )
         })()}
 
-        <button className="btn-primary flex items-center gap-2 mt-4" onClick={handleSaveReparto} disabled={savingReparto}>
-          <Save className="w-4 h-4" />
-          {savingReparto ? 'Guardando...' : 'Guardar reparto'}
-        </button>
+        <div className="flex gap-3 mt-4">
+          <button className="btn-primary flex items-center gap-2" onClick={handleSaveGoals} disabled={savingGoals}>
+            <Save className="w-4 h-4" />
+            {savingGoals ? 'Guardando...' : 'Guardar metas'}
+          </button>
+          <button className="btn-primary flex items-center gap-2" onClick={handleSaveReparto} disabled={savingReparto}>
+            <Save className="w-4 h-4" />
+            {savingReparto ? 'Guardando...' : 'Guardar reparto'}
+          </button>
+        </div>
       </div>
 
       {/* Catálogo de extras */}

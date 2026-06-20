@@ -136,7 +136,7 @@ function GlobalFab({ canAdmin, workerWorkerId }) {
           <>
             {canAdmin && (
               <button onClick={() => { setOpen(false); setShowIncident(true) }}
-                style={{ transformOrigin: 'bottom right', animationDelay: '0ms' }}
+                style={{ transformOrigin: 'bottom right', animationDelay: '80ms' }}
                 className="flex items-center gap-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm font-semibold px-4 py-2.5 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 transition-colors whitespace-nowrap animate-[popIn_180ms_cubic-bezier(0.23,1,0.32,1)_backwards]">
                 <AlertCircle className="w-4 h-4 text-orange-500" /> Nueva incidencia
               </button>
@@ -147,9 +147,9 @@ function GlobalFab({ canAdmin, workerWorkerId }) {
               <TrendingDown className="w-4 h-4 text-amber-500" /> Registrar gasto
             </button>
             <button onClick={handleNewTicket}
-              style={{ transformOrigin: 'bottom right' }}
-              className="flex items-center gap-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm font-semibold px-4 py-2.5 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 transition-colors whitespace-nowrap animate-[popIn_180ms_cubic-bezier(0.23,1,0.32,1)_backwards]">
-              <ClipboardList className="w-4 h-4 text-red-600" /> Nuevo ticket
+              style={{ transformOrigin: 'bottom right', animationDelay: '0ms' }}
+              className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold px-4 py-2.5 rounded-2xl shadow-lg shadow-red-200 dark:shadow-red-900/30 transition-colors whitespace-nowrap animate-[popIn_180ms_cubic-bezier(0.23,1,0.32,1)_backwards]">
+              <ClipboardList className="w-4 h-4" /> Nuevo ticket
             </button>
           </>
         )}

@@ -67,10 +67,11 @@ const CAT_VEHICLES = {
 }
 
 const LAVADOS_DATA = [
-  { id: 'estandar',    name: 'Apex Estándar',      tag: 'Básico',   time: '50 min', desc: 'Lavado exterior, llantas, aspirado, A/C interior',                          prices: { auto: 25,  suv: 30,  suv_xl: 35,  pickup: 35,  pickup_xl: 40  } },
-  { id: 'offroad',     name: 'Apex Off-Road',       tag: 'Medio',    time: '1h 30m', desc: 'Chasis, neumáticos, carrocería, aspirado, A/C',                              prices: { auto: 55,  suv: 60,  suv_xl: 65,  pickup: 65,  pickup_xl: 65  } },
-  { id: 'offroad_full',name: 'Apex Off-Road Full',  tag: 'Completo', time: '3h',     desc: 'Chasis AluMax+Removex, neumáticos, motor, lavado exterior, aspirado, A/C',   prices: { auto: 160, suv: 170, suv_xl: 180, pickup: 180, pickup_xl: 180 } },
-  { id: 'detailing',   name: 'Apex Detailing',      tag: 'Premium',  time: '7-8h',   desc: 'Off-Road Full + limpieza de piso, asientos, techo, cera o elixir',           prices: { auto: 350, suv: 380, suv_xl: 420, pickup: 420, pickup_xl: 420 } },
+  { id: 'estandar',     name: 'Apex Estándar',       tag: 'Básico',         time: '50 min', desc: 'Lavado exterior + llantas + aspirado interior + limpieza A/C',                                                                                               prices: { auto: 25,  suv: 30,  suv_xl: 35,  pickup: 35,  pickup_xl: 40  } },
+  { id: 'offroad',      name: 'Apex Off-Road',        tag: 'Medio',          time: '1h 30m', desc: 'Lavado de chasis, neumáticos y carrocería con productos especializados + aspirado + limpieza A/C',                                                            prices: { auto: 55,  suv: 60,  suv_xl: 65,  pickup: 65,  pickup_xl: 65  } },
+  { id: 'offroad_full', name: 'Apex Off-Road Full',   tag: 'Completo',       time: '3h',     desc: 'Chasis con AluMax + Removex, neumáticos, lavado de motor, lavado exterior completo + aspirado + limpieza A/C',                                                prices: { auto: 160, suv: 170, suv_xl: 180, pickup: 180, pickup_xl: 180 } },
+  { id: 'detailing',    name: 'Apex Detailing',       tag: 'Premium',        time: '7-8h',   desc: 'Todos los servicios Off-Road Full + limpieza de piso, techo y asientos + detallado interior + cera o elixir. Productos premium',                              prices: { auto: 350, suv: 380, suv_xl: 420, pickup: 420, pickup_xl: 420 } },
+  { id: 'pro_detallado',name: 'Apex Pro Detallado',   tag: 'Ultra Premium',  time: '2 días', desc: 'Servicio máximo: Off-Road Full (AluMax+Removex) + retirado completo de llantas, asientos y pisos + limpieza profunda de piso, techo y asientos + detallado interior + cera, elixir o berniz. Productos premium', prices: { auto: 490, suv: 540, suv_xl: 615, pickup: 615, pickup_xl: 615 } },
 ]
 
 const CERAMICO_DATA = [

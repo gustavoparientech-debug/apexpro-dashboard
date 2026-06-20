@@ -469,12 +469,12 @@ export default function Configuracion() {
                   <p className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">{w.name}</p>
                 </div>
                 {/* Porcentaje */}
-                <div className="flex items-center gap-1 w-20 justify-end">
+                <div className="flex items-center gap-1.5 w-24 justify-end">
                   <input type="number" min="0" max="100" step="1" placeholder="0"
-                    className="input w-14 text-right text-sm"
+                    className="w-16 text-center text-sm font-semibold rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-800 dark:text-white py-2 px-2 focus:outline-none focus:ring-2 focus:ring-red-400"
                     value={repartoPorc[w.id] ?? ''}
                     onChange={e => setRepartoPorc(p => ({ ...p, [w.id]: e.target.value }))} />
-                  <span className="text-xs text-gray-400">%</span>
+                  <span className="text-sm font-medium text-gray-400">%</span>
                 </div>
                 {/* Meta calculada */}
                 <p className={`text-sm font-bold text-right w-24 ${asignado ? 'text-red-600 dark:text-red-400' : 'text-gray-300 dark:text-gray-600'}`}>

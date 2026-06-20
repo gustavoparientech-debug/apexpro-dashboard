@@ -540,7 +540,7 @@ export default function Dashboard() {
     })
     const workerRanking = Object.entries(workerMap)
       .map(([id, s]) => ({ worker: workers.find(w => w.id === id), ...s }))
-      .filter(r => r.worker)
+      .filter(r => r.worker && r.worker.active)
       .sort((a, b) => b.income - a.income)
 
     const displayCosts = hasRange ? proportionalFixed + workerExpTotal : totalCosts

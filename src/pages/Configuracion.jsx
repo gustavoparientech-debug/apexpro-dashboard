@@ -222,7 +222,7 @@ export default function Configuracion() {
       const newGoals = {}
       await Promise.all(activeWorkers.map(w => {
         const porc = parseFloat(repartoPorc[w.id]) || 0
-        const goal = monto > 0 && porc > 0 ? Math.round(monto * porc / 100) : (workerGoals[w.id] !== '' ? parseFloat(workerGoals[w.id]) || null : null)
+        const goal = monto > 0 && porc > 0 ? Math.round(monto * porc / 100) : null
         newGoals[w.id] = goal ?? ''
         return updateWorker(w.id, { daily_goal: goal })
       }))

@@ -162,6 +162,35 @@ export default function Configuracion() {
   // Metas por trabajador
   const [workerGoals, setWorkerGoals] = useState({})
   const [savingGoals, setSavingGoals] = useState(false)
+
+  // Reparto porcentual
+  const [repartoMonto, setRepartoMonto] = useState('')
+  const [repartoPorc, setRepartoPorc] = useState({})
+  const [savingReparto, setSavingReparto] = useState(false)
+
+  useEffect(() => {
+    supabase.from('app_settings').select('value').eq('key', 'reparto').maybeSingle()
+      .then(({ data }) => {
+        if (data?.value) {
+          setRepartoMonto(data.value.monto ?? '')
+          setRepartoPorc(data.value.porcentajes ?? {})
+        }
+      })
+  }, [])
+
+  async function handleSaveReparto() {
+    const totalPorc = activeWorkers.reduce((s, w) => s + (parseFloat(repartoPorc[w.id]) || 0), 0)
+    if (totalPorc > 100) { toast.error(`Total porcentajes ${totalPorc}% supera el 100%`); return }
+    setSavingReparto(true)
+    try {
+      await supabase.from('app_settings').upsert(
+        { key: 'reparto', value: { monto: parseFloat(repartoMonto) || 0, porcentajes: repartoPorc }, updated_at: new Date().toISOString() },
+        { onConflict: 'key' }
+      )
+      toast.success('Reparto guardado')
+    } catch { toast.error('Error al guardar') }
+    setSavingReparto(false)
+  }
   const activeWorkers = workers.filter(w => w.active)
 
   useEffect(() => {
@@ -431,6 +460,75 @@ export default function Configuracion() {
         <button className="btn-primary flex items-center gap-2 mt-4" onClick={handleSaveGoals} disabled={savingGoals}>
           <Save className="w-4 h-4" />
           {savingGoals ? 'Guardando...' : 'Guardar metas'}
+        </button>
+      </div>
+
+      {/* Reparto porcentual */}
+      <div className="card">
+        <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Reparto por trabajador</p>
+        <p className="text-xs text-gray-400 mb-4">Define un monto total y qué porcentaje corresponde a cada trabajador.</p>
+
+        {/* Monto total */}
+        <div className="flex items-center gap-2 mb-4">
+          <span className="text-sm text-gray-500">Monto total S/</span>
+          <input type="number" min="0" step="10" placeholder="0"
+            className="input w-36 text-right"
+            value={repartoMonto}
+            onChange={e => setRepartoMonto(e.target.value)} />
+        </div>
+
+        {/* Porcentajes */}
+        <div className="space-y-3">
+          {activeWorkers.map(w => {
+            const porc = parseFloat(repartoPorc[w.id]) || 0
+            const monto = parseFloat(repartoMonto) || 0
+            const asignado = Math.round(monto * porc / 100 * 100) / 100
+            return (
+              <div key={w.id}>
+                <div className="flex items-center gap-3 mb-1">
+                  <div className="w-7 h-7 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center text-xs font-bold text-red-600 flex-shrink-0">
+                    {w.name[0]}
+                  </div>
+                  <p className="flex-1 text-sm font-medium text-gray-800 dark:text-gray-200">{w.name}</p>
+                  <div className="flex items-center gap-1.5">
+                    <input type="number" min="0" max="100" step="1" placeholder="0"
+                      className="input w-20 text-right"
+                      value={repartoPorc[w.id] ?? ''}
+                      onChange={e => setRepartoPorc(p => ({ ...p, [w.id]: e.target.value }))} />
+                    <span className="text-sm text-gray-400">%</span>
+                  </div>
+                  <span className="text-sm font-bold text-gray-700 dark:text-gray-300 w-20 text-right">
+                    {monto > 0 ? formatMoney(asignado) : '—'}
+                  </span>
+                </div>
+                {/* Barra visual */}
+                <div className="ml-10 bg-gray-100 dark:bg-gray-700 rounded-full h-1.5">
+                  <div className="bg-red-500 rounded-full h-1.5 transition-all duration-300"
+                    style={{ width: `${Math.min(porc, 100)}%` }} />
+                </div>
+              </div>
+            )
+          })}
+        </div>
+
+        {/* Total porcentajes */}
+        {activeWorkers.length > 0 && (() => {
+          const total = activeWorkers.reduce((s, w) => s + (parseFloat(repartoPorc[w.id]) || 0), 0)
+          const over = total > 100
+          const ok = Math.abs(total - 100) < 0.01
+          return (
+            <div className={`flex items-center justify-between pt-3 mt-3 border-t ${over ? 'border-red-200 dark:border-red-900' : 'border-gray-100 dark:border-gray-800'}`}>
+              <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">Total porcentajes</p>
+              <p className={`text-sm font-bold ${over ? 'text-red-500' : ok ? 'text-green-600' : 'text-gray-600 dark:text-gray-300'}`}>
+                {total}% {ok ? '✓' : over ? '⚠ excede 100%' : `— faltan ${100 - total}%`}
+              </p>
+            </div>
+          )
+        })()}
+
+        <button className="btn-primary flex items-center gap-2 mt-4" onClick={handleSaveReparto} disabled={savingReparto}>
+          <Save className="w-4 h-4" />
+          {savingReparto ? 'Guardando...' : 'Guardar reparto'}
         </button>
       </div>
 

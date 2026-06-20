@@ -168,6 +168,35 @@ export default function Configuracion() {
   const [repartoPorc, setRepartoPorc] = useState({})
   const [savingReparto, setSavingReparto] = useState(false)
 
+  // Anuncios
+  const [anuncioMsg, setAnuncioMsg] = useState('')
+  const [anuncioTarget, setAnuncioTarget] = useState('all')
+  const [anuncioWorker, setAnuncioWorker] = useState('')
+  const [sendingAnuncio, setSendingAnuncio] = useState(false)
+
+  async function handleSendAnuncio() {
+    if (!anuncioMsg.trim()) { toast.error('Escribe un mensaje'); return }
+    setSendingAnuncio(true)
+    try {
+      const { data } = await supabase.from('app_settings').select('value').eq('key', 'anuncios').maybeSingle()
+      const existing = data?.value || []
+      const nuevo = {
+        id: Date.now().toString(),
+        message: anuncioMsg.trim(),
+        target: anuncioTarget === 'all' ? 'all' : anuncioWorker,
+        createdAt: new Date().toISOString(),
+        read: [],
+      }
+      await supabase.from('app_settings').upsert(
+        { key: 'anuncios', value: [nuevo, ...existing].slice(0, 50), updated_at: new Date().toISOString() },
+        { onConflict: 'key' }
+      )
+      setAnuncioMsg('')
+      toast.success('Anuncio enviado ✓')
+    } catch { toast.error('Error al enviar') }
+    setSendingAnuncio(false)
+  }
+
   useEffect(() => {
     supabase.from('app_settings').select('value').eq('key', 'reparto').maybeSingle()
       .then(({ data }) => {
@@ -511,6 +540,47 @@ export default function Configuracion() {
         <button className="btn-primary flex items-center gap-2 mt-4" onClick={handleSaveReparto} disabled={savingReparto}>
           <Save className="w-4 h-4" />
           {savingReparto ? 'Guardando...' : 'Guardar'}
+        </button>
+      </div>
+
+      {/* Anuncios */}
+      <div className="card">
+        <div className="mb-3">
+          <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">Anuncios al equipo</p>
+          <p className="text-xs text-gray-400 mt-0.5">Aparece como tarjeta flotante en el dashboard del trabajador</p>
+        </div>
+
+        {/* Destinatario */}
+        <div className="flex gap-2 mb-3">
+          <button onClick={() => setAnuncioTarget('all')}
+            className={`flex-1 py-2 rounded-xl text-sm font-semibold border transition-all ${anuncioTarget === 'all' ? 'bg-red-600 border-red-600 text-white' : 'border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400'}`}>
+            🌐 Todos
+          </button>
+          <button onClick={() => setAnuncioTarget('individual')}
+            className={`flex-1 py-2 rounded-xl text-sm font-semibold border transition-all ${anuncioTarget === 'individual' ? 'bg-red-600 border-red-600 text-white' : 'border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400'}`}>
+            👤 Individual
+          </button>
+        </div>
+
+        {anuncioTarget === 'individual' && (
+          <select className="input mb-3" value={anuncioWorker} onChange={e => setAnuncioWorker(e.target.value)}>
+            <option value="">-- Seleccionar trabajador --</option>
+            {activeWorkers.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+          </select>
+        )}
+
+        <textarea
+          className="input resize-none mb-3"
+          rows={3}
+          placeholder="Escribe el anuncio o mensaje para el equipo..."
+          value={anuncioMsg}
+          onChange={e => setAnuncioMsg(e.target.value)}
+        />
+
+        <button onClick={handleSendAnuncio} disabled={sendingAnuncio}
+          className="btn-primary flex items-center gap-2">
+          <span>📣</span>
+          {sendingAnuncio ? 'Enviando...' : 'Enviar anuncio'}
         </button>
       </div>
 

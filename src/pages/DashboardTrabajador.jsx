@@ -211,6 +211,34 @@ export default function DashboardTrabajador() {
       })
   }, [])
 
+  // Anuncios pendientes de leer
+  const [anuncios, setAnuncios] = useState([])
+  const [anuncioIdx, setAnuncioIdx] = useState(0)
+
+  useEffect(() => {
+    if (!profile?.worker_id) return
+    const wid = profile.worker_id
+    supabase.from('app_settings').select('value').eq('key', 'anuncios').maybeSingle()
+      .then(({ data }) => {
+        if (!data?.value) return
+        const pendientes = data.value.filter(a =>
+          (a.target === 'all' || a.target === wid) && !(a.read || []).includes(wid)
+        )
+        setAnuncios(pendientes)
+        setAnuncioIdx(0)
+      })
+  }, [profile?.worker_id])
+
+  async function dismissAnuncio(id) {
+    const wid = profile?.worker_id
+    if (!wid) return
+    const { data } = await supabase.from('app_settings').select('value').eq('key', 'anuncios').maybeSingle()
+    if (!data?.value) return
+    const updated = data.value.map(a => a.id === id ? { ...a, read: [...(a.read || []), wid] } : a)
+    await supabase.from('app_settings').upsert({ key: 'anuncios', value: updated, updated_at: new Date().toISOString() }, { onConflict: 'key' })
+    setAnuncios(prev => prev.filter(a => a.id !== id))
+  }
+
   const worker = useMemo(
     () => workers.find(w => w.id === profile?.worker_id),
     [workers, profile]
@@ -271,8 +299,51 @@ export default function DashboardTrabajador() {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
   }).replace(/^\w/, c => c.toUpperCase())
 
+  const anuncioActual = anuncios[anuncioIdx] || null
+
   return (
     <div className="space-y-5 max-w-lg mx-auto">
+
+      {/* Anuncio flotante */}
+      {anuncioActual && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+          <div className="relative w-full max-w-sm bg-white dark:bg-gray-900 rounded-3xl shadow-2xl overflow-hidden animate-[popIn_220ms_cubic-bezier(0.23,1,0.32,1)]">
+            {/* Header decorativo */}
+            <div className="bg-gradient-to-r from-red-600 to-red-500 px-5 pt-5 pb-8">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-2xl">📣</span>
+                  <p className="text-white font-bold text-sm uppercase tracking-wide">Anuncio del equipo</p>
+                </div>
+                <button onClick={() => dismissAnuncio(anuncioActual.id)}
+                  className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center hover:bg-white/30 transition-colors">
+                  <X className="w-4 h-4 text-white" />
+                </button>
+              </div>
+            </div>
+            {/* Contenido */}
+            <div className="-mt-4 mx-4 bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-5">
+              <p className="text-gray-800 dark:text-gray-100 text-base leading-relaxed whitespace-pre-wrap">
+                {anuncioActual.message}
+              </p>
+              <p className="text-xs text-gray-400 mt-3">
+                {new Date(anuncioActual.createdAt).toLocaleDateString('es-PE', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}
+              </p>
+            </div>
+            {/* Footer */}
+            <div className="px-4 pt-3 pb-5 flex items-center justify-between">
+              {anuncios.length > 1 && (
+                <p className="text-xs text-gray-400">{anuncioIdx + 1} de {anuncios.length}</p>
+              )}
+              <button onClick={() => dismissAnuncio(anuncioActual.id)}
+                className="ml-auto bg-red-600 hover:bg-red-700 text-white text-sm font-bold px-5 py-2.5 rounded-2xl transition-colors">
+                Entendido ✓
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Saludo + fecha prominente */}
       <div className="card bg-[#1e1e1e] dark:bg-[#1e1e1e] border-0">

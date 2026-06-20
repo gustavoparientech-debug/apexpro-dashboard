@@ -186,6 +186,18 @@ export default function DashboardTrabajador() {
   // Recargar datos al entrar al dashboard para ver cambios de otros
   useEffect(() => { loadData() }, [])
 
+  // Suscripción en tiempo real: si el admin cambia la meta, se recarga automáticamente
+  useEffect(() => {
+    const channel = supabase
+      .channel('worker-goals-realtime')
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'workers' }, () => {
+        invalidateAllCache()
+        loadData()
+      })
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [])
+
   useEffect(() => {
     supabase.from('app_settings').select('value').eq('key', 'citas').maybeSingle()
       .then(({ data }) => {

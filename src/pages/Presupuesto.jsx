@@ -830,19 +830,30 @@ export default function Presupuesto() {
       </div>
 
       {/* Tabs de categoría */}
-      <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
-        {CATEGORIES.map(cat => (
-          <button key={cat.id}
-            onClick={() => setCategory(cat.id)}
-            className={`flex-shrink-0 flex flex-col items-center px-4 py-2.5 rounded-2xl text-xs font-bold transition-all border ${
-              category === cat.id
-                ? 'bg-red-600 text-white border-red-600 shadow-md shadow-red-200 dark:shadow-red-900/30'
-                : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-700'
-            }`}>
-            <span className="text-base">{cat.icon}</span>
-            <span className="mt-0.5">{cat.label}</span>
-          </button>
-        ))}
+      <div className="grid grid-cols-5 gap-2">
+        {CATEGORIES.map(cat => {
+          const isActive = category === cat.id
+          const hasSelected = cat.id === 'planchado'
+            ? selectedCount > 0
+            : catRows.some(r => {
+                const src = cat.id === 'ceramico' ? CERAMICO_DATA : cat.id === 'ppf' ? PPF_DATA : cat.id === 'polarizados' ? POLARIZADOS_DATA : LAVADOS_DATA
+                return src.some(s => s.id === r.id)
+              })
+          return (
+            <button key={cat.id} onClick={() => setCategory(cat.id)}
+              className={`relative flex flex-col items-center justify-center gap-1 py-3 rounded-2xl text-xs font-bold transition-all active:scale-95 ${
+                isActive
+                  ? 'bg-red-600 text-white shadow-lg shadow-red-300 dark:shadow-red-900/40'
+                  : 'bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-700'
+              }`}>
+              {hasSelected && (
+                <span className={`absolute top-1.5 right-1.5 w-2 h-2 rounded-full ${isActive ? 'bg-white' : 'bg-red-500'}`} />
+              )}
+              <span className="text-xl leading-none">{cat.icon}</span>
+              <span className="text-[10px] leading-tight text-center">{cat.label}</span>
+            </button>
+          )
+        })}
       </div>
 
       {loading && (

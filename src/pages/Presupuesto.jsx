@@ -1044,26 +1044,61 @@ export default function Presupuesto() {
       </>)}
 
       {/* ── Barra de exportación unificada (todas las categorías) ── */}
-      {totalItemsSelected > 0 && (
-        <div className="sticky bottom-4 z-20 space-y-2">
-          <div className="card flex items-center justify-between py-3 shadow-lg border border-red-100 dark:border-red-900/30">
-            <div>
-              <p className="text-xs text-gray-500 dark:text-gray-400">{totalItemsSelected} servicio{totalItemsSelected !== 1 ? 's' : ''} seleccionado{totalItemsSelected !== 1 ? 's' : ''}</p>
-              <p className="text-xl font-black text-red-600 dark:text-red-400">{formatMoney(totalFinal + catTotal)}</p>
-            </div>
-            <div className="flex gap-2">
-              <button onClick={() => openExportModal('whatsapp')}
-                className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-green-500 hover:bg-green-600 active:scale-95 text-white font-bold text-sm transition-all">
-                <MessageCircle className="w-4 h-4" />WA
-              </button>
-              <button onClick={() => openExportModal('pdf')}
-                className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 active:scale-95 text-white font-bold text-sm transition-all">
-                <FileText className="w-4 h-4" />PDF
-              </button>
+      {totalItemsSelected > 0 && (() => {
+        const planchadoSel = rows.filter(r => selected[r.id])
+        const allSelected = [
+          ...planchadoSel.map(r => ({
+            key: `p_${r.id}`,
+            label: r.damageId !== 'none'
+              ? `${r.label} + Planchado (${DAMAGE_LEVELS.find(d => d.id === r.damageId)?.label})`
+              : `Pintado — ${r.label}`,
+            price: r.price,
+            onRemove: () => setSelected(s => ({ ...s, [r.id]: false })),
+          })),
+          ...catRows.map(r => ({
+            key: `c_${r.id}`,
+            label: r.label,
+            price: r.price,
+            onRemove: () => setCatSelected(s => ({ ...s, [r.id]: false })),
+          })),
+        ]
+        return (
+          <div className="sticky bottom-4 z-20">
+            <div className="card shadow-xl border border-red-100 dark:border-red-900/30 overflow-hidden">
+              {/* Detalle items */}
+              <div className="divide-y divide-gray-100 dark:divide-gray-800">
+                {allSelected.map(item => (
+                  <div key={item.key} className="flex items-center gap-2 py-2">
+                    <button onClick={item.onRemove}
+                      className="w-6 h-6 flex-shrink-0 flex items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30 text-red-500 hover:bg-red-200 transition-colors">
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                    <p className="flex-1 text-xs text-gray-700 dark:text-gray-300 leading-tight">{item.label}</p>
+                    <p className="text-xs font-bold text-gray-800 dark:text-gray-200 flex-shrink-0">{formatMoney(item.price)}</p>
+                  </div>
+                ))}
+              </div>
+              {/* Footer con total y botones */}
+              <div className="flex items-center justify-between pt-2 border-t border-gray-100 dark:border-gray-800 mt-1">
+                <div>
+                  <p className="text-[10px] text-gray-400">{totalItemsSelected} servicio{totalItemsSelected !== 1 ? 's' : ''}</p>
+                  <p className="text-lg font-black text-red-600 dark:text-red-400">{formatMoney(totalFinal + catTotal)}</p>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => openExportModal('whatsapp')}
+                    className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-green-500 hover:bg-green-600 active:scale-95 text-white font-bold text-sm transition-all">
+                    <MessageCircle className="w-4 h-4" />WA
+                  </button>
+                  <button onClick={() => openExportModal('pdf')}
+                    className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 active:scale-95 text-white font-bold text-sm transition-all">
+                    <FileText className="w-4 h-4" />PDF
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )
+      })()}
 
       {/* Modal: datos del cliente y vehículo */}
       {exportModal && (

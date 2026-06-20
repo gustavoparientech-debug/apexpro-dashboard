@@ -170,6 +170,14 @@ export default function DashboardTrabajador() {
   const [editingGreeting, setEditingGreeting] = useState(false)
   const [greetingDraft,   setGreetingDraft]   = useState('')
   const [savingGreeting,  setSavingGreeting]  = useState(false)
+  const [refreshing,      setRefreshing]      = useState(false)
+
+  async function handleRefresh() {
+    setRefreshing(true)
+    await loadData()
+    setRefreshing(false)
+    toast.success('Datos actualizados')
+  }
 
   // Recargar datos al entrar al dashboard para ver cambios de otros
   useEffect(() => { loadData() }, [])
@@ -269,7 +277,16 @@ export default function DashboardTrabajador() {
             </button>
           </div>
         )}
-        <h1 className="text-white font-black text-2xl">{nombre}</h1>
+        <div className="flex items-start justify-between">
+          <h1 className="text-white font-black text-2xl">{nombre}</h1>
+          <button onClick={handleRefresh} disabled={refreshing}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 transition-all text-white text-xs font-semibold">
+            <svg className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            {refreshing ? 'Actualizando...' : 'Actualizar'}
+          </button>
+        </div>
         <div className="mt-2 flex items-center gap-2">
           <span className="bg-red-600 text-white text-xs font-bold px-2.5 py-1 rounded-lg tracking-wide uppercase">
             HOY

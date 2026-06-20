@@ -58,7 +58,9 @@ function isPast(dateStr, timeStr) {
   const now = new Date()
   const [y, m, d] = dateStr.split('-').map(Number)
   const [h, min] = (timeStr || '23:59').split(':').map(Number)
-  return new Date(y, m - 1, d, h, min) < now
+  const citaTime = new Date(y, m - 1, d, h, min)
+  // Mantener visible 30 min después de la hora de la cita
+  return citaTime.getTime() + 30 * 60 * 1000 < now.getTime()
 }
 
 function CitaSheet({ cita, onClose, onSave }) {

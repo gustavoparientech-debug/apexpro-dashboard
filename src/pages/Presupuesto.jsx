@@ -478,40 +478,45 @@ export default function Presupuesto() {
     ]
     const activeTotal = totalFinal + catTotalFinal
 
-    let msg = `🔴⚫ *APEX PRO DETAILING* ⚫🔴\n`
-    msg += `📋 *COTIZACIÓN*\n`
+    const SEP = '--------------------'
+    let msg = `*APEX PRO DETAILING* 🚗✨\n`
+    msg += `📋 *COTIZACION*\n`
     msg += `📅 Fecha: ${today}\n`
-    msg += `━━━━━━━━━━━━━━━━━━━━\n`
+    msg += `${SEP}\n`
     if (nombre) msg += `👤 *Cliente:* ${nombre}\n`
     if (celular) msg += `📞 *Celular:* ${celular}\n`
     const vehLine = [catVehicleLabel || vtLabel?.label, marca, modelo].filter(Boolean).join(' ')
     if (vehLine || placa || anio) {
       msg += `\n`
-      if (vehLine)  msg += `🚗 *Vehículo:* ${vehLine}\n`
+      if (vehLine)  msg += `🚗 *Vehiculo:* ${vehLine}\n`
       if (placa)    msg += `🔑 *Placa:* ${placa.toUpperCase()}\n`
-      if (anio)     msg += `📆 *Año:* ${anio}${color ? `  · Color: ${color}` : ''}\n`
+      if (anio)     msg += `📅 *Año:* ${anio}${color ? `  Color: ${color}` : ''}\n`
     }
     msg += `\n✨ *SERVICIOS:*\n`
-    msg += `━━━━━━━━━━━━━━━━━━━━\n`
+    msg += `${SEP}\n`
     allRows.forEach((r, idx) => {
-      msg += `${idx + 1}️⃣ ${r.label}\n`
-      msg += `   💲 ${formatMoney(r.price)}\n`
+      msg += `*${idx + 1}.* ${r.label}\n`
+      msg += `   💰 ${formatMoney(r.price)}\n`
     })
-    msg += `━━━━━━━━━━━━━━━━━━━━\n`
+    msg += `${SEP}\n`
     if (planchadoRows.length > 0 && discountPct > 0) {
-      msg += `💲 Subtotal: ${formatMoney(total)}\n`
+      msg += `Subtotal: ${formatMoney(total)}\n`
       msg += `🎁 Descuento (${discountPct}%): -${formatMoney(discountAmt)}\n`
     }
+    if (catTotalFinal < catTotal) {
+      msg += `Subtotal servicios: ${formatMoney(catTotal)}\n`
+      msg += `🎁 Descuento (${catDiscountPct}%): -${formatMoney(catDiscountAmt)}\n`
+    }
     msg += `💵 *TOTAL: ${formatMoney(activeTotal)}*\n`
-    msg += `━━━━━━━━━━━━━━━━━━━━\n\n`
+    msg += `${SEP}\n\n`
     if (observaciones) msg += `📝 *Nota:* ${observaciones}\n\n`
     if (condiciones) msg += `${condiciones}\n\n`
     else {
       msg += `✅ 50% adelanto / 50% contra entrega\n`
-      msg += `⏳ Vigencia: 15 días\n`
+      msg += `⏳ Vigencia: 15 dias\n`
       msg += `💰 Precios incluyen IGV\n\n`
     }
-    msg += `📍 Calle Idelfonzo Lopez N° 700 Zamacola, Arequipa\n`
+    msg += `📍 Calle Idelfonzo Lopez N 700 Zamacola, Arequipa\n`
     msg += `📞 959240309`
 
     window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank')

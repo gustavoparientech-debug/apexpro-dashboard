@@ -51,6 +51,58 @@ const DAMAGE_LEVELS = [
 const LS_KEY = 'apexpro_presupuesto_config'
 const SB_KEY = 'presupuesto_config'
 
+const CATEGORIES = [
+  { id: 'planchado',   label: 'Planchado',   icon: '🔨', sub: '& Pintura' },
+  { id: 'ceramico',    label: 'Cerámico',    icon: '✨', sub: 'Tratamientos' },
+  { id: 'ppf',         label: 'PPF',         icon: '🛡️', sub: 'Protección' },
+  { id: 'polarizados', label: 'Polarizados', icon: '🌟', sub: 'Láminas' },
+  { id: 'lavados',     label: 'Lavados',     icon: '🚿', sub: '& Detailing' },
+]
+
+const CAT_VEHICLES = {
+  ceramico:    [{ id: 'auto', label: 'Auto / HB' }, { id: 'suv', label: 'SUV' }, { id: 'pickup', label: 'Pickup' }],
+  ppf:         [{ id: 'auto', label: 'Auto / HB' }, { id: 'suv', label: 'SUV' }, { id: 'pickup', label: 'Pickup' }],
+  polarizados: [],
+  lavados:     [{ id: 'auto', label: 'Auto' }, { id: 'suv', label: 'SUV' }, { id: 'suv_xl', label: 'SUV XL' }, { id: 'pickup', label: 'Pickup' }, { id: 'pickup_xl', label: 'Pickup XL' }],
+}
+
+const LAVADOS_DATA = [
+  { id: 'estandar',    name: 'Apex Estándar',      tag: 'Básico',   time: '50 min', desc: 'Lavado exterior, llantas, aspirado, A/C interior',                          prices: { auto: 25,  suv: 30,  suv_xl: 35,  pickup: 35,  pickup_xl: 40  } },
+  { id: 'offroad',     name: 'Apex Off-Road',       tag: 'Medio',    time: '1h 30m', desc: 'Chasis, neumáticos, carrocería, aspirado, A/C',                              prices: { auto: 55,  suv: 60,  suv_xl: 65,  pickup: 65,  pickup_xl: 65  } },
+  { id: 'offroad_full',name: 'Apex Off-Road Full',  tag: 'Completo', time: '3h',     desc: 'Chasis AluMax+Removex, neumáticos, motor, lavado exterior, aspirado, A/C',   prices: { auto: 160, suv: 170, suv_xl: 180, pickup: 180, pickup_xl: 180 } },
+  { id: 'detailing',   name: 'Apex Detailing',      tag: 'Premium',  time: '7-8h',   desc: 'Off-Road Full + limpieza de piso, asientos, techo, cera o elixir',           prices: { auto: 350, suv: 380, suv_xl: 420, pickup: 420, pickup_xl: 420 } },
+]
+
+const CERAMICO_DATA = [
+  { id: 'desc_quimica',     name: 'Descontaminación Química',   tag: 'Prep', desc: 'Elimina impurezas invisibles adheridas a la pintura',           prices: { auto: 60,  suv: 70,  pickup: 80  } },
+  { id: 'desc_mecanica',    name: 'Descontaminación Mecánica',  tag: 'Prep', desc: 'Pintura completamente lisa al tacto, mejora brillo y acabado',  prices: { auto: 120, suv: 140, pickup: 160 } },
+  { id: 'abrillantado',     name: 'Abrillantado Apex Pro',      tag: 'Prep', desc: 'Aumenta brillo, reduce micro-rayones, elimina opacidad',        prices: { auto: 130, suv: 150, pickup: 170 } },
+  { id: 'correccion',       name: 'Corrección Apex Pro',        tag: 'Prep', desc: 'Elimina 90-95% de imperfecciones, acabado tipo espejo',         prices: { auto: 260, suv: 280, pickup: 300 } },
+  { id: 'cer_miyavi_1a',    name: 'Cerámico Miyavi 1 Año',      tag: 'Paq',  desc: 'Descontam. + pulido 3 pasos + cerámico + aspirado interior',    prices: { auto: 350, suv: 400, pickup: 450 } },
+  { id: 'cer_miyavi_1b',    name: 'Cerámico Miyavi 1 Año Plus', tag: 'Paq',  desc: 'Versión premium — pulido avanzado + cerámico 1 año',           prices: { auto: 400, suv: 450, pickup: 500 } },
+  { id: 'cer_3a',           name: 'Cerámico 3 Años',            tag: 'Paq',  desc: 'Paquete completo con cerámico de larga duración 3 años',       prices: { auto: 599, suv: 699, pickup: 799 } },
+  { id: 'cer_2a_premium',   name: 'Cerámico 2 Años Premium',    tag: 'Paq',  desc: 'Paquete premium con cerámico de 2 años',                       prices: { auto: 899, suv: 999, pickup: 1099} },
+  { id: 'cer_carpro_3a',    name: 'Cerámico Carpro 3 Años',     tag: 'Paq',  desc: 'Cerámico Carpro alta gama, 3 años de garantía del producto',   prices: { auto: 999, suv: 1099,pickup: 1199} },
+]
+
+const PPF_DATA = [
+  { id: 'ppf_full',     name: 'PPF Full Body',           desc: 'Todo el vehículo. Lavado premium + descontam. + pulido 3 pasos + PPF autoregenerativo. Regalo: PPF en radio o faros. Tiempo: 4 días', prices: { auto: 4700, suv: 5400, pickup: 5900 } },
+  { id: 'ppf_zonas',    name: 'PPF Zonas de Impacto',    desc: 'Capot, parachoque delantero, guardabarros y faros. Regalo: PPF en manijas. Tiempo: 2 días',                                            prices: { auto: 2700, suv: 3100, pickup: 3400 } },
+  { id: 'ppf_ceramico', name: 'PPF Zonas + Cerámico',    desc: 'PPF en zonas de impacto + cerámico Carpro 2 años en las demás zonas. Tiempo: 3 días',                                                  prices: { auto: 3200, suv: 3700, pickup: 3900 } },
+]
+
+const POLARIZADOS_DATA = [
+  { id: 'appfilm_v',  brand: 'APPfilm Basic',          cobertura: 'Ventanas + Posterior', desc: 'Instalación profesional. Niveles: 5%, 20%, 35%, 50%, 70%',              price: 299  },
+  { id: 'appfilm_f',  brand: 'APPfilm Basic',          cobertura: '+ Parabrisas',         desc: 'Instalación profesional. Niveles: 5%, 20%, 35%, 50%, 70%',              price: 350  },
+  { id: 'lexen_v',    brand: 'Nanocerámico Lexen',     cobertura: 'Ventanas + Posterior', desc: 'Bloqueo UV, reducción de calor, garantía. Niveles: 5%–70%',            price: 440  },
+  { id: 'lexen_f',    brand: 'Nanocerámico Lexen',     cobertura: '+ Parabrisas',         desc: 'Bloqueo UV, reducción de calor, garantía. Niveles: 5%–70%',            price: 640  },
+  { id: 'protec_v',   brand: 'Nanocerámico Protec',    cobertura: 'Ventanas + Posterior', desc: 'UV, calor, garantía del producto premium. Niveles: 5%–70%',            price: 480  },
+  { id: 'protec_f',   brand: 'Nanocerámico Protec',    cobertura: '+ Parabrisas',         desc: 'UV, calor, garantía del producto premium. Niveles: 5%–70%',            price: 680  },
+  { id: '3m_v',       brand: '3M Coreano',             cobertura: 'Ventanas + Posterior', desc: 'Alta gama. Niveles: 5%–70%',                                           price: 700  },
+  { id: '3m_f',       brand: '3M Coreano',             cobertura: '+ Parabrisas',         desc: 'Alta gama. Niveles: 5%–70%',                                           price: 900  },
+  { id: '3m_usa_v',   brand: '3M Americano',           cobertura: 'Ventanas + Posterior', desc: 'Máxima calidad importado USA. Niveles: 5%–70%',                        price: 1400 },
+]
+
 function mergeConfig(saved) {
   if (!saved) return DEFAULT_CONFIG
   return {
@@ -112,14 +164,22 @@ export default function Presupuesto() {
       .then(b64 => setLogoB64(b64))
       .catch(() => {})
   }, [])
+  // ── categoría activa ──────────────────────────────────────────────────────
+  const [category, setCategory] = useState('planchado')
+
+  // ── planchado & pintura ──────────────────────────────────────────────────
   const [vehicleType, setVehicleType] = useState('auto')
   const [selectedTier, setSelectedTier] = useState('economy')
   const [selectedBrand, setSelectedBrand] = useState('')
   const [selected, setSelected] = useState({})
-  const [damage, setDamage] = useState({}) // panelId -> 'none'|'leve'|'moderado'|'severo'
+  const [damage, setDamage] = useState({})
   const [editingPrices, setEditingPrices] = useState(false)
   const [pricesDraft, setPricesDraft] = useState(config.basePrices)
   const [showBrands, setShowBrands] = useState(false)
+
+  // ── otras categorías ─────────────────────────────────────────────────────
+  const [catVehicle, setCatVehicle] = useState('auto')
+  const [catSelected, setCatSelected] = useState({})
 
   // Cargar config desde Supabase
   useEffect(() => {
@@ -224,6 +284,28 @@ export default function Presupuesto() {
   const discountAmt = Math.round(total * discountPct / 100)
   const totalFinal = total - discountAmt
 
+  // ── Filas para otras categorías ──────────────────────────────────────────
+  const catData = useMemo(() => {
+    if (category === 'ceramico')    return CERAMICO_DATA
+    if (category === 'ppf')         return PPF_DATA
+    if (category === 'polarizados') return POLARIZADOS_DATA
+    if (category === 'lavados')     return LAVADOS_DATA
+    return []
+  }, [category])
+
+  const catRows = useMemo(() =>
+    catData
+      .filter(s => catSelected[s.id])
+      .map(s => ({
+        id: s.id,
+        label: category === 'polarizados' ? `${s.brand} — ${s.cobertura}` : s.name,
+        price: category === 'polarizados' ? s.price : (s.prices?.[catVehicle] ?? 0),
+        desc: s.desc,
+      })),
+    [catData, catSelected, catVehicle, category]
+  )
+  const catTotal = catRows.reduce((s, r) => s + r.price, 0)
+
   const [exportModal, setExportModal] = useState(false)
   const [exportTarget, setExportTarget] = useState(null)
   const DEFAULT_CONDICIONES = 'Forma de pago: 50% de adelanto y 50% contra entrega. Vigencia: 15 dias calendario. Tiempo de entrega: maximo 3 dias habiles tras recibir el vehiculo. Precios incluyen IGV.'
@@ -246,7 +328,8 @@ export default function Presupuesto() {
   }
 
   function openExportModal(target) {
-    if (selectedCount === 0) { toast.error('Selecciona al menos un paño'); return }
+    const hasItems = category === 'planchado' ? selectedCount > 0 : catRows.length > 0
+    if (!hasItems) { toast.error('Selecciona al menos un servicio'); return }
     setExportForm(f => ({ ...f, marca: selectedBrand || '' }))
     setExportTarget(target)
     setExportModal(true)
@@ -262,49 +345,61 @@ export default function Presupuesto() {
   }
 
   function buildWhatsApp() {
-    const { nombre, celular, marca, modelo, placa, anio, color, observaciones } = exportForm
-    const vtEmoji = vtLabel?.emoji || ''
-    const vtName = vtLabel?.label || ''
-    const selectedRows = rows.filter(r => selected[r.id])
-    const hasDamage = selectedRows.some(r => r.damageId !== 'none')
+    const { nombre, celular, marca, modelo, placa, anio, color, observaciones, condiciones } = exportForm
     const today = new Date().toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric' })
+    const cat = CATEGORIES.find(c => c.id === category)
+    const catVehicleLabel = CAT_VEHICLES[category]?.find(v => v.id === catVehicle)?.label || ''
+
+    const isPlanchado = category === 'planchado'
+    const activeRows = isPlanchado ? rows.filter(r => selected[r.id]) : catRows
+    const activeTotal = isPlanchado ? totalFinal : catTotal
 
     let msg = `🔧 *COTIZACIÓN - APEX PRO*\n`
-    msg += `✨ _Planchado & Pintura Profesional_\n`
+    msg += `✨ _${cat?.label}${cat?.sub ? ' ' + cat.sub : ''}_\n`
     msg += `📅 ${today}\n`
     msg += `━━━━━━━━━━━━━━━━━━━━\n\n`
     if (nombre) msg += `👤 *Cliente:* ${nombre}\n`
     if (celular) msg += `📞 *Celular:* ${celular}\n`
     msg += `\n`
-    msg += `${vtEmoji} *Vehículo:* ${vtName}${marca ? ` ${marca}` : ''}${modelo ? ` ${modelo}` : ''}\n`
-    if (placa)  msg += `🔑 *Placa:* ${placa.toUpperCase()}\n`
-    if (anio)   msg += `📆 *Año:* ${anio}${color ? `  ·  Color: ${color}` : ''}\n`
-    msg += `\n📋 *Trabajos a realizar:*\n`
-    selectedRows.forEach((r, idx) => {
-      const dmg = DAMAGE_LEVELS.find(d => d.id === r.damageId)
-      const desc = r.damageId !== 'none'
-        ? `${r.label} + Planchado (${dmg?.label})`
-        : `Pintado de ${r.label}`
-      msg += `  ${idx + 1}. ${desc} — ${formatMoney(r.price)}\n`
-    })
-    if (hasDamage) {
-      const totalPintura = selectedRows.reduce((s, r) => s + r.paintPrice, 0)
-      const totalPlanchado = selectedRows.reduce((s, r) => s + r.planchadoPrice, 0)
-      msg += `\n🎨 Pintura: ${formatMoney(totalPintura)}\n`
-      msg += `🔨 Planchado: ${formatMoney(totalPlanchado)}\n`
+    const vehLine = [catVehicleLabel || vtLabel?.label, marca, modelo].filter(Boolean).join(' ')
+    if (vehLine) msg += `🚗 *Vehículo:* ${vehLine}\n`
+    if (placa)   msg += `🔑 *Placa:* ${placa.toUpperCase()}\n`
+    if (anio)    msg += `📆 *Año:* ${anio}${color ? `  ·  Color: ${color}` : ''}\n`
+    msg += `\n📋 *Servicios:*\n`
+
+    if (isPlanchado) {
+      const hasDamage = activeRows.some(r => r.damageId !== 'none')
+      activeRows.forEach((r, idx) => {
+        const dmg = DAMAGE_LEVELS.find(d => d.id === r.damageId)
+        const desc = r.damageId !== 'none' ? `${r.label} + Planchado (${dmg?.label})` : `Pintado de ${r.label}`
+        msg += `  ${idx + 1}. ${desc} — ${formatMoney(r.price)}\n`
+      })
+      if (hasDamage) {
+        const tp = activeRows.reduce((s, r) => s + r.paintPrice, 0)
+        const tpl = activeRows.reduce((s, r) => s + r.planchadoPrice, 0)
+        msg += `\n🎨 Pintura: ${formatMoney(tp)}\n`
+        msg += `🔨 Planchado: ${formatMoney(tpl)}\n`
+      }
+      msg += `\n━━━━━━━━━━━━━━━━━━━━\n`
+      if (discountPct > 0) {
+        msg += `💲 Subtotal: ${formatMoney(total)}\n`
+        msg += `🎁 Descuento (${discountPct}%): -${formatMoney(discountAmt)}\n`
+      }
+    } else {
+      activeRows.forEach((r, idx) => { msg += `  ${idx + 1}. ${r.label} — ${formatMoney(r.price)}\n` })
+      msg += `\n━━━━━━━━━━━━━━━━━━━━\n`
     }
-    msg += `\n━━━━━━━━━━━━━━━━━━━━\n`
-    if (discountPct > 0) {
-      msg += `💲 Subtotal: ${formatMoney(total)}\n`
-      msg += `🎁 Descuento (${discountPct}%): -${formatMoney(discountAmt)}\n`
-    }
-    msg += `💵 *TOTAL: ${formatMoney(totalFinal)}*\n`
+
+    msg += `💵 *TOTAL: ${formatMoney(activeTotal)}*\n`
     msg += `━━━━━━━━━━━━━━━━━━━━\n\n`
     if (observaciones) msg += `📝 ${observaciones}\n\n`
-    msg += `✅ 50% de adelanto y 50% contra entrega.\n`
-    msg += `⏱ Vigencia: 15 días · Entrega: máx. 3 días hábiles.\n`
-    msg += `💰 Precios incluyen IGV.\n\n`
-    msg += `_Apex Pro Detailing · 📍Calle Idelfonzo Lopez N° 700 Zamacola, Arequipa_ 🚗✨`
+    if (condiciones) msg += `${condiciones}\n\n`
+    else {
+      msg += `✅ 50% de adelanto y 50% contra entrega.\n`
+      msg += `⏱ Vigencia: 15 días.\n`
+      msg += `💰 Precios incluyen IGV.\n\n`
+    }
+    msg += `_Apex Pro Detailing · Calle Idelfonzo Lopez N° 700 Zamacola, Arequipa_`
 
     window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank')
   }
@@ -431,27 +526,27 @@ export default function Presupuesto() {
     doc.text('TOTAL', W - mR - 2, y + 4.2, { align: 'right' })
     y += 6
 
-    const selectedRows = rows.filter(r => selected[r.id])
-    selectedRows.forEach((r, i) => {
-      const hasDmg = r.damageId !== 'none'
-      const dmg = DAMAGE_LEVELS.find(d => d.id === r.damageId)
+    const isPlanchado = category === 'planchado'
+    const pdfRows = isPlanchado ? rows.filter(r => selected[r.id]) : catRows
+    const pdfTotal = isPlanchado ? totalFinal : catTotal
+
+    pdfRows.forEach((r, i) => {
+      const hasDmg = isPlanchado && r.damageId !== 'none'
+      const dmg = hasDmg ? DAMAGE_LEVELS.find(d => d.id === r.damageId) : null
       const rowH = hasDmg ? 11 : 7.5
       if (i % 2 === 0) { doc.setFillColor(250, 250, 250); doc.rect(mL, y, cW, rowH, 'F') }
       doc.setDrawColor(235, 235, 235)
       doc.setLineWidth(0.2)
       doc.line(mL, y + rowH, mL + cW, y + rowH)
-
       doc.setTextColor(100, 100, 100)
       doc.setFontSize(7.5)
       doc.setFont('helvetica', 'normal')
       doc.text(`${i + 1}`, mL + 3, y + 5, { align: 'center' })
-
-      const desc = hasDmg
-        ? `${r.label} + Planchado`
-        : `Pintado de ${r.label}`
+      const label = isPlanchado ? (hasDmg ? `${r.label} + Planchado` : `Pintado de ${r.label}`) : r.label
       doc.setTextColor(20, 20, 20)
       doc.setFontSize(8.5)
-      doc.text(desc, mL + 12, y + 5)
+      const labelLines = doc.splitTextToSize(label, cW - 30)
+      doc.text(labelLines, mL + 12, y + 5)
       if (hasDmg) {
         doc.setFontSize(7)
         doc.setTextColor(160, 80, 0)
@@ -465,9 +560,9 @@ export default function Presupuesto() {
     })
 
     // Filas vacías hasta completar al menos 10 ítems
-    const emptyRows = Math.max(0, 10 - selectedRows.length)
+    const emptyRows = Math.max(0, 10 - pdfRows.length)
     for (let i = 0; i < emptyRows; i++) {
-      const ii = selectedRows.length + i
+      const ii = pdfRows.length + i
       if (ii % 2 === 0) { doc.setFillColor(250, 250, 250); doc.rect(mL, y, cW, 7.5, 'F') }
       doc.setDrawColor(235, 235, 235)
       doc.line(mL, y + 7.5, mL + cW, y + 7.5)
@@ -481,7 +576,7 @@ export default function Presupuesto() {
 
     // Subtotal / descuento / total
     const numCol = W - mR - 35
-    if (discountPct > 0) {
+    if (isPlanchado && discountPct > 0) {
       doc.setFontSize(8)
       doc.setFont('helvetica', 'normal')
       doc.setTextColor(100, 100, 100)
@@ -505,7 +600,7 @@ export default function Presupuesto() {
     doc.setFontSize(10)
     doc.setFont('helvetica', 'bold')
     doc.text('TOTAL:', numCol, y + 6.3, { align: 'right' })
-    doc.text(formatMoney(totalFinal), W - mR - 2, y + 6.3, { align: 'right' })
+    doc.text(formatMoney(pdfTotal), W - mR - 2, y + 6.3, { align: 'right' })
     y += 13
 
     // Observaciones
@@ -573,8 +668,26 @@ export default function Presupuesto() {
             <div className="w-2 h-6 bg-white rounded-full opacity-80" />
             <h1 className="text-xl font-black tracking-tight">PRESUPUESTO</h1>
           </div>
-          <p className="text-red-200 text-sm">Planchado & Pintura · Apex Pro</p>
+          <p className="text-red-200 text-sm">
+            {CATEGORIES.find(c => c.id === category)?.label} {CATEGORIES.find(c => c.id === category)?.sub} · Apex Pro
+          </p>
         </div>
+      </div>
+
+      {/* Tabs de categoría */}
+      <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+        {CATEGORIES.map(cat => (
+          <button key={cat.id}
+            onClick={() => { setCategory(cat.id); setCatSelected({}) }}
+            className={`flex-shrink-0 flex flex-col items-center px-4 py-2.5 rounded-2xl text-xs font-bold transition-all border ${
+              category === cat.id
+                ? 'bg-red-600 text-white border-red-600 shadow-md shadow-red-200 dark:shadow-red-900/30'
+                : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-700'
+            }`}>
+            <span className="text-base">{cat.icon}</span>
+            <span className="mt-0.5">{cat.label}</span>
+          </button>
+        ))}
       </div>
 
       {loading && (
@@ -584,8 +697,138 @@ export default function Presupuesto() {
         </div>
       )}
 
-      {/* Controles: Tipo vehículo + Marca */}
-      <div className="card space-y-4">
+      {/* ── UI otras categorías ─────────────────────────────────── */}
+      {category !== 'planchado' && (() => {
+        const vehicles = CAT_VEHICLES[category] || []
+        const data = catData
+        const isPol = category === 'polarizados'
+
+        return (
+          <div className="space-y-3">
+            {/* Selector de vehículo */}
+            {vehicles.length > 0 && (
+              <div className="card">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Tipo de vehículo</p>
+                <div className="flex gap-2 flex-wrap">
+                  {vehicles.map(v => (
+                    <button key={v.id} onClick={() => setCatVehicle(v.id)}
+                      className={`px-3 py-2 rounded-xl text-xs font-semibold border transition-all ${
+                        catVehicle === v.id
+                          ? 'border-red-500 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400'
+                          : 'border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400'
+                      }`}>{v.label}</button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Servicios */}
+            <div className="card space-y-2">
+              <div className="flex items-center justify-between mb-1">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Servicios disponibles</p>
+                {Object.values(catSelected).some(Boolean) && (
+                  <button onClick={() => setCatSelected({})}
+                    className="text-xs text-red-500">Limpiar</button>
+                )}
+              </div>
+
+              {isPol ? (
+                // Polarizados: agrupados por marca
+                Object.entries(
+                  POLARIZADOS_DATA.reduce((acc, s) => {
+                    if (!acc[s.brand]) acc[s.brand] = []
+                    acc[s.brand].push(s)
+                    return acc
+                  }, {})
+                ).map(([brand, items]) => (
+                  <div key={brand} className="border border-gray-100 dark:border-gray-700 rounded-xl overflow-hidden">
+                    <div className="bg-gray-50 dark:bg-gray-800 px-3 py-1.5">
+                      <p className="text-xs font-bold text-gray-700 dark:text-gray-300">{brand}</p>
+                    </div>
+                    {items.map(s => (
+                      <button key={s.id} onClick={() => setCatSelected(p => ({ ...p, [s.id]: !p[s.id] }))}
+                        className={`w-full flex items-center gap-3 px-3 py-2.5 border-t border-gray-100 dark:border-gray-700 text-left transition-all ${
+                          catSelected[s.id] ? 'bg-red-50 dark:bg-red-900/10' : 'bg-white dark:bg-gray-900'
+                        }`}>
+                        <div className={`w-4 h-4 rounded border-2 flex-shrink-0 flex items-center justify-center transition-all ${
+                          catSelected[s.id] ? 'bg-red-600 border-red-600' : 'border-gray-300 dark:border-gray-600'
+                        }`}>
+                          {catSelected[s.id] && <Check className="w-2.5 h-2.5 text-white" />}
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-sm font-medium text-gray-800 dark:text-gray-200">{s.cobertura}</p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">{s.desc}</p>
+                        </div>
+                        <p className="text-sm font-bold text-red-600 dark:text-red-400 flex-shrink-0">{formatMoney(s.price)}</p>
+                      </button>
+                    ))}
+                  </div>
+                ))
+              ) : (
+                // Otras categorías: lista simple con tag
+                data.map(s => {
+                  const price = s.prices?.[catVehicle] ?? 0
+                  return (
+                    <button key={s.id} onClick={() => setCatSelected(p => ({ ...p, [s.id]: !p[s.id] }))}
+                      className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all text-left ${
+                        catSelected[s.id]
+                          ? 'border-red-500 bg-red-50 dark:bg-red-900/10'
+                          : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800'
+                      }`}>
+                      <div className={`w-4 h-4 rounded border-2 flex-shrink-0 flex items-center justify-center transition-all ${
+                        catSelected[s.id] ? 'bg-red-600 border-red-600' : 'border-gray-300 dark:border-gray-600'
+                      }`}>
+                        {catSelected[s.id] && <Check className="w-2.5 h-2.5 text-white" />}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">{s.name}</p>
+                          {s.tag && (
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${
+                              s.tag === 'Paq' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                              : s.tag === 'Prep' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                              : s.tag === 'Premium' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                              : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
+                            }`}>{s.tag}</span>
+                          )}
+                          {s.time && <span className="text-[10px] text-gray-400">⏱ {s.time}</span>}
+                        </div>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 leading-tight">{s.desc}</p>
+                      </div>
+                      <p className="text-sm font-bold text-red-600 dark:text-red-400 flex-shrink-0">{formatMoney(price)}</p>
+                    </button>
+                  )
+                })
+              )}
+            </div>
+
+            {/* Total + botones export */}
+            {catRows.length > 0 && (
+              <div className="card">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-gray-600 dark:text-gray-400">{catRows.length} servicio{catRows.length !== 1 ? 's' : ''}</p>
+                  <p className="text-2xl font-black text-red-600 dark:text-red-400">{formatMoney(catTotal)}</p>
+                </div>
+              </div>
+            )}
+            {catRows.length > 0 && (
+              <div className="grid grid-cols-2 gap-3">
+                <button onClick={() => openExportModal('whatsapp')}
+                  className="flex items-center justify-center gap-2 py-3.5 rounded-2xl bg-green-500 hover:bg-green-600 active:scale-95 text-white font-bold text-sm transition-all shadow-lg">
+                  <MessageCircle className="w-5 h-5" />WhatsApp
+                </button>
+                <button onClick={() => openExportModal('pdf')}
+                  className="flex items-center justify-center gap-2 py-3.5 rounded-2xl bg-red-600 hover:bg-red-700 active:scale-95 text-white font-bold text-sm transition-all shadow-lg">
+                  <FileText className="w-5 h-5" />PDF
+                </button>
+              </div>
+            )}
+          </div>
+        )
+      })()}
+
+      {/* ── Planchado & Pintura UI (existente) ─────────────────── */}
+      {category === 'planchado' && (<><div className="card space-y-4">
         {/* Tipo vehículo */}
         <div>
           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Tipo de vehículo</p>
@@ -796,23 +1039,20 @@ export default function Presupuesto() {
         </div>
       </div>
 
-      {/* Botones de exportar */}
+      {/* Botones de exportar (planchado) */}
       {selectedCount > 0 && (
         <div className="grid grid-cols-2 gap-3">
-          <button
-            onClick={() => openExportModal('whatsapp')}
+          <button onClick={() => openExportModal('whatsapp')}
             className="flex items-center justify-center gap-2 py-3.5 rounded-2xl bg-green-500 hover:bg-green-600 active:scale-95 text-white font-bold text-sm transition-all shadow-lg shadow-green-200 dark:shadow-green-900/30">
-            <MessageCircle className="w-5 h-5" />
-            WhatsApp
+            <MessageCircle className="w-5 h-5" />WhatsApp
           </button>
-          <button
-            onClick={() => openExportModal('pdf')}
+          <button onClick={() => openExportModal('pdf')}
             className="flex items-center justify-center gap-2 py-3.5 rounded-2xl bg-red-600 hover:bg-red-700 active:scale-95 text-white font-bold text-sm transition-all shadow-lg shadow-red-200 dark:shadow-red-900/30">
-            <FileText className="w-5 h-5" />
-            PDF
+            <FileText className="w-5 h-5" />PDF
           </button>
         </div>
       )}
+      </>)}
 
       {/* Modal: datos del cliente y vehículo */}
       {exportModal && (

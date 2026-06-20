@@ -445,11 +445,10 @@ export default function Configuracion() {
         </div>
 
         {/* Cabeceras */}
-        <div className="grid grid-cols-[1fr_auto_auto_auto] gap-x-3 items-center py-2 border-b border-gray-100 dark:border-gray-800 mb-1">
+        <div className="grid grid-cols-[1fr_auto_auto] gap-x-4 items-center py-2 border-b border-gray-100 dark:border-gray-800 mb-1">
           <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Trabajador</span>
-          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide text-right w-28">Meta/día</span>
           <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide text-right w-20">%</span>
-          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide text-right w-20">Reparto</span>
+          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide text-right w-24">Meta/día</span>
         </div>
 
         {activeWorkers.length === 0 && (
@@ -458,28 +457,16 @@ export default function Configuracion() {
 
         <div className="space-y-1">
           {activeWorkers.map(w => {
-            const porc    = parseFloat(repartoPorc[w.id]) || 0
-            const monto   = parseFloat(repartoMonto) || 0
-            const asignado = Math.round(monto * porc / 100 * 100) / 100
+            const porc     = parseFloat(repartoPorc[w.id]) || 0
+            const monto    = parseFloat(repartoMonto) || 0
+            const asignado = monto > 0 && porc > 0 ? Math.round(monto * porc / 100) : null
             return (
-              <div key={w.id} className="grid grid-cols-[1fr_auto_auto_auto] gap-x-3 items-center py-2.5 border-b border-gray-50 dark:border-gray-800/60 last:border-0">
-                {/* Nombre */}
+              <div key={w.id} className="grid grid-cols-[1fr_auto_auto] gap-x-4 items-center py-2.5 border-b border-gray-50 dark:border-gray-800/60 last:border-0">
                 <div className="flex items-center gap-2 min-w-0">
                   <div className="w-7 h-7 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center text-xs font-bold text-red-600 flex-shrink-0">
                     {w.name[0]}
                   </div>
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">{w.name}</p>
-                    <p className="text-[10px] text-gray-400">Ref: {formatMoney(metaDiariaRef)}</p>
-                  </div>
-                </div>
-                {/* Meta diaria */}
-                <div className="flex items-center gap-1 w-28 justify-end">
-                  <span className="text-xs text-gray-400">S/</span>
-                  <input type="number" min="0" step="10" placeholder={metaDiariaRef}
-                    className="input w-20 text-right text-sm"
-                    value={workerGoals[w.id] ?? ''}
-                    onChange={e => setWorkerGoals(g => ({ ...g, [w.id]: e.target.value }))} />
+                  <p className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">{w.name}</p>
                 </div>
                 {/* Porcentaje */}
                 <div className="flex items-center gap-1 w-20 justify-end">
@@ -489,9 +476,9 @@ export default function Configuracion() {
                     onChange={e => setRepartoPorc(p => ({ ...p, [w.id]: e.target.value }))} />
                   <span className="text-xs text-gray-400">%</span>
                 </div>
-                {/* Monto reparto */}
-                <p className={`text-sm font-bold text-right w-20 ${asignado > 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-300 dark:text-gray-600'}`}>
-                  {monto > 0 && porc > 0 ? formatMoney(asignado) : '—'}
+                {/* Meta calculada */}
+                <p className={`text-sm font-bold text-right w-24 ${asignado ? 'text-red-600 dark:text-red-400' : 'text-gray-300 dark:text-gray-600'}`}>
+                  {asignado ? formatMoney(asignado) : '—'}
                 </p>
               </div>
             )
@@ -500,21 +487,16 @@ export default function Configuracion() {
 
         {/* Totales */}
         {activeWorkers.length > 0 && (() => {
-          const totalGoal = activeWorkers.reduce((s, w) => {
-            const v = workerGoals[w.id]
-            return s + (v !== '' && v !== undefined && v !== null ? parseFloat(v) || 0 : metaDiariaRef)
-          }, 0)
           const totalPorc = activeWorkers.reduce((s, w) => s + (parseFloat(repartoPorc[w.id]) || 0), 0)
           const over = totalPorc > 100
           const ok   = Math.abs(totalPorc - 100) < 0.01
           return (
-            <div className="grid grid-cols-[1fr_auto_auto_auto] gap-x-3 items-center pt-3 mt-1 border-t border-gray-200 dark:border-gray-700">
-              <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">Totales</p>
-              <p className="text-sm font-bold text-red-600 dark:text-red-400 text-right w-28">{formatMoney(totalGoal)}</p>
+            <div className="grid grid-cols-[1fr_auto_auto] gap-x-4 items-center pt-3 mt-1 border-t border-gray-200 dark:border-gray-700">
+              <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">Total</p>
               <p className={`text-sm font-bold text-right w-20 ${over ? 'text-red-500' : ok ? 'text-emerald-600' : 'text-gray-500'}`}>
                 {totalPorc}% {ok ? '✓' : over ? '⚠' : ''}
               </p>
-              <p className="text-sm font-bold text-red-600 dark:text-red-400 text-right w-20">
+              <p className="text-sm font-bold text-red-600 dark:text-red-400 text-right w-24">
                 {parseFloat(repartoMonto) > 0 ? formatMoney(parseFloat(repartoMonto)) : '—'}
               </p>
             </div>

@@ -215,9 +215,7 @@ export default function DashboardTrabajador() {
   const [anuncios, setAnuncios] = useState([])
   const [anuncioIdx, setAnuncioIdx] = useState(0)
 
-  useEffect(() => {
-    if (!profile?.worker_id) return
-    const wid = profile.worker_id
+  function loadAnuncios(wid) {
     supabase.from('app_settings').select('value').eq('key', 'anuncios').maybeSingle()
       .then(({ data }) => {
         if (!data?.value) return
@@ -227,6 +225,20 @@ export default function DashboardTrabajador() {
         setAnuncios(pendientes)
         setAnuncioIdx(0)
       })
+  }
+
+  useEffect(() => {
+    if (!profile?.worker_id) return
+    const wid = profile.worker_id
+    loadAnuncios(wid)
+
+    const channel = supabase
+      .channel('anuncios-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'app_settings', filter: 'key=eq.anuncios' },
+        () => loadAnuncios(wid)
+      )
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
   }, [profile?.worker_id])
 
   async function dismissAnuncio(id) {

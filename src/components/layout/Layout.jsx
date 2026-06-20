@@ -12,6 +12,82 @@ import { cn, todayISO } from '../../lib/utils'
 import { IncidentForm } from '../../pages/Trabajadores'
 import UpdateBanner from '../UpdateBanner'
 import toast from 'react-hot-toast'
+import { supabase } from '../../lib/supabase'
+
+function AnuncioOverlay({ profile }) {
+  const [anuncios, setAnuncios] = useState([])
+
+  function loadAnuncios(wid) {
+    supabase.from('app_settings').select('value').eq('key', 'anuncios').maybeSingle()
+      .then(({ data }) => {
+        if (!data?.value) return
+        const pendientes = data.value.filter(a =>
+          (a.target === 'all' || a.target === wid) && !(a.read || []).includes(wid)
+        )
+        setAnuncios(pendientes)
+      })
+  }
+
+  useEffect(() => {
+    if (!profile?.worker_id) return
+    const wid = profile.worker_id
+    loadAnuncios(wid)
+    const ch = supabase
+      .channel('anuncios-global')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'app_settings', filter: 'key=eq.anuncios' },
+        () => loadAnuncios(wid))
+      .subscribe()
+    return () => { supabase.removeChannel(ch) }
+  }, [profile?.worker_id])
+
+  async function dismiss(id) {
+    const wid = profile?.worker_id
+    if (!wid) return
+    const { data } = await supabase.from('app_settings').select('value').eq('key', 'anuncios').maybeSingle()
+    if (!data?.value) return
+    const updated = data.value.map(a => a.id === id ? { ...a, read: [...(a.read || []), wid] } : a)
+    await supabase.from('app_settings').upsert({ key: 'anuncios', value: updated, updated_at: new Date().toISOString() }, { onConflict: 'key' })
+    setAnuncios(prev => prev.filter(a => a.id !== id))
+  }
+
+  const current = anuncios[0]
+  if (!current) return null
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center px-4">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+      <div className="relative w-full max-w-sm bg-white dark:bg-gray-900 rounded-3xl shadow-2xl overflow-hidden" style={{ animation: 'popIn 220ms cubic-bezier(0.23,1,0.32,1)' }}>
+        <div className="bg-gradient-to-r from-red-600 to-red-500 px-5 pt-5 pb-8">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-2xl">📣</span>
+              <p className="text-white font-bold text-sm uppercase tracking-wide">Anuncio del equipo</p>
+            </div>
+            <button onClick={() => dismiss(current.id)}
+              className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center hover:bg-white/30 transition-colors">
+              <X className="w-4 h-4 text-white" />
+            </button>
+          </div>
+        </div>
+        <div className="-mt-4 mx-4 bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-5">
+          <p className="text-gray-800 dark:text-gray-100 text-base leading-relaxed whitespace-pre-wrap">
+            {current.message}
+          </p>
+          <p className="text-xs text-gray-400 mt-3">
+            {new Date(current.createdAt).toLocaleDateString('es-PE', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}
+          </p>
+        </div>
+        <div className="px-4 pt-3 pb-5 flex items-center justify-between">
+          {anuncios.length > 1 && <p className="text-xs text-gray-400">{anuncios.length - 1} más pendiente{anuncios.length > 2 ? 's' : ''}</p>}
+          <button onClick={() => dismiss(current.id)}
+            className="ml-auto bg-red-600 hover:bg-red-700 text-white text-sm font-bold px-5 py-2.5 rounded-2xl transition-colors">
+            Entendido ✓
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 const GASTO_CATS = [
   { value: 'insumos',      label: '🧴 Insumos' },
@@ -268,6 +344,7 @@ export default function Layout({ children }) {
 
   return (
     <div className="min-h-screen flex bg-gray-50 dark:bg-gray-950">
+      {isWorker && <AnuncioOverlay profile={profile} />}
       {/* Sidebar desktop */}
       <aside className={cn(
         'hidden lg:flex flex-col bg-[#1e1e1e] transition-all duration-200',

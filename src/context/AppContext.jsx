@@ -488,17 +488,40 @@ export function AppProvider({ children }) {
   }
 
   // ─── CRUD Tickets ───────────────────────────────────────────────────────────
+  function playTicketSound() {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)()
+      const notes = [523.25, 659.25, 783.99, 1046.5] // C5 E5 G5 C6
+      notes.forEach((freq, i) => {
+        const osc = ctx.createOscillator()
+        const gain = ctx.createGain()
+        osc.connect(gain)
+        gain.connect(ctx.destination)
+        osc.type = 'sine'
+        osc.frequency.value = freq
+        const t = ctx.currentTime + i * 0.12
+        gain.gain.setValueAtTime(0, t)
+        gain.gain.linearRampToValueAtTime(0.18, t + 0.02)
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.22)
+        osc.start(t)
+        osc.stop(t + 0.22)
+      })
+      setTimeout(() => ctx.close(), 1500)
+    } catch {}
+  }
+
   const addTicket = async (data) => {
     if (IS_DEMO) {
       const t = { ...data, id: `t${Date.now()}` }
       dispatch({ type: 'ADD_TICKET', payload: t })
+      playTicketSound()
       return t
     }
-    // Intentar con nuevas columnas; si no existen (SQL pendiente), usar columnas básicas
     const { data: t, error } = await supabase.from('tickets').insert(data).select().single()
     if (error) throw error
     invalidateDynamicCache()
     dispatch({ type: 'ADD_TICKET', payload: t })
+    playTicketSound()
     return t
   }
 

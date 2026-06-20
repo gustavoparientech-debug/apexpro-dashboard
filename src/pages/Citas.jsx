@@ -129,12 +129,8 @@ function CitaSheet({ cita, onClose, onSave }) {
           </div>
           <div>
             <label className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1 block">Hora</label>
-            <select className="input" value={form.time} onChange={e => setForm(f => ({ ...f, time: e.target.value }))}>
-              <option value="">-- Seleccionar --</option>
-              {TIME_SLOTS.map(t => (
-                <option key={t} value={t}>{formatSlot(t)}</option>
-              ))}
-            </select>
+            <input type="time" step="1800" className="input" value={form.time}
+              onChange={e => setForm(f => ({ ...f, time: e.target.value }))} />
           </div>
         </div>
 

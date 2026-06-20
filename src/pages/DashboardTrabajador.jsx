@@ -311,10 +311,16 @@ export default function DashboardTrabajador() {
       {(() => {
         const faltante = Math.max(0, metaDiaria - totalHoy)
         const completado = progreso >= 100
+        const mitad     = progreso >= 50 && progreso < 100
         const r = 44
         const circ = 2 * Math.PI * r
+        const cardCls = completado
+          ? 'bg-gradient-to-b from-emerald-500 to-emerald-700 shadow-emerald-300/40 dark:shadow-emerald-900/40'
+          : mitad
+          ? 'bg-gradient-to-b from-amber-400 to-amber-600 shadow-amber-300/40 dark:shadow-amber-900/40'
+          : 'bg-gradient-to-b from-red-500 to-red-800 shadow-red-300/30 dark:shadow-red-900/30'
         return (
-          <div className={`rounded-2xl p-4 text-white shadow-xl transition-colors ${completado ? 'bg-gradient-to-b from-emerald-500 to-emerald-700 shadow-emerald-300/40 dark:shadow-emerald-900/40' : 'bg-gradient-to-b from-red-500 to-red-800 shadow-red-300/30 dark:shadow-red-900/30'}`}>
+          <div className={`rounded-2xl p-4 text-white shadow-xl transition-colors ${cardCls}`}>
             {/* Header */}
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-1.5">
@@ -343,7 +349,7 @@ export default function DashboardTrabajador() {
                   />
                 </svg>
                 <div className="absolute inset-0 flex flex-col items-center justify-center gap-0.5">
-                  <span className="text-2xl font-black leading-none">{progreso}%</span>
+                  <span className="text-lg font-black leading-none">{progreso}%</span>
                   <span className="text-[9px] opacity-60 font-medium uppercase tracking-wider">avance</span>
                 </div>
               </div>

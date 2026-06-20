@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { formatMoney, todayISO, compressImage } from '../lib/utils'
 import ConfirmDialog from '../components/ui/ConfirmDialog'
-import { Plus, Camera, Search, X, Clock, CheckCircle, Trash2, PenLine, Zap, Save, ChevronLeft, ChevronRight, Eye, EyeOff, AlertCircle } from 'lucide-react'
+import { Plus, Camera, Search, X, Clock, CheckCircle, Trash2, PenLine, Zap, Save, ChevronLeft, ChevronRight, Eye, EyeOff, AlertCircle, TrendingDown } from 'lucide-react'
 import { IncidentForm } from './Trabajadores'
 import toast from 'react-hot-toast'
 
@@ -1571,6 +1571,16 @@ export default function Registro() {
                     <div className="text-left">
                       <p className="text-sm font-bold text-gray-900 dark:text-white">Nueva incidencia</p>
                       <p className="text-xs text-gray-400">Reportar un problema</p>
+                    </div>
+                  </button>
+                  <button onClick={() => { setShowFabMenu(false); window.dispatchEvent(new Event('open-gasto')) }}
+                    className="w-full flex items-center gap-3 px-4 py-4 hover:bg-green-50 dark:hover:bg-green-900/20 active:bg-green-100 transition-colors border-b border-gray-100 dark:border-gray-800">
+                    <div className="w-9 h-9 rounded-xl bg-green-100 dark:bg-green-900/40 flex items-center justify-center flex-shrink-0">
+                      <TrendingDown className="w-5 h-5 text-green-600" />
+                    </div>
+                    <div className="text-left">
+                      <p className="text-sm font-bold text-gray-900 dark:text-white">Registrar gasto</p>
+                      <p className="text-xs text-gray-400">Anotar un egreso del día</p>
                     </div>
                   </button>
                   <button onClick={() => { setShowFabMenu(false); setShowNewForm(true) }}

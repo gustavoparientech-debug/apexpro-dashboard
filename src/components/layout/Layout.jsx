@@ -194,6 +194,12 @@ function GlobalFab({ canAdmin, workerWorkerId }) {
   const [showGasto, setShowGasto] = useState(false)
   const [showIncident, setShowIncident] = useState(false)
 
+  useEffect(() => {
+    const handler = () => setShowGasto(true)
+    window.addEventListener('open-gasto', handler)
+    return () => window.removeEventListener('open-gasto', handler)
+  }, [])
+
   function handleNewTicket() {
     navigate('/registro', { state: { autoNew: true } })
     setOpen(false)

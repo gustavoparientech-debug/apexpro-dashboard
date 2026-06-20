@@ -215,39 +215,48 @@ export default function Presupuesto() {
   const discountAmt = Math.round(total * discountPct / 100)
   const totalFinal = total - discountAmt
 
-  const [exportBrandModal, setExportBrandModal] = useState(false)
-  const [exportBrandInput, setExportBrandInput] = useState('')
-  const [exportTarget, setExportTarget] = useState(null) // 'whatsapp' | 'pdf'
+  const [exportModal, setExportModal] = useState(false)
+  const [exportTarget, setExportTarget] = useState(null)
+  const [exportForm, setExportForm] = useState({ nombre: '', celular: '', ruc: '', marca: '', modelo: '', placa: '', anio: '', color: '', observaciones: '' })
 
   function openExportModal(target) {
     if (selectedCount === 0) { toast.error('Selecciona al menos un paño'); return }
-    setExportBrandInput(selectedBrand || '')
+    setExportForm(f => ({ ...f, marca: selectedBrand || '' }))
     setExportTarget(target)
-    setExportBrandModal(true)
+    setExportModal(true)
   }
 
   function doExport() {
-    const brand = exportBrandInput.trim() || 'Otro'
-    setExportBrandModal(false)
-    if (exportTarget === 'whatsapp') buildWhatsApp(brand)
-    else buildPDF(brand)
+    setExportModal(false)
+    if (exportTarget === 'whatsapp') buildWhatsApp()
+    else buildPDF()
   }
 
-  function buildWhatsApp(brand) {
+  function buildWhatsApp() {
+    const { nombre, celular, marca, modelo, placa, anio, color, observaciones } = exportForm
     const vtEmoji = vtLabel?.emoji || ''
     const vtName = vtLabel?.label || ''
     const selectedRows = rows.filter(r => selected[r.id])
     const hasDamage = selectedRows.some(r => r.damageId !== 'none')
+    const today = new Date().toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric' })
 
-    let msg = `🔧 *PRESUPUESTO - APEX PRO*\n`
+    let msg = `🔧 *COTIZACIÓN - APEX PRO*\n`
     msg += `✨ _Planchado & Pintura Profesional_\n`
+    msg += `📅 ${today}\n`
     msg += `━━━━━━━━━━━━━━━━━━━━\n\n`
-    msg += `${vtEmoji} *Vehículo:* ${vtName} · ${brand}\n\n`
-    msg += `📋 *Trabajos a realizar:*\n`
-    selectedRows.forEach(r => {
+    if (nombre) msg += `👤 *Cliente:* ${nombre}\n`
+    if (celular) msg += `📞 *Celular:* ${celular}\n`
+    msg += `\n`
+    msg += `${vtEmoji} *Vehículo:* ${vtName}${marca ? ` ${marca}` : ''}${modelo ? ` ${modelo}` : ''}\n`
+    if (placa)  msg += `🔑 *Placa:* ${placa.toUpperCase()}\n`
+    if (anio)   msg += `📆 *Año:* ${anio}${color ? `  ·  Color: ${color}` : ''}\n`
+    msg += `\n📋 *Trabajos a realizar:*\n`
+    selectedRows.forEach((r, idx) => {
       const dmg = DAMAGE_LEVELS.find(d => d.id === r.damageId)
-      const dmgTag = r.damageId !== 'none' ? ` _(+ planchado ${dmg?.label})_` : ''
-      msg += `  🔹 ${r.label}${dmgTag} — ${formatMoney(r.price)}\n`
+      const desc = r.damageId !== 'none'
+        ? `${r.label} + Planchado (${dmg?.label})`
+        : `Pintado de ${r.label}`
+      msg += `  ${idx + 1}. ${desc} — ${formatMoney(r.price)}\n`
     })
     if (hasDamage) {
       const totalPintura = selectedRows.reduce((s, r) => s + r.paintPrice, 0)
@@ -256,164 +265,234 @@ export default function Presupuesto() {
       msg += `🔨 Planchado: ${formatMoney(totalPlanchado)}\n`
     }
     msg += `\n━━━━━━━━━━━━━━━━━━━━\n`
-    msg += `💲 Subtotal: ${formatMoney(total)}\n`
     if (discountPct > 0) {
+      msg += `💲 Subtotal: ${formatMoney(total)}\n`
       msg += `🎁 Descuento (${discountPct}%): -${formatMoney(discountAmt)}\n`
-      msg += `━━━━━━━━━━━━━━━━━━━━\n`
-      msg += `💵 *TOTAL: ${formatMoney(totalFinal)}*\n`
-    } else {
-      msg += `💵 *TOTAL: ${formatMoney(total)}*\n`
     }
+    msg += `💵 *TOTAL: ${formatMoney(totalFinal)}*\n`
     msg += `━━━━━━━━━━━━━━━━━━━━\n\n`
-    msg += `✅ Incluye mano de obra, materiales y garantía de trabajo.\n`
-    msg += `📞 Para consultas y citas, contáctenos.\n\n`
-    msg += `_Apex Pro — Calidad que se nota_ 🚗✨`
+    if (observaciones) msg += `📝 ${observaciones}\n\n`
+    msg += `✅ 50% de adelanto y 50% contra entrega.\n`
+    msg += `⏱ Vigencia: 15 días · Entrega: máx. 3 días hábiles.\n`
+    msg += `💰 Precios incluyen IGV.\n\n`
+    msg += `_Apex Pro Detailing · 📍Calle Idelfonzo Lopez N° 700 Zamacola, Arequipa_ 🚗✨`
 
     window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank')
   }
 
-  function buildPDF(brand) {
+  function buildPDF() {
+    const { nombre, celular, ruc, marca, modelo, placa, anio, color, observaciones } = exportForm
     const doc = new jsPDF({ unit: 'mm', format: 'a4' })
     const W = 210
-    const margin = 20
+    const mL = 14, mR = 14
+    const cW = W - mL - mR
+    const today = new Date().toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric' })
     let y = 0
 
+    // ── Header rojo ──────────────────────────────────────────────
     doc.setFillColor(185, 28, 28)
-    doc.rect(0, 0, W, 42, 'F')
-    doc.setFillColor(127, 0, 0)
-    doc.rect(0, 36, W, 6, 'F')
+    doc.rect(0, 0, W, 38, 'F')
 
+    // Logo / nombre empresa
     doc.setTextColor(255, 255, 255)
-    doc.setFontSize(22)
+    doc.setFontSize(20)
     doc.setFont('helvetica', 'bold')
-    doc.text('APEX PRO', margin, 18)
-    doc.setFontSize(10)
+    doc.text('APEX PRO', mL, 16)
+    doc.setFontSize(8)
     doc.setFont('helvetica', 'normal')
-    doc.text('Planchado & Pintura Profesional', margin, 27)
-    doc.setFontSize(9)
-    doc.text('PRESUPUESTO', W - margin, 18, { align: 'right' })
-    const today = new Date().toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric' })
-    doc.text(`Fecha: ${today}`, W - margin, 25, { align: 'right' })
-    y = 52
+    doc.text('DETAILING', mL, 22)
+    doc.setFontSize(7.5)
+    doc.text('Calle Idelfonzo Lopez N° 700 Zamacola, Arequipa', mL, 29)
+    doc.text('959 240 309  |  Apexprodetailing0@gmail.com', mL, 34)
 
-    // Info vehículo
-    doc.setFillColor(255, 245, 245)
-    doc.roundedRect(margin, y, W - margin * 2, 16, 3, 3, 'F')
-    doc.setDrawColor(185, 28, 28)
-    doc.setLineWidth(0.5)
-    doc.roundedRect(margin, y, W - margin * 2, 16, 3, 3, 'S')
-    doc.setTextColor(185, 28, 28)
-    doc.setFontSize(10)
+    // N° cotización y fecha
+    doc.setFontSize(18)
     doc.setFont('helvetica', 'bold')
-    doc.text(`${vtLabel?.label || ''} · ${brand}`, margin + 5, y + 10)
-    y += 24
+    doc.text('COTIZACIÓN', W - mR, 15, { align: 'right' })
+    doc.setFontSize(8)
+    doc.setFont('helvetica', 'normal')
+    doc.text(`Fecha: ${today}`, W - mR, 28, { align: 'right' })
 
-    // Tabla header — solo Paño y Precio
-    doc.setFillColor(185, 28, 28)
-    doc.rect(margin, y, W - margin * 2, 8, 'F')
-    doc.setTextColor(255, 255, 255)
-    doc.setFontSize(8.5)
+    y = 46
+
+    // ── Datos Cliente ────────────────────────────────────────────
+    const sectionHeader = (label, yPos) => {
+      doc.setFillColor(40, 40, 40)
+      doc.rect(mL, yPos, cW, 6.5, 'F')
+      doc.setTextColor(255, 255, 255)
+      doc.setFontSize(7.5)
+      doc.setFont('helvetica', 'bold')
+      doc.text(label, mL + 3, yPos + 4.5)
+      return yPos + 6.5
+    }
+
+    const field = (label, value, x, yPos, w) => {
+      doc.setTextColor(120, 120, 120)
+      doc.setFontSize(7)
+      doc.setFont('helvetica', 'normal')
+      doc.text(label, x, yPos)
+      doc.setTextColor(20, 20, 20)
+      doc.setFontSize(8.5)
+      doc.setFont('helvetica', value ? 'bold' : 'normal')
+      doc.text(value || '—', x, yPos + 5)
+      doc.setDrawColor(220, 220, 220)
+      doc.setLineWidth(0.3)
+      doc.line(x, yPos + 6.5, x + w, yPos + 6.5)
+    }
+
+    y = sectionHeader('DATOS DEL CLIENTE', y)
+    y += 4
+    field('Nombre / Razon Social', nombre, mL, y, cW * 0.65)
+    field('Celular', celular, mL + cW * 0.68, y, cW * 0.17)
+    field('RUC / DNI', ruc, mL + cW * 0.88, y, cW * 0.12)
+    y += 16
+
+    y = sectionHeader('DATOS DEL VEHÍCULO', y)
+    y += 4
+    const vtName = vtLabel?.label || ''
+    field('Marca', marca, mL, y, cW * 0.22)
+    field('Modelo', modelo, mL + cW * 0.25, y, cW * 0.22)
+    field('Placa', placa?.toUpperCase() || '', mL + cW * 0.50, y, cW * 0.17)
+    field('Año', anio, mL + cW * 0.70, y, cW * 0.12)
+    field('Color', color, mL + cW * 0.85, y, cW * 0.15)
+    y += 16
+
+    // ── Tabla de ítems ───────────────────────────────────────────
+    y = sectionHeader('DESCRIPCIÓN DE SERVICIOS', y)
+
+    // Cabecera tabla
+    doc.setFillColor(220, 220, 220)
+    doc.rect(mL, y, cW, 6, 'F')
+    doc.setTextColor(40, 40, 40)
+    doc.setFontSize(7.5)
     doc.setFont('helvetica', 'bold')
-    doc.text('Paño / Trabajo', margin + 4, y + 5.5)
-    doc.text('Precio', W - margin - 4, y + 5.5, { align: 'right' })
-    y += 8
+    doc.text('N°', mL + 2, y + 4.2)
+    doc.text('DESCRIPCIÓN DEL SERVICIO', mL + 12, y + 4.2)
+    doc.text('TOTAL', W - mR - 2, y + 4.2, { align: 'right' })
+    y += 6
 
     const selectedRows = rows.filter(r => selected[r.id])
     selectedRows.forEach((r, i) => {
       const hasDmg = r.damageId !== 'none'
-      const rowH = hasDmg ? 12 : 7.5
-      if (i % 2 === 0) {
-        doc.setFillColor(254, 242, 242)
-        doc.rect(margin, y, W - margin * 2, rowH, 'F')
-      }
-      doc.setTextColor(30, 41, 59)
+      const dmg = DAMAGE_LEVELS.find(d => d.id === r.damageId)
+      const rowH = hasDmg ? 11 : 7.5
+      if (i % 2 === 0) { doc.setFillColor(250, 250, 250); doc.rect(mL, y, cW, rowH, 'F') }
+      doc.setDrawColor(235, 235, 235)
+      doc.setLineWidth(0.2)
+      doc.line(mL, y + rowH, mL + cW, y + rowH)
+
+      doc.setTextColor(100, 100, 100)
+      doc.setFontSize(7.5)
       doc.setFont('helvetica', 'normal')
-      doc.setFontSize(9)
-      doc.text(r.label, margin + 4, y + 5)
+      doc.text(`${i + 1}`, mL + 3, y + 5, { align: 'center' })
+
+      const desc = hasDmg
+        ? `${r.label} + Planchado`
+        : `Pintado de ${r.label}`
+      doc.setTextColor(20, 20, 20)
+      doc.setFontSize(8.5)
+      doc.text(desc, mL + 12, y + 5)
       if (hasDmg) {
-        const dmg = DAMAGE_LEVELS.find(d => d.id === r.damageId)
-        doc.setFontSize(7.5)
-        doc.setTextColor(180, 80, 0)
-        doc.text(`+ planchado ${dmg?.label} (+${formatMoney(r.planchadoPrice)})`, margin + 4, y + 9.5)
+        doc.setFontSize(7)
+        doc.setTextColor(160, 80, 0)
+        doc.text(`Daño ${dmg?.label} — planchado: ${formatMoney(r.planchadoPrice)} / pintura: ${formatMoney(r.paintPrice)}`, mL + 12, y + 9)
       }
-      doc.setTextColor(30, 41, 59)
+      doc.setTextColor(20, 20, 20)
       doc.setFont('helvetica', 'bold')
-      doc.setFontSize(9)
-      doc.text(formatMoney(r.price), W - margin - 4, y + (hasDmg ? 7 : 5), { align: 'right' })
+      doc.setFontSize(8.5)
+      doc.text(formatMoney(r.price), W - mR - 2, y + 5, { align: 'right' })
       y += rowH
     })
 
-    // Resumen pintura / planchado si aplica
-    const totalPlanchado = selectedRows.reduce((s, r) => s + r.planchadoPrice, 0)
-    if (totalPlanchado > 0) {
-      y += 2
-      const totalPintura = selectedRows.reduce((s, r) => s + r.paintPrice, 0)
-      doc.setFillColor(249, 250, 251)
-      doc.rect(margin, y, W - margin * 2, 7.5, 'F')
-      doc.setTextColor(80, 80, 80)
+    // Filas vacías hasta completar al menos 10 ítems
+    const emptyRows = Math.max(0, 10 - selectedRows.length)
+    for (let i = 0; i < emptyRows; i++) {
+      const ii = selectedRows.length + i
+      if (ii % 2 === 0) { doc.setFillColor(250, 250, 250); doc.rect(mL, y, cW, 7.5, 'F') }
+      doc.setDrawColor(235, 235, 235)
+      doc.line(mL, y + 7.5, mL + cW, y + 7.5)
+      doc.setTextColor(180, 180, 180)
+      doc.setFontSize(7.5)
       doc.setFont('helvetica', 'normal')
-      doc.setFontSize(8.5)
-      doc.text('Pintura', margin + 4, y + 5)
-      doc.text(formatMoney(totalPintura), W - margin - 4, y + 5, { align: 'right' })
-      y += 7.5
-      doc.setFillColor(255, 237, 213)
-      doc.rect(margin, y, W - margin * 2, 7.5, 'F')
-      doc.setTextColor(154, 52, 18)
-      doc.text('Planchado', margin + 4, y + 5)
-      doc.text(formatMoney(totalPlanchado), W - margin - 4, y + 5, { align: 'right' })
+      doc.text(`${ii + 1}`, mL + 3, y + 5, { align: 'center' })
       y += 7.5
     }
+    y += 2
 
-    y += 4
-
-    // Subtotal + descuento
+    // Subtotal / descuento / total
+    const numCol = W - mR - 35
     if (discountPct > 0) {
-      doc.setFillColor(249, 250, 251)
-      doc.rect(margin, y, W - margin * 2, 7.5, 'F')
-      doc.setTextColor(100, 116, 139)
+      doc.setFontSize(8)
       doc.setFont('helvetica', 'normal')
-      doc.setFontSize(9)
-      doc.text('Subtotal', margin + 4, y + 5)
-      doc.text(formatMoney(total), W - margin - 4, y + 5, { align: 'right' })
-      y += 7.5
-
-      doc.setFillColor(254, 242, 242)
-      doc.rect(margin, y, W - margin * 2, 7.5, 'F')
+      doc.setTextColor(100, 100, 100)
+      doc.text('Subtotal:', numCol, y + 5, { align: 'right' })
+      doc.text(formatMoney(total), W - mR - 2, y + 5, { align: 'right' })
+      y += 7
+      doc.setFillColor(255, 240, 240)
+      doc.rect(mL, y, cW, 7, 'F')
       doc.setTextColor(185, 28, 28)
       doc.setFont('helvetica', 'bold')
-      doc.setFontSize(9)
-      doc.text(`Descuento (${discountPct}%)`, margin + 4, y + 5)
-      doc.text(`-${formatMoney(discountAmt)}`, W - margin - 4, y + 5, { align: 'right' })
-      y += 11
+      doc.text(`Descuento (${discountPct}%):`, numCol, y + 5, { align: 'right' })
+      doc.text(`-${formatMoney(discountAmt)}`, W - mR - 2, y + 5, { align: 'right' })
+      y += 9
+    }
+    doc.setFillColor(185, 28, 28)
+    doc.rect(mL, y, cW, 9, 'F')
+    doc.setTextColor(255, 255, 255)
+    doc.setFontSize(10)
+    doc.setFont('helvetica', 'bold')
+    doc.text('TOTAL:', numCol, y + 6.3, { align: 'right' })
+    doc.text(formatMoney(totalFinal), W - mR - 2, y + 6.3, { align: 'right' })
+    y += 13
+
+    // Observaciones
+    if (observaciones) {
+      doc.setFillColor(245, 245, 245)
+      doc.rect(mL, y, cW, 10, 'F')
+      doc.setTextColor(80, 80, 80)
+      doc.setFontSize(7.5)
+      doc.setFont('helvetica', 'bold')
+      doc.text('Observaciones:', mL + 2, y + 5)
+      doc.setFont('helvetica', 'normal')
+      doc.text(observaciones, mL + 28, y + 5)
+      y += 13
     }
 
-    // Total final
-    doc.setFillColor(185, 28, 28)
-    doc.roundedRect(margin, y, W - margin * 2, 14, 3, 3, 'F')
-    doc.setTextColor(255, 255, 255)
-    doc.setFontSize(11)
-    doc.setFont('helvetica', 'bold')
-    doc.text('TOTAL', margin + 5, y + 9)
-    doc.setFontSize(13)
-    doc.text(formatMoney(totalFinal), W - margin - 5, y + 9, { align: 'right' })
-    y += 22
-
-    doc.setFillColor(243, 244, 246)
-    doc.roundedRect(margin, y, W - margin * 2, 18, 3, 3, 'F')
-    doc.setTextColor(100, 116, 139)
-    doc.setFontSize(8)
+    // Condiciones
+    doc.setFillColor(245, 245, 245)
+    doc.rect(mL, y, cW, 13, 'F')
+    doc.setTextColor(100, 100, 100)
+    doc.setFontSize(7)
     doc.setFont('helvetica', 'italic')
-    doc.text('Incluye mano de obra, materiales y garantia de trabajo.', margin + 5, y + 7)
-    doc.text('Este presupuesto tiene validez de 15 dias a partir de la fecha de emision.', margin + 5, y + 13)
+    doc.text('Forma de pago: 50% de adelanto y 50% contra entrega.', mL + 2, y + 4.5)
+    doc.text('Vigencia: 15 dias calendario a partir de la fecha.  |  Tiempo de entrega: maximo 3 dias habiles tras recibir el vehiculo.', mL + 2, y + 8.5)
+    doc.text('Precios incluyen IGV.', mL + 2, y + 12)
+    y += 17
 
-    doc.setFillColor(185, 28, 28)
-    doc.rect(0, 287, W, 10, 'F')
-    doc.setTextColor(255, 255, 255)
-    doc.setFontSize(8)
+    // Firmas
+    const col1 = mL, col2 = mL + cW / 2 + 5
+    const sigW = cW / 2 - 10
+    doc.setDrawColor(160, 160, 160)
+    doc.setLineWidth(0.4)
+    doc.line(col1, y + 14, col1 + sigW, y + 14)
+    doc.line(col2, y + 14, col2 + sigW, y + 14)
+    doc.setTextColor(80, 80, 80)
+    doc.setFontSize(7.5)
+    doc.setFont('helvetica', 'bold')
+    doc.text('Gustavo Pariente', col1, y + 18)
     doc.setFont('helvetica', 'normal')
-    doc.text('Apex Pro — Calidad que se nota', W / 2, 293, { align: 'center' })
+    doc.text('Firma Asesor', col1, y + 22)
+    doc.text('Firma Cliente', col2, y + 18)
 
-    doc.save(`presupuesto-apexpro-${today.replace(/\//g, '-')}.pdf`)
+    // Footer
+    doc.setFillColor(185, 28, 28)
+    doc.rect(0, 290, W, 7, 'F')
+    doc.setTextColor(255, 255, 255)
+    doc.setFontSize(7)
+    doc.setFont('helvetica', 'normal')
+    doc.text('Apex Pro Detailing  |  Calle Idelfonzo Lopez N° 700 Zamacola  |  959 240 309  |  Apexprodetailing0@gmail.com', W / 2, 294.5, { align: 'center' })
+
+    doc.save(`cotizacion-apexpro-${today.replace(/\//g, '-')}.pdf`)
     toast.success('PDF descargado')
   }
 
@@ -670,29 +749,86 @@ export default function Presupuesto() {
         </div>
       )}
 
-      {/* Modal: pedir marca */}
-      {exportBrandModal && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 px-4 pb-6"
-          onClick={() => setExportBrandModal(false)}>
-          <div className="bg-white dark:bg-gray-900 rounded-2xl w-full max-w-sm p-5 shadow-2xl"
+      {/* Modal: datos del cliente y vehículo */}
+      {exportModal && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 px-3 pb-3"
+          onClick={() => setExportModal(false)}>
+          <div className="bg-white dark:bg-gray-900 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden"
             onClick={e => e.stopPropagation()}>
-            <p className="font-bold text-gray-900 dark:text-white mb-1">¿Marca del vehículo?</p>
-            <p className="text-xs text-gray-500 mb-3">Déjalo vacío si no aplica (aparecerá como "Otro")</p>
-            <input
-              type="text"
-              placeholder="Ej: Toyota, BMW, Otro..."
-              value={exportBrandInput}
-              onChange={e => setExportBrandInput(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && doExport()}
-              autoFocus
-              className="input w-full mb-4"
-            />
-            <div className="grid grid-cols-2 gap-2">
-              <button onClick={() => setExportBrandModal(false)}
-                className="btn-secondary py-2.5 text-sm rounded-xl">Cancelar</button>
-              <button onClick={doExport}
-                className="btn-primary py-2.5 text-sm rounded-xl">
-                {exportTarget === 'whatsapp' ? '📲 Enviar' : '📄 Descargar'}
+            {/* Header */}
+            <div className="bg-red-600 px-5 py-3 flex items-center justify-between">
+              <div>
+                <p className="font-bold text-white text-base">Datos de la cotización</p>
+                <p className="text-red-200 text-xs">Opcional — déjalo vacío si no aplica</p>
+              </div>
+              <button onClick={() => setExportModal(false)} className="text-white/70 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-4 space-y-3 max-h-[70vh] overflow-y-auto">
+              {/* Cliente */}
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">Cliente</p>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="col-span-2">
+                  <label className="text-xs text-gray-500 mb-0.5 block">Nombre / Razón social</label>
+                  <input className="input w-full text-sm" placeholder="Ej: Juan Pérez"
+                    value={exportForm.nombre} onChange={e => setExportForm(f => ({ ...f, nombre: e.target.value }))} autoFocus />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 mb-0.5 block">Celular</label>
+                  <input className="input w-full text-sm" placeholder="999 999 999"
+                    value={exportForm.celular} onChange={e => setExportForm(f => ({ ...f, celular: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 mb-0.5 block">RUC / DNI</label>
+                  <input className="input w-full text-sm" placeholder="20..."
+                    value={exportForm.ruc} onChange={e => setExportForm(f => ({ ...f, ruc: e.target.value }))} />
+                </div>
+              </div>
+
+              {/* Vehículo */}
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-wide pt-1">Vehículo</p>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-xs text-gray-500 mb-0.5 block">Marca</label>
+                  <input className="input w-full text-sm" placeholder="Toyota, BMW..."
+                    value={exportForm.marca} onChange={e => setExportForm(f => ({ ...f, marca: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 mb-0.5 block">Modelo</label>
+                  <input className="input w-full text-sm" placeholder="Corolla, X5..."
+                    value={exportForm.modelo} onChange={e => setExportForm(f => ({ ...f, modelo: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 mb-0.5 block">Placa</label>
+                  <input className="input w-full text-sm uppercase" placeholder="ABC-123"
+                    value={exportForm.placa} onChange={e => setExportForm(f => ({ ...f, placa: e.target.value.toUpperCase() }))} />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 mb-0.5 block">Año</label>
+                  <input className="input w-full text-sm" placeholder="2020"
+                    value={exportForm.anio} onChange={e => setExportForm(f => ({ ...f, anio: e.target.value }))} />
+                </div>
+                <div className="col-span-2">
+                  <label className="text-xs text-gray-500 mb-0.5 block">Color</label>
+                  <input className="input w-full text-sm" placeholder="Blanco perla, Gris..."
+                    value={exportForm.color} onChange={e => setExportForm(f => ({ ...f, color: e.target.value }))} />
+                </div>
+              </div>
+
+              {/* Observaciones */}
+              <div>
+                <label className="text-xs text-gray-500 mb-0.5 block">Observaciones</label>
+                <input className="input w-full text-sm" placeholder="Notas adicionales..."
+                  value={exportForm.observaciones} onChange={e => setExportForm(f => ({ ...f, observaciones: e.target.value }))} />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 px-4 pb-4 pt-2">
+              <button onClick={() => setExportModal(false)} className="btn-secondary py-3 text-sm rounded-xl">Cancelar</button>
+              <button onClick={doExport} className="btn-primary py-3 text-sm rounded-xl font-bold">
+                {exportTarget === 'whatsapp' ? '📲 Enviar WhatsApp' : '📄 Descargar PDF'}
               </button>
             </div>
           </div>

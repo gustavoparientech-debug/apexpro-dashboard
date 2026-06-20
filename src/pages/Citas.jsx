@@ -139,6 +139,15 @@ function CitaSheet({ cita, onClose, onSave }) {
           </div>
         </div>
 
+        {/* Descripción si elige "Otro" */}
+        {form.service === 'otro' && (
+          <div>
+            <label className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1 block">¿Qué servicio?</label>
+            <input className="input" placeholder="Describe el servicio..."
+              value={form.serviceDesc || ''} onChange={e => setForm(f => ({ ...f, serviceDesc: e.target.value }))} autoFocus />
+          </div>
+        )}
+
         {/* Cliente */}
         <div>
           <label className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1 block">Cliente / Placa</label>
@@ -187,7 +196,7 @@ function CitaCard({ cita, canAdmin, onEdit, onDelete }) {
         </div>
 
         <div className="flex-1 min-w-0">
-          <p className={`text-sm font-bold ${c.text}`}>{svc.label}</p>
+          <p className={`text-sm font-bold ${c.text}`}>{cita.service === 'otro' && cita.serviceDesc ? cita.serviceDesc : svc.label}</p>
           {cita.client && (
             <p className="text-sm text-gray-700 dark:text-gray-300 font-medium truncate mt-0.5">{cita.client}</p>
           )}

@@ -449,16 +449,27 @@ export default function DashboardTrabajador() {
               const ampm = h >= 12 ? 'PM' : 'AM'
               const h12 = h % 12 || 12
               const timeStr = `${h12}:${String(m).padStart(2,'0')} ${ampm}`
+              const arrived  = c.status === 'arrived'
+              const noShow   = c.status === 'no_show'
+              const cardCls  = arrived
+                ? 'border border-emerald-500/60 bg-emerald-950/30'
+                : noShow
+                ? 'border border-red-500/60 bg-red-950/30'
+                : ''
+              const timeCls  = arrived ? 'text-emerald-400' : noShow ? 'text-red-400' : 'text-red-500'
+              const clockCls = arrived ? 'text-emerald-400' : noShow ? 'text-red-400' : 'text-red-500'
               return (
-                <div key={c.id} className="card flex items-center gap-3 py-3">
+                <div key={c.id} className={`card flex items-center gap-3 py-3 ${cardCls}`}>
                   <div className="w-9 h-9 rounded-xl bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-lg flex-shrink-0">{emoji}</div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-bold text-gray-900 dark:text-white truncate">{label}</p>
                     {c.client && <p className="text-xs text-gray-500 truncate">{c.client}</p>}
                   </div>
                   <div className="flex items-center gap-1 flex-shrink-0">
-                    <Clock className="w-3.5 h-3.5 text-red-500" />
-                    <span className="text-sm font-bold text-red-500">{timeStr}</span>
+                    {arrived && <span className="text-[10px] font-bold text-emerald-400 mr-1">✓ LLEGÓ</span>}
+                    {noShow  && <span className="text-[10px] font-bold text-red-400 mr-1">✗ NO LLEGÓ</span>}
+                    <Clock className={`w-3.5 h-3.5 ${clockCls}`} />
+                    <span className={`text-sm font-bold ${timeCls}`}>{timeStr}</span>
                   </div>
                 </div>
               )

@@ -1506,19 +1506,28 @@ export default function Registro() {
 
           {/* Filtro rango (solo admin) */}
           {canAdmin && (
-            <div className="flex items-center gap-2">
+            <div className="space-y-2">
               <button onClick={() => { setShowRange(v => !v); setRangeFrom(''); setRangeTo('') }}
-                className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-xl transition-colors font-semibold ${showRange ? 'bg-red-500 text-white' : 'bg-white/10 text-gray-300 hover:bg-white/20'}`}>
+                className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full transition-all font-semibold backdrop-blur-sm ${showRange ? 'bg-red-500/90 text-white shadow-lg shadow-red-500/30' : 'bg-white/15 text-gray-200 hover:bg-white/25 border border-white/10'}`}>
                 <Search className="w-3 h-3" />
-                {showRange ? 'Rango activo' : 'Filtrar rango'}
+                {showRange ? '✕ Cerrar rango' : 'Filtrar por rango'}
               </button>
+
               {showRange && (
-                <div className="flex items-center gap-1.5 flex-1">
-                  <input type="date" className="bg-white/10 text-white text-xs rounded-lg px-2 py-1 focus:outline-none flex-1 min-w-0"
-                    value={rangeFrom} onChange={e => setRangeFrom(e.target.value)} />
-                  <span className="text-gray-400 text-xs">–</span>
-                  <input type="date" className="bg-white/10 text-white text-xs rounded-lg px-2 py-1 focus:outline-none flex-1 min-w-0"
-                    value={rangeTo} min={rangeFrom} onChange={e => setRangeTo(e.target.value)} />
+                <div className="flex items-center gap-2 bg-black/30 backdrop-blur-md border border-white/10 rounded-2xl px-3 py-2.5">
+                  <div className="flex flex-col flex-1 min-w-0">
+                    <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-0.5">Desde</span>
+                    <input type="date"
+                      className="bg-transparent text-white text-xs font-semibold focus:outline-none w-full"
+                      value={rangeFrom} onChange={e => setRangeFrom(e.target.value)} />
+                  </div>
+                  <div className="w-px h-8 bg-white/20 flex-shrink-0" />
+                  <div className="flex flex-col flex-1 min-w-0">
+                    <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-0.5">Hasta</span>
+                    <input type="date"
+                      className="bg-transparent text-white text-xs font-semibold focus:outline-none w-full"
+                      value={rangeTo} min={rangeFrom} onChange={e => setRangeTo(e.target.value)} />
+                  </div>
                 </div>
               )}
             </div>

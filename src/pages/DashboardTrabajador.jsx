@@ -181,7 +181,7 @@ export default function DashboardTrabajador() {
     toast.success('Datos actualizados')
   }
 
-  const [citasHoy, setCitasHoy] = useState(0)
+  const [citasDelDia, setCitasDelDia] = useState([])
 
   // Recargar datos al entrar al dashboard para ver cambios de otros
   useEffect(() => { loadData() }, [])
@@ -191,7 +191,10 @@ export default function DashboardTrabajador() {
       .then(({ data }) => {
         if (data?.value) {
           const hoy = todayISO()
-          setCitasHoy(data.value.filter(c => c.date === hoy).length)
+          const hoyList = data.value
+            .filter(c => c.date === hoy)
+            .sort((a, b) => a.time.localeCompare(b.time))
+          setCitasDelDia(hoyList)
         }
       })
   }, [])
@@ -409,13 +412,48 @@ export default function DashboardTrabajador() {
           <p className="text-[11px] text-gray-500 mt-1.5 leading-tight">En proceso</p>
         </div>
         <button onClick={() => navigate('/citas')} className="card text-center py-4 active:scale-95 transition-transform hover:border-red-200 dark:hover:border-red-900">
-          <p className="text-3xl font-black text-red-600">{citasHoy}</p>
+          <p className="text-3xl font-black text-red-600">{citasDelDia.length}</p>
           <div className="flex items-center justify-center gap-1 mt-1.5">
             <CalendarDays className="w-3 h-3 text-gray-400" />
             <p className="text-[11px] text-gray-500 leading-tight">Citas hoy</p>
           </div>
         </button>
       </div>
+
+      {/* Citas del día */}
+      {citasDelDia.length > 0 && (
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">Citas de hoy</p>
+            <button onClick={() => navigate('/citas')} className="text-xs text-red-500 font-semibold">Ver todas</button>
+          </div>
+          <div className="space-y-2">
+            {citasDelDia.map(c => {
+              const EMOJIS = { lavado_estandar:'🚿', lavado_offroad:'🚙', lavado_detailing:'✨', ceramico:'💎', ppf:'🛡️', polarizado:'🕶️', planchado:'🎨', otro:'🔧' }
+              const LABELS = { lavado_estandar:'Lavado Estándar', lavado_offroad:'Lavado Off-Road', lavado_detailing:'Detailing Completo', ceramico:'Recubrimiento Cerámico', ppf:'PPF', polarizado:'Polarizado', planchado:'Planchado y Pintura', otro:'Otro' }
+              const emoji = EMOJIS[c.service] || '🔧'
+              const label = c.service === 'otro' && c.serviceDesc ? c.serviceDesc : (LABELS[c.service] || 'Otro')
+              const [h, m] = c.time.split(':').map(Number)
+              const ampm = h >= 12 ? 'PM' : 'AM'
+              const h12 = h % 12 || 12
+              const timeStr = `${h12}:${String(m).padStart(2,'0')} ${ampm}`
+              return (
+                <div key={c.id} className="card flex items-center gap-3 py-3">
+                  <div className="w-9 h-9 rounded-xl bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-lg flex-shrink-0">{emoji}</div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold text-gray-900 dark:text-white truncate">{label}</p>
+                    {c.client && <p className="text-xs text-gray-500 truncate">{c.client}</p>}
+                  </div>
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    <Clock className="w-3.5 h-3.5 text-red-500" />
+                    <span className="text-sm font-bold text-red-500">{timeStr}</span>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Tickets abiertos */}
       {myOpen.length > 0 && (

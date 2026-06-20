@@ -314,9 +314,9 @@ export default function DashboardTrabajador() {
         const r = 44
         const circ = 2 * Math.PI * r
         return (
-          <div className={`rounded-2xl p-5 text-white shadow-xl transition-colors ${completado ? 'bg-gradient-to-b from-emerald-500 to-emerald-700 shadow-emerald-300/40 dark:shadow-emerald-900/40' : 'bg-gradient-to-b from-red-500 to-red-800 shadow-red-300/30 dark:shadow-red-900/30'}`}>
+          <div className={`rounded-2xl p-4 text-white shadow-xl transition-colors ${completado ? 'bg-gradient-to-b from-emerald-500 to-emerald-700 shadow-emerald-300/40 dark:shadow-emerald-900/40' : 'bg-gradient-to-b from-red-500 to-red-800 shadow-red-300/30 dark:shadow-red-900/30'}`}>
             {/* Header */}
-            <div className="flex items-center justify-between mb-5">
+            <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-1.5">
                 <Target className="w-3.5 h-3.5 opacity-70" />
                 <span className="text-xs font-semibold uppercase tracking-widest opacity-70">
@@ -329,12 +329,13 @@ export default function DashboardTrabajador() {
               }
             </div>
 
-            {/* Centro: círculo grande */}
-            <div className="flex flex-col items-center mb-5">
-              <div className="relative w-32 h-32">
-                <svg className="w-32 h-32 -rotate-90" viewBox="0 0 100 100">
-                  <circle cx="50" cy="50" r={r} fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth="9" />
-                  <circle cx="50" cy="50" r={r} fill="none" stroke="white" strokeWidth="9"
+            {/* Círculo + stats en fila */}
+            <div className="flex items-center gap-4 mb-3">
+              {/* Círculo compacto */}
+              <div className="relative flex-shrink-0 w-20 h-20">
+                <svg className="w-20 h-20 -rotate-90" viewBox="0 0 100 100">
+                  <circle cx="50" cy="50" r={r} fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth="10" />
+                  <circle cx="50" cy="50" r={r} fill="none" stroke="white" strokeWidth="10"
                     strokeDasharray={circ}
                     strokeDashoffset={circ * (1 - Math.min(progreso, 100) / 100)}
                     strokeLinecap="round"
@@ -342,25 +343,25 @@ export default function DashboardTrabajador() {
                   />
                 </svg>
                 <div className="absolute inset-0 flex flex-col items-center justify-center gap-0.5">
-                  <span className="text-3xl font-black leading-none">{progreso}%</span>
-                  <span className="text-[10px] opacity-60 font-medium uppercase tracking-wider">avance</span>
+                  <span className="text-2xl font-black leading-none">{progreso}%</span>
+                  <span className="text-[9px] opacity-60 font-medium uppercase tracking-wider">avance</span>
                 </div>
               </div>
-            </div>
 
-            {/* Stats fila */}
-            <div className="grid grid-cols-2 gap-3 mb-4">
-              <div className="bg-white/10 rounded-xl p-3 text-center">
-                <p className="text-xl font-black leading-none">{formatMoney(totalHoy)}</p>
-                <p className="text-[10px] opacity-60 mt-1 uppercase tracking-wide">Ganado hoy</p>
-              </div>
-              <div className="bg-white/10 rounded-xl p-3 text-center">
-                <p className="text-xl font-black leading-none">
-                  {completado ? formatMoney(totalHoy - metaDiaria) : formatMoney(faltante)}
-                </p>
-                <p className="text-[10px] opacity-60 mt-1 uppercase tracking-wide">
-                  {completado ? 'Extra' : 'Faltan'}
-                </p>
+              {/* Stats en columna */}
+              <div className="flex-1 grid grid-cols-2 gap-2">
+                <div className="bg-white/10 rounded-xl p-2.5 text-center">
+                  <p className="text-base font-black leading-none">{formatMoney(totalHoy)}</p>
+                  <p className="text-[9px] opacity-60 mt-1 uppercase tracking-wide">Ganado</p>
+                </div>
+                <div className="bg-white/10 rounded-xl p-2.5 text-center">
+                  <p className="text-base font-black leading-none">
+                    {completado ? formatMoney(totalHoy - metaDiaria) : formatMoney(faltante)}
+                  </p>
+                  <p className="text-[9px] opacity-60 mt-1 uppercase tracking-wide">
+                    {completado ? 'Extra' : 'Faltan'}
+                  </p>
+                </div>
               </div>
             </div>
 

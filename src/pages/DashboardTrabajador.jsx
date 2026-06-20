@@ -452,9 +452,9 @@ export default function DashboardTrabajador() {
               const arrived  = c.status === 'arrived'
               const noShow   = c.status === 'no_show'
               const cardCls  = arrived
-                ? 'border border-emerald-500/60 bg-emerald-950/30'
+                ? 'border-2 border-emerald-500/70'
                 : noShow
-                ? 'border border-red-500/60 bg-red-950/30'
+                ? 'border-2 border-red-500/70'
                 : ''
               const timeCls  = arrived ? 'text-emerald-400' : noShow ? 'text-red-400' : 'text-red-500'
               const clockCls = arrived ? 'text-emerald-400' : noShow ? 'text-red-400' : 'text-red-500'

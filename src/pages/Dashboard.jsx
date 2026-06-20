@@ -671,13 +671,13 @@ export default function Dashboard() {
           </div>
           <div className="space-y-2">
             <div className="flex justify-between">
-              <span className="text-xs text-gray-500">{hasRange ? 'Promedio en el rango' : 'Promedio actual/día'}</span>
+              <span className="text-xs text-gray-500">{hasRange ? 'Prom. ingresos/día' : 'Promedio actual/día'}</span>
               <span className="font-semibold text-sm text-gray-900 dark:text-white">{formatMoney(data.avgDailyActual)}</span>
             </div>
             {hasRange && data.workingDaysElapsed > 0 && (
               <div className="flex justify-between">
-                <span className="text-xs text-gray-500">{formatMoney(data.totalIncome)} ÷ {data.workingDaysElapsed} días</span>
-                <span className="font-semibold text-sm text-gray-900 dark:text-white">{formatMoney(data.avgDailyActual)}</span>
+                <span className="text-xs text-gray-500">Prom. gastos/día</span>
+                <span className="font-semibold text-sm text-red-500">-{formatMoney(data.displayCosts / data.workingDaysElapsed)}</span>
               </div>
             )}
             {!hasRange && isCurrentMonth && <div className="flex justify-between"><span className="text-xs text-gray-500">Necesario para cerrar</span><span className={`font-semibold text-sm ${data.avgDailyNeeded > data.avgDailyActual ? 'text-red-500' : 'text-green-500'}`}>{formatMoney(data.avgDailyNeeded)}</span></div>}

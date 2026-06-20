@@ -296,8 +296,9 @@ export default function Presupuesto() {
   const tierBrand = BRANDS.find(b => b.tier === selectedTier)
   const vtLabel = VEHICLE_TYPES.find(v => v.id === vehicleType)
 
-  // Descuento progresivo: 2 paños=5%, +1% por paño adicional, máx 25%
-  const discountPct = selectedCount >= 2 ? Math.min(25, 3 + selectedCount) : 0
+  // Descuento proporcional: 0% con 1 paño, sube linealmente hasta 25% con todos los paños
+  const totalPanels = config.panels.length
+  const discountPct = selectedCount >= 2 ? Math.max(3, Math.round((selectedCount / totalPanels) * 25)) : 0
   const discountAmt = Math.round(total * discountPct / 100)
   const totalFinal = total - discountAmt
 

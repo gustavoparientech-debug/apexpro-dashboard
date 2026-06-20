@@ -360,59 +360,53 @@ export default function Presupuesto() {
   function buildWhatsApp() {
     const { nombre, celular, marca, modelo, placa, anio, color, observaciones, condiciones } = exportForm
     const today = new Date().toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric' })
-    const cat = CATEGORIES.find(c => c.id === category)
     const catVehicleLabel = CAT_VEHICLES[category]?.find(v => v.id === catVehicle)?.label || ''
 
+    // Construir lista unificada de servicios
     const planchadoRows = rows.filter(r => selected[r.id])
-    const activeRows = [...planchadoRows, ...catRows]
+    const allRows = [
+      ...planchadoRows.map(r => ({
+        label: r.damageId !== 'none'
+          ? `${r.label} + Planchado (${DAMAGE_LEVELS.find(d => d.id === r.damageId)?.label})`
+          : `Pintado de ${r.label}`,
+        price: r.price,
+      })),
+      ...catRows.map(r => ({ label: r.label, price: r.price })),
+    ]
     const activeTotal = totalFinal + catTotal
 
-    let msg = `🔧 *COTIZACIÓN - APEX PRO*\n`
-    msg += `✨ _${cat?.label}${cat?.sub ? ' ' + cat.sub : ''}_\n`
-    msg += `📅 ${today}\n`
-    msg += `━━━━━━━━━━━━━━━━━━━━\n\n`
-    if (nombre) msg += `👤 *Cliente:* ${nombre}\n`
-    if (celular) msg += `📞 *Celular:* ${celular}\n`
-    msg += `\n`
+    let msg = `*COTIZACION APEX PRO*\n`
+    msg += `Fecha: ${today}\n`
+    msg += `--------------------------------\n`
+    if (nombre) msg += `Cliente: ${nombre}\n`
+    if (celular) msg += `Celular: ${celular}\n`
     const vehLine = [catVehicleLabel || vtLabel?.label, marca, modelo].filter(Boolean).join(' ')
-    if (vehLine) msg += `🚗 *Vehículo:* ${vehLine}\n`
-    if (placa)   msg += `🔑 *Placa:* ${placa.toUpperCase()}\n`
-    if (anio)    msg += `📆 *Año:* ${anio}${color ? `  ·  Color: ${color}` : ''}\n`
-    msg += `\n📋 *Servicios:*\n`
-
-    if (isPlanchado) {
-      const hasDamage = activeRows.some(r => r.damageId !== 'none')
-      activeRows.forEach((r, idx) => {
-        const dmg = DAMAGE_LEVELS.find(d => d.id === r.damageId)
-        const desc = r.damageId !== 'none' ? `${r.label} + Planchado (${dmg?.label})` : `Pintado de ${r.label}`
-        msg += `  ${idx + 1}. ${desc} — ${formatMoney(r.price)}\n`
-      })
-      if (hasDamage) {
-        const tp = activeRows.reduce((s, r) => s + r.paintPrice, 0)
-        const tpl = activeRows.reduce((s, r) => s + r.planchadoPrice, 0)
-        msg += `\n🎨 Pintura: ${formatMoney(tp)}\n`
-        msg += `🔨 Planchado: ${formatMoney(tpl)}\n`
-      }
-      msg += `\n━━━━━━━━━━━━━━━━━━━━\n`
-      if (discountPct > 0) {
-        msg += `💲 Subtotal: ${formatMoney(total)}\n`
-        msg += `🎁 Descuento (${discountPct}%): -${formatMoney(discountAmt)}\n`
-      }
-    } else {
-      activeRows.forEach((r, idx) => { msg += `  ${idx + 1}. ${r.label} — ${formatMoney(r.price)}\n` })
-      msg += `\n━━━━━━━━━━━━━━━━━━━━\n`
+    if (vehLine || placa || anio) {
+      msg += `\n`
+      if (vehLine)  msg += `Vehiculo: ${vehLine}\n`
+      if (placa)    msg += `Placa: ${placa.toUpperCase()}\n`
+      if (anio)     msg += `Anio: ${anio}${color ? `  Color: ${color}` : ''}\n`
     }
-
-    msg += `💵 *TOTAL: ${formatMoney(activeTotal)}*\n`
-    msg += `━━━━━━━━━━━━━━━━━━━━\n\n`
-    if (observaciones) msg += `📝 ${observaciones}\n\n`
+    msg += `\n*SERVICIOS:*\n`
+    allRows.forEach((r, idx) => {
+      msg += `${idx + 1}. ${r.label}\n`
+      msg += `   Precio: ${formatMoney(r.price)}\n`
+    })
+    msg += `\n--------------------------------\n`
+    if (planchadoRows.length > 0 && discountPct > 0) {
+      msg += `Subtotal: ${formatMoney(total)}\n`
+      msg += `Descuento (${discountPct}%): -${formatMoney(discountAmt)}\n`
+    }
+    msg += `*TOTAL: ${formatMoney(activeTotal)}*\n`
+    msg += `--------------------------------\n\n`
+    if (observaciones) msg += `Nota: ${observaciones}\n\n`
     if (condiciones) msg += `${condiciones}\n\n`
     else {
-      msg += `✅ 50% de adelanto y 50% contra entrega.\n`
-      msg += `⏱ Vigencia: 15 días.\n`
-      msg += `💰 Precios incluyen IGV.\n\n`
+      msg += `- 50% adelanto / 50% contra entrega\n`
+      msg += `- Vigencia: 15 dias\n`
+      msg += `- Precios incluyen IGV\n\n`
     }
-    msg += `_Apex Pro Detailing · Calle Idelfonzo Lopez N° 700 Zamacola, Arequipa_`
+    msg += `Apex Pro Detailing\nCalle Idelfonzo Lopez N 700 Zamacola, Arequipa\nTel: 959240309`
 
     window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank')
   }

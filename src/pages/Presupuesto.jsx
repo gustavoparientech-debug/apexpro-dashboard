@@ -1078,9 +1078,16 @@ export default function Presupuesto() {
               </div>
               {/* Footer con total y botones */}
               <div className="flex items-center justify-between pt-2 border-t border-gray-100 dark:border-gray-800 mt-1">
-                <div>
-                  <p className="text-[10px] text-gray-400">{totalItemsSelected} servicio{totalItemsSelected !== 1 ? 's' : ''}</p>
-                  <p className="text-lg font-black text-red-600 dark:text-red-400">{formatMoney(totalFinal + catTotal)}</p>
+                <div className="flex items-center gap-3">
+                  <div>
+                    <p className="text-[10px] text-gray-400">{totalItemsSelected} servicio{totalItemsSelected !== 1 ? 's' : ''}</p>
+                    <p className="text-lg font-black text-red-600 dark:text-red-400">{formatMoney(totalFinal + catTotal)}</p>
+                  </div>
+                  <button
+                    onClick={() => { setSelected({}); setCatSelected({}) }}
+                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-400 hover:text-red-500 hover:border-red-300 text-xs transition-all">
+                    <X className="w-3 h-3" />Limpiar
+                  </button>
                 </div>
                 <div className="flex gap-2">
                   <button onClick={() => openExportModal('whatsapp')}

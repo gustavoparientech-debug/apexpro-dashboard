@@ -6,7 +6,7 @@ import { useApp } from '../../context/AppContext'
 import {
   LayoutDashboard, ClipboardList, Users, Wallet, TrendingUp,
   Settings, History, BarChart2, Sun, Moon, Menu, X, ChevronRight, UserCog, LogOut,
-  Plus, TrendingDown, AlertCircle, Calculator
+  Plus, TrendingDown, AlertCircle, Calculator, CalendarDays
 } from 'lucide-react'
 import { cn, todayISO } from '../../lib/utils'
 import { IncidentForm } from '../../pages/Trabajadores'
@@ -185,12 +185,14 @@ const ADMIN_NAV = [
   { to: '/historial',     label: 'Historial', icon: History },
   { to: '/reportes',      label: 'Reportes',  icon: BarChart2 },
   { to: '/usuarios',      label: 'Usuarios',    icon: UserCog },
+  { to: '/citas',         label: 'Citas',       icon: CalendarDays },
   { to: '/presupuesto',   label: 'Presupuesto', icon: Calculator },
 ]
 
 const WORKER_NAV = [
   { to: '/',              label: 'Inicio',      icon: LayoutDashboard },
   { to: '/registro',      label: 'Registro',    icon: ClipboardList },
+  { to: '/citas',         label: 'Citas',       icon: CalendarDays },
   { to: '/presupuesto',   label: 'Presupuesto', icon: Calculator },
 ]
 
@@ -254,7 +256,7 @@ export default function Layout({ children }) {
     ADMIN_NAV.find(n => n.to === '/'),
     ADMIN_NAV.find(n => n.to === '/registro'),
     ADMIN_NAV.find(n => n.to === '/trabajadores'),
-    ADMIN_NAV.find(n => n.to === '/nomina'),
+    ADMIN_NAV.find(n => n.to === '/citas'),
     ADMIN_NAV.find(n => n.to === '/presupuesto'),
   ]
   const mobileNav = isAdmin ? ADMIN_MOBILE : NAV

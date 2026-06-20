@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase'
 import toast from 'react-hot-toast'
 import {
   CalendarDays, Clock, Wrench, User, Plus, X, Trash2,
-  ChevronRight, Car, Sparkles, AlertCircle, Edit3, Check
+  ChevronRight, Car, Sparkles, AlertCircle, Edit3, Check, CheckCircle2, XCircle, Circle
 } from 'lucide-react'
 
 const SERVICIOS = [
@@ -171,26 +171,52 @@ function CitaSheet({ cita, onClose, onSave }) {
   )
 }
 
-function CitaCard({ cita, canAdmin, onEdit, onDelete }) {
+function CitaCard({ cita, canAdmin, onEdit, onDelete, onStatus }) {
   const svc = SERVICIOS.find(s => s.id === cita.service) || SERVICIOS[SERVICIOS.length - 1]
   const c = COLOR_MAP[svc.color]
   const past = isPast(cita.date, cita.time)
   const isToday = cita.date === todayISO()
+  const status = cita.status || 'pending' // 'pending' | 'arrived' | 'no_show'
+
+  const statusCfg = {
+    pending:  { label: 'Pendiente', icon: Circle,        cls: 'text-gray-400' },
+    arrived:  { label: 'Llegó',     icon: CheckCircle2,  cls: 'text-emerald-500' },
+    no_show:  { label: 'No llegó',  icon: XCircle,       cls: 'text-red-500' },
+  }
+  const sc = statusCfg[status]
+
+  // Borde especial según estado
+  const cardBorder = status === 'arrived'
+    ? 'border-emerald-400 dark:border-emerald-600'
+    : status === 'no_show'
+    ? 'border-red-400 dark:border-red-700'
+    : past ? 'border-gray-200 dark:border-gray-700' : c.border
+
+  const cardBg = status === 'arrived'
+    ? 'bg-emerald-50 dark:bg-emerald-900/10'
+    : status === 'no_show'
+    ? 'bg-red-50 dark:bg-red-900/10'
+    : past ? 'bg-gray-50 dark:bg-gray-800/40' : 'bg-white dark:bg-gray-800'
 
   return (
-    <div className={`relative rounded-2xl border p-4 transition-all ${
-      past
-        ? 'bg-gray-50 dark:bg-gray-800/40 border-gray-200 dark:border-gray-700 opacity-60'
-        : `bg-white dark:bg-gray-800 ${c.border} shadow-sm`
-    }`}>
-      {isToday && !past && (
+    <div className={`relative rounded-2xl border p-4 transition-all ${cardBg} ${cardBorder} shadow-sm`}>
+      {isToday && status === 'pending' && (
         <span className="absolute -top-2 left-4 text-[10px] font-bold bg-red-500 text-white px-2 py-0.5 rounded-full uppercase tracking-wide">
           Hoy
         </span>
       )}
+      {status === 'arrived' && (
+        <span className="absolute -top-2 left-4 text-[10px] font-bold bg-emerald-500 text-white px-2 py-0.5 rounded-full uppercase tracking-wide">
+          ✓ Llegó
+        </span>
+      )}
+      {status === 'no_show' && (
+        <span className="absolute -top-2 left-4 text-[10px] font-bold bg-red-500 text-white px-2 py-0.5 rounded-full uppercase tracking-wide">
+          ✗ No llegó
+        </span>
+      )}
 
       <div className="flex items-start gap-3">
-        {/* Emoji servicio */}
         <div className={`w-11 h-11 rounded-xl ${c.bg} flex items-center justify-center text-xl flex-shrink-0`}>
           {svc.emoji}
         </div>
@@ -220,11 +246,38 @@ function CitaCard({ cita, canAdmin, onEdit, onDelete }) {
         )}
       </div>
 
-      {/* Hora */}
-      <div className="flex items-center gap-1.5 mt-3">
-        <Clock className={`w-3.5 h-3.5 ${c.text}`} />
-        <span className={`text-sm font-bold ${c.text}`}>{formatTime(cita.time)}</span>
-        {past && <span className="text-xs text-gray-400 ml-1">· Completada</span>}
+      {/* Hora + marcadores */}
+      <div className="flex items-center justify-between mt-3">
+        <div className="flex items-center gap-1.5">
+          <Clock className={`w-3.5 h-3.5 ${sc.cls}`} />
+          <span className={`text-sm font-bold ${sc.cls}`}>{formatTime(cita.time)}</span>
+        </div>
+
+        {/* Botones de estado */}
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={() => onStatus(cita.id, status === 'arrived' ? 'pending' : 'arrived')}
+            title="Marcar como llegó"
+            className={`flex items-center gap-1 px-2.5 py-1 rounded-xl text-xs font-semibold border transition-all active:scale-95 ${
+              status === 'arrived'
+                ? 'bg-emerald-500 border-emerald-500 text-white'
+                : 'border-gray-200 dark:border-gray-600 text-gray-400 hover:border-emerald-400 hover:text-emerald-500'
+            }`}>
+            <CheckCircle2 className="w-3.5 h-3.5" />
+            <span>Llegó</span>
+          </button>
+          <button
+            onClick={() => onStatus(cita.id, status === 'no_show' ? 'pending' : 'no_show')}
+            title="Marcar como no llegó"
+            className={`flex items-center gap-1 px-2.5 py-1 rounded-xl text-xs font-semibold border transition-all active:scale-95 ${
+              status === 'no_show'
+                ? 'bg-red-500 border-red-500 text-white'
+                : 'border-gray-200 dark:border-gray-600 text-gray-400 hover:border-red-400 hover:text-red-500'
+            }`}>
+            <XCircle className="w-3.5 h-3.5" />
+            <span>No llegó</span>
+          </button>
+        </div>
       </div>
     </div>
   )
@@ -283,6 +336,14 @@ export default function Citas() {
     const next = citas.filter(c => c.id !== id)
     await saveCitas(next)
     toast.success('Cita eliminada')
+  }
+
+  async function handleStatus(id, newStatus) {
+    const next = citas.map(c => c.id === id ? { ...c, status: newStatus } : c)
+    await saveCitas(next)
+    if (newStatus === 'arrived') toast.success('Marcado: llegó ✓')
+    else if (newStatus === 'no_show') toast.error('Marcado: no llegó ✗')
+    else toast('Pendiente', { icon: '⏳' })
   }
 
   const today = todayISO()
@@ -399,7 +460,8 @@ export default function Citas() {
                 {items.map(cita => (
                   <CitaCard key={cita.id} cita={cita} canAdmin={canAdmin}
                     onEdit={c => { setEditing(c); setShowForm(true) }}
-                    onDelete={handleDelete} />
+                    onDelete={handleDelete}
+                    onStatus={handleStatus} />
                 ))}
               </div>
             </div>

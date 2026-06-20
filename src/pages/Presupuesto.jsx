@@ -302,40 +302,39 @@ export default function Presupuesto() {
     // ── Header blanco — formato Excel ────────────────────────────
     // Fondo blanco (default)
 
-    // Logo izquierda
+    // Logo izquierda — el logo ya incluye APEX-PRO y DETAILING
     if (logoB64) {
-      doc.addImage(logoB64, 'PNG', mL, 4, 38, 22)
+      doc.addImage(logoB64, 'JPEG', mL, 2, 52, 52)
+    } else {
+      doc.setTextColor(0, 0, 0)
+      doc.setFontSize(14)
+      doc.setFont('helvetica', 'bold')
+      doc.text('APEX-PRO', mL, 18)
+      doc.setTextColor(185, 28, 28)
+      doc.setFontSize(9)
+      doc.text('DETAILING', mL, 25)
     }
-    // Nombre empresa bajo el logo
-    doc.setTextColor(0, 0, 0)
-    doc.setFontSize(9)
-    doc.setFont('helvetica', 'bold')
-    doc.text('APEX-PRO', mL + 19, 29, { align: 'center' })
-    doc.setTextColor(185, 28, 28)
-    doc.setFontSize(7)
-    doc.setFont('helvetica', 'bold')
-    doc.text('DETAILING', mL + 19, 33, { align: 'center' })
 
-    // Dirección bajo nombre
+    // Dirección (a la derecha del logo)
     doc.setTextColor(40, 40, 40)
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(7)
-    doc.text('Calle Idelfonzo Lopez N 700 Zamacola', mL, 39)
-    doc.text('Arequipa - Arequipa - Cerro Colorado', mL, 43)
-    doc.text('Tel: 959240309', mL, 47)
-    doc.text('Apexprodetailing0@gmail.com', mL, 51)
+    doc.text('Calle Idelfonzo Lopez N 700 Zamacola', mL, 57)
+    doc.text('Arequipa - Arequipa - Cerro Colorado', mL, 61)
+    doc.text('Tel: 959240309', mL, 65)
+    doc.text('Apexprodetailing0@gmail.com', mL, 69)
 
+    // "COTIZACIÓN" centrado
     // "COTIZACIÓN" centrado
     doc.setTextColor(0, 0, 0)
     doc.setFontSize(18)
     doc.setFont('helvetica', 'bold')
-    doc.text('COTIZACIÓN', W / 2, 22, { align: 'center' })
+    doc.text('COTIZACIÓN', W / 2, 28, { align: 'center' })
 
     // Tabla N° / Fecha (derecha)
-    const tX = W - mR - 55, tY = 30, tW = 55, rH = 9
+    const tX = W - mR - 55, tY = 38, tW = 55, rH = 9
     doc.setDrawColor(0, 0, 0)
     doc.setLineWidth(0.4)
-    // Fila N°
     doc.rect(tX, tY, tW, rH)
     doc.setFontSize(8)
     doc.setFont('helvetica', 'normal')
@@ -343,7 +342,6 @@ export default function Presupuesto() {
     doc.text('C-1', tX + tW * 0.4, tY + 6, { align: 'center' })
     doc.setFont('helvetica', 'bold')
     doc.text(today.split('/').slice(2).join('') || '', tX + tW - 4, tY + 6, { align: 'right' })
-    // Fila Fecha
     doc.rect(tX, tY + rH, tW, rH)
     doc.setFont('helvetica', 'normal')
     doc.text('Fecha:', tX + 4, tY + rH + 6)
@@ -352,9 +350,9 @@ export default function Presupuesto() {
     // Línea separadora header
     doc.setDrawColor(200, 200, 200)
     doc.setLineWidth(0.5)
-    doc.line(mL, 57, W - mR, 57)
+    doc.line(mL, 74, W - mR, 74)
 
-    y = 63
+    y = 80
 
     // ── Datos Cliente ────────────────────────────────────────────
     const sectionHeader = (label, yPos) => {

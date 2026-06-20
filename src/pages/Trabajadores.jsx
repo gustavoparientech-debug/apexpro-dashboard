@@ -9,7 +9,7 @@ import ConfirmDialog from '../components/ui/ConfirmDialog'
 import Badge from '../components/ui/Badge'
 import { Plus, Edit2, UserX, UserCheck, AlertCircle, Clock, Calendar } from 'lucide-react'
 import toast from 'react-hot-toast'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 
 const INCIDENT_ICONS = { falta: '🔴', permiso: '🟡', permiso_horas: '🟡', tardanza: '🟠', hora_extra: '🟢', no_marcacion: '🔵', multa: '🚫', adelanto: '💵' }
 const INCIDENT_LABELS = { falta: 'Falta injustificada', permiso: 'Permiso justificado', permiso_horas: 'Permiso por horas', tardanza: 'Tardanza', hora_extra: 'Hora extra', no_marcacion: 'No marcó entrada/salida', multa: 'Multa', adelanto: 'Adelanto de sueldo' }
@@ -456,19 +456,44 @@ export default function Trabajadores() {
 
       {/* Gráfico comparativo */}
       {chartData.length > 0 && (
-        <div className="card">
-          <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">Ingresos generados vs salario real</p>
-          <div className="h-56">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData} margin={{ top: 0, right: 0, left: -15, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" className="dark:opacity-20" />
-                <XAxis dataKey="name" tick={{ fontSize: 12 }} />
-                <YAxis tick={{ fontSize: 11 }} tickFormatter={v => `S/${(v/1000).toFixed(1)}k`} />
-                <Tooltip formatter={v => formatMoney(v)} />
-                <Bar dataKey="income" fill="#f97316" radius={[3, 3, 0, 0]} name="Ingresos generados" />
-                <Bar dataKey="salario" fill="#94a3b8" radius={[3, 3, 0, 0]} name="Salario real" />
-              </BarChart>
-            </ResponsiveContainer>
+        <div className="card overflow-hidden">
+          <div className="flex items-center justify-between mb-1">
+            <p className="text-sm font-bold text-gray-900 dark:text-white">Ingresos generados vs salario real</p>
+          </div>
+          <p className="text-xs text-gray-400 mb-4">Comparación por trabajador activo este mes</p>
+          <div className="overflow-x-auto -mx-4 px-4">
+            <div style={{ minWidth: Math.max(chartData.length * 100, 320) }} className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={chartData} margin={{ top: 4, right: 8, left: -8, bottom: 0 }} barCategoryGap="30%" barGap={4}>
+                  <defs>
+                    <linearGradient id="incomeGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#f97316" stopOpacity={1} />
+                      <stop offset="100%" stopColor="#ea580c" stopOpacity={0.9} />
+                    </linearGradient>
+                    <linearGradient id="salarioGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#6366f1" stopOpacity={0.9} />
+                      <stop offset="100%" stopColor="#4f46e5" stopOpacity={0.75} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
+                  <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#6b7280', fontWeight: 600 }} tickLine={false} axisLine={false} />
+                  <YAxis tick={{ fontSize: 10, fill: '#9ca3af' }} tickFormatter={v => v >= 1000 ? `S/${(v/1000).toFixed(1)}k` : `S/${v}`} axisLine={false} tickLine={false} width={52} />
+                  <Tooltip
+                    cursor={{ fill: 'rgba(0,0,0,0.04)', radius: 6 }}
+                    contentStyle={{ borderRadius: 14, border: 'none', boxShadow: '0 4px 24px rgba(0,0,0,0.12)', fontSize: 12, padding: '10px 16px' }}
+                    formatter={(v, name) => [formatMoney(v), name]}
+                    labelStyle={{ fontWeight: 700, marginBottom: 4, color: '#111827' }}
+                  />
+                  <Legend
+                    iconType="circle" iconSize={8}
+                    formatter={v => <span style={{ fontSize: 11, color: '#6b7280' }}>{v}</span>}
+                    wrapperStyle={{ paddingTop: 12 }}
+                  />
+                  <Bar dataKey="income" fill="url(#incomeGrad)" radius={[6, 6, 2, 2]} maxBarSize={36} name="Ingresos generados" />
+                  <Bar dataKey="salario" fill="url(#salarioGrad)" radius={[6, 6, 2, 2]} maxBarSize={36} name="Salario real" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
           </div>
         </div>
       )}

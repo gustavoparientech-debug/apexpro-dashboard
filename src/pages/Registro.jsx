@@ -1437,121 +1437,117 @@ export default function Registro() {
     <div className="space-y-4 max-w-2xl mx-auto">
 
       {/* Hero header */}
-      <div className="relative rounded-3xl overflow-hidden bg-gray-900 dark:bg-gray-950 min-h-[160px]">
+      <div className="relative rounded-2xl overflow-hidden bg-gray-900 dark:bg-gray-950">
         <img src="/hero-bg.jpg" alt="" className="absolute inset-0 w-full h-full object-cover object-center" onError={e => e.target.style.display='none'} />
-        <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-black/40 to-black/80" />
-        <div className="relative z-10 p-5 flex flex-col gap-3">
-          {/* Top row */}
-          <div className="flex items-start justify-between">
-            <div>
-              <h1 className="text-xl font-black text-white tracking-tight">Apex Pro Detailing</h1>
-              {/* Selector fecha compacto */}
+        <div className="absolute inset-0 bg-gradient-to-b from-black/55 via-black/45 to-black/75" />
+        <div className="relative z-10 px-4 py-3 flex flex-col gap-2">
+
+          {/* Fila 1: título + mes/año + Rápido */}
+          <div className="flex items-center gap-2">
+            <div className="flex-1 min-w-0">
+              <h1 className="text-base font-black text-white tracking-tight leading-none">Apex Pro Detailing</h1>
               {canAdmin ? (
-                <div className="flex items-center gap-1 mt-1">
-                  <select className="bg-transparent text-gray-300 text-xs font-medium rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70 cursor-pointer"
+                <div className="flex items-center gap-1 mt-0.5">
+                  <select className="bg-transparent text-gray-300 text-xs font-medium focus:outline-none cursor-pointer"
                     value={selMonth} onChange={e => handleMonthChange(+e.target.value, selYear)}>
                     {MONTHS.map((m, i) => <option key={i+1} value={i+1} className="bg-gray-800">{m}</option>)}
                   </select>
-                  <select className="bg-transparent text-gray-300 text-xs font-medium rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70 cursor-pointer"
+                  <select className="bg-transparent text-gray-300 text-xs font-medium focus:outline-none cursor-pointer"
                     value={selYear} onChange={e => handleMonthChange(selMonth, +e.target.value)}>
                     {[cy-1, cy, cy+1].map(y => <option key={y} value={y} className="bg-gray-800">{y}</option>)}
                   </select>
                 </div>
               ) : (
-                <p className="text-gray-400 text-xs mt-1">{MONTHS[selMonth-1]} {selYear}</p>
+                <p className="text-gray-400 text-xs mt-0.5">{MONTHS[selMonth-1]} {selYear}</p>
               )}
             </div>
             <button onClick={() => setShowQuickForm(true)}
-              className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-white bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-xl transition-colors">
-              <Zap className="w-3.5 h-3.5" /> Rápido
+              className="flex items-center gap-1 text-xs text-gray-300 hover:text-white bg-white/10 hover:bg-white/20 px-2.5 py-1.5 rounded-lg transition-colors flex-none">
+              <Zap className="w-3 h-3" /> Rápido
             </button>
           </div>
 
-          {/* Navegación por día */}
+          {/* Fila 2: nav día + total inline */}
           {canAdmin && (
-            <div className="flex items-center gap-1.5 w-1/2">
-              <button onClick={() => {
-                  const d = new Date(selectedDate + 'T00:00:00'); d.setDate(d.getDate() - 1)
-                  const nd = d.toISOString().slice(0, 10)
-                  const prefix = `${selYear}-${String(selMonth).padStart(2,'0')}`
-                  if (nd.startsWith(prefix)) setSelectedDate(nd)
-                }}
-                className="p-1 rounded-lg bg-white/10 hover:bg-white/20 transition-colors flex-none">
-                <ChevronLeft className="w-3.5 h-3.5 text-white" />
-              </button>
-              <input type="date"
-                className="bg-white/10 text-white text-xs font-medium flex-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70 text-center rounded-lg px-2 py-1 cursor-pointer min-w-0"
-                value={selectedDate}
-                min={`${selYear}-${String(selMonth).padStart(2,'0')}-01`}
-                max={`${selYear}-${String(selMonth).padStart(2,'0')}-${new Date(selYear, selMonth, 0).getDate()}`}
-                onChange={e => e.target.value && setSelectedDate(e.target.value)}
-              />
-              <button onClick={() => {
-                  const d = new Date(selectedDate + 'T00:00:00'); d.setDate(d.getDate() + 1)
-                  const nd = d.toISOString().slice(0, 10)
-                  const prefix = `${selYear}-${String(selMonth).padStart(2,'0')}`
-                  if (nd.startsWith(prefix)) setSelectedDate(nd)
-                }}
-                className="p-1 rounded-lg bg-white/10 hover:bg-white/20 transition-colors flex-none">
-                <ChevronRight className="w-3.5 h-3.5 text-white" />
-              </button>
-              {selectedDate !== today && (
-                <button onClick={() => setSelectedDate(today)}
-                  className="text-[10px] text-gray-300 bg-white/10 hover:bg-white/20 px-2 py-1 rounded-lg transition-colors font-medium whitespace-nowrap flex-none">
-                  Hoy
+            <div className="flex items-center gap-2">
+              {/* Nav días */}
+              <div className="flex items-center gap-1 flex-none">
+                <button onClick={() => {
+                    const d = new Date(selectedDate + 'T00:00:00'); d.setDate(d.getDate() - 1)
+                    const nd = d.toISOString().slice(0, 10)
+                    if (nd.startsWith(`${selYear}-${String(selMonth).padStart(2,'0')}`)) setSelectedDate(nd)
+                  }}
+                  className="p-1 rounded-md bg-white/10 hover:bg-white/20 transition-colors">
+                  <ChevronLeft className="w-3 h-3 text-white" />
                 </button>
-              )}
-            </div>
-          )}
+                <input type="date"
+                  className="bg-white/10 text-white text-xs font-medium focus:outline-none text-center rounded-md px-2 py-1 cursor-pointer w-28"
+                  value={selectedDate}
+                  min={`${selYear}-${String(selMonth).padStart(2,'0')}-01`}
+                  max={`${selYear}-${String(selMonth).padStart(2,'0')}-${new Date(selYear, selMonth, 0).getDate()}`}
+                  onChange={e => e.target.value && setSelectedDate(e.target.value)}
+                />
+                <button onClick={() => {
+                    const d = new Date(selectedDate + 'T00:00:00'); d.setDate(d.getDate() + 1)
+                    const nd = d.toISOString().slice(0, 10)
+                    if (nd.startsWith(`${selYear}-${String(selMonth).padStart(2,'0')}`)) setSelectedDate(nd)
+                  }}
+                  className="p-1 rounded-md bg-white/10 hover:bg-white/20 transition-colors">
+                  <ChevronRight className="w-3 h-3 text-white" />
+                </button>
+                {selectedDate !== today && (
+                  <button onClick={() => setSelectedDate(today)}
+                    className="text-[10px] text-gray-300 bg-white/10 hover:bg-white/20 px-2 py-1 rounded-md transition-colors font-medium whitespace-nowrap">
+                    Hoy
+                  </button>
+                )}
+              </div>
 
-          {/* Filtro rango (solo admin) */}
-          {canAdmin && (
-            <div className="space-y-2">
-              <button onClick={() => { setShowRange(v => !v); setRangeFrom(''); setRangeTo('') }}
-                className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full transition-all font-semibold backdrop-blur-sm ${showRange ? 'bg-red-500/90 text-white shadow-lg shadow-red-500/30' : 'bg-white/15 text-gray-200 hover:bg-white/25 border border-white/10'}`}>
-                <Search className="w-3 h-3" />
-                {showRange ? '✕ Cerrar rango' : 'Filtrar por rango'}
-              </button>
+              {/* Separador */}
+              <div className="w-px h-6 bg-white/20 flex-none" />
 
-              {showRange && (
-                <div className="flex items-center gap-2 bg-black/30 backdrop-blur-md border border-white/10 rounded-2xl px-3 py-2.5">
-                  <div className="flex flex-col flex-1 min-w-0">
-                    <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-0.5">Desde</span>
-                    <input type="date"
-                      className="bg-transparent text-white text-xs font-semibold focus:outline-none w-full"
-                      value={rangeFrom} onChange={e => setRangeFrom(e.target.value)} />
-                  </div>
-                  <div className="w-px h-8 bg-white/20 flex-shrink-0" />
-                  <div className="flex flex-col flex-1 min-w-0">
-                    <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-0.5">Hasta</span>
-                    <input type="date"
-                      className="bg-transparent text-white text-xs font-semibold focus:outline-none w-full"
-                      value={rangeTo} min={rangeFrom} onChange={e => setRangeTo(e.target.value)} />
-                  </div>
+              {/* Total inline */}
+              <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                <div className="min-w-0">
+                  <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider leading-none">
+                    {hasRange ? `Rango` : fechaLabel.split(',')[0]}
+                    {!hasRange && selectedDate !== today && <span className="ml-1 text-amber-400"> · Lectura</span>}
+                  </p>
+                  <p className="text-lg font-black text-white leading-tight whitespace-nowrap">
+                    {hideTotal ? '••••' : formatMoney(dayTotal)}
+                  </p>
                 </div>
-              )}
+                <button onClick={() => setHideTotal(v => !v)}
+                  className="p-1 rounded-md bg-white/10 hover:bg-white/20 transition-colors flex-none">
+                  <Eye className="w-3 h-3 text-gray-300" />
+                </button>
+              </div>
+
+              {/* Botón rango */}
+              <button onClick={() => { setShowRange(v => !v); setRangeFrom(''); setRangeTo('') }}
+                className={`flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg transition-all font-semibold flex-none ${showRange ? 'bg-red-500/90 text-white' : 'bg-white/10 text-gray-300 hover:bg-white/20'}`}>
+                <Search className="w-3 h-3" />
+                {showRange ? '✕' : 'Rango'}
+              </button>
             </div>
           )}
 
-          {/* Tarjeta total del día / rango */}
-          <div className="bg-black/40 backdrop-blur-sm rounded-xl px-3 py-3 flex items-center justify-between self-start">
-            <div>
-              <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">
-                {hasRange ? `Total ${rangeFrom.slice(8)}/${rangeFrom.slice(5,7)} – ${rangeTo.slice(8)}/${rangeTo.slice(5,7)}` : 'Total del día'}
-              </p>
-              <p className="text-2xl font-black text-white leading-tight whitespace-nowrap">
-                {hideTotal ? '••••••' : formatMoney(dayTotal)}
-              </p>
-              <p className="text-xs text-gray-400 leading-tight">
-                {hasRange ? `${closedToday.length} tickets en el rango` : fechaLabel.split(',')[0]}
-                {!hasRange && selectedDate !== today && <span className="ml-1 text-amber-400">· Lectura</span>}
-              </p>
+          {/* Rango expandido */}
+          {canAdmin && showRange && (
+            <div className="flex items-center gap-2 bg-black/30 backdrop-blur-md border border-white/10 rounded-xl px-3 py-2">
+              <div className="flex flex-col flex-1 min-w-0">
+                <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-0.5">Desde</span>
+                <input type="date" className="bg-transparent text-white text-xs font-semibold focus:outline-none w-full"
+                  value={rangeFrom} onChange={e => setRangeFrom(e.target.value)} />
+              </div>
+              <div className="w-px h-7 bg-white/20 flex-shrink-0" />
+              <div className="flex flex-col flex-1 min-w-0">
+                <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-0.5">Hasta</span>
+                <input type="date" className="bg-transparent text-white text-xs font-semibold focus:outline-none w-full"
+                  value={rangeTo} min={rangeFrom} onChange={e => setRangeTo(e.target.value)} />
+              </div>
             </div>
-            <button onClick={() => setHideTotal(v => !v)}
-              className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 transition-colors ml-2">
-              <Eye className="w-3.5 h-3.5 text-gray-300" />
-            </button>
-          </div>
+          )}
         </div>
       </div>
 

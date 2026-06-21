@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef } from 'react'
 import { useApp } from '../context/AppContext'
 import {
   formatMoney, formatDate, calcRealSalary, calcDailySalary, calcProratedSalary,
@@ -7,7 +7,7 @@ import {
 import Modal from '../components/ui/Modal'
 import ConfirmDialog from '../components/ui/ConfirmDialog'
 import Badge from '../components/ui/Badge'
-import { Plus, Edit2, UserX, UserCheck, AlertCircle, Clock, Calendar } from 'lucide-react'
+import { Plus, Edit2, UserX, UserCheck, AlertCircle, Clock, Calendar, Download, FileSpreadsheet, Pencil, Check, X, Trash2, Users, Wallet } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 
@@ -262,6 +262,9 @@ function monthRangeStr(year, month) {
 export default function Trabajadores() {
   const { workers, tickets, incidents, services, addWorker, updateWorker, addIncident, updateIncident, deleteIncident, addExpense } = useApp()
   const { month, year } = currentMonthYear()
+  const [activeTab, setActiveTab] = useState('equipo')
+
+  // Equipo state
   const [showWorkerForm, setShowWorkerForm] = useState(false)
   const [showIncidentForm, setShowIncidentForm] = useState(false)
   const [editingWorker, setEditingWorker] = useState(null)
@@ -271,6 +274,51 @@ export default function Trabajadores() {
   const [deleteIncidentTarget, setDeleteIncidentTarget] = useState(null)
   const [selectedWorker, setSelectedWorker] = useState(null)
   const [incFilter, setIncFilter] = useState({ worker: '', type: '', sort: 'date_desc' })
+
+  // Nómina state
+  const tableRef = useRef(null)
+  const [editingNominaWorker, setEditingNominaWorker] = useState(null)
+  const [editingNominaIncident, setEditingNominaIncident] = useState(null)
+  const [incDraft, setIncDraft] = useState({})
+  const [confirmDelete, setConfirmDelete] = useState(null)
+
+  function openEditIncident(inc) {
+    setIncDraft({
+      date: inc.date, type: inc.type, hours_late: inc.hours_late ?? 0,
+      no_marcacion_count: inc.no_marcacion_count ?? 1,
+      multa_amount: inc.multa_amount ?? inc.discount_amount ?? 0,
+      observation: inc.observation ?? '', apply_discount: inc.apply_discount ?? true,
+      worker_id: inc.worker_id,
+    })
+    setEditingNominaIncident(inc)
+  }
+
+  async function saveNominaIncident() {
+    try {
+      await updateIncident(editingNominaIncident.id, incDraft)
+      toast.success('Incidencia actualizada')
+      setEditingNominaIncident(null)
+    } catch { toast.error('Error al guardar') }
+  }
+
+  async function handleSaveNominaWorker() {
+    try {
+      await updateWorker(editingNominaWorker.id, {
+        base_salary: parseFloat(editingNominaWorker.base_salary),
+        weekly_hours: parseFloat(editingNominaWorker.weekly_hours),
+      })
+      toast.success('Salario actualizado')
+      setEditingNominaWorker(null)
+    } catch { toast.error('Error al guardar') }
+  }
+
+  async function doDeleteIncident(id) {
+    try {
+      await deleteIncident(id)
+      toast.success('Incidencia eliminada')
+      setConfirmDelete(null)
+    } catch { toast.error('Error al eliminar') }
+  }
 
   const monthStart = monthRangeStr(year, month)
 
@@ -368,22 +416,106 @@ export default function Trabajadores() {
 
   const ratioColor = { verde: 'verde', amarillo: 'amarillo', rojo: 'rojo' }
 
+  // Nómina data
+  const payrollData = useMemo(() => {
+    return workers
+      .filter(w => w.active || leftThisMonth(w))
+      .map(w => {
+        const realSalary = leftThisMonth(w)
+          ? calcProratedSalary(w.base_salary, w.weekly_hours, year, month, w.terminated_at, w.hire_date)
+          : calcRealSalary(w.base_salary, w.weekly_hours)
+        const workerIncidents = incidents.filter(i => i.worker_id === w.id)
+        const totalDiscounts = workerIncidents.filter(i => i.apply_discount && !i.is_addition).reduce((s, i) => s + (i.discount_amount || 0), 0)
+        const totalOvertime  = workerIncidents.filter(i => i.apply_discount && i.is_addition).reduce((s, i) => s + (i.discount_amount || 0), 0)
+        const finalPay = realSalary - totalDiscounts + totalOvertime
+        return { ...w, realSalary, workerIncidents, totalDiscounts, totalOvertime, finalPay }
+      })
+  }, [workers, incidents, month, year])
+
+  const totalPayroll   = payrollData.reduce((s, w) => s + w.finalPay, 0)
+  const totalNominaDisc = payrollData.reduce((s, w) => s + w.totalDiscounts, 0)
+  const totalNominaOvt  = payrollData.reduce((s, w) => s + w.totalOvertime, 0)
+  const totalBase      = payrollData.reduce((s, w) => s + w.realSalary, 0)
+
+  function exportExcel() {
+    import('xlsx').then(XLSX => {
+      const rows = payrollData.map(w => ({
+        'Nombre': w.name, 'Horas/Semana': w.weekly_hours, 'Salario Base': w.base_salary,
+        'Salario Real Mensual': w.realSalary.toFixed(2), 'Descuentos': w.totalDiscounts.toFixed(2),
+        'Hora Extra': w.totalOvertime.toFixed(2), 'Pago Final': w.finalPay.toFixed(2),
+      }))
+      rows.push({ 'Nombre': 'TOTAL', 'Horas/Semana': '', 'Salario Base': '',
+        'Salario Real Mensual': totalBase.toFixed(2), 'Descuentos': totalNominaDisc.toFixed(2),
+        'Hora Extra': totalNominaOvt.toFixed(2), 'Pago Final': totalPayroll.toFixed(2) })
+      const ws = XLSX.utils.json_to_sheet(rows)
+      const wb = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(wb, ws, 'Nómina')
+      XLSX.writeFile(wb, `nomina-apexpro-${year}-${String(month).padStart(2,'0')}.xlsx`)
+      toast.success('Excel exportado')
+    }).catch(() => toast.error('Error al exportar'))
+  }
+
+  function exportPDF() {
+    import('jspdf').then(({ jsPDF }) => {
+      const doc = new jsPDF()
+      doc.setFontSize(16)
+      doc.text(`Nómina Apex Pro — ${monthName(month)} ${year}`, 14, 20)
+      doc.setFontSize(10)
+      let y = 35
+      payrollData.forEach(w => {
+        doc.text(`${w.name}: S/${w.realSalary.toFixed(2)} - S/${w.totalDiscounts.toFixed(2)} + S/${w.totalOvertime.toFixed(2)} = S/${w.finalPay.toFixed(2)}`, 14, y)
+        y += 8
+      })
+      y += 4
+      doc.setFontSize(12)
+      doc.text(`TOTAL PLANILLA: S/${totalPayroll.toFixed(2)}`, 14, y)
+      doc.save(`nomina-apexpro-${year}-${String(month).padStart(2,'0')}.pdf`)
+      toast.success('PDF exportado')
+    }).catch(() => toast.error('Error al exportar'))
+  }
+
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Equipo</h1>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Equipo & Nómina</h1>
           <p className="text-sm text-gray-500">{monthName(month)} {year}</p>
         </div>
         <div className="flex gap-2">
-          <button className="btn-secondary text-sm flex items-center gap-1" onClick={() => { setEditingIncident(null); setShowIncidentForm(true) }}>
-            <AlertCircle className="w-4 h-4" /> Incidencia
-          </button>
-          <button className="btn-primary text-sm flex items-center gap-1" onClick={() => { setEditingWorker(null); setShowWorkerForm(true) }}>
-            <Plus className="w-4 h-4" /> Trabajador
-          </button>
+          {activeTab === 'equipo' ? (<>
+            <button className="btn-secondary text-sm flex items-center gap-1" onClick={() => { setEditingIncident(null); setShowIncidentForm(true) }}>
+              <AlertCircle className="w-4 h-4" /> Incidencia
+            </button>
+            <button className="btn-primary text-sm flex items-center gap-1" onClick={() => { setEditingWorker(null); setShowWorkerForm(true) }}>
+              <Plus className="w-4 h-4" /> Trabajador
+            </button>
+          </>) : (<>
+            <button className="btn-secondary text-sm flex items-center gap-1" onClick={exportPDF}>
+              <Download className="w-4 h-4" /> PDF
+            </button>
+            <button className="btn-secondary text-sm flex items-center gap-1" onClick={exportExcel}>
+              <FileSpreadsheet className="w-4 h-4" /> Excel
+            </button>
+          </>)}
         </div>
       </div>
+
+      {/* Tabs */}
+      <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 p-1 rounded-xl w-fit">
+        {[{ id: 'equipo', label: 'Equipo', Icon: Users }, { id: 'nomina', label: 'Nómina', Icon: Wallet }].map(({ id, label, Icon }) => (
+          <button key={id} onClick={() => setActiveTab(id)}
+            className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+              activeTab === id
+                ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
+                : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+            }`}>
+            <Icon className="w-3.5 h-3.5" /> {label}
+          </button>
+        ))}
+      </div>
+
+      {activeTab === 'equipo' && (<>
 
       {/* Tabla comparativa */}
       <div className="card overflow-x-auto">
@@ -580,7 +712,223 @@ export default function Trabajadores() {
         </div>
       )}
 
-      {/* Modals */}
+      </>)}
+
+      {activeTab === 'nomina' && (
+        <div className="space-y-6">
+          {/* Resumen */}
+          <div className="grid grid-cols-3 gap-4">
+            <div className="card text-center">
+              <p className="text-xs text-gray-500 mb-1">Planilla base</p>
+              <p className="text-xl font-bold text-gray-900 dark:text-white">{formatMoney(totalBase)}</p>
+            </div>
+            <div className="card text-center">
+              <p className="text-xs text-gray-500 mb-1">Total descuentos</p>
+              <p className="text-xl font-bold text-red-500">-{formatMoney(totalNominaDisc)}</p>
+            </div>
+            <div className="card text-center border-2 border-red-200 dark:border-red-900">
+              <p className="text-xs text-red-600 dark:text-red-400 mb-1 font-medium">Total a pagar</p>
+              <p className="text-xl font-bold text-red-600 dark:text-red-400">{formatMoney(totalPayroll)}</p>
+            </div>
+          </div>
+
+          {/* Tabla nómina */}
+          <div className="card overflow-x-auto" ref={tableRef}>
+            <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">Detalle por trabajador</p>
+            <table className="w-full text-sm min-w-[500px]">
+              <thead>
+                <tr className="text-xs text-gray-500 border-b border-gray-100 dark:border-gray-800">
+                  <th className="text-left py-2 pr-4">Nombre</th>
+                  <th className="text-right py-2 px-2">Salario real</th>
+                  <th className="text-right py-2 px-2">Descuentos</th>
+                  <th className="text-right py-2 px-2">Hora extra</th>
+                  <th className="text-right py-2 px-2">Pago final</th>
+                  <th className="text-center py-2 px-2">Incidencias</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
+                {payrollData.map(w => {
+                  const isEditing = editingNominaWorker?.id === w.id
+                  return (
+                    <tr key={w.id}>
+                      <td className="py-3 pr-4">
+                        <p className="font-medium text-gray-900 dark:text-white">{w.name}</p>
+                        {isEditing ? (
+                          <div className="flex items-center gap-1.5 mt-1">
+                            <div className="flex items-center gap-1">
+                              <span className="text-xs text-gray-400">S/</span>
+                              <input type="number" value={editingNominaWorker.base_salary}
+                                onChange={e => setEditingNominaWorker(f => ({ ...f, base_salary: e.target.value }))}
+                                className="w-20 text-xs border border-gray-300 dark:border-gray-600 rounded-lg px-1.5 py-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-white" />
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <input type="number" value={editingNominaWorker.weekly_hours}
+                                onChange={e => setEditingNominaWorker(f => ({ ...f, weekly_hours: e.target.value }))}
+                                className="w-12 text-xs border border-gray-300 dark:border-gray-600 rounded-lg px-1.5 py-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-white" />
+                              <span className="text-xs text-gray-400">h/sem</span>
+                            </div>
+                            <button onClick={handleSaveNominaWorker} className="p-1 bg-green-100 hover:bg-green-200 rounded-lg">
+                              <Check className="w-3.5 h-3.5 text-green-600" />
+                            </button>
+                            <button onClick={() => setEditingNominaWorker(null)} className="p-1 bg-gray-100 hover:bg-gray-200 rounded-lg">
+                              <X className="w-3.5 h-3.5 text-gray-500" />
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1.5">
+                            <p className="text-xs text-gray-400">
+                              Base: {formatMoney(w.base_salary)} · {w.weekly_hours}h/sem
+                              {leftThisMonth(w) && <span className="text-amber-500"> · Se retiró el {formatDate(w.terminated_at)}</span>}
+                            </p>
+                            <button onClick={() => setEditingNominaWorker({ id: w.id, base_salary: w.base_salary, weekly_hours: w.weekly_hours })}
+                              className="p-0.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded">
+                              <Pencil className="w-3 h-3 text-gray-400" />
+                            </button>
+                          </div>
+                        )}
+                      </td>
+                      <td className="text-right px-2 text-gray-700 dark:text-gray-300">{formatMoney(w.realSalary)}</td>
+                      <td className="text-right px-2 text-red-500">{w.totalDiscounts > 0 ? `-${formatMoney(w.totalDiscounts)}` : '—'}</td>
+                      <td className="text-right px-2 text-green-600">{w.totalOvertime > 0 ? `+${formatMoney(w.totalOvertime)}` : '—'}</td>
+                      <td className="text-right px-2 font-bold text-gray-900 dark:text-white">{formatMoney(w.finalPay)}</td>
+                      <td className="text-center px-2 text-xs text-gray-500">{w.workerIncidents.length}</td>
+                    </tr>
+                  )
+                })}
+                <tr className="border-t-2 border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-900/10">
+                  <td className="py-3 pr-4 font-bold text-red-700 dark:text-red-400">TOTAL PLANILLA</td>
+                  <td className="text-right px-2 font-bold text-red-700 dark:text-red-400">{formatMoney(totalBase)}</td>
+                  <td className="text-right px-2 font-bold text-red-500">-{formatMoney(totalNominaDisc)}</td>
+                  <td className="text-right px-2 font-bold text-green-600">+{formatMoney(totalNominaOvt)}</td>
+                  <td className="text-right px-2 font-bold text-red-600 dark:text-red-400 text-base">{formatMoney(totalPayroll)}</td>
+                  <td />
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          {/* Desglose incidencias */}
+          {incidents.length > 0 && (
+            <div className="card">
+              <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">Desglose de descuentos por incidencia</p>
+              <div className="space-y-4">
+                {payrollData.filter(w => w.workerIncidents.length > 0).map(w => (
+                  <div key={w.id}>
+                    <p className="text-sm font-medium text-gray-800 dark:text-gray-200 mb-2">{w.name}</p>
+                    <div className="space-y-1 pl-3">
+                      {w.workerIncidents.map(i => (
+                        <div key={i.id} className="flex items-center gap-2 text-xs group py-0.5">
+                          <span className="text-gray-500 shrink-0">{formatDate(i.date)}</span>
+                          <span className="text-gray-600 dark:text-gray-400 shrink-0">{INCIDENT_LABELS[i.type]}</span>
+                          {(i.type === 'tardanza' || i.type === 'permiso_horas' || i.type === 'hora_extra') && i.hours_late > 0 && (
+                            <span className="text-gray-400 shrink-0">{Math.floor(i.hours_late)}h {Math.round((i.hours_late % 1) * 60)}min</span>
+                          )}
+                          {i.type === 'no_marcacion' && (
+                            <span className="text-gray-400 shrink-0">{i.no_marcacion_count || 1} vez{(i.no_marcacion_count || 1) > 1 ? 'es' : ''} · S/ 5 c/u</span>
+                          )}
+                          {i.apply_discount
+                            ? i.is_addition
+                              ? <Badge variant="verde">+{formatMoney(i.discount_amount)}</Badge>
+                              : <Badge variant="rojo">-{formatMoney(i.discount_amount)}</Badge>
+                            : <Badge variant="gray">Sin descuento</Badge>
+                          }
+                          {i.observation && <span className="text-gray-400 italic truncate max-w-[200px]">{i.observation}</span>}
+                          <div className="ml-auto flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                            <button onClick={() => openEditIncident(i)} className="p-1 rounded hover:bg-blue-50 dark:hover:bg-blue-900/20 text-blue-500">
+                              <Pencil className="w-3 h-3" />
+                            </button>
+                            <button onClick={() => setConfirmDelete(i)} className="p-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 text-red-500">
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Modal editar incidencia */}
+          {editingNominaIncident && (
+            <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 px-4 pb-4"
+              onClick={() => setEditingNominaIncident(null)}>
+              <div className="bg-white dark:bg-gray-900 rounded-2xl w-full max-w-sm p-5 shadow-2xl space-y-3"
+                onClick={e => e.stopPropagation()}>
+                <p className="font-bold text-gray-900 dark:text-white">Editar incidencia</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs text-gray-500 mb-1 block">Fecha</label>
+                    <input type="date" className="input w-full text-sm" value={incDraft.date}
+                      onChange={e => setIncDraft(d => ({ ...d, date: e.target.value }))} />
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500 mb-1 block">Tipo</label>
+                    <select className="input w-full text-sm" value={incDraft.type}
+                      onChange={e => setIncDraft(d => ({ ...d, type: e.target.value }))}>
+                      {Object.entries(INCIDENT_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                    </select>
+                  </div>
+                </div>
+                {(incDraft.type === 'tardanza' || incDraft.type === 'permiso_horas' || incDraft.type === 'hora_extra') && (
+                  <div>
+                    <label className="text-xs text-gray-500 mb-1 block">Horas</label>
+                    <input type="number" step="0.5" min="0" className="input w-full text-sm" value={incDraft.hours_late}
+                      onChange={e => setIncDraft(d => ({ ...d, hours_late: parseFloat(e.target.value) || 0 }))} />
+                  </div>
+                )}
+                {incDraft.type === 'no_marcacion' && (
+                  <div>
+                    <label className="text-xs text-gray-500 mb-1 block">Cantidad de veces</label>
+                    <input type="number" min="1" className="input w-full text-sm" value={incDraft.no_marcacion_count}
+                      onChange={e => setIncDraft(d => ({ ...d, no_marcacion_count: parseInt(e.target.value) || 1 }))} />
+                  </div>
+                )}
+                {(incDraft.type === 'multa' || incDraft.type === 'adelanto') && (
+                  <div>
+                    <label className="text-xs text-gray-500 mb-1 block">Monto (S/)</label>
+                    <input type="number" min="0" step="0.01" className="input w-full text-sm" value={incDraft.multa_amount}
+                      onChange={e => setIncDraft(d => ({ ...d, multa_amount: parseFloat(e.target.value) || 0 }))} />
+                  </div>
+                )}
+                <div>
+                  <label className="text-xs text-gray-500 mb-1 block">Observación</label>
+                  <input type="text" className="input w-full text-sm" placeholder="Opcional..."
+                    value={incDraft.observation} onChange={e => setIncDraft(d => ({ ...d, observation: e.target.value }))} />
+                </div>
+                <div className="grid grid-cols-2 gap-2 pt-1">
+                  <button onClick={() => setEditingNominaIncident(null)} className="btn-secondary py-2.5 text-sm rounded-xl">Cancelar</button>
+                  <button onClick={saveNominaIncident} className="btn-primary py-2.5 text-sm rounded-xl">Guardar</button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Modal confirmar eliminar */}
+          {confirmDelete && (
+            <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 px-4 pb-4"
+              onClick={() => setConfirmDelete(null)}>
+              <div className="bg-white dark:bg-gray-900 rounded-2xl w-full max-w-sm p-5 shadow-2xl"
+                onClick={e => e.stopPropagation()}>
+                <p className="font-bold text-gray-900 dark:text-white mb-1">¿Eliminar incidencia?</p>
+                <p className="text-sm text-gray-500 mb-4">
+                  {INCIDENT_LABELS[confirmDelete.type]} del {formatDate(confirmDelete.date)} — {formatMoney(confirmDelete.discount_amount)}
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  <button onClick={() => setConfirmDelete(null)} className="btn-secondary py-2.5 text-sm rounded-xl">Cancelar</button>
+                  <button onClick={() => doDeleteIncident(confirmDelete.id)}
+                    className="py-2.5 text-sm rounded-xl bg-red-600 hover:bg-red-700 text-white font-semibold transition-colors">
+                    Eliminar
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Modals equipo */}
       <Modal open={showWorkerForm} onClose={() => { setShowWorkerForm(false); setEditingWorker(null) }} title={editingWorker ? 'Editar trabajador' : 'Nuevo trabajador'}>
         <WorkerForm initial={editingWorker} onSave={handleSaveWorker} onClose={() => { setShowWorkerForm(false); setEditingWorker(null) }} />
       </Modal>

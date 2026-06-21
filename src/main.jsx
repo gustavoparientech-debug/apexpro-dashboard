@@ -83,7 +83,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
                       <Route path="/"              element={<HomeRoute />} />
                       <Route path="/registro"      element={<Registro />} />
                       <Route path="/trabajadores"  element={<AdminOnly><Trabajadores /></AdminOnly>} />
-                      <Route path="/nomina"        element={<AdminOnly><Nomina /></AdminOnly>} />
+                      <Route path="/nomina"        element={<Navigate to="/trabajadores" replace />} />
                       <Route path="/mix"           element={<AdminOnly><Mix /></AdminOnly>} />
                       <Route path="/configuracion" element={<AdminOnly><Configuracion /></AdminOnly>} />
                       <Route path="/historial"     element={<AdminOnly><Historial /></AdminOnly>} />

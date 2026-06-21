@@ -209,7 +209,7 @@ export function IncidentForm({ workers, onSave, onClose, initial }) {
         <div>
           <label className="label">{form.type === 'adelanto' ? 'Monto del adelanto (S/)' : 'Monto de la multa (S/)'}</label>
           <input
-            type="number" className="input" min="0" step="0.50"
+            type="number" className="input" min="0" step="0.01"
             value={form.multa_amount}
             onChange={e => setForm(f => ({ ...f, multa_amount: e.target.value }))}
             placeholder="0.00" required

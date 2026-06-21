@@ -1467,67 +1467,61 @@ export default function Registro() {
             </button>
           </div>
 
-          {/* Fila 2: nav día + total inline */}
+          {/* Fila 2: nav día + botón rango */}
           {canAdmin && (
             <div className="flex items-center gap-2">
-              {/* Nav días */}
-              <div className="flex items-center gap-1 flex-none">
-                <button onClick={() => {
-                    const d = new Date(selectedDate + 'T00:00:00'); d.setDate(d.getDate() - 1)
-                    const nd = d.toISOString().slice(0, 10)
-                    if (nd.startsWith(`${selYear}-${String(selMonth).padStart(2,'0')}`)) setSelectedDate(nd)
-                  }}
-                  className="p-1 rounded-md bg-white/10 hover:bg-white/20 transition-colors">
-                  <ChevronLeft className="w-3 h-3 text-white" />
+              <button onClick={() => {
+                  const d = new Date(selectedDate + 'T00:00:00'); d.setDate(d.getDate() - 1)
+                  const nd = d.toISOString().slice(0, 10)
+                  if (nd.startsWith(`${selYear}-${String(selMonth).padStart(2,'0')}`)) setSelectedDate(nd)
+                }}
+                className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 transition-colors flex-none">
+                <ChevronLeft className="w-4 h-4 text-white" />
+              </button>
+              <input type="date"
+                className="bg-white/10 text-white text-sm font-semibold focus:outline-none text-center rounded-lg px-3 py-1.5 cursor-pointer flex-1 min-w-0"
+                value={selectedDate}
+                min={`${selYear}-${String(selMonth).padStart(2,'0')}-01`}
+                max={`${selYear}-${String(selMonth).padStart(2,'0')}-${new Date(selYear, selMonth, 0).getDate()}`}
+                onChange={e => e.target.value && setSelectedDate(e.target.value)}
+              />
+              <button onClick={() => {
+                  const d = new Date(selectedDate + 'T00:00:00'); d.setDate(d.getDate() + 1)
+                  const nd = d.toISOString().slice(0, 10)
+                  if (nd.startsWith(`${selYear}-${String(selMonth).padStart(2,'0')}`)) setSelectedDate(nd)
+                }}
+                className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 transition-colors flex-none">
+                <ChevronRight className="w-4 h-4 text-white" />
+              </button>
+              {selectedDate !== today && (
+                <button onClick={() => setSelectedDate(today)}
+                  className="text-xs text-gray-300 bg-white/10 hover:bg-white/20 px-2.5 py-1.5 rounded-lg transition-colors font-semibold whitespace-nowrap flex-none">
+                  Hoy
                 </button>
-                <input type="date"
-                  className="bg-white/10 text-white text-xs font-medium focus:outline-none text-center rounded-md px-2 py-1 cursor-pointer w-28"
-                  value={selectedDate}
-                  min={`${selYear}-${String(selMonth).padStart(2,'0')}-01`}
-                  max={`${selYear}-${String(selMonth).padStart(2,'0')}-${new Date(selYear, selMonth, 0).getDate()}`}
-                  onChange={e => e.target.value && setSelectedDate(e.target.value)}
-                />
-                <button onClick={() => {
-                    const d = new Date(selectedDate + 'T00:00:00'); d.setDate(d.getDate() + 1)
-                    const nd = d.toISOString().slice(0, 10)
-                    if (nd.startsWith(`${selYear}-${String(selMonth).padStart(2,'0')}`)) setSelectedDate(nd)
-                  }}
-                  className="p-1 rounded-md bg-white/10 hover:bg-white/20 transition-colors">
-                  <ChevronRight className="w-3 h-3 text-white" />
-                </button>
-                {selectedDate !== today && (
-                  <button onClick={() => setSelectedDate(today)}
-                    className="text-[10px] text-gray-300 bg-white/10 hover:bg-white/20 px-2 py-1 rounded-md transition-colors font-medium whitespace-nowrap">
-                    Hoy
-                  </button>
-                )}
-              </div>
-
-              {/* Separador */}
-              <div className="w-px h-6 bg-white/20 flex-none" />
-
-              {/* Total inline */}
-              <div className="flex items-center gap-1.5 flex-1 min-w-0">
-                <div className="min-w-0">
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider leading-none mb-0.5">
-                    {hasRange ? `Rango` : fechaLabel.split(',')[0]}
-                    {!hasRange && selectedDate !== today && <span className="ml-1 text-amber-400"> · Lectura</span>}
-                  </p>
-                  <p className="text-3xl font-black text-white leading-tight whitespace-nowrap">
-                    {hideTotal ? '••••' : formatMoney(dayTotal)}
-                  </p>
-                </div>
-                <button onClick={() => setHideTotal(v => !v)}
-                  className="p-1 rounded-md bg-white/10 hover:bg-white/20 transition-colors flex-none">
-                  <Eye className="w-3 h-3 text-gray-300" />
-                </button>
-              </div>
-
-              {/* Botón rango */}
+              )}
               <button onClick={() => { setShowRange(v => !v); setRangeFrom(''); setRangeTo('') }}
                 className={`flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg transition-all font-semibold flex-none ${showRange ? 'bg-red-500/90 text-white' : 'bg-white/10 text-gray-300 hover:bg-white/20'}`}>
-                <Search className="w-3 h-3" />
+                <Search className="w-3.5 h-3.5" />
                 {showRange ? '✕' : 'Rango'}
+              </button>
+            </div>
+          )}
+
+          {/* Total del día — grande y prominente */}
+          {canAdmin && (
+            <div className="flex items-end justify-between">
+              <div>
+                <p className="text-xs font-bold text-white/50 uppercase tracking-widest mb-0.5">
+                  {hasRange ? 'Total rango' : fechaLabel.split(',')[0]}
+                  {!hasRange && selectedDate !== today && <span className="ml-1.5 text-amber-400">· Lectura</span>}
+                </p>
+                <p className="text-4xl font-black text-white leading-none tracking-tight">
+                  {hideTotal ? '••••••' : formatMoney(dayTotal)}
+                </p>
+              </div>
+              <button onClick={() => setHideTotal(v => !v)}
+                className="p-2 rounded-xl bg-white/10 hover:bg-white/20 transition-colors mb-0.5">
+                <Eye className="w-4 h-4 text-gray-300" />
               </button>
             </div>
           )}

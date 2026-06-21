@@ -566,9 +566,13 @@ export default function Trabajadores() {
                     <Badge variant={ratioColor[rc]}>{w.ratio.toFixed(1)}x</Badge>
                   </td>
                   <td className="text-center px-2">
-                    <span className="text-sm">
-                      {w.workerIncidents.map(i => INCIDENT_ICONS[i.type]).join(' ') || '—'}
-                    </span>
+                    {w.workerIncidents.length === 0 ? (
+                      <span className="text-xs text-gray-300">—</span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-xs font-semibold bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 px-2 py-0.5 rounded-full">
+                        {w.workerIncidents.length}
+                      </span>
+                    )}
                   </td>
                   <td className="py-3">
                     <div className="flex items-center gap-1">

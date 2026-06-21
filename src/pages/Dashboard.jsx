@@ -138,6 +138,7 @@ function ExpensesPanel({ expenses, workers }) {
   const { updateExpense, deleteExpense, addExpense } = useApp()
   const { isAdmin, isDemo } = useAuth()
   const canAdmin = isAdmin || isDemo
+  const [expanded,     setExpanded]     = useState(false)
   const [filterCat,    setFilterCat]    = useState('')
   const [filterWorker, setFilterWorker] = useState('')
   const [filterFrom,   setFilterFrom]   = useState('')
@@ -180,7 +181,8 @@ function ExpensesPanel({ expenses, workers }) {
 
   return (
     <div className="card">
-      <div className="flex items-center gap-2 mb-3">
+      {/* Header siempre visible */}
+      <div className="flex items-center gap-2">
         <span className="text-base">💸</span>
         <p className="text-sm font-bold text-gray-900 dark:text-white flex-1">Gastos de personal</p>
         <span className="text-sm font-black text-amber-600">-{formatMoney(total)}</span>
@@ -190,7 +192,29 @@ function ExpensesPanel({ expenses, workers }) {
             + Registrar gasto
           </button>
         )}
+        <button onClick={() => setExpanded(v => !v)}
+          className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
+          <svg className={`w-3.5 h-3.5 transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+          </svg>
+          {expanded ? 'Ocultar' : 'Ver más'}
+        </button>
       </div>
+
+      {/* Resumen compacto cuando está cerrado */}
+      {!expanded && (
+        <div className="flex items-center gap-3 mt-2 flex-wrap">
+          <span className="text-xs text-gray-400">{expenses.length} gasto{expenses.length !== 1 ? 's' : ''} este período</span>
+          {['adelanto','insumos','comida','otro'].map(cat => {
+            const catTotal = expenses.filter(e => e.category === cat).reduce((s, e) => s + e.amount, 0)
+            if (!catTotal) return null
+            return <span key={cat} className="text-xs text-gray-500">{CAT_LABELS[cat]}: <span className="font-semibold text-amber-600">-{formatMoney(catTotal)}</span></span>
+          })}
+        </div>
+      )}
+
+      {/* Todo lo demás colapsable */}
+      {expanded && (<>
 
       {/* Formulario rápido */}
       {showAdd && canAdmin && (
@@ -367,6 +391,8 @@ function ExpensesPanel({ expenses, workers }) {
         <span className="text-xs text-gray-400">{filtered.length} gasto{filtered.length !== 1 ? 's' : ''}</span>
         <span className="text-xs font-black text-amber-600">-{formatMoney(total)}</span>
       </div>
+
+      </>)}
     </div>
   )
 }

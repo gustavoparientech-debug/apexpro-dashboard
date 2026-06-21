@@ -1439,20 +1439,20 @@ export default function Registro() {
       {/* Hero header */}
       <div className="relative rounded-2xl overflow-hidden bg-gray-900 dark:bg-gray-950">
         <img src="/hero-bg.jpg" alt="" className="absolute inset-0 w-full h-full object-cover object-center" onError={e => e.target.style.display='none'} />
-        <div className="absolute inset-0 bg-gradient-to-b from-black/55 via-black/45 to-black/75" />
-        <div className="relative z-10 px-4 py-7 flex flex-col gap-4">
+        <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/50 to-black/80" />
+        <div className="relative z-10 px-4 pt-4 pb-5 flex flex-col gap-3">
 
           {/* Fila 1: título + mes/año + Rápido */}
           <div className="flex items-center gap-2">
             <div className="flex-1 min-w-0">
-              <h1 className="text-base font-black text-white tracking-tight leading-none">Apex Pro Detailing</h1>
+              <h1 className="text-sm font-black text-white tracking-tight leading-none">Apex Pro Detailing</h1>
               {canAdmin ? (
                 <div className="flex items-center gap-1 mt-0.5">
-                  <select className="bg-transparent text-gray-300 text-xs font-medium focus:outline-none cursor-pointer"
+                  <select className="bg-transparent text-gray-400 text-xs font-medium focus:outline-none cursor-pointer"
                     value={selMonth} onChange={e => handleMonthChange(+e.target.value, selYear)}>
                     {MONTHS.map((m, i) => <option key={i+1} value={i+1} className="bg-gray-800">{m}</option>)}
                   </select>
-                  <select className="bg-transparent text-gray-300 text-xs font-medium focus:outline-none cursor-pointer"
+                  <select className="bg-transparent text-gray-400 text-xs font-medium focus:outline-none cursor-pointer"
                     value={selYear} onChange={e => handleMonthChange(selMonth, +e.target.value)}>
                     {[cy-1, cy, cy+1].map(y => <option key={y} value={y} className="bg-gray-800">{y}</option>)}
                   </select>
@@ -1467,19 +1467,38 @@ export default function Registro() {
             </button>
           </div>
 
-          {/* Fila 2: nav día + botón rango */}
+          {/* Total del día — prominente */}
           {canAdmin && (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-[10px] font-bold text-white/40 uppercase tracking-widest leading-none mb-1">
+                  {hasRange ? 'Total rango' : fechaLabel.split(',')[0]}
+                  {!hasRange && selectedDate !== today && <span className="ml-1.5 text-amber-400">· Lectura</span>}
+                </p>
+                <p className="text-3xl font-black text-white leading-none tracking-tight">
+                  {hideTotal ? '•••••' : formatMoney(dayTotal)}
+                </p>
+              </div>
+              <button onClick={() => setHideTotal(v => !v)}
+                className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 transition-colors">
+                <Eye className="w-4 h-4 text-gray-300" />
+              </button>
+            </div>
+          )}
+
+          {/* Fila nav día + botón rango */}
+          {canAdmin && (
+            <div className="flex items-center gap-1.5">
               <button onClick={() => {
                   const d = new Date(selectedDate + 'T00:00:00'); d.setDate(d.getDate() - 1)
                   const nd = d.toISOString().slice(0, 10)
                   if (nd.startsWith(`${selYear}-${String(selMonth).padStart(2,'0')}`)) setSelectedDate(nd)
                 }}
                 className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 transition-colors flex-none">
-                <ChevronLeft className="w-4 h-4 text-white" />
+                <ChevronLeft className="w-3.5 h-3.5 text-white" />
               </button>
               <input type="date"
-                className="bg-white/10 text-white text-sm font-semibold focus:outline-none text-center rounded-lg px-3 py-1.5 cursor-pointer flex-1 min-w-0"
+                className="bg-white/10 text-white text-xs font-semibold focus:outline-none text-center rounded-lg px-2 py-1.5 cursor-pointer flex-1 min-w-0"
                 value={selectedDate}
                 min={`${selYear}-${String(selMonth).padStart(2,'0')}-01`}
                 max={`${selYear}-${String(selMonth).padStart(2,'0')}-${new Date(selYear, selMonth, 0).getDate()}`}
@@ -1491,53 +1510,33 @@ export default function Registro() {
                   if (nd.startsWith(`${selYear}-${String(selMonth).padStart(2,'0')}`)) setSelectedDate(nd)
                 }}
                 className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 transition-colors flex-none">
-                <ChevronRight className="w-4 h-4 text-white" />
+                <ChevronRight className="w-3.5 h-3.5 text-white" />
               </button>
               {selectedDate !== today && (
                 <button onClick={() => setSelectedDate(today)}
-                  className="text-xs text-gray-300 bg-white/10 hover:bg-white/20 px-2.5 py-1.5 rounded-lg transition-colors font-semibold whitespace-nowrap flex-none">
+                  className="text-xs text-gray-300 bg-white/10 hover:bg-white/20 px-2 py-1.5 rounded-lg transition-colors font-semibold whitespace-nowrap flex-none">
                   Hoy
                 </button>
               )}
               <button onClick={() => { setShowRange(v => !v); setRangeFrom(''); setRangeTo('') }}
                 className={`flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg transition-all font-semibold flex-none ${showRange ? 'bg-red-500/90 text-white' : 'bg-white/10 text-gray-300 hover:bg-white/20'}`}>
-                <Search className="w-3.5 h-3.5" />
+                <Search className="w-3 h-3" />
                 {showRange ? '✕' : 'Rango'}
-              </button>
-            </div>
-          )}
-
-          {/* Total del día — grande y prominente */}
-          {canAdmin && (
-            <div className="flex items-end justify-between">
-              <div>
-                <p className="text-xs font-bold text-white/50 uppercase tracking-widest mb-0.5">
-                  {hasRange ? 'Total rango' : fechaLabel.split(',')[0]}
-                  {!hasRange && selectedDate !== today && <span className="ml-1.5 text-amber-400">· Lectura</span>}
-                </p>
-                <p className="text-4xl font-black text-white leading-none tracking-tight">
-                  {hideTotal ? '••••••' : formatMoney(dayTotal)}
-                </p>
-              </div>
-              <button onClick={() => setHideTotal(v => !v)}
-                className="p-2 rounded-xl bg-white/10 hover:bg-white/20 transition-colors mb-0.5">
-                <Eye className="w-4 h-4 text-gray-300" />
               </button>
             </div>
           )}
 
           {/* Rango expandido */}
           {canAdmin && showRange && (
-            <div className="flex items-center gap-2 bg-black/30 backdrop-blur-md border border-white/10 rounded-xl px-3 py-2">
-              <div className="flex flex-col flex-1 min-w-0">
-                <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-0.5">Desde</span>
-                <input type="date" className="bg-transparent text-white text-xs font-semibold focus:outline-none w-full"
+            <div className="grid grid-cols-2 gap-2">
+              <div className="bg-white/10 backdrop-blur-sm border border-white/10 rounded-xl px-3 py-2">
+                <p className="text-[9px] font-bold text-white/40 uppercase tracking-widest mb-1">Desde</p>
+                <input type="date" className="bg-transparent text-white text-sm font-semibold focus:outline-none w-full"
                   value={rangeFrom} onChange={e => setRangeFrom(e.target.value)} />
               </div>
-              <div className="w-px h-7 bg-white/20 flex-shrink-0" />
-              <div className="flex flex-col flex-1 min-w-0">
-                <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-0.5">Hasta</span>
-                <input type="date" className="bg-transparent text-white text-xs font-semibold focus:outline-none w-full"
+              <div className="bg-white/10 backdrop-blur-sm border border-white/10 rounded-xl px-3 py-2">
+                <p className="text-[9px] font-bold text-white/40 uppercase tracking-widest mb-1">Hasta</p>
+                <input type="date" className="bg-transparent text-white text-sm font-semibold focus:outline-none w-full"
                   value={rangeTo} min={rangeFrom} onChange={e => setRangeTo(e.target.value)} />
               </div>
             </div>

@@ -429,7 +429,7 @@ function RankingPanel({ ranking, workingDaysElapsed }) {
 }
 
 export default function Dashboard() {
-  const { tickets, dailySummaries, expenses, workers, services, incidents, monthlyCosts, bonuses, addBonus, deleteBonus, loading } = useApp()
+  const { tickets, dailySummaries, expenses, workers, services, incidents, monthlyCosts, bonuses, addBonus, deleteBonus, loading, loadData, invalidateAllCache } = useApp()
   const { month: cm, year: cy } = currentMonthYear()
   const [selMonth, setSelMonth] = useState(cm)
   const [selYear,  setSelYear]  = useState(cy)
@@ -437,6 +437,14 @@ export default function Dashboard() {
   const [rangeTo,   setRangeTo]   = useState(null)
   const isCurrentMonth = selMonth === cm && selYear === cy
   const hasRange = rangeFrom && rangeTo
+
+  const [refreshing, setRefreshing] = useState(false)
+  async function handleRefresh() {
+    setRefreshing(true)
+    invalidateAllCache()
+    await loadData()
+    setRefreshing(false)
+  }
 
   const [pastTickets,    setPastTickets]    = useState([])
   const [pastSummaries,  setPastSummaries]  = useState([])
@@ -641,6 +649,14 @@ export default function Dashboard() {
               <X className="w-3 h-3" /> Todo el mes
             </button>
           )}
+
+          <button onClick={handleRefresh} disabled={refreshing}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 transition-all text-white text-xs font-semibold whitespace-nowrap disabled:opacity-60">
+            <svg className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            {refreshing ? 'Actualizando...' : 'Actualizar'}
+          </button>
         </div>
       </div>
 

@@ -615,18 +615,18 @@ export default function Dashboard() {
 
         {/* Fila superior: título + ingresos */}
         <div className="flex items-start justify-between mb-4 relative">
-          <div>
-            <p className="text-xs font-bold text-red-400 uppercase tracking-widest mb-0.5">Panel principal</p>
-            <h1 className="text-2xl font-black text-white leading-tight">
+          <div className="flex-1 min-w-0 pr-3">
+            <p className="text-[10px] font-bold text-red-400 uppercase tracking-widest mb-0.5">Panel principal</p>
+            <h1 className="text-xl font-black text-white leading-tight truncate">
               {hasRange ? `${formatDate(rangeFrom)} – ${formatDate(rangeTo)}` : `${monthName(selMonth)} ${selYear}`}
             </h1>
             {!hasRange && (
               <p className="text-xs text-gray-400 mt-0.5">{data.workingDaysElapsed} días hábiles transcurridos</p>
             )}
           </div>
-          <div className="text-right">
-            <p className="text-xs text-gray-400 mb-0.5">Ingresos</p>
-            <p className="text-2xl font-black text-white">{formatMoney(data.totalIncome)}</p>
+          <div className="text-right flex-shrink-0">
+            <p className="text-[10px] text-gray-400 mb-0.5">Ingresos</p>
+            <p className="text-xl font-black text-white">{formatMoney(data.totalIncome)}</p>
             {!hasRange && (
               <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full mt-1 ${
                 data.semaforo === 'verde' ? 'bg-green-500/20 text-green-400' :
@@ -639,10 +639,10 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Fila controles: mes/año + rango */}
-        <div className="flex items-center gap-2 flex-wrap relative">
-          <div className="flex items-center gap-1.5 bg-white/10 backdrop-blur-sm rounded-xl px-3 py-2">
-            <select className="bg-transparent text-white text-sm font-semibold focus:outline-none cursor-pointer appearance-none"
+        {/* Fila controles: mes/año + actualizar */}
+        <div className="flex items-center gap-2 relative mb-2">
+          <div className="flex items-center gap-1.5 bg-white/10 backdrop-blur-sm rounded-xl px-3 py-2 flex-1">
+            <select className="bg-transparent text-white text-sm font-semibold focus:outline-none cursor-pointer appearance-none flex-1"
               value={selMonth} onChange={e => { setSelMonth(+e.target.value); setRangeFrom(null); setRangeTo(null) }}>
               {MONTHS.map((m, i) => <option key={i+1} value={i+1} className="text-gray-900 bg-white">{m}</option>)}
             </select>
@@ -653,37 +653,36 @@ export default function Dashboard() {
             </select>
           </div>
 
-          <div className="flex items-center gap-1.5 bg-white/10 backdrop-blur-sm rounded-xl px-3 py-2 flex-1 min-w-0">
-            <div className="flex flex-col min-w-0">
-              <span className="text-[9px] font-bold text-white/40 uppercase tracking-wider">Desde</span>
-              <input type="date" className="bg-transparent text-white text-xs font-semibold focus:outline-none w-full"
-                value={rangeFrom || ''} min={`${prefix}-01`} max={`${prefix}-${String(lastDayOfMonth).padStart(2,'0')}`}
-                onChange={e => setRangeFrom(e.target.value || null)} />
-            </div>
-            <div className="w-px h-8 bg-white/20 flex-shrink-0" />
-            <div className="flex flex-col min-w-0">
-              <span className="text-[9px] font-bold text-white/40 uppercase tracking-wider">Hasta</span>
-              <input type="date" className="bg-transparent text-white text-xs font-semibold focus:outline-none w-full"
-                value={rangeTo || ''} min={rangeFrom || `${prefix}-01`} max={`${prefix}-${String(lastDayOfMonth).padStart(2,'0')}`}
-                onChange={e => setRangeTo(e.target.value || null)} />
-            </div>
-          </div>
-
-          {hasRange && (
-            <button onClick={() => { setRangeFrom(null); setRangeTo(null) }}
-              className="flex items-center gap-1 text-xs text-white/70 hover:text-white bg-white/10 hover:bg-white/20 px-3 py-2 rounded-xl transition-colors font-medium whitespace-nowrap">
-              <X className="w-3 h-3" /> Todo el mes
-            </button>
-          )}
-
           <button onClick={handleRefresh} disabled={refreshing}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 transition-all text-white text-xs font-semibold whitespace-nowrap disabled:opacity-60">
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 transition-all text-white text-xs font-semibold whitespace-nowrap disabled:opacity-60 flex-none">
             <svg className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
             </svg>
             {refreshing ? 'Actualizando...' : 'Actualizar'}
           </button>
         </div>
+
+        {/* Fila rango: Desde / Hasta en grid 2 cols + botón limpiar */}
+        <div className="grid grid-cols-2 gap-2 relative mt-1">
+          <div className="bg-white/10 backdrop-blur-sm rounded-xl px-3 py-2">
+            <p className="text-[9px] font-bold text-white/40 uppercase tracking-widest mb-1">Desde</p>
+            <input type="date" className="bg-transparent text-white text-sm font-semibold focus:outline-none w-full"
+              value={rangeFrom || ''} min={`${prefix}-01`} max={`${prefix}-${String(lastDayOfMonth).padStart(2,'0')}`}
+              onChange={e => setRangeFrom(e.target.value || null)} />
+          </div>
+          <div className="bg-white/10 backdrop-blur-sm rounded-xl px-3 py-2">
+            <p className="text-[9px] font-bold text-white/40 uppercase tracking-widest mb-1">Hasta</p>
+            <input type="date" className="bg-transparent text-white text-sm font-semibold focus:outline-none w-full"
+              value={rangeTo || ''} min={rangeFrom || `${prefix}-01`} max={`${prefix}-${String(lastDayOfMonth).padStart(2,'0')}`}
+              onChange={e => setRangeTo(e.target.value || null)} />
+          </div>
+        </div>
+        {hasRange && (
+          <button onClick={() => { setRangeFrom(null); setRangeTo(null) }}
+            className="flex items-center gap-1 text-xs text-white/60 hover:text-white transition-colors font-medium mt-1 relative">
+            <X className="w-3 h-3" /> Limpiar rango
+          </button>
+        )}
       </div>
 
       {/* Alerta ritmo */}

@@ -1440,7 +1440,7 @@ export default function Registro() {
       <div className="relative rounded-2xl overflow-hidden bg-gray-900 dark:bg-gray-950">
         <img src="/hero-bg.jpg" alt="" className="absolute inset-0 w-full h-full object-cover object-center" onError={e => e.target.style.display='none'} />
         <div className="absolute inset-0 bg-gradient-to-b from-black/55 via-black/45 to-black/75" />
-        <div className="relative z-10 px-4 py-3 flex flex-col gap-2">
+        <div className="relative z-10 px-4 py-4 flex flex-col gap-3">
 
           {/* Fila 1: título + mes/año + Rápido */}
           <div className="flex items-center gap-2">

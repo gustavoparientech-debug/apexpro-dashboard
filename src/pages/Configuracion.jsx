@@ -372,6 +372,17 @@ export default function Configuracion() {
     catch (err) { toast.error('Error: ' + err.message) }
   }
 
+  async function handleMoveVehicle(idx, dir) {
+    const sorted = [...(vehicleTypes || [])].sort((a, b) => a.sort_order - b.sort_order)
+    const newIdx = idx + dir
+    if (newIdx < 0 || newIdx >= sorted.length) return
+    const a = sorted[idx], b = sorted[newIdx]
+    await Promise.all([
+      updateVehicleType(a.id, { sort_order: b.sort_order }),
+      updateVehicleType(b.id, { sort_order: a.sort_order }),
+    ])
+  }
+
   async function handleDeleteVehicle(id) {
     try { await deleteVehicleType(id); toast.success('Eliminado') }
     catch (err) { toast.error('Error: ' + err.message) }
@@ -614,8 +625,26 @@ export default function Configuracion() {
         )}
 
         <div className="space-y-2">
-          {[...(vehicleTypes || [])].sort((a, b) => a.sort_order - b.sort_order).map(vt => (
-            <VehicleTypeRow key={vt.id} vt={vt} onSave={handleUpdateVehicle} onDelete={id => setDeleteVehicleTarget(id)} />
+          {[...(vehicleTypes || [])].sort((a, b) => a.sort_order - b.sort_order).map((vt, idx, arr) => (
+            <div key={vt.id} className="flex items-center gap-1">
+              <div className="flex flex-col gap-0.5">
+                <button onClick={() => handleMoveVehicle(idx, -1)} disabled={idx === 0}
+                  className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-20 transition-colors">
+                  <svg className="w-3 h-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
+                  </svg>
+                </button>
+                <button onClick={() => handleMoveVehicle(idx, 1)} disabled={idx === arr.length - 1}
+                  className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-20 transition-colors">
+                  <svg className="w-3 h-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+              </div>
+              <div className="flex-1">
+                <VehicleTypeRow vt={vt} onSave={handleUpdateVehicle} onDelete={id => setDeleteVehicleTarget(id)} />
+              </div>
+            </div>
           ))}
           {(vehicleTypes || []).length === 0 && (
             <p className="text-sm text-gray-400 text-center py-4">Sin tipos. Agrega el primero.</p>

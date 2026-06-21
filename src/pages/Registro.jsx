@@ -1549,12 +1549,15 @@ export default function Registro() {
         <div className="relative">
           {showFabMenu && (
             <>
-              <div className="fixed inset-0 z-30" onClick={() => setShowFabMenu(false)} />
-              <div className="absolute bottom-full mb-3 left-0 right-0 z-40">
+              <div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm" onClick={() => setShowFabMenu(false)} />
+              <div className="fixed bottom-0 left-0 right-0 z-50 px-4 pb-6 pt-2">
                 <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-100 dark:border-gray-800 overflow-hidden">
+                  <div className="flex justify-center pt-2.5 pb-1">
+                    <div className="w-10 h-1 bg-gray-200 dark:bg-gray-700 rounded-full" />
+                  </div>
                   <button onClick={() => { setShowFabMenu(false); setShowIncidentForm(true) }}
                     className="w-full flex items-center gap-3 px-4 py-4 hover:bg-amber-50 dark:hover:bg-amber-900/20 active:bg-amber-100 transition-colors border-b border-gray-100 dark:border-gray-800">
-                    <div className="w-9 h-9 rounded-xl bg-amber-100 dark:bg-amber-900/40 flex items-center justify-center flex-shrink-0">
+                    <div className="w-10 h-10 rounded-xl bg-amber-100 dark:bg-amber-900/40 flex items-center justify-center flex-shrink-0">
                       <AlertCircle className="w-5 h-5 text-amber-500" />
                     </div>
                     <div className="text-left">
@@ -1564,7 +1567,7 @@ export default function Registro() {
                   </button>
                   <button onClick={() => { setShowFabMenu(false); window.dispatchEvent(new Event('open-gasto')) }}
                     className="w-full flex items-center gap-3 px-4 py-4 hover:bg-green-50 dark:hover:bg-green-900/20 active:bg-green-100 transition-colors border-b border-gray-100 dark:border-gray-800">
-                    <div className="w-9 h-9 rounded-xl bg-green-100 dark:bg-green-900/40 flex items-center justify-center flex-shrink-0">
+                    <div className="w-10 h-10 rounded-xl bg-green-100 dark:bg-green-900/40 flex items-center justify-center flex-shrink-0">
                       <TrendingDown className="w-5 h-5 text-green-600" />
                     </div>
                     <div className="text-left">
@@ -1574,7 +1577,7 @@ export default function Registro() {
                   </button>
                   <button onClick={() => { setShowFabMenu(false); setShowNewForm(true) }}
                     className="w-full flex items-center gap-3 px-4 py-4 hover:bg-red-50 dark:hover:bg-red-900/20 active:bg-red-100 transition-colors">
-                    <div className="w-9 h-9 rounded-xl bg-red-100 dark:bg-red-900/40 flex items-center justify-center flex-shrink-0">
+                    <div className="w-10 h-10 rounded-xl bg-red-100 dark:bg-red-900/40 flex items-center justify-center flex-shrink-0">
                       <Plus className="w-5 h-5 text-red-600" />
                     </div>
                     <div className="text-left">

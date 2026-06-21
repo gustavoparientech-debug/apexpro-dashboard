@@ -573,53 +573,71 @@ export default function Dashboard() {
       {/* Barra de carga sutil — visible pero no bloquea */}
       {loading && <div className="fixed top-0 left-0 right-0 h-0.5 z-50 bg-red-500 animate-pulse" />}
 
-      {/* Header + selector de mes/día */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between flex-wrap gap-3">
+      {/* Header hero */}
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#1a1a1a] via-[#2d0a0a] to-[#1a1a1a] p-5 shadow-xl">
+        {/* Círculos decorativos */}
+        <div className="absolute -top-8 -right-8 w-40 h-40 rounded-full bg-red-700/20 blur-2xl pointer-events-none" />
+        <div className="absolute -bottom-6 -left-6 w-32 h-32 rounded-full bg-red-900/30 blur-xl pointer-events-none" />
+
+        {/* Fila superior: título + ingresos */}
+        <div className="flex items-start justify-between mb-4 relative">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Panel</h1>
-            <p className="text-sm text-gray-500">
+            <p className="text-xs font-bold text-red-400 uppercase tracking-widest mb-0.5">Panel principal</p>
+            <h1 className="text-2xl font-black text-white leading-tight">
               {hasRange ? `${formatDate(rangeFrom)} – ${formatDate(rangeTo)}` : `${monthName(selMonth)} ${selYear}`}
-            </p>
-          </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <select className="input text-sm py-1.5 w-36"
-              value={selMonth} onChange={e => { setSelMonth(+e.target.value); setRangeFrom(null); setRangeTo(null) }}>
-              {MONTHS.map((m, i) => <option key={i+1} value={i+1}>{m}</option>)}
-            </select>
-            <select className="input text-sm py-1.5 w-24"
-              value={selYear} onChange={e => { setSelYear(+e.target.value); setRangeFrom(null); setRangeTo(null) }}>
-              {[cy-1, cy, cy+1].map(y => <option key={y} value={y}>{y}</option>)}
-            </select>
+            </h1>
             {!hasRange && (
-              <Badge variant={data.semaforo}>
+              <p className="text-xs text-gray-400 mt-0.5">{data.workingDaysElapsed} días hábiles transcurridos</p>
+            )}
+          </div>
+          <div className="text-right">
+            <p className="text-xs text-gray-400 mb-0.5">Ingresos</p>
+            <p className="text-2xl font-black text-white">{formatMoney(data.totalIncome)}</p>
+            {!hasRange && (
+              <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full mt-1 ${
+                data.semaforo === 'verde' ? 'bg-green-500/20 text-green-400' :
+                data.semaforo === 'amarillo' ? 'bg-yellow-500/20 text-yellow-400' :
+                'bg-red-500/20 text-red-400'
+              }`}>
                 {data.semaforo === 'verde' ? '✓ En meta' : data.semaforo === 'amarillo' ? '⚠ En progreso' : '✗ Por debajo'}
-              </Badge>
+              </span>
             )}
           </div>
         </div>
 
-        {/* Filtro de rango de fechas */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <div className="flex items-center gap-2 bg-gray-100 dark:bg-gray-800 rounded-xl px-3 py-1.5">
-            <span className="text-xs text-gray-400 shrink-0">Desde</span>
-            <input type="date" className="bg-transparent text-sm font-medium text-gray-700 dark:text-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-600 w-32"
-              value={rangeFrom || ''}
-              min={`${prefix}-01`}
-              max={`${prefix}-${String(lastDayOfMonth).padStart(2,'0')}`}
-              onChange={e => setRangeFrom(e.target.value || null)}
-            />
-            <span className="text-xs text-gray-400 shrink-0">Hasta</span>
-            <input type="date" className="bg-transparent text-sm font-medium text-gray-700 dark:text-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-600 w-32"
-              value={rangeTo || ''}
-              min={rangeFrom || `${prefix}-01`}
-              max={`${prefix}-${String(lastDayOfMonth).padStart(2,'0')}`}
-              onChange={e => setRangeTo(e.target.value || null)}
-            />
+        {/* Fila controles: mes/año + rango */}
+        <div className="flex items-center gap-2 flex-wrap relative">
+          <div className="flex items-center gap-1.5 bg-white/10 backdrop-blur-sm rounded-xl px-3 py-2">
+            <select className="bg-transparent text-white text-sm font-semibold focus:outline-none cursor-pointer appearance-none"
+              value={selMonth} onChange={e => { setSelMonth(+e.target.value); setRangeFrom(null); setRangeTo(null) }}>
+              {MONTHS.map((m, i) => <option key={i+1} value={i+1} className="text-gray-900 bg-white">{m}</option>)}
+            </select>
+            <span className="text-white/30">|</span>
+            <select className="bg-transparent text-white text-sm font-semibold focus:outline-none cursor-pointer appearance-none"
+              value={selYear} onChange={e => { setSelYear(+e.target.value); setRangeFrom(null); setRangeTo(null) }}>
+              {[cy-1, cy, cy+1].map(y => <option key={y} value={y} className="text-gray-900 bg-white">{y}</option>)}
+            </select>
           </div>
+
+          <div className="flex items-center gap-1.5 bg-white/10 backdrop-blur-sm rounded-xl px-3 py-2 flex-1 min-w-0">
+            <div className="flex flex-col min-w-0">
+              <span className="text-[9px] font-bold text-white/40 uppercase tracking-wider">Desde</span>
+              <input type="date" className="bg-transparent text-white text-xs font-semibold focus:outline-none w-full"
+                value={rangeFrom || ''} min={`${prefix}-01`} max={`${prefix}-${String(lastDayOfMonth).padStart(2,'0')}`}
+                onChange={e => setRangeFrom(e.target.value || null)} />
+            </div>
+            <div className="w-px h-8 bg-white/20 flex-shrink-0" />
+            <div className="flex flex-col min-w-0">
+              <span className="text-[9px] font-bold text-white/40 uppercase tracking-wider">Hasta</span>
+              <input type="date" className="bg-transparent text-white text-xs font-semibold focus:outline-none w-full"
+                value={rangeTo || ''} min={rangeFrom || `${prefix}-01`} max={`${prefix}-${String(lastDayOfMonth).padStart(2,'0')}`}
+                onChange={e => setRangeTo(e.target.value || null)} />
+            </div>
+          </div>
+
           {hasRange && (
             <button onClick={() => { setRangeFrom(null); setRangeTo(null) }}
-              className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 px-3 py-2 rounded-xl transition-colors font-medium">
+              className="flex items-center gap-1 text-xs text-white/70 hover:text-white bg-white/10 hover:bg-white/20 px-3 py-2 rounded-xl transition-colors font-medium whitespace-nowrap">
               <X className="w-3 h-3" /> Todo el mes
             </button>
           )}

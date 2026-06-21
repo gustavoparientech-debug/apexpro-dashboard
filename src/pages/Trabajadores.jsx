@@ -274,6 +274,7 @@ export default function Trabajadores() {
   const [deleteIncidentTarget, setDeleteIncidentTarget] = useState(null)
   const [selectedWorker, setSelectedWorker] = useState(null)
   const [incFilter, setIncFilter] = useState({ worker: '', type: '', sort: 'date_desc' })
+  const [incExpanded, setIncExpanded] = useState(false)
 
   // Nómina state
   const tableRef = useRef(null)
@@ -633,19 +634,42 @@ export default function Trabajadores() {
       {/* Lista de incidencias del mes */}
       {incidents.length > 0 && (
         <div className="card">
-          <div className="flex items-center justify-between mb-3">
-            <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+          <div className="flex items-center gap-2 mb-0">
+            <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 flex-1">
               Incidencias del mes
               <span className="ml-2 text-xs font-normal text-gray-400">{incidents.length} total</span>
             </p>
-            {(incFilter.worker || incFilter.type || incFilter.sort !== 'date_desc') && (
+            {incExpanded && (incFilter.worker || incFilter.type || incFilter.sort !== 'date_desc') && (
               <button onClick={() => setIncFilter({ worker: '', type: '', sort: 'date_desc' })}
-                className="text-xs text-red-500 hover:underline">Limpiar filtros</button>
+                className="text-xs text-red-500 hover:underline">Limpiar</button>
             )}
+            <button onClick={() => setIncExpanded(v => !v)}
+              className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
+              <svg className={`w-3.5 h-3.5 transition-transform duration-200 ${incExpanded ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
+              {incExpanded ? 'Ocultar' : 'Ver más'}
+            </button>
           </div>
 
+          {/* Resumen compacto cuando está cerrado */}
+          {!incExpanded && (
+            <div className="flex flex-wrap gap-2 mt-2">
+              {['falta','tardanza','adelanto','multa','hora_extra','permiso','permiso_horas','no_marcacion'].map(type => {
+                const count = incidents.filter(i => i.type === type).length
+                if (!count) return null
+                return (
+                  <span key={type} className="text-xs bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 px-2 py-0.5 rounded-full">
+                    {INCIDENT_ICONS[type]} {INCIDENT_LABELS[type].split(' ')[0]}: <span className="font-semibold">{count}</span>
+                  </span>
+                )
+              })}
+            </div>
+          )}
+
+          {incExpanded && (<>
           {/* Filtros */}
-          <div className="flex flex-wrap gap-2 mb-4">
+          <div className="flex flex-wrap gap-2 mt-3 mb-4">
             <select value={incFilter.worker} onChange={e => setIncFilter(f => ({ ...f, worker: e.target.value }))}
               className="text-xs border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1.5 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-1 focus:ring-red-500">
               <option value="">Todos los trabajadores</option>
@@ -709,6 +733,7 @@ export default function Trabajadores() {
               )
             })}
           </div>
+          </>)}
         </div>
       )}
 

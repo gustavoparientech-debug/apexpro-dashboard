@@ -1509,11 +1509,11 @@ export default function Registro() {
               {/* Total inline */}
               <div className="flex items-center gap-1.5 flex-1 min-w-0">
                 <div className="min-w-0">
-                  <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider leading-none">
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider leading-none mb-0.5">
                     {hasRange ? `Rango` : fechaLabel.split(',')[0]}
                     {!hasRange && selectedDate !== today && <span className="ml-1 text-amber-400"> · Lectura</span>}
                   </p>
-                  <p className="text-lg font-black text-white leading-tight whitespace-nowrap">
+                  <p className="text-3xl font-black text-white leading-tight whitespace-nowrap">
                     {hideTotal ? '••••' : formatMoney(dayTotal)}
                   </p>
                 </div>

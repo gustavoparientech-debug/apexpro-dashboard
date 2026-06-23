@@ -1101,74 +1101,116 @@ function TicketSummaryModal({ ticket, workers, vehicleTypes, onClose }) {
 
   async function downloadPDF() {
     const { jsPDF } = await import('jspdf')
-    const doc = new jsPDF({ format: [80, 200], unit: 'mm' })
+    const doc = new jsPDF({ format: [80, 220], unit: 'mm' })
     const lm = 8, rm = 72, mid = 40
+    const row = (label, value, bold = false, color = [40,40,40]) => {
+      doc.setFont(undefined, bold ? 'bold' : 'normal').setTextColor(...color)
+      doc.text(label, lm, y)
+      doc.text(value, rm, y, { align: 'right' }); y += 5
+    }
     let y = 8
 
     // Logo
     try {
-      const img = new Image()
-      img.src = '/logo.jpg'
+      const img = new Image(); img.src = '/logo.jpg'
       await new Promise(resolve => { img.onload = resolve; img.onerror = resolve })
       if (img.complete && img.naturalWidth > 0) {
-        doc.addImage(img, 'JPEG', mid - 8, y, 16, 16, undefined, 'FAST')
-        y += 19
+        doc.addImage(img, 'JPEG', mid - 9, y, 18, 18, undefined, 'FAST'); y += 21
       }
     } catch {}
 
-    // Header
-    doc.setFontSize(13).setFont(undefined, 'bold')
+    // Header empresa
+    doc.setFontSize(13).setFont(undefined, 'bold').setTextColor(0,0,0)
     doc.text('Apex Pro Detailing', mid, y, { align: 'center' }); y += 5
-    doc.setFontSize(7).setFont(undefined, 'normal')
-    doc.setTextColor(120, 120, 120)
-    doc.text('DETAILING PROFESIONAL', mid, y, { align: 'center' }); y += 4
-    doc.setTextColor(0, 0, 0)
+    doc.setFontSize(7).setFont(undefined, 'normal').setTextColor(120,120,120)
+    doc.text('DETAILING PROFESIONAL', mid, y, { align: 'center' }); y += 3.5
     doc.text(closedDate, mid, y, { align: 'center' }); y += 5
-    doc.setLineWidth(0.5).setDrawColor(200, 200, 200).line(lm, y, rm, y); y += 5
+    doc.setLineWidth(0.5).setDrawColor(180,180,180).line(lm, y, rm, y); y += 5
 
-    // Placa + vehículo
-    doc.setFontSize(14).setFont(undefined, 'bold').setTextColor(0, 0, 0)
-    doc.text(ticket.plate || 'Sin placa', mid, y, { align: 'center' }); y += 5
-    doc.setFontSize(8).setFont(undefined, 'normal').setTextColor(80, 80, 80)
-    doc.text(`${vehicle?.label || ticket.vehicle_type}  |  Tecnico: ${worker?.name || '—'}`, mid, y, { align: 'center' }); y += 6
-    doc.setDrawColor(200, 200, 200).line(lm, y, rm, y); y += 5
+    // Placa grande
+    doc.setFontSize(16).setFont(undefined, 'bold').setTextColor(0,0,0)
+    doc.text(ticket.plate || 'Sin placa', mid, y, { align: 'center' }); y += 6
 
-    // Detalle servicios
-    doc.setFontSize(8).setFont(undefined, 'bold').setTextColor(0, 0, 0)
-    doc.text('SERVICIO', lm, y)
-    doc.text('PRECIO', rm, y, { align: 'right' }); y += 4
-    doc.setFont(undefined, 'normal').setTextColor(40, 40, 40)
-    if (basePrice > 0) {
-      doc.text('Lavado', lm, y)
-      doc.text(formatMoney(basePrice), rm, y, { align: 'right' }); y += 5
+    // Info vehículo + técnico
+    doc.setFontSize(8).setFont(undefined, 'normal').setTextColor(80,80,80)
+    if (ticket.vehicle_subtype) {
+      doc.text(`Vehiculo: ${ticket.vehicle_subtype}`, mid, y, { align: 'center' }); y += 4
     }
+    doc.text(`Servicio: ${vehicle?.label || ticket.vehicle_type}`, mid, y, { align: 'center' }); y += 4
+    doc.text(`Tecnico: ${worker?.name || '—'}`, mid, y, { align: 'center' }); y += 5
+    doc.setDrawColor(180,180,180).line(lm, y, rm, y); y += 4
+
+    // Cabecera detalle
+    doc.setFontSize(7.5).setFont(undefined, 'bold').setTextColor(100,100,100)
+    doc.text('DETALLE DEL SERVICIO', lm, y)
+    doc.text('MONTO', rm, y, { align: 'right' }); y += 5
+
+    // Precio base
+    doc.setFontSize(8)
+    if (basePrice > 0) {
+      row(`Lavado (${vehicle?.label || ticket.vehicle_type})`, formatMoney(basePrice))
+    }
+
+    // Extras
     extras.forEach(e => {
       const name = e.name || 'Extra'
-      const wrapped = doc.splitTextToSize(name, 45)
+      const wrapped = doc.splitTextToSize(`+ ${name}`, 48)
+      doc.setFont(undefined, 'normal').setTextColor(40,40,40)
       doc.text(wrapped, lm, y)
       doc.text(formatMoney(e.price || 0), rm, y, { align: 'right' })
-      y += wrapped.length * 4.5
+      y += wrapped.length * 4.8
     })
+
+    // Subtotal si hay extras
+    if (extrasTotal > 0) {
+      y += 1
+      doc.setLineWidth(0.3).setDrawColor(210,210,210).line(lm, y, rm, y); y += 3.5
+      row('Subtotal', formatMoney(totalBrutoR), false, [100,100,100])
+    }
+
+    // Descuento
+    if (discountAmt > 0) {
+      doc.setFont(undefined, 'normal').setTextColor(200,50,50)
+      doc.text(`Descuento${discPct > 0 ? ` (${discPct}%)` : ''}`, lm, y)
+      doc.text(`-${formatMoney(discountAmt)}`, rm, y, { align: 'right' }); y += 5
+    }
+
+    // Comisión transferencia
+    if (transferFee > 0) {
+      doc.setFont(undefined, 'normal').setTextColor(200,120,0)
+      doc.text('Comision transferencia (4%)', lm, y)
+      doc.text(`-${formatMoney(transferFee)}`, rm, y, { align: 'right' }); y += 5
+    }
+
     y += 1
-    doc.setLineWidth(0.5).setDrawColor(180, 180, 180).line(lm, y, rm, y); y += 4
+    doc.setLineWidth(0.5).setDrawColor(0,0,0).line(lm, y, rm, y); y += 4
 
-    // Total
-    doc.setFontSize(11).setFont(undefined, 'bold').setTextColor(0, 0, 0)
-    doc.text('TOTAL', lm, y)
-    doc.text(formatMoney(ticket.price_charged), rm, y, { align: 'right' }); y += 6
+    // TOTAL
+    doc.setFontSize(11).setFont(undefined, 'bold').setTextColor(0,0,0)
+    doc.text('TOTAL COBRADO', lm, y)
+    doc.text(formatMoney(ticket.price_charged), rm, y, { align: 'right' }); y += 7
 
-    // Pago
+    // Pago y duración
     const paymentText = { efectivo: 'Efectivo', yape: 'Yape', transferencia: 'Transferencia' }
-    doc.setFontSize(8).setFont(undefined, 'normal').setTextColor(80, 80, 80)
-    doc.text(`Metodo de pago: ${paymentText[ticket.payment_method] || ticket.payment_method || '—'}`, lm, y); y += 5
+    doc.setFontSize(8).setFont(undefined, 'normal').setTextColor(60,60,60)
+    doc.text(`Metodo de pago: ${paymentText[ticket.payment_method] || ticket.payment_method || '—'}`, lm, y); y += 4.5
+    if (duration) {
+      doc.text(`Duracion del servicio: ${duration}`, lm, y); y += 4.5
+    }
+    if (ticket.notes) {
+      doc.setTextColor(100,100,100)
+      const notesLines = doc.splitTextToSize(`Notas: ${ticket.notes}`, 64)
+      doc.text(notesLines, lm, y); y += notesLines.length * 4.5
+    }
 
-    doc.setLineWidth(0.5).setDrawColor(200, 200, 200).line(lm, y, rm, y); y += 5
+    y += 2
+    doc.setLineWidth(0.4).setDrawColor(200,200,200).line(lm, y, rm, y); y += 5
 
     // Footer
-    doc.setFontSize(8).setFont(undefined, 'bold').setTextColor(0, 0, 0)
-    doc.text('Gracias por preferirnos!', mid, y, { align: 'center' }); y += 4
-    doc.setFontSize(7).setFont(undefined, 'normal').setTextColor(150, 150, 150)
-    doc.text('Apex Pro Detailing', mid, y, { align: 'center' })
+    doc.setFontSize(9).setFont(undefined, 'bold').setTextColor(0,0,0)
+    doc.text('¡Gracias por preferirnos!', mid, y, { align: 'center' }); y += 4.5
+    doc.setFontSize(7).setFont(undefined, 'normal').setTextColor(150,150,150)
+    doc.text('Apex Pro Detailing — Mas que un Carwash', mid, y, { align: 'center' })
 
     doc.save(`ticket_${ticket.plate || 'apex'}_${ticket.date || ''}.pdf`)
   }

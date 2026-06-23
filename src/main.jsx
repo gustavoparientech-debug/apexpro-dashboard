@@ -17,6 +17,25 @@ if ('serviceWorker' in navigator) {
     reloaded = true
     window.location.reload()
   })
+
+  // Si la versión del SW cacheado no coincide con la versión actual del build,
+  // desregistrar todos los SWs y limpiar caches para forzar la versión nueva.
+  const SW_VERSION = '2026-06-23-v2'
+  const swVerKey = 'apexpro_sw_version'
+  if (localStorage.getItem(swVerKey) !== SW_VERSION) {
+    navigator.serviceWorker.getRegistrations().then(regs => {
+      regs.forEach(r => r.unregister())
+    })
+    if ('caches' in window) {
+      caches.keys().then(keys => keys.forEach(k => caches.delete(k)))
+    }
+    localStorage.setItem(swVerKey, SW_VERSION)
+    // Solo recargar si había una versión vieja (no en primera visita)
+    if (localStorage.getItem(swVerKey + '_prev')) {
+      window.location.reload()
+    }
+    localStorage.setItem(swVerKey + '_prev', '1')
+  }
 }
 
 // Si un chunk JS de una versión vieja ya no existe (tras un despliegue), recargar

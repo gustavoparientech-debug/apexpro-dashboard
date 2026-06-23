@@ -421,13 +421,7 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
   const [discountPct,   setDiscountPct]   = useState(ticket.discount_pct || 0)
   const [discountFixed, setDiscountFixed] = useState(ticket.discount_fixed || 0)
   const [showDiscount,  setShowDiscount]  = useState(!!(ticket.discount_pct || ticket.discount_fixed))
-  const [basePrice,     setBasePrice]     = useState(() => {
-    // price_charged puede haberse guardado incorrectamente como total (base+extras)
-    // en versiones anteriores — recalcular restando extras para recuperar el precio base
-    const saved = ticket.price_charged || vehicle?.default_price || 0
-    const extrasSum = (ticket.extras || []).reduce((s, e) => s + (e.price || 0), 0)
-    return extrasSum > 0 && saved > extrasSum ? saved - extrasSum : saved
-  })
+  const [basePrice,     setBasePrice]     = useState(ticket.price_charged || vehicle?.default_price || 0)
   const [deleteConfirm, setDeleteConfirm] = useState(false)
   const [saving,        setSaving]        = useState(false)
   const [notes,         setNotes]         = useState(ticket.notes || '')

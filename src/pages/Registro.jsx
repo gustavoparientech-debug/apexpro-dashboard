@@ -1409,7 +1409,10 @@ export default function Registro() {
 
   const expensesToday = useMemo(() => {
     const all = (expenses || []).filter(e => hasRange ? (e.date >= rangeFrom && e.date <= rangeTo) : e.date === selectedDate)
-    if (!canAdmin) return all.filter(e => e.worker_id === profile?.worker_id && !e.hidden_from_workers)
+    if (!canAdmin) {
+      const wid = profile?.worker_id
+      return all.filter(e => (!wid || e.worker_id === wid) && !e.hidden_from_workers)
+    }
     return all
   }, [expenses, selectedDate, canAdmin, profile, hasRange, rangeFrom, rangeTo])
 
@@ -1557,16 +1560,12 @@ export default function Registro() {
           <div className="flex items-start justify-between gap-2">
             <div className="flex-1">
               <p className="text-[10px] font-bold text-white/40 uppercase tracking-widest leading-none mb-1">
-                {hasRange ? 'Total rango' : fechaLabel.split(',')[0]}
-                {!hasRange && selectedDate !== today && <span className="ml-1.5 text-amber-400">· Lectura</span>}
+                {canAdmin ? (hasRange ? 'Total rango' : fechaLabel.split(',')[0]) : new Date().toLocaleDateString('es-PE', { weekday: 'long' }).toUpperCase()}
+                {canAdmin && !hasRange && selectedDate !== today && <span className="ml-1.5 text-amber-400">· Lectura</span>}
               </p>
-              {canAdmin ? (
-                <p className={`text-3xl font-black leading-none tracking-tight ${dayTotal >= 0 ? 'text-white' : 'text-red-400'}`}>
-                  {hideTotal ? '•••••' : formatMoney(dayTotal)}
-                </p>
-              ) : (
-                <p className={`text-3xl font-black leading-none tracking-tight ${dayTotal >= 0 ? 'text-white' : 'text-red-400'}`}>{formatMoney(dayTotal)}</p>
-              )}
+              <p className={`text-3xl font-black leading-none tracking-tight ${dayTotal >= 0 ? 'text-white' : 'text-red-400'}`}>
+                {hideTotal && canAdmin ? '•••••' : formatMoney(dayTotal)}
+              </p>
               {expensesTodayTotal > 0 && (
                 <div className="flex items-center gap-3 mt-2">
                   <div className="flex items-center gap-1">
@@ -1578,6 +1577,12 @@ export default function Registro() {
                     <span className="text-[10px] text-white/40 uppercase tracking-widest">Gastos</span>
                     <span className="text-xs font-bold text-amber-400">-{hideTotal && canAdmin ? '•••' : formatMoney(expensesTodayTotal)}</span>
                   </div>
+                </div>
+              )}
+              {expensesTodayTotal === 0 && dayGross > 0 && (
+                <div className="flex items-center gap-1 mt-2">
+                  <span className="text-[10px] text-white/40 uppercase tracking-widest">Ingresos</span>
+                  <span className="text-xs font-bold text-white/70">{hideTotal && canAdmin ? '•••' : formatMoney(dayGross)}</span>
                 </div>
               )}
             </div>

@@ -810,7 +810,7 @@ function ActiveTicketCard({ ticket, workers, vehicleTypes, onClick, onToggleHide
               <span className="text-xs bg-gray-100 dark:bg-gray-800 text-gray-500 px-1.5 py-0.5 rounded-full">Oculto</span>
             )}
           </div>
-          <p className="text-xs text-gray-500">{vehicle?.label || ticket.vehicle_type}{ticket.vehicle_subtype ? `: ${ticket.vehicle_subtype}` : ''} · {worker?.name || '—'}</p>
+          <p className="text-xs text-gray-500">{vehicle?.label || ticket.vehicle_type}{ticket.vehicle_subtype ? ` · ${ticket.vehicle_subtype}` : ''} · {worker?.name || '—'}</p>
           {extras.length > 0 && (
             <p className="text-xs text-gray-400 mt-0.5">{extras.length} extra{extras.length > 1 ? 's' : ''}</p>
           )}
@@ -891,7 +891,7 @@ function ClosedTicketCard({ ticket, workers, vehicleTypes, onDelete, onEdit, onS
               </span>
             )}
           </div>
-          <p className="text-xs text-gray-500">{vehicle?.label || ticket.vehicle_type}{ticket.vehicle_subtype ? `: ${ticket.vehicle_subtype}` : ''} · {worker?.name || '—'}</p>
+          <p className="text-xs text-gray-500">{vehicle?.label || ticket.vehicle_type}{ticket.vehicle_subtype ? ` · ${ticket.vehicle_subtype}` : ''} · {worker?.name || '—'}</p>
         </div>
         <div className="flex items-start gap-1.5 flex-none">
           <div className="text-right mr-1">

@@ -804,20 +804,30 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
       </div>
 
       {/* Footer */}
-      <div className="px-4 pb-6 pt-3 border-t border-gray-100 dark:border-gray-800 space-y-2">
-        {isTransferencia && (
-          <div className="flex items-center justify-between text-xs text-gray-400 -mb-1">
-            <span>Subtotal</span>
-            <span>{formatMoney(totalBruto)}</span>
+      <div className="px-4 pb-6 pt-3 border-t border-gray-100 dark:border-gray-800 space-y-1.5">
+        <div className="flex items-center justify-between text-xs text-gray-400">
+          <span>Precio base</span>
+          <span>{formatMoney(parseFloat(basePrice) || 0)}</span>
+        </div>
+        {extrasTotal > 0 && (
+          <div className="flex items-center justify-between text-xs text-gray-400">
+            <span>Extras ({extras.length})</span>
+            <span>+{formatMoney(extrasTotal)}</span>
+          </div>
+        )}
+        {discountAmt > 0 && (
+          <div className="flex items-center justify-between text-xs text-red-500">
+            <span>Descuento{discountPct > 0 ? ` (${discountPct}%)` : ''}</span>
+            <span>-{formatMoney(discountAmt)}</span>
           </div>
         )}
         {isTransferencia && (
-          <div className="flex items-center justify-between text-xs text-orange-500 -mb-1">
+          <div className="flex items-center justify-between text-xs text-orange-500">
             <span>Comisión transferencia (4%)</span>
-            <span>-{formatMoney(Math.round(totalBruto * TRANSFER_FEE * 100) / 100)}</span>
+            <span>-{formatMoney(Math.round(totalFinal * TRANSFER_FEE * 100) / 100)}</span>
           </div>
         )}
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center justify-between pt-1 border-t border-gray-100 dark:border-gray-800 mb-1">
           <span className="text-sm text-gray-500">Total a cobrar</span>
           <span className="text-2xl font-black text-red-600">{formatMoney(total)}</span>
         </div>

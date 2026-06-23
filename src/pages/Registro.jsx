@@ -179,12 +179,20 @@ function NewTicketForm({ onSave, onClose, workers, vehicleTypes, lockedWorkerId,
     }
   }
 
+  const [vehicleVariantPicker, setVehicleVariantPicker] = useState(null) // vt object
+
   function handleVehicle(vt) {
-    setForm(f => ({
-      ...f,
-      vehicle_type:  vt.value,
-      price_charged: vt.default_price || f.price_charged,
-    }))
+    if (vt.variants?.length > 0) {
+      setVehicleVariantPicker(vt)
+    } else {
+      setForm(f => ({ ...f, vehicle_type: vt.value, price_charged: vt.default_price || f.price_charged }))
+      setVehicleVariantPicker(null)
+    }
+  }
+
+  function handleVehicleVariant(vt, variant) {
+    setForm(f => ({ ...f, vehicle_type: vt.value, price_charged: variant.price }))
+    setVehicleVariantPicker(null)
   }
 
   const missing = []
@@ -296,7 +304,25 @@ function NewTicketForm({ onSave, onClose, workers, vehicleTypes, lockedWorkerId,
               </button>
             ))}
           </div>
-          {form.vehicle_type && (
+          {vehicleVariantPicker && (
+            <div className="mt-3 p-3 rounded-xl border border-indigo-200 dark:border-indigo-700 bg-indigo-50 dark:bg-indigo-900/20">
+              <p className="text-xs font-semibold text-indigo-700 dark:text-indigo-300 mb-2">
+                {vehicleVariantPicker.emoji} {vehicleVariantPicker.label} — elige subcategoría
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                {vehicleVariantPicker.variants.map((v, i) => (
+                  <button key={i} type="button"
+                    onClick={() => handleVehicleVariant(vehicleVariantPicker, v)}
+                    className="flex items-center justify-between px-3 py-2 rounded-xl border border-indigo-200 dark:border-indigo-700 bg-white dark:bg-gray-900 text-sm font-medium text-gray-800 dark:text-gray-200 hover:border-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 transition-all">
+                    <span>{v.label}</span>
+                    <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400">S/{v.price}</span>
+                  </button>
+                ))}
+              </div>
+              <button onClick={() => setVehicleVariantPicker(null)} className="text-xs text-gray-400 hover:text-gray-600 mt-2">Cancelar</button>
+            </div>
+          )}
+          {form.vehicle_type && !vehicleVariantPicker && (
             <p className="text-xs text-gray-400 mt-1.5">
               Precio sugerido: S/ {form.price_charged} (editable al cerrar)
             </p>

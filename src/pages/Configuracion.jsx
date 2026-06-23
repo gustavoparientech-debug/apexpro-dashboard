@@ -121,11 +121,19 @@ function ServiceForm({ initial, onSave, onClose }) {
 
 function VehicleTypeRow({ vt, onSave, onDelete }) {
   const [editing, setEditing] = useState(false)
+  const [editingVariants, setEditingVariants] = useState(false)
   const [form, setForm] = useState({ emoji: vt.emoji, label: vt.label, default_price: vt.default_price })
+  const [variants, setVariants] = useState(vt.variants || [])
 
   async function handleSave() {
     await onSave(vt.id, { ...form, default_price: parseFloat(form.default_price) || 0 })
     setEditing(false)
+  }
+
+  async function saveVariants(newVariants) {
+    await onSave(vt.id, { variants: newVariants.length > 0 ? newVariants : null })
+    setVariants(newVariants)
+    setEditingVariants(false)
   }
 
   if (editing) {
@@ -149,20 +157,73 @@ function VehicleTypeRow({ vt, onSave, onDelete }) {
     )
   }
 
-  return (
-    <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
-      <span className="text-2xl w-8 text-center">{vt.emoji}</span>
-      <span className="flex-1 text-sm font-medium text-gray-800 dark:text-gray-200">{vt.label}</span>
-      <div className="flex items-center gap-1 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-1.5 min-w-[80px] justify-end">
-        <span className="text-xs text-gray-400">S/</span>
-        <span className="text-sm font-bold text-gray-900 dark:text-white">{vt.default_price}</span>
+  if (editingVariants) {
+    return (
+      <div className="p-3 rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-900/10 space-y-2">
+        <div className="flex items-center gap-2 mb-1">
+          <span className="text-sm font-semibold text-indigo-700 dark:text-indigo-300">{vt.emoji} {vt.label} — subcategorías</span>
+          <span className="text-xs text-gray-400 ml-auto">Precio base: S/{vt.default_price}</span>
+        </div>
+        {variants.map((v, i) => (
+          <div key={i} className="flex items-center gap-2">
+            <input className="input py-1 flex-1 text-sm" placeholder="Nombre subcategoría"
+              value={v.label} onChange={e => setVariants(arr => arr.map((x, j) => j === i ? { ...x, label: e.target.value } : x))} />
+            <span className="text-xs text-gray-400">S/</span>
+            <input type="number" min="0" step="1" className="input py-1 w-20 text-sm text-right"
+              value={v.price} onChange={e => setVariants(arr => arr.map((x, j) => j === i ? { ...x, price: parseFloat(e.target.value) || 0 } : x))} />
+            <button onClick={() => setVariants(arr => arr.filter((_, j) => j !== i))}
+              className="p-1 text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg">
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        ))}
+        <button onClick={() => setVariants(arr => [...arr, { label: '', price: vt.default_price }])}
+          className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline font-medium">
+          + Agregar subcategoría
+        </button>
+        <div className="flex items-center gap-2 pt-1">
+          <button onClick={() => saveVariants(variants)} className="btn-primary py-1 px-3 text-sm">Guardar</button>
+          {variants.length > 0 && (
+            <button onClick={() => saveVariants([])} className="text-xs text-red-500 hover:underline">Quitar todas</button>
+          )}
+          <button onClick={() => { setVariants(vt.variants || []); setEditingVariants(false) }} className="btn-secondary py-1 px-3 text-sm ml-auto">Cancelar</button>
+        </div>
       </div>
-      <button onClick={() => setEditing(true)} className="p-1.5 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg">
-        <Edit2 className="w-4 h-4 text-gray-400" />
-      </button>
-      <button onClick={() => onDelete(vt.id)} className="p-1.5 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg">
-        <Trash2 className="w-4 h-4 text-red-400" />
-      </button>
+    )
+  }
+
+  return (
+    <div className="rounded-xl bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+      <div className="flex items-center gap-3 px-3 py-2.5">
+        <span className="text-2xl w-8 text-center">{vt.emoji}</span>
+        <span className="flex-1 text-sm font-medium text-gray-800 dark:text-gray-200">{vt.label}</span>
+        {variants.length > 0 && (
+          <span className="text-xs text-indigo-500 font-medium">{variants.length} subcateg.</span>
+        )}
+        <div className="flex items-center gap-1 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-1.5 min-w-[80px] justify-end">
+          <span className="text-xs text-gray-400">S/</span>
+          <span className="text-sm font-bold text-gray-900 dark:text-white">{vt.default_price}</span>
+        </div>
+        <button onClick={() => setEditingVariants(true)} title="Subcategorías"
+          className="p-1.5 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-lg">
+          <svg className="w-4 h-4 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h8m-8 6h16"/></svg>
+        </button>
+        <button onClick={() => setEditing(true)} className="p-1.5 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg">
+          <Edit2 className="w-4 h-4 text-gray-400" />
+        </button>
+        <button onClick={() => onDelete(vt.id)} className="p-1.5 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg">
+          <Trash2 className="w-4 h-4 text-red-400" />
+        </button>
+      </div>
+      {variants.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 px-4 pb-2.5">
+          {variants.map((v, i) => (
+            <span key={i} className="text-xs bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 rounded-lg px-2 py-0.5 font-medium">
+              {v.label} · S/{v.price}
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

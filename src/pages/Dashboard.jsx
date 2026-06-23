@@ -532,10 +532,12 @@ export default function Dashboard() {
     const periodSummaries = sourceSummaries.filter(d => dateFilter(d.date))
     const periodExpenses  = sourceExpenses.filter(e => dateFilter(e.date))
 
-    // Promedios de tiempo por tipo+subcategoría+extras (solo tickets con opened_at y closed_at, excluye manuales)
+    // Promedios de tiempo por tipo+subcategoría+extras — solo desde 2026-06-23 en adelante
+    const AVG_TIME_START = '2026-06-23'
     const avgTimeByType = {}
     periodTickets.forEach(t => {
       if (!t.opened_at || !t.closed_at || t.is_manual) return
+      if (t.date < AVG_TIME_START) return
       const mins = Math.round((new Date(t.closed_at) - new Date(t.opened_at)) / 60000)
       if (mins < 1 || mins > 1440 * 7) return
       const extrasLabel = (t.extras?.length > 0)

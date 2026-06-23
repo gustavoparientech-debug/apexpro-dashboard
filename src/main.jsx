@@ -1,4 +1,25 @@
-import React, { lazy, Suspense } from 'react'
+import React, { lazy, Suspense, Component } from 'react'
+
+class ErrorBoundary extends Component {
+  constructor(props) { super(props); this.state = { hasError: false, error: null } }
+  static getDerivedStateFromError(error) { return { hasError: true, error } }
+  componentDidCatch(error, info) { console.error('App crash:', error, info) }
+  render() {
+    if (!this.state.hasError) return this.props.children
+    return (
+      <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', minHeight:'100vh', padding:'2rem', fontFamily:'sans-serif', background:'#fff' }}>
+        <div style={{ maxWidth:'400px', textAlign:'center' }}>
+          <div style={{ fontSize:'3rem', marginBottom:'1rem' }}>⚠️</div>
+          <h2 style={{ fontSize:'1.2rem', fontWeight:'bold', marginBottom:'0.5rem', color:'#dc2626' }}>Ocurrió un error</h2>
+          <p style={{ color:'#666', fontSize:'0.9rem', marginBottom:'1.5rem' }}>{this.state.error?.message || 'Error desconocido'}</p>
+          <button onClick={() => { this.setState({ hasError: false, error: null }); window.location.reload() }} style={{ background:'#dc2626', color:'#fff', border:'none', borderRadius:'8px', padding:'0.75rem 2rem', fontSize:'1rem', cursor:'pointer' }}>
+            Recargar
+          </button>
+        </div>
+      </div>
+    )
+  }
+}
 import ReactDOM from 'react-dom/client'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
@@ -88,6 +109,7 @@ const PageFallback = (
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
+    <ErrorBoundary>
     <ThemeProvider>
       <AuthProvider>
         <AppProvider>
@@ -120,5 +142,6 @@ ReactDOM.createRoot(document.getElementById('root')).render(
         </AppProvider>
       </AuthProvider>
     </ThemeProvider>
+    </ErrorBoundary>
   </React.StrictMode>
 )

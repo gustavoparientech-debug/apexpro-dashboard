@@ -386,9 +386,11 @@ export function AppProvider({ children }) {
         setStaticCache({ workers: workersData, services: servicesData, vehicleTypes: vehicleTypesData, extrasCatalog: extrasCatalogData })
       }
 
-      const ticketsData   = ticketsRes.data || []
-      const summariesData = summaries.data || []
-      const incidentsRaw  = incidents.data || []
+      if (ticketsRes.error) console.warn('tickets query error:', ticketsRes.error.message)
+      if (summaries.error) console.warn('summaries query error:', summaries.error.message)
+      const ticketsData   = ticketsRes.error ? [] : (ticketsRes.data || [])
+      const summariesData = summaries.error ? [] : (summaries.data || [])
+      const incidentsRaw  = incidents.error ? [] : (incidents.data || [])
       const costsData     = costs.data || { month: m, year: y, rent: 2700, supplies: 800, utility_goal: 2000 }
       const expensesData  = expensesRes.error ? [] : (expensesRes.data || [])
 
@@ -406,7 +408,11 @@ export function AppProvider({ children }) {
       migrateBase64Photos(ticketsData, supabase)
     } catch (err) {
       console.error('loadData error:', err)
-      dispatch({ type: 'SET_ERROR', payload: err.message })
+      // No lanzar SET_ERROR que deja la app en blanco — mostrar con datos vacíos
+      dispatch({ type: 'SET_ALL', payload: {
+        workers: [], services: [], vehicleTypes: DEMO_VEHICLE_TYPES, extrasCatalog: DEMO_EXTRAS_CATALOG,
+        tickets: [], dailySummaries: [], incidents: [], monthlyCosts: null, expenses: [],
+      }})
     } finally {
       loadInFlight.current = false
     }

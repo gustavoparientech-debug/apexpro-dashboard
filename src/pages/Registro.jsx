@@ -853,7 +853,9 @@ function ActiveTicketCard({ ticket, workers, vehicleTypes, onClick, onToggleHide
   const vehicle = (vehicleTypes || []).find(v => v.value === ticket.vehicle_type)
   const extras  = ticket.extras || []
   const extrasTotal = extras.reduce((s, e) => s + (e.price || 0), 0)
-  const total = (ticket.price_charged || 0) + extrasTotal
+  const bruto = (ticket.price_charged || 0) + extrasTotal
+  const discountAmt = Math.round((bruto * ((ticket.discount_pct || 0) / 100) + (ticket.discount_fixed || 0)) * 100) / 100
+  const total = Math.max(0, bruto - discountAmt)
 
   return (
     <div className={`card flex items-start gap-3 border-l-4 ${ticket.hidden_from_workers ? 'border-l-gray-400 opacity-60' : 'border-l-amber-400'}`}>

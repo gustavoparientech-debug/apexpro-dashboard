@@ -807,7 +807,7 @@ export default function Dashboard() {
                 </div>
                 {editingAvgTime ? (
                   <div className="space-y-1.5">
-                    {ordered.map(({ type, avg, count, vt, vehicle_subtype }, idx) => {
+                    {ordered.map(({ type, avg, count, vt, vehicle_subtype, extras_label }, idx) => {
                       const label = vt ? `${vt.emoji} ${vt.label}${vehicle_subtype ? ` · ${vehicle_subtype}` : ''}${extras_label ? ` + ${extras_label}` : ''}` : type
                       const hidden = avgTimeHidden.includes(type)
                       return (
@@ -832,7 +832,7 @@ export default function Dashboard() {
                   </div>
                 ) : (
                   <div className="space-y-2.5">
-                    {visibleEntries.map(({ type, avg, count, vt, vehicle_subtype }) => {
+                    {visibleEntries.map(({ type, avg, count, vt, vehicle_subtype, extras_label }) => {
                       const label = vt ? `${vt.emoji} ${vt.label}${vehicle_subtype ? ` · ${vehicle_subtype}` : ''}${extras_label ? ` + ${extras_label}` : ''}` : type
                       const pct = maxAvg > 0 ? Math.round((avg / maxAvg) * 100) : 0
                       return (

@@ -1,4 +1,49 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
+
+function VariantEditor({ extra, onSave }) {
+  const [variants, setVariants] = useState(() =>
+    extra.variants?.length ? extra.variants : [
+      { label: 'Leve', price: '' },
+      { label: 'Medio', price: extra.price || '' },
+      { label: 'Muy sucio', price: '' },
+    ]
+  )
+  const add = () => setVariants(v => [...v, { label: '', price: '' }])
+  const remove = (i) => setVariants(v => v.filter((_, idx) => idx !== i))
+  const update = (i, field, val) => setVariants(v => v.map((x, idx) => idx === i ? { ...x, [field]: val } : x))
+  const valid = variants.every(v => v.label.trim() && parseFloat(v.price) >= 0)
+  return (
+    <div className="col-span-full mt-2 bg-indigo-50 dark:bg-indigo-900/20 rounded-xl p-3 border border-indigo-200 dark:border-indigo-800">
+      <p className="text-xs font-bold text-indigo-600 dark:text-indigo-400 mb-2">Variantes de precio — {extra.name}</p>
+      <div className="space-y-2 mb-3">
+        {variants.map((v, i) => (
+          <div key={i} className="flex gap-2 items-center">
+            <input className="input py-1 text-sm flex-1" placeholder="Nivel (ej: Leve)"
+              value={v.label} onChange={e => update(i, 'label', e.target.value)} />
+            <div className="flex items-center gap-1">
+              <span className="text-xs text-gray-500">S/</span>
+              <input type="number" min="0" step="1" className="input py-1 w-20 text-sm text-right"
+                placeholder="0" value={v.price} onChange={e => update(i, 'price', e.target.value)} />
+            </div>
+            <button onClick={() => remove(i)} className="p-1 rounded hover:bg-red-100 dark:hover:bg-red-900/30">
+              <X className="w-3.5 h-3.5 text-red-400" />
+            </button>
+          </div>
+        ))}
+      </div>
+      <div className="flex gap-2">
+        <button onClick={add} className="text-xs text-indigo-600 hover:underline">+ Agregar nivel</button>
+        <div className="flex-1" />
+        <button onClick={() => onSave([])} className="text-xs text-gray-400 hover:text-gray-600">Quitar variantes</button>
+        <button onClick={() => onSave(variants.map(v => ({ label: v.label.trim(), price: parseFloat(v.price) || 0 })))}
+          disabled={!valid}
+          className="px-3 py-1 rounded-lg bg-indigo-600 text-white text-xs font-semibold disabled:opacity-40 hover:bg-indigo-700">
+          Guardar
+        </button>
+      </div>
+    </div>
+  )
+}
 import { useApp } from '../context/AppContext'
 import { supabase } from '../lib/supabase'
 import { formatMoney, calcRealSalary, currentMonthYear, getWorkingDaysInMonth } from '../lib/utils'
@@ -158,6 +203,7 @@ export default function Configuracion() {
   const [newExtra, setNewExtra] = useState({ name: '', price: '' })
   const [showNewExtra, setShowNewExtra] = useState(false)
   const [editingExtra, setEditingExtra] = useState(null)
+  const [editingVariants, setEditingVariants] = useState(null) // extra.id cuando se editan sus variantes
 
   // Metas por trabajador
   const [workerGoals, setWorkerGoals] = useState({})
@@ -804,8 +850,18 @@ export default function Configuracion() {
                 </>
               ) : (
                 <>
-                  <span className="flex-1 text-sm font-medium text-gray-900 dark:text-white">{ex.name}</span>
-                  <span className="text-sm font-bold text-red-500">+S/{ex.price}</span>
+                  <div className="flex-1 min-w-0">
+                    <span className="text-sm font-medium text-gray-900 dark:text-white">{ex.name}</span>
+                    {ex.variants?.length > 0 && (
+                      <p className="text-xs text-indigo-500 mt-0.5">{ex.variants.length} variantes</p>
+                    )}
+                  </div>
+                  {!ex.variants?.length && <span className="text-sm font-bold text-red-500">+S/{ex.price}</span>}
+                  <button onClick={() => setEditingVariants(editingVariants === ex.id ? null : ex.id)}
+                    title="Variantes de precio"
+                    className={`p-1.5 rounded-lg text-xs font-semibold transition-colors ${editingVariants === ex.id ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600' : 'hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-400'}`}>
+                    ⚙
+                  </button>
                   <button onClick={() => setEditingExtra({ ...ex })} className="p-1.5 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700">
                     <Edit2 className="w-3.5 h-3.5 text-gray-400" />
                   </button>
@@ -813,6 +869,14 @@ export default function Configuracion() {
                     <Trash2 className="w-3.5 h-3.5 text-red-400" />
                   </button>
                 </>
+              )}
+              {/* Editor de variantes */}
+              {editingVariants === ex.id && (
+                <VariantEditor extra={ex} onSave={async (variants) => {
+                  await updateExtra(ex.id, { variants: variants.length ? variants : null })
+                  setEditingVariants(null)
+                  toast.success('Variantes guardadas')
+                }} />
               )}
             </div>
           ))}

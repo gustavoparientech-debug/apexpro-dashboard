@@ -360,6 +360,7 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
   const [showAddExtra,  setShowAddExtra]  = useState(false)
   const [manualName,    setManualName]    = useState('')
   const [manualPrice,   setManualPrice]   = useState('')
+  const [variantPicker, setVariantPicker] = useState(null) // extra con variantes pendiente de selección
   const [editPrice,     setEditPrice]     = useState(false)
   const [basePrice,     setBasePrice]     = useState(ticket.price_charged || vehicle?.default_price || 0)
   const [deleteConfirm, setDeleteConfirm] = useState(false)
@@ -381,10 +382,19 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
   const mixtoOk = !isMixto || Math.abs(mixtoSum - total) < 0.01
 
   async function addCatalogExtra(extra) {
+    if (extra.variants?.length) { setVariantPicker(extra); return }
     const newExtras = [...extras, { name: extra.name, price: extra.price }]
     await onUpdate(ticket.id, { extras: newExtras })
     setShowAddExtra(false)
     toast.success(`+ ${extra.name}`)
+  }
+
+  async function addVariantExtra(extra, variant) {
+    const newExtras = [...extras, { name: `${extra.name} (${variant.label})`, price: variant.price }]
+    await onUpdate(ticket.id, { extras: newExtras })
+    setVariantPicker(null)
+    setShowAddExtra(false)
+    toast.success(`+ ${extra.name} ${variant.label}`)
   }
 
   async function addManualExtra() {
@@ -530,14 +540,35 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
               <button onClick={() => setShowAddExtra(false)}><X className="w-4 h-4 text-gray-400" /></button>
             </div>
 
+            {/* Picker de variantes */}
+            {variantPicker && (
+              <div className="bg-indigo-50 dark:bg-indigo-900/20 rounded-xl p-3 border border-indigo-200 dark:border-indigo-800">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs font-bold text-indigo-600 dark:text-indigo-400">{variantPicker.name} — elige nivel</p>
+                  <button onClick={() => setVariantPicker(null)}><X className="w-3.5 h-3.5 text-gray-400" /></button>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  {variantPicker.variants.map((v, i) => (
+                    <button key={i} onClick={() => addVariantExtra(variantPicker, v)}
+                      className="flex flex-col items-center py-2.5 px-2 rounded-xl border-2 border-indigo-200 dark:border-indigo-700 hover:border-indigo-500 hover:bg-indigo-100 dark:hover:bg-indigo-800/40 transition-all">
+                      <span className="text-xs font-bold text-gray-700 dark:text-gray-200">{v.label}</span>
+                      <span className="text-sm font-black text-indigo-600 dark:text-indigo-400 mt-0.5">S/{v.price}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Catálogo */}
-            {extrasCatalog.filter(e => e.active !== false).length > 0 && (
+            {!variantPicker && extrasCatalog.filter(e => e.active !== false).length > 0 && (
               <div className="grid grid-cols-2 gap-2">
                 {extrasCatalog.filter(e => e.active !== false).map(ex => (
                   <button key={ex.id} onClick={() => addCatalogExtra(ex)}
                     className="flex items-center justify-between px-3 py-2 rounded-xl border border-gray-200 dark:border-gray-700 hover:border-red-400 hover:bg-red-50 dark:hover:bg-red-900/10 transition-all text-sm">
                     <span className="font-medium text-gray-700 dark:text-gray-300">{ex.name}</span>
-                    <span className="text-xs font-bold text-red-500">+S/{ex.price}</span>
+                    <span className="text-xs font-bold text-red-500">
+                      {ex.variants?.length ? `${ex.variants.length} niveles` : `+S/${ex.price}`}
+                    </span>
                   </button>
                 ))}
               </div>

@@ -23,6 +23,7 @@ export default defineConfig({
         ],
       },
       workbox: {
+        cacheId: 'apexpro-v2',
         globPatterns: ['**/*.{js,css,html,ico,png,jpg,svg}'],
         runtimeCaching: [
           {

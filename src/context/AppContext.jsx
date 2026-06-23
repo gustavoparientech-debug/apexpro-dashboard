@@ -170,7 +170,7 @@ function enrichIncident(incident, workers) {
 async function refreshInBackground({ m, y, prefix, startDate, endDate, staticCached, supabase, dispatch, enrichIncident }) {
   try {
     const [ticketsRes, summaries, incidents, costs, expensesRes] = await Promise.all([
-      supabase.from('tickets').select('id,date,plate,status,vehicle_type,vehicle_subtype,worker_id,price_charged,payment_method,extras,notes,opened_at,closed_at,is_manual,mixto_yape,mixto_efectivo,discount_pct,discount_fixed,created_at').gte('date', startDate).lte('date', endDate).order('created_at', { ascending: false }),
+      supabase.from('tickets').select('id,date,plate,status,vehicle_type,vehicle_subtype,worker_id,service_id,price_charged,payment_method,extras,notes,opened_at,closed_at,mixto_yape,mixto_efectivo,client_name,client_phone,hidden_from_workers,discount_pct,discount_fixed,created_at').gte('date', startDate).lte('date', endDate).order('created_at', { ascending: false }),
       supabase.from('daily_summary').select('*').gte('date', startDate).lte('date', endDate),
       supabase.from('attendance_incidents').select('*').gte('date', startDate).lte('date', endDate),
       supabase.from('monthly_costs').select('*').eq('month', m).eq('year', y).maybeSingle(),
@@ -360,7 +360,7 @@ export function AppProvider({ children }) {
 
       // ── Sin caché: fetch normal con spinner ───────────────────────────────
       const [ticketsRes, summaries, incidents, costs, expensesRes, ...staticResults] = await Promise.all([
-        supabase.from('tickets').select('id,date,plate,status,vehicle_type,vehicle_subtype,worker_id,price_charged,payment_method,extras,notes,opened_at,closed_at,is_manual,mixto_yape,mixto_efectivo,discount_pct,discount_fixed,created_at').gte('date', startDate).lte('date', endDate).order('created_at', { ascending: false }),
+        supabase.from('tickets').select('id,date,plate,status,vehicle_type,vehicle_subtype,worker_id,service_id,price_charged,payment_method,extras,notes,opened_at,closed_at,mixto_yape,mixto_efectivo,client_name,client_phone,hidden_from_workers,discount_pct,discount_fixed,created_at').gte('date', startDate).lte('date', endDate).order('created_at', { ascending: false }),
         supabase.from('daily_summary').select('*').gte('date', startDate).lte('date', endDate),
         supabase.from('attendance_incidents').select('*').gte('date', startDate).lte('date', endDate),
         supabase.from('monthly_costs').select('*').eq('month', m).eq('year', y).maybeSingle(),

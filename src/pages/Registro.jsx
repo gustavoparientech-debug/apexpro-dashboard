@@ -506,7 +506,7 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
               </span>
             </div>
             <p className="text-sm text-gray-600 dark:text-gray-400">
-              {vehicle?.emoji} {vehicle?.label || ticket.vehicle_type} · {worker?.name || '—'}
+              {vehicle?.emoji} {vehicle?.label || ticket.vehicle_type}{ticket.vehicle_subtype ? ` · ${ticket.vehicle_subtype}` : ''} · {worker?.name || '—'}
             </p>
             <TimerBadge openedAt={ticket.opened_at} />
           </div>
@@ -519,7 +519,7 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
         {/* Precio base */}
         <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-800">
           <div className="flex items-center justify-between">
-            <span className="text-sm text-gray-600 dark:text-gray-400">Precio base ({vehicle?.label || ticket.vehicle_type})</span>
+            <span className="text-sm text-gray-600 dark:text-gray-400">Precio base ({vehicle?.label || ticket.vehicle_type}{ticket.vehicle_subtype ? ` · ${ticket.vehicle_subtype}` : ''})</span>
             {editPrice ? (
               <div className="flex items-center gap-2">
                 <input type="number" min="0" step="0.5"

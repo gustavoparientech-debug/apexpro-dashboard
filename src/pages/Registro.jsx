@@ -1,4 +1,16 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
+
+// Devuelve URL con thumbnail pequeño para miniaturas — reduce egress significativamente
+function thumbUrl(url, size = 80) {
+  if (!url || url.startsWith('data:') || url.startsWith('blob:')) return url
+  try {
+    const u = new URL(url)
+    u.searchParams.set('width', size)
+    u.searchParams.set('height', size)
+    u.searchParams.set('resize', 'cover')
+    return u.toString()
+  } catch { return url }
+}
 import { useLocation } from 'react-router-dom'
 import { useApp } from '../context/AppContext'
 import { useAuth } from '../context/AuthContext'
@@ -429,7 +441,7 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
         {/* Header info del ticket */}
         <div className="px-4 py-3 bg-amber-50 dark:bg-amber-900/10 border-b border-amber-100 dark:border-amber-900/30 flex items-center gap-3">
           {ticket.photo_url && (
-            <img src={ticket.photo_url} alt="placa" className="w-14 h-14 object-cover rounded-xl flex-none" />
+            <img src={thumbUrl(ticket.photo_url)} alt="placa" className="w-14 h-14 object-cover rounded-xl flex-none" loading="lazy" />
           )}
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
@@ -707,7 +719,7 @@ function ActiveTicketCard({ ticket, workers, vehicleTypes, onClick, onToggleHide
     <div className={`card flex items-start gap-3 border-l-4 ${ticket.hidden_from_workers ? 'border-l-gray-400 opacity-60' : 'border-l-amber-400'}`}>
       <button onClick={onClick} className="flex items-start gap-3 flex-1 text-left min-w-0">
         {ticket.photo_url ? (
-          <img src={ticket.photo_url} alt="placa" className="w-14 h-14 object-cover rounded-xl flex-none" />
+          <img src={thumbUrl(ticket.photo_url)} alt="placa" className="w-14 h-14 object-cover rounded-xl flex-none" loading="lazy" />
         ) : (
           <div className="w-14 h-14 bg-gray-100 dark:bg-gray-800 rounded-xl flex-none flex items-center justify-center text-2xl">
             {vehicle?.emoji || '🚗'}
@@ -780,7 +792,7 @@ function ClosedTicketCard({ ticket, workers, vehicleTypes, onDelete, onEdit, onS
       <div className={`card flex items-start gap-3 border-l-4 cursor-pointer active:scale-[0.99] transition-all ${ticket.hidden_from_workers ? 'border-l-gray-400 opacity-60' : 'border-l-green-400'}`}
         onClick={() => onSummary?.(ticket)}>
         {ticket.photo_url ? (
-          <img src={ticket.photo_url} alt="placa" className="w-12 h-12 object-cover rounded-xl flex-none" />
+          <img src={thumbUrl(ticket.photo_url)} alt="placa" className="w-12 h-12 object-cover rounded-xl flex-none" loading="lazy" />
         ) : (
           <div className="w-12 h-12 bg-gray-100 dark:bg-gray-800 rounded-xl flex-none flex items-center justify-center text-xl">
             {vehicle?.emoji || '🚗'}
@@ -1011,7 +1023,7 @@ function TicketSummaryModal({ ticket, workers, vehicleTypes, onClose }) {
 
         {/* Foto vehículo */}
         {ticket.photo_url && (
-          <img src={ticket.photo_url} alt="vehículo" className="w-full h-40 object-cover" />
+          <img src={thumbUrl(ticket.photo_url, 600)} alt="vehículo" className="w-full h-40 object-cover" loading="lazy" />
         )}
 
         {/* Info */}

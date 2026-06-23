@@ -659,9 +659,9 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
               <span className="text-base leading-none">%</span> Agregar descuento
             </button>
           ) : (
-            <div className="border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/10 rounded-xl p-3 space-y-3">
+            <div className="border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/10 rounded-xl p-3 space-y-3">
               <div className="flex items-center justify-between">
-                <p className="text-xs font-bold text-amber-700 dark:text-amber-400 uppercase tracking-wide">Descuento</p>
+                <p className="text-xs font-bold text-red-600 dark:text-red-400 uppercase tracking-wide">Descuento</p>
                 <button onClick={() => { setShowDiscount(false); setDiscountPct(0); setDiscountFixed(0) }}>
                   <X className="w-4 h-4 text-gray-400" />
                 </button>
@@ -671,7 +671,7 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
                 <div className="flex flex-wrap gap-2">
                   {[5,10,15,20,25,30].map(p => (
                     <button key={p} type="button" onClick={() => setDiscountPct(discountPct === p ? 0 : p)}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-bold border-2 transition-all ${discountPct === p ? 'border-amber-500 bg-amber-500 text-white' : 'border-amber-200 dark:border-amber-700 text-amber-700 dark:text-amber-400 hover:bg-amber-100'}`}>
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold border-2 transition-all ${discountPct === p ? 'border-red-500 bg-red-500 text-white' : 'border-red-200 dark:border-red-700 text-red-600 dark:text-red-400 hover:bg-red-100'}`}>
                       {p}%
                     </button>
                   ))}
@@ -684,9 +684,9 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
                   className="input text-sm w-full" />
               </div>
               {discountAmt > 0 && (
-                <div className="flex justify-between text-xs font-semibold pt-1 border-t border-amber-200 dark:border-amber-700">
+                <div className="flex justify-between text-xs font-semibold pt-1 border-t border-red-200 dark:border-red-700">
                   <span className="text-gray-500">Descuento aplicado</span>
-                  <span className="text-amber-600">-{formatMoney(discountAmt)}</span>
+                  <span className="text-red-600">-{formatMoney(discountAmt)}</span>
                 </div>
               )}
             </div>

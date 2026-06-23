@@ -1039,32 +1039,42 @@ function TicketSummaryModal({ ticket, workers, vehicleTypes, onClose }) {
   const vehicle = (vehicleTypes || []).find(v => v.value === ticket.vehicle_type)
   const extras  = ticket.extras || []
   const extrasTotal = extras.reduce((s, e) => s + (e.price || 0), 0)
-  const basePrice   = Math.max(0, (ticket.price_charged || 0) - extrasTotal)
+  const isTransf    = ticket.payment_method === 'transferencia'
+  const TFEE        = 0.04
+  // Reconstruir montos desde price_charged (monto final cobrado)
+  const totalFinalR = isTransf ? Math.round((ticket.price_charged || 0) / (1 - TFEE) * 100) / 100 : (ticket.price_charged || 0)
+  const discPct     = ticket.discount_pct || 0
+  const discFix     = ticket.discount_fixed || 0
+  const totalBrutoR = discPct > 0 ? Math.round((totalFinalR + discFix) / (1 - discPct / 100) * 100) / 100 : (totalFinalR + discFix)
+  const basePrice   = Math.max(0, Math.round((totalBrutoR - extrasTotal) * 100) / 100)
+  const discountAmt = Math.round((totalBrutoR - totalFinalR) * 100) / 100
+  const transferFee = isTransf ? Math.round((ticket.price_charged || 0) / (1 - TFEE) * TFEE * 100) / 100 : 0
   const duration    = serviceDuration(ticket)
   const closedDate  = ticket.closed_at
     ? new Date(ticket.closed_at).toLocaleString('es-PE', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' })
     : ticket.date
 
   function shareWhatsApp() {
-    const paymentLabel = ticket.payment_method === 'yape' ? 'Yape' : ticket.payment_method === 'transferencia' ? 'Transferencia' : 'Efectivo'
-    const sep = '--------------------'
+    const paymentLabel = ticket.payment_method === 'yape' ? 'Yape 📱' : ticket.payment_method === 'transferencia' ? 'Transferencia 🏦' : 'Efectivo 💵'
+    const sep = '━━━━━━━━━━━━━━━━━━━━'
     const lines = [
-      `*✨ APEX PRO DETAILING ✨*`,
+      `✨ *APEX PRO DETAILING* ✨`,
       sep,
       `🚘 *Placa:* ${ticket.plate || 'Sin placa'}`,
-      `🚙 *Vehículo:* ${vehicle?.label || ticket.vehicle_type}`,
+      `🚙 *Vehículo:* ${vehicle?.label || ticket.vehicle_type}${ticket.vehicle_subtype ? ` · ${ticket.vehicle_subtype}` : ''}`,
       `👷 *Técnico:* ${worker?.name || '—'}`,
-      ``,
-      `🧾 *Detalle del servicio:*`,
-      basePrice > 0 ? `  • Lavado: ${formatMoney(basePrice)}` : null,
-      ...extras.map(e => `  • ${e.name}: ${formatMoney(e.price || 0)}`),
       sep,
-      `💰 *Total: ${formatMoney(ticket.price_charged)}*`,
-      `💳 Pago: ${paymentLabel}`,
-      `📅 Fecha: ${closedDate}`,
+      `🧾 *Detalle:*`,
+      basePrice > 0 ? `  • Lavado: ${formatMoney(basePrice)}` : null,
+      ...extras.map(e => `  • ${e.name}: +${formatMoney(e.price || 0)}`),
+      discountAmt > 0 ? `  • Descuento${discPct > 0 ? ` (${discPct}%)` : ''}: -${formatMoney(discountAmt)}` : null,
+      transferFee > 0 ? `  • Comisión transferencia (4%): -${formatMoney(transferFee)}` : null,
+      sep,
+      `💰 *Total cobrado: ${formatMoney(ticket.price_charged)}*`,
+      `💳 *Pago:* ${paymentLabel}`,
+      `📅 *Fecha:* ${closedDate}`,
       sep,
       `🙌 *¡Gracias por preferirnos!*`,
-      `📍 Apex Pro Detailing`,
     ].filter(v => v !== null).join('\n')
     const url = `https://api.whatsapp.com/send?text=${encodeURIComponent(lines)}`
     if (navigator.share && /android|iphone|ipad|ipod/i.test(navigator.userAgent)) {
@@ -1185,21 +1195,33 @@ function TicketSummaryModal({ ticket, workers, vehicleTypes, onClose }) {
           <p className="text-sm text-gray-500 mb-4">{worker?.name || '—'} · {vehicle?.label || ticket.vehicle_type}</p>
 
           {/* Detalle servicios */}
-          <div className="space-y-2 text-sm">
+          <div className="space-y-1.5 text-sm">
             {basePrice > 0 && (
               <div className="flex justify-between">
-                <span className="text-gray-600 dark:text-gray-400">Lavado</span>
-                <span className="text-gray-900 dark:text-white">{formatMoney(basePrice)}</span>
+                <span className="text-gray-500 dark:text-gray-400">Precio base</span>
+                <span className="text-gray-800 dark:text-white">{formatMoney(basePrice)}</span>
               </div>
             )}
             {extras.map((e, i) => (
               <div key={i} className="flex justify-between">
-                <span className="text-gray-600 dark:text-gray-400">{e.name}</span>
-                <span className="text-gray-900 dark:text-white">{formatMoney(e.price || 0)}</span>
+                <span className="text-gray-500 dark:text-gray-400">{e.name}</span>
+                <span className="text-gray-800 dark:text-white">+{formatMoney(e.price || 0)}</span>
               </div>
             ))}
+            {discountAmt > 0 && (
+              <div className="flex justify-between text-red-500">
+                <span>Descuento{discPct > 0 ? ` (${discPct}%)` : ''}</span>
+                <span>-{formatMoney(discountAmt)}</span>
+              </div>
+            )}
+            {transferFee > 0 && (
+              <div className="flex justify-between text-orange-500 text-xs">
+                <span>Comisión transferencia (4%)</span>
+                <span>-{formatMoney(transferFee)}</span>
+              </div>
+            )}
             <div className="flex justify-between pt-2 border-t border-gray-100 dark:border-gray-800 font-bold">
-              <span className="text-gray-900 dark:text-white">Total</span>
+              <span className="text-gray-900 dark:text-white">Total cobrado</span>
               <span className="text-red-600 text-base">{formatMoney(ticket.price_charged)}</span>
             </div>
           </div>

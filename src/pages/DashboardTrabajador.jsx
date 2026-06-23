@@ -183,7 +183,7 @@ export default function DashboardTrabajador() {
     setLocalAvatar(preview)
     setUploadingPhoto(true)
     try {
-      const blob = await compressImage(file, 400, 0.35)
+      const blob = await compressImage(file, 200, 0.25)
       const path = `avatars/${profile.id}.jpg`
       const { error: upErr } = await supabase.storage.from('payment-photos').upload(path, blob, { upsert: true, contentType: 'image/jpeg' })
       if (upErr) throw upErr

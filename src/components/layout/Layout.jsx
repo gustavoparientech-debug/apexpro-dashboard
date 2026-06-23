@@ -97,7 +97,7 @@ const GASTO_CATS = [
   { value: 'otro',         label: '📦 Otro' },
 ]
 
-function GastoSheet({ onClose, fixedWorkerId }) {
+function GastoSheet({ onClose, fixedWorkerId, isAdmin }) {
   const { addExpense, workers } = useApp()
   const [form, setForm] = useState({ date: todayISO(), amount: '', category: '', notes: '', worker_id: fixedWorkerId || '', method: '' })
   const [busy, setBusy] = useState(false)
@@ -118,7 +118,7 @@ function GastoSheet({ onClose, fixedWorkerId }) {
     if (!form.amount) { toast.error('Ingresa el monto'); return }
     setBusy(true)
     try {
-      await addExpense({ ...form, amount: parseFloat(form.amount) })
+      await addExpense({ ...form, amount: parseFloat(form.amount), hidden_from_workers: !!isAdmin })
       toast.success('Gasto registrado')
       handleClose()
     } catch { toast.error('Error al guardar') }
@@ -252,6 +252,7 @@ function GlobalFab({ canAdmin, workerWorkerId }) {
       {showGasto && (
         <GastoSheet
           onClose={() => setShowGasto(false)}
+          isAdmin={canAdmin}
           fixedWorkerId={canAdmin ? undefined : workerWorkerId}
         />
       )}

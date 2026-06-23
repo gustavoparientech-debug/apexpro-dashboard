@@ -477,6 +477,24 @@ export default function Dashboard() {
     localStorage.setItem('apexpro_avgtime_hidden', JSON.stringify(hidden))
   }
 
+  const DEFAULT_PANEL_ORDER = ['kpis','tiempos','progreso','estadisticas','cobros','gastos','gastos_personal','ranking','bonos','grafico']
+  const [panelOrder, setPanelOrder] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('apexpro_panel_order') || 'null') || DEFAULT_PANEL_ORDER } catch { return DEFAULT_PANEL_ORDER }
+  })
+  const [editingLayout, setEditingLayout] = useState(false)
+
+  function movePanelSection(id, dir) {
+    setPanelOrder(prev => {
+      const arr = [...prev]
+      const i = arr.indexOf(id)
+      const ni = i + dir
+      if (ni < 0 || ni >= arr.length) return prev
+      ;[arr[i], arr[ni]] = [arr[ni], arr[i]]
+      localStorage.setItem('apexpro_panel_order', JSON.stringify(arr))
+      return arr
+    })
+  }
+
   const [refreshing, setRefreshing] = useState(false)
   async function handleRefresh() {
     setRefreshing(true)
@@ -722,282 +740,247 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* KPIs */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <StatCard label={hasRange ? 'Ingresos del rango' : 'Ingresos del mes'}   value={formatMoney(data.totalIncome)}  sub={`${data.totalCars} vehículos`} icon={DollarSign} color="red" />
-        <StatCard label="Ganancia neta est." value={formatMoney(data.netProfit)}    sub={hasRange ? `Costos prop. a ${data.workingDaysElapsed} días hábiles` : `Costos proporcionales al día ${data.workingDaysElapsed}`} icon={TrendingUp} color="green" />
-        <StatCard label={hasRange ? 'Gastos del rango' : 'Total gastos'} value={formatMoney(data.displayCosts)} sub={hasRange ? `Fijos prop. + gastos` : `Planilla: ${formatMoney(data.payrollTotal)}`} icon={CreditCard} color="neutral" />
-        <StatCard label="Vehículos"          value={data.totalCars}                 sub={`Prom: ${formatMoney(data.totalCars ? data.totalIncome / data.totalCars : 0)}/carro`} icon={Car} color="neutral" />
+      {/* Editar layout */}
+      <div className="flex justify-end">
+        <button onClick={() => setEditingLayout(v => !v)}
+          className={`text-xs px-3 py-1.5 rounded-xl font-semibold transition-colors flex items-center gap-1.5 ${editingLayout ? 'bg-indigo-600 text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}`}>
+          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16"/></svg>
+          {editingLayout ? 'Listo' : 'Ordenar paneles'}
+        </button>
       </div>
 
-      {/* Tiempos promedio por tipo de vehículo */}
-      {Object.keys(data.avgTimeByType).length > 0 && (() => {
-        const fmtMins = (mins) => {
-          if (mins < 60) return `${mins} min`
-          const h = Math.floor(mins / 60), m = mins % 60
-          return m > 0 ? `${h}h ${m}m` : `${h}h`
-        }
-        const allEntries = Object.entries(data.avgTimeByType)
-          .map(([type, { total, count }]) => {
-            const vt = (vehicleTypes || []).find(v => v.value === type)
-            return { type, avg: Math.round(total / count), count, hasLabel: !!vt }
-          })
-          .sort((a, b) => (a.hasLabel === b.hasLabel ? 0 : a.hasLabel ? -1 : 1))
-
-        // Aplicar orden guardado o usar orden por avg asc
-        const ordered = avgTimeOrder
-          ? [...avgTimeOrder.map(t => allEntries.find(e => e.type === t)).filter(Boolean),
-             ...allEntries.filter(e => !avgTimeOrder.includes(e.type))]
-          : [...allEntries].sort((a, b) => a.avg - b.avg)
-
-        const visibleEntries = ordered.filter(e => !avgTimeHidden.includes(e.type))
-        const maxAvg = Math.max(...ordered.map(e => e.avg))
-
-        const moveEntry = (idx, dir) => {
-          const newOrder = ordered.map(e => e.type)
-          const ni = idx + dir
-          if (ni < 0 || ni >= newOrder.length) return
-          ;[newOrder[idx], newOrder[ni]] = [newOrder[ni], newOrder[idx]]
-          setAvgTimeOrder(newOrder)
-          saveAvgTimePrefs(newOrder, avgTimeHidden)
-        }
-        const toggleHidden = (type) => {
-          const nh = avgTimeHidden.includes(type) ? avgTimeHidden.filter(t => t !== type) : [...avgTimeHidden, type]
-          setAvgTimeHidden(nh)
-          saveAvgTimePrefs(avgTimeOrder || ordered.map(e => e.type), nh)
-        }
-
-        return (
-          <div className="card">
-            <div className="flex items-center gap-2 mb-3">
-              <span className="text-base">⏱</span>
-              <p className="text-sm font-bold text-gray-700 dark:text-gray-300">Tiempo promedio por servicio</p>
-              <button onClick={() => setEditingAvgTime(v => !v)}
-                className={`ml-auto text-xs px-2 py-1 rounded-lg font-semibold transition-colors ${editingAvgTime ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800'}`}>
-                {editingAvgTime ? 'Listo' : '✏️ Editar'}
-              </button>
+      {/* Secciones reordenables */}
+      {panelOrder.map((sectionId, sIdx) => {
+        const sectionContent = (() => {
+          if (sectionId === 'kpis') return (
+            <div key="kpis" className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              <StatCard label={hasRange ? 'Ingresos del rango' : 'Ingresos del mes'}   value={formatMoney(data.totalIncome)}  sub={`${data.totalCars} vehículos`} icon={DollarSign} color="red" />
+              <StatCard label="Ganancia neta est." value={formatMoney(data.netProfit)}    sub={hasRange ? `Costos prop. a ${data.workingDaysElapsed} días hábiles` : `Costos proporcionales al día ${data.workingDaysElapsed}`} icon={TrendingUp} color="green" />
+              <StatCard label={hasRange ? 'Gastos del rango' : 'Total gastos'} value={formatMoney(data.displayCosts)} sub={hasRange ? `Fijos prop. + gastos` : `Planilla: ${formatMoney(data.payrollTotal)}`} icon={CreditCard} color="neutral" />
+              <StatCard label="Vehículos"          value={data.totalCars}                 sub={`Prom: ${formatMoney(data.totalCars ? data.totalIncome / data.totalCars : 0)}/carro`} icon={Car} color="neutral" />
             </div>
-
-            {editingAvgTime ? (
-              <div className="space-y-1.5">
-                {ordered.map(({ type, avg, count }, idx) => {
-                  const vt = (vehicleTypes || []).find(v => v.value === type)
-                  const label = vt ? `${vt.emoji} ${vt.label}` : type
-                  const hidden = avgTimeHidden.includes(type)
-                  return (
-                    <div key={type} className={`flex items-center gap-2 px-2 py-2 rounded-xl border transition-colors ${hidden ? 'opacity-40 border-gray-100 dark:border-gray-800' : 'border-gray-200 dark:border-gray-700'}`}>
-                      <div className="flex flex-col gap-0.5">
-                        <button onClick={() => moveEntry(idx, -1)} disabled={idx === 0}
-                          className="p-0.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-20">
-                          <svg className="w-3 h-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7"/></svg>
-                        </button>
-                        <button onClick={() => moveEntry(idx, 1)} disabled={idx === ordered.length - 1}
-                          className="p-0.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-20">
-                          <svg className="w-3 h-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7"/></svg>
-                        </button>
-                      </div>
-                      <span className="flex-1 text-xs font-semibold text-gray-700 dark:text-gray-200">{label}</span>
-                      <span className="text-xs text-gray-400">{count} serv. · {fmtMins(avg)}</span>
-                      <button onClick={() => toggleHidden(type)}
-                        className={`text-xs px-2 py-0.5 rounded-lg font-semibold transition-colors ${hidden ? 'bg-gray-200 dark:bg-gray-700 text-gray-500' : 'bg-green-100 dark:bg-green-900/30 text-green-600'}`}>
-                        {hidden ? 'Oculto' : 'Visible'}
-                      </button>
-                    </div>
-                  )
-                })}
-              </div>
-            ) : (
-              <div className="space-y-2.5">
-                {visibleEntries.map(({ type, avg, count }) => {
-                  const vt = (vehicleTypes || []).find(v => v.value === type)
-                  const label = vt ? `${vt.emoji} ${vt.label}` : type
-                  const pct = maxAvg > 0 ? Math.round((avg / maxAvg) * 100) : 0
-                  return (
-                    <div key={type}>
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-xs font-semibold text-gray-600 dark:text-gray-300">{label}</span>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs text-gray-400">{count} serv.</span>
-                          <span className="text-xs font-bold text-blue-600 dark:text-blue-400">{fmtMins(avg)}</span>
+          )
+          if (sectionId === 'tiempos') return Object.keys(data.avgTimeByType).length > 0 ? (() => {
+            const fmtMins = (mins) => {
+              if (mins < 60) return `${mins} min`
+              const h = Math.floor(mins / 60), m = mins % 60
+              return m > 0 ? `${h}h ${m}m` : `${h}h`
+            }
+            const allEntries = Object.entries(data.avgTimeByType)
+              .map(([type, { total, count }]) => {
+                const vt = (vehicleTypes || []).find(v => v.value === type)
+                return { type, avg: Math.round(total / count), count, hasLabel: !!vt }
+              })
+              .sort((a, b) => (a.hasLabel === b.hasLabel ? 0 : a.hasLabel ? -1 : 1))
+            const ordered = avgTimeOrder
+              ? [...avgTimeOrder.map(t => allEntries.find(e => e.type === t)).filter(Boolean),
+                 ...allEntries.filter(e => !avgTimeOrder.includes(e.type))]
+              : [...allEntries].sort((a, b) => a.avg - b.avg)
+            const visibleEntries = ordered.filter(e => !avgTimeHidden.includes(e.type))
+            const maxAvg = Math.max(...ordered.map(e => e.avg))
+            const moveEntry = (idx, dir) => {
+              const newOrder = ordered.map(e => e.type)
+              const ni = idx + dir
+              if (ni < 0 || ni >= newOrder.length) return
+              ;[newOrder[idx], newOrder[ni]] = [newOrder[ni], newOrder[idx]]
+              setAvgTimeOrder(newOrder)
+              saveAvgTimePrefs(newOrder, avgTimeHidden)
+            }
+            const toggleHidden = (type) => {
+              const nh = avgTimeHidden.includes(type) ? avgTimeHidden.filter(t => t !== type) : [...avgTimeHidden, type]
+              setAvgTimeHidden(nh)
+              saveAvgTimePrefs(avgTimeOrder || ordered.map(e => e.type), nh)
+            }
+            return (
+              <div key="tiempos" className="card">
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="text-base">⏱</span>
+                  <p className="text-sm font-bold text-gray-700 dark:text-gray-300">Tiempo promedio por servicio</p>
+                  <button onClick={() => setEditingAvgTime(v => !v)}
+                    className={`ml-auto text-xs px-2 py-1 rounded-lg font-semibold transition-colors ${editingAvgTime ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800'}`}>
+                    {editingAvgTime ? 'Listo' : '✏️ Editar'}
+                  </button>
+                </div>
+                {editingAvgTime ? (
+                  <div className="space-y-1.5">
+                    {ordered.map(({ type, avg, count }, idx) => {
+                      const vt = (vehicleTypes || []).find(v => v.value === type)
+                      const label = vt ? `${vt.emoji} ${vt.label}` : type
+                      const hidden = avgTimeHidden.includes(type)
+                      return (
+                        <div key={type} className={`flex items-center gap-2 px-2 py-2 rounded-xl border transition-colors ${hidden ? 'opacity-40 border-gray-100 dark:border-gray-800' : 'border-gray-200 dark:border-gray-700'}`}>
+                          <div className="flex flex-col gap-0.5">
+                            <button onClick={() => moveEntry(idx, -1)} disabled={idx === 0} className="p-0.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-20">
+                              <svg className="w-3 h-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7"/></svg>
+                            </button>
+                            <button onClick={() => moveEntry(idx, 1)} disabled={idx === ordered.length - 1} className="p-0.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-20">
+                              <svg className="w-3 h-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7"/></svg>
+                            </button>
+                          </div>
+                          <span className="flex-1 text-xs font-semibold text-gray-700 dark:text-gray-200">{label}</span>
+                          <span className="text-xs text-gray-400">{count} serv. · {fmtMins(avg)}</span>
+                          <button onClick={() => toggleHidden(type)}
+                            className={`text-xs px-2 py-0.5 rounded-lg font-semibold transition-colors ${hidden ? 'bg-gray-200 dark:bg-gray-700 text-gray-500' : 'bg-green-100 dark:bg-green-900/30 text-green-600'}`}>
+                            {hidden ? 'Oculto' : 'Visible'}
+                          </button>
                         </div>
-                      </div>
-                      <div className="h-1.5 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
-                        <div className="h-full bg-blue-500 rounded-full transition-all duration-500" style={{ width: `${pct}%` }} />
-                      </div>
-                    </div>
-                  )
-                })}
+                      )
+                    })}
+                  </div>
+                ) : (
+                  <div className="space-y-2.5">
+                    {visibleEntries.map(({ type, avg, count }) => {
+                      const vt = (vehicleTypes || []).find(v => v.value === type)
+                      const label = vt ? `${vt.emoji} ${vt.label}` : type
+                      const pct = maxAvg > 0 ? Math.round((avg / maxAvg) * 100) : 0
+                      return (
+                        <div key={type}>
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-xs font-semibold text-gray-600 dark:text-gray-300">{label}</span>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-gray-400">{count} serv.</span>
+                              <span className="text-xs font-bold text-blue-600 dark:text-blue-400">{fmtMins(avg)}</span>
+                            </div>
+                          </div>
+                          <div className="h-1.5 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
+                            <div className="h-full bg-blue-500 rounded-full transition-all duration-500" style={{ width: `${pct}%` }} />
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
               </div>
-            )}
-          </div>
-        )
-      })()}
-
-      {/* Barra de progreso — solo vista mensual */}
-      {!hasRange && (
-        <div className={`card border-2 ${semaforoClass[data.semaforo]}`}>
-          <div className="flex items-center justify-between mb-3">
-            <div>
-              <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Progreso hacia la meta mensual</p>
-              <p className="text-xs text-gray-500 mt-0.5">Meta: {formatMoney(data.incomeGoal)}</p>
-            </div>
-            <p className={`text-2xl font-bold ${semaforoText[data.semaforo]}`}>{data.progressPct.toFixed(1)}%</p>
-          </div>
-          <ProgressBar percent={data.progressPct} color={data.semaforo} />
-          <p className="text-xs text-gray-400 mt-2">Faltan {formatMoney(Math.max(0, data.incomeGoal - data.totalIncome))}</p>
-        </div>
-      )}
-
-      {/* Estadísticas + mejor día */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        <div className="card">
-          <div className="flex items-center gap-2 mb-3">
-            <Clock className="w-4 h-4 text-red-500" />
-            <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">Promedios</p>
-          </div>
-          <div className="space-y-2">
-            <div className="flex justify-between">
-              <span className="text-xs text-gray-500">{hasRange ? 'Prom. ingresos/día' : 'Promedio actual/día'}</span>
-              <span className="font-semibold text-sm text-gray-900 dark:text-white">{formatMoney(data.avgDailyActual)}</span>
-            </div>
-            {hasRange && data.workingDaysElapsed > 0 && (
-              <div className="flex justify-between">
-                <span className="text-xs text-gray-500">Prom. gastos/día</span>
-                <span className="font-semibold text-sm text-red-500">-{formatMoney(data.displayCosts / data.workingDaysElapsed)}</span>
+            )
+          })() : null
+          if (sectionId === 'progreso') return !hasRange ? (
+            <div key="progreso" className={`card border-2 ${semaforoClass[data.semaforo]}`}>
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Progreso hacia la meta mensual</p>
+                  <p className="text-xs text-gray-500 mt-0.5">Meta: {formatMoney(data.incomeGoal)}</p>
+                </div>
+                <p className={`text-2xl font-bold ${semaforoText[data.semaforo]}`}>{data.progressPct.toFixed(1)}%</p>
               </div>
-            )}
-            {!hasRange && isCurrentMonth && <div className="flex justify-between"><span className="text-xs text-gray-500">Necesario para cerrar</span><span className={`font-semibold text-sm ${data.avgDailyNeeded > data.avgDailyActual ? 'text-red-500' : 'text-green-500'}`}>{formatMoney(data.avgDailyNeeded)}</span></div>}
-          </div>
-        </div>
-        <div className="card">
-          <div className="flex items-center gap-2 mb-3">
-            <Calendar className="w-4 h-4 text-blue-500" />
-            <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">Días hábiles</p>
-          </div>
-          <div className="space-y-2">
-            <div className="flex justify-between"><span className="text-xs text-gray-500">{hasRange ? 'Días hábiles en rango' : 'Trabajados'}</span><span className="font-semibold text-sm text-gray-900 dark:text-white">{hasRange ? data.workingDaysElapsed : `${data.workingDaysElapsed} de ${data.workingDaysTotal}`}</span></div>
-            {isCurrentMonth && <div className="flex justify-between"><span className="text-xs text-gray-500">Restantes</span><span className="font-semibold text-sm text-red-500">{data.workingDaysRemaining} días</span></div>}
-          </div>
-        </div>
-        <div className="card">
-          <div className="flex items-center gap-2 mb-3">
-            <Award className="w-4 h-4 text-yellow-500" />
-            <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">Mejor día</p>
-          </div>
-          {data.bestDay ? (
-            <div>
-              <p className="text-xl font-bold text-gray-900 dark:text-white">{formatMoney(data.bestDay[1])}</p>
-              <p className="text-xs text-gray-500 mt-0.5">{formatDate(data.bestDay[0])}</p>
+              <ProgressBar percent={data.progressPct} color={data.semaforo} />
+              <p className="text-xs text-gray-400 mt-2">Faltan {formatMoney(Math.max(0, data.incomeGoal - data.totalIncome))}</p>
             </div>
-          ) : <p className="text-sm text-gray-400">Sin registros</p>}
-        </div>
-      </div>
+          ) : null
+          if (sectionId === 'estadisticas') return (
+            <div key="estadisticas" className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div className="card">
+                <div className="flex items-center gap-2 mb-3"><Clock className="w-4 h-4 text-red-500" /><p className="text-sm font-semibold text-gray-700 dark:text-gray-300">Promedios</p></div>
+                <div className="space-y-2">
+                  <div className="flex justify-between"><span className="text-xs text-gray-500">{hasRange ? 'Prom. ingresos/día' : 'Promedio actual/día'}</span><span className="font-semibold text-sm text-gray-900 dark:text-white">{formatMoney(data.avgDailyActual)}</span></div>
+                  {hasRange && data.workingDaysElapsed > 0 && <div className="flex justify-between"><span className="text-xs text-gray-500">Prom. gastos/día</span><span className="font-semibold text-sm text-red-500">-{formatMoney(data.displayCosts / data.workingDaysElapsed)}</span></div>}
+                  {!hasRange && isCurrentMonth && <div className="flex justify-between"><span className="text-xs text-gray-500">Necesario para cerrar</span><span className={`font-semibold text-sm ${data.avgDailyNeeded > data.avgDailyActual ? 'text-red-500' : 'text-green-500'}`}>{formatMoney(data.avgDailyNeeded)}</span></div>}
+                </div>
+              </div>
+              <div className="card">
+                <div className="flex items-center gap-2 mb-3"><Calendar className="w-4 h-4 text-blue-500" /><p className="text-sm font-semibold text-gray-700 dark:text-gray-300">Días hábiles</p></div>
+                <div className="space-y-2">
+                  <div className="flex justify-between"><span className="text-xs text-gray-500">{hasRange ? 'Días hábiles en rango' : 'Trabajados'}</span><span className="font-semibold text-sm text-gray-900 dark:text-white">{hasRange ? data.workingDaysElapsed : `${data.workingDaysElapsed} de ${data.workingDaysTotal}`}</span></div>
+                  {isCurrentMonth && <div className="flex justify-between"><span className="text-xs text-gray-500">Restantes</span><span className="font-semibold text-sm text-red-500">{data.workingDaysRemaining} días</span></div>}
+                </div>
+              </div>
+              <div className="card">
+                <div className="flex items-center gap-2 mb-3"><Award className="w-4 h-4 text-yellow-500" /><p className="text-sm font-semibold text-gray-700 dark:text-gray-300">Mejor día</p></div>
+                {data.bestDay ? <div><p className="text-xl font-bold text-gray-900 dark:text-white">{formatMoney(data.bestDay[1])}</p><p className="text-xs text-gray-500 mt-0.5">{formatDate(data.bestDay[0])}</p></div> : <p className="text-sm text-gray-400">Sin registros</p>}
+              </div>
+            </div>
+          )
+          if (sectionId === 'cobros') return (
+            <div key="cobros" className="grid grid-cols-3 gap-3">
+              <div className="card flex flex-col items-center text-center gap-2 py-3"><div className="rounded-xl p-2.5 bg-green-50 dark:bg-green-900/20"><Banknote className="w-5 h-5 text-green-600" /></div><p className="text-xs text-gray-500">Efectivo</p><p className="text-sm font-bold text-gray-900 dark:text-white leading-tight">{formatMoney(data.efectivo)}</p></div>
+              <div className="card flex flex-col items-center text-center gap-2 py-3"><div className="rounded-xl p-2.5 bg-purple-50 dark:bg-purple-900/20"><Smartphone className="w-5 h-5 text-purple-600" /></div><p className="text-xs text-gray-500">Yape</p><p className="text-sm font-bold text-gray-900 dark:text-white leading-tight">{formatMoney(data.yape)}</p></div>
+              <div className="card flex flex-col items-center text-center gap-2 py-3"><div className="rounded-xl p-2.5 bg-blue-50 dark:bg-blue-900/20"><CreditCard className="w-5 h-5 text-blue-600" /></div><p className="text-xs text-gray-500">Transfer.</p><p className="text-sm font-bold text-gray-900 dark:text-white leading-tight">{formatMoney(data.transferencia)}</p></div>
+            </div>
+          )
+          if (sectionId === 'gastos') return (
+            <div key="gastos" className="card">
+              <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Desglose de gastos{hasRange && <span className="ml-2 text-xs font-normal text-amber-500">proporcional al rango</span>}</p>
+              {(data.costItemsData && data.costItemsData.length > 0)
+                ? data.costItemsData.map((item, i) => <Row key={i} label={`📌 ${item.name}`} value={formatMoney(item.amount * data.proportionRatio)} />)
+                : (<><Row label="🏠 Alquiler" value={formatMoney(data.rent * data.proportionRatio)} /><Row label="🧴 Insumos" value={formatMoney(data.supplies * data.proportionRatio)} /></>)
+              }
+              <Row label="👷 Planilla" value={formatMoney(data.payrollTotal * data.proportionRatio)} />
+              {data.monthBonusAmt > 0 && <Row label="🎁 Bonos" value={formatMoney(data.monthBonusAmt * data.proportionRatio)} />}
+              {data.workerExpTotal > 0 && <Row label="💸 Gastos personal" value={formatMoney(data.workerExpTotal)} />}
+              <div className="flex items-center justify-between pt-2 mt-1 border-t border-gray-100 dark:border-gray-800">
+                <span className="text-sm font-bold text-gray-700 dark:text-gray-300">Total gastos</span>
+                <span className="text-sm font-black text-red-600">{formatMoney(data.displayCosts)}</span>
+              </div>
+            </div>
+          )
+          if (sectionId === 'gastos_personal') return data.periodExpenses?.length > 0 ? <ExpensesPanel key="gastos_personal" expenses={data.periodExpenses} workers={workers} /> : null
+          if (sectionId === 'ranking') return data.workerRanking.length > 0 ? <RankingPanel key="ranking" ranking={data.workerRanking} workingDaysElapsed={data.workingDaysElapsed} /> : null
+          if (sectionId === 'bonos') return <BonusSection key="bonos" workers={workers} bonuses={bonuses} addBonus={addBonus} deleteBonus={deleteBonus} monthPrefix={prefix} />
+          if (sectionId === 'grafico') return data.dailyData.length > 0 ? (() => {
+            const maxAmt = Math.max(...data.dailyData.map(d => d.amount))
+            const todayStr = new Date().toISOString().slice(0, 10)
+            return (
+              <div key="grafico" className="card overflow-hidden">
+                <div className="flex items-center justify-between mb-1"><p className="text-sm font-bold text-gray-900 dark:text-white">Ingresos por día</p><span className="text-xs text-gray-400">{data.dailyData.length} días</span></div>
+                <p className="text-xs text-gray-400 mb-4">Mejor día: <span className="font-semibold text-gray-600 dark:text-gray-300">{data.bestDay ? `${formatDate(data.bestDay[0])} · ${formatMoney(data.bestDay[1])}` : '—'}</span></p>
+                <div className="overflow-x-auto -mx-4 px-4">
+                  <div style={{ minWidth: Math.max(data.dailyData.length * 36, 300) }} className="h-52">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={data.dailyData} margin={{ top: 4, right: 4, left: -16, bottom: 0 }} barCategoryGap="25%">
+                        <defs>
+                          <linearGradient id="barGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#ef4444" stopOpacity={1} /><stop offset="100%" stopColor="#b91c1c" stopOpacity={0.85} /></linearGradient>
+                          <linearGradient id="barGradTop" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#f97316" stopOpacity={1} /><stop offset="100%" stopColor="#dc2626" stopOpacity={0.9} /></linearGradient>
+                          <linearGradient id="barGradToday" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#6366f1" stopOpacity={1} /><stop offset="100%" stopColor="#4f46e5" stopOpacity={0.85} /></linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
+                        <XAxis dataKey="label" tick={{ fontSize: 9, fill: '#9ca3af' }} tickLine={false} axisLine={false} interval={0} angle={-35} textAnchor="end" height={36} />
+                        <YAxis tick={{ fontSize: 10, fill: '#9ca3af' }} tickFormatter={v => `S/${v}`} tickCount={5} axisLine={false} tickLine={false} width={48} />
+                        <Tooltip cursor={{ fill: 'rgba(0,0,0,0.04)', radius: 6 }} contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.12)', fontSize: 12, padding: '8px 14px' }} formatter={(v) => [formatMoney(v), 'Ingresos']} labelStyle={{ fontWeight: 700, marginBottom: 2 }} />
+                        <Bar dataKey="amount" radius={[6, 6, 2, 2]} maxBarSize={32}>
+                          {data.dailyData.map((d) => {
+                            const isTop = d.amount === maxAmt
+                            const isToday = d.date === todayStr
+                            return <Cell key={d.date} fill={isToday ? 'url(#barGradToday)' : isTop ? 'url(#barGradTop)' : 'url(#barGrad)'} />
+                          })}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+                <div className="flex items-center gap-4 mt-3 pt-3 border-t border-gray-100 dark:border-gray-800">
+                  <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full" style={{background:'linear-gradient(#f97316,#dc2626)'}} /><span className="text-xs text-gray-400">Mejor día</span></div>
+                  <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full" style={{background:'linear-gradient(#6366f1,#4f46e5)'}} /><span className="text-xs text-gray-400">Hoy</span></div>
+                  <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full" style={{background:'linear-gradient(#ef4444,#b91c1c)'}} /><span className="text-xs text-gray-400">Días anteriores</span></div>
+                </div>
+              </div>
+            )
+          })() : null
+          return null
+        })()
 
-      {/* Métodos de cobro */}
-      <div className="grid grid-cols-3 gap-3">
-        <div className="card flex flex-col items-center text-center gap-2 py-3">
-          <div className="rounded-xl p-2.5 bg-green-50 dark:bg-green-900/20"><Banknote className="w-5 h-5 text-green-600" /></div>
-          <p className="text-xs text-gray-500">Efectivo</p>
-          <p className="text-sm font-bold text-gray-900 dark:text-white leading-tight">{formatMoney(data.efectivo)}</p>
-        </div>
-        <div className="card flex flex-col items-center text-center gap-2 py-3">
-          <div className="rounded-xl p-2.5 bg-purple-50 dark:bg-purple-900/20"><Smartphone className="w-5 h-5 text-purple-600" /></div>
-          <p className="text-xs text-gray-500">Yape</p>
-          <p className="text-sm font-bold text-gray-900 dark:text-white leading-tight">{formatMoney(data.yape)}</p>
-        </div>
-        <div className="card flex flex-col items-center text-center gap-2 py-3">
-          <div className="rounded-xl p-2.5 bg-blue-50 dark:bg-blue-900/20"><CreditCard className="w-5 h-5 text-blue-600" /></div>
-          <p className="text-xs text-gray-500">Transfer.</p>
-          <p className="text-sm font-bold text-gray-900 dark:text-white leading-tight">{formatMoney(data.transferencia)}</p>
-        </div>
-      </div>
+        if (!sectionContent) return null
 
-      {/* Desglose gastos */}
-      <div className="card">
-        <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">
-          Desglose de gastos{hasRange && <span className="ml-2 text-xs font-normal text-amber-500">proporcional al rango</span>}
-        </p>
-        {(data.costItemsData && data.costItemsData.length > 0)
-          ? data.costItemsData.map((item, i) => <Row key={i} label={`📌 ${item.name}`} value={formatMoney(item.amount * data.proportionRatio)} />)
-          : (<><Row label="🏠 Alquiler" value={formatMoney(data.rent * data.proportionRatio)} /><Row label="🧴 Insumos" value={formatMoney(data.supplies * data.proportionRatio)} /></>)
-        }
-        <Row label="👷 Planilla" value={formatMoney(data.payrollTotal * data.proportionRatio)} />
-        {data.monthBonusAmt > 0 && <Row label="🎁 Bonos" value={formatMoney(data.monthBonusAmt * data.proportionRatio)} />}
-        {data.workerExpTotal > 0 && <Row label="💸 Gastos personal" value={formatMoney(data.workerExpTotal)} />}
-        <div className="flex items-center justify-between pt-2 mt-1 border-t border-gray-100 dark:border-gray-800">
-          <span className="text-sm font-bold text-gray-700 dark:text-gray-300">Total gastos</span>
-          <span className="text-sm font-black text-red-600">{formatMoney(data.displayCosts)}</span>
-        </div>
-      </div>
+        const SECTION_LABELS = { kpis: 'KPIs', tiempos: 'Tiempos promedio', progreso: 'Meta mensual', estadisticas: 'Estadísticas', cobros: 'Métodos de cobro', gastos: 'Desglose gastos', gastos_personal: 'Gastos personal', ranking: 'Ranking', bonos: 'Bonos', grafico: 'Gráfico diario' }
 
-      {/* Gastos de personal */}
-      {data.periodExpenses?.length > 0 && <ExpensesPanel expenses={data.periodExpenses} workers={workers} />}
-
-      {/* Ranking trabajadores */}
-      {data.workerRanking.length > 0 && (
-        <RankingPanel ranking={data.workerRanking} workingDaysElapsed={data.workingDaysElapsed} />
-      )}
-
-      {/* Bonos */}
-      <BonusSection workers={workers} bonuses={bonuses} addBonus={addBonus} deleteBonus={deleteBonus} monthPrefix={prefix} />
-
-      {/* Gráfico diario */}
-      {data.dailyData.length > 0 && (() => {
-        const maxAmt = Math.max(...data.dailyData.map(d => d.amount))
-        const todayStr = new Date().toISOString().slice(0, 10)
         return (
-          <div className="card overflow-hidden">
-            <div className="flex items-center justify-between mb-1">
-              <p className="text-sm font-bold text-gray-900 dark:text-white">Ingresos por día</p>
-              <span className="text-xs text-gray-400">{data.dailyData.length} días</span>
-            </div>
-            <p className="text-xs text-gray-400 mb-4">Mejor día: <span className="font-semibold text-gray-600 dark:text-gray-300">{data.bestDay ? `${formatDate(data.bestDay[0])} · ${formatMoney(data.bestDay[1])}` : '—'}</span></p>
-            <div className="overflow-x-auto -mx-4 px-4">
-              <div style={{ minWidth: Math.max(data.dailyData.length * 36, 300) }} className="h-52">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={data.dailyData} margin={{ top: 4, right: 4, left: -16, bottom: 0 }} barCategoryGap="25%">
-                    <defs>
-                      <linearGradient id="barGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#ef4444" stopOpacity={1} />
-                        <stop offset="100%" stopColor="#b91c1c" stopOpacity={0.85} />
-                      </linearGradient>
-                      <linearGradient id="barGradTop" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#f97316" stopOpacity={1} />
-                        <stop offset="100%" stopColor="#dc2626" stopOpacity={0.9} />
-                      </linearGradient>
-                      <linearGradient id="barGradToday" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#6366f1" stopOpacity={1} />
-                        <stop offset="100%" stopColor="#4f46e5" stopOpacity={0.85} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
-                    <XAxis dataKey="label" tick={{ fontSize: 9, fill: '#9ca3af' }} tickLine={false} axisLine={false} interval={0} angle={-35} textAnchor="end" height={36} />
-                    <YAxis tick={{ fontSize: 10, fill: '#9ca3af' }} tickFormatter={v => `S/${v}`} tickCount={5} axisLine={false} tickLine={false} width={48} />
-                    <Tooltip
-                      cursor={{ fill: 'rgba(0,0,0,0.04)', radius: 6 }}
-                      contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.12)', fontSize: 12, padding: '8px 14px' }}
-                      formatter={(v) => [formatMoney(v), 'Ingresos']}
-                      labelStyle={{ fontWeight: 700, marginBottom: 2 }}
-                    />
-                    <Bar dataKey="amount" radius={[6, 6, 2, 2]} maxBarSize={32}>
-                      {data.dailyData.map((d) => {
-                        const isTop = d.amount === maxAmt
-                        const isToday = d.date === todayStr
-                        return <Cell key={d.date} fill={isToday ? 'url(#barGradToday)' : isTop ? 'url(#barGradTop)' : 'url(#barGrad)'} />
-                      })}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
+          <div key={sectionId} className="relative group">
+            {editingLayout && (
+              <div className="flex items-center gap-1 mb-1.5 px-1">
+                <span className="text-xs font-semibold text-gray-400 flex-1">{SECTION_LABELS[sectionId] || sectionId}</span>
+                <button onClick={() => movePanelSection(sectionId, -1)} disabled={sIdx === 0}
+                  className="p-1 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 disabled:opacity-20 shadow-sm">
+                  <svg className="w-3 h-3 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7"/></svg>
+                </button>
+                <button onClick={() => movePanelSection(sectionId, 1)} disabled={sIdx === panelOrder.length - 1}
+                  className="p-1 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 disabled:opacity-20 shadow-sm">
+                  <svg className="w-3 h-3 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7"/></svg>
+                </button>
               </div>
-            </div>
-            <div className="flex items-center gap-4 mt-3 pt-3 border-t border-gray-100 dark:border-gray-800">
-              <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full" style={{background:'linear-gradient(#f97316,#dc2626)'}} /><span className="text-xs text-gray-400">Mejor día</span></div>
-              <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full" style={{background:'linear-gradient(#6366f1,#4f46e5)'}} /><span className="text-xs text-gray-400">Hoy</span></div>
-              <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full" style={{background:'linear-gradient(#ef4444,#b91c1c)'}} /><span className="text-xs text-gray-400">Días anteriores</span></div>
-            </div>
+            )}
+            {sectionContent}
           </div>
         )
-      })()}
+      })}
+
     </div>
   )
 }

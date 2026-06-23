@@ -471,6 +471,7 @@ export default function Dashboard() {
     try { return JSON.parse(localStorage.getItem('apexpro_avgtime_hidden') || '[]') } catch { return [] }
   })
   const [editingAvgTime, setEditingAvgTime] = useState(false)
+  const [avgTimeFilter, setAvgTimeFilter] = useState('all')
 
   function saveAvgTimePrefs(order, hidden) {
     localStorage.setItem('apexpro_avgtime_order', JSON.stringify(order))
@@ -776,10 +777,12 @@ export default function Dashboard() {
                 return { type, avg: Math.round(total / count), count, hasLabel: !!vt, vt, vehicle_subtype, extras_label }
               })
               .sort((a, b) => (a.hasLabel === b.hasLabel ? 0 : a.hasLabel ? -1 : 1))
+            const uniqueVehicleTypes = [...new Set(allEntries.map(e => e.vehicle_type).filter(Boolean))]
+            const filteredEntries = avgTimeFilter === 'all' ? allEntries : allEntries.filter(e => e.vehicle_type === avgTimeFilter)
             const ordered = avgTimeOrder
-              ? [...avgTimeOrder.map(t => allEntries.find(e => e.type === t)).filter(Boolean),
-                 ...allEntries.filter(e => !avgTimeOrder.includes(e.type))]
-              : [...allEntries].sort((a, b) => a.avg - b.avg)
+              ? [...avgTimeOrder.map(t => filteredEntries.find(e => e.type === t)).filter(Boolean),
+                 ...filteredEntries.filter(e => !avgTimeOrder.includes(e.type))]
+              : [...filteredEntries].sort((a, b) => a.avg - b.avg)
             const visibleEntries = ordered.filter(e => !avgTimeHidden.includes(e.type))
             const maxAvg = Math.max(...ordered.map(e => e.avg))
             const moveEntry = (idx, dir) => {
@@ -804,6 +807,21 @@ export default function Dashboard() {
                     className={`ml-auto text-xs px-2 py-1 rounded-lg font-semibold transition-colors ${editingAvgTime ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800'}`}>
                     {editingAvgTime ? 'Listo' : '✏️ Editar'}
                   </button>
+                </div>
+                <div className="flex flex-wrap gap-1.5 mb-3">
+                  <button onClick={() => setAvgTimeFilter('all')}
+                    className={`text-xs px-2.5 py-1 rounded-full font-semibold transition-colors ${avgTimeFilter === 'all' ? 'bg-gray-800 dark:bg-gray-100 text-white dark:text-gray-900' : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'}`}>
+                    Todos
+                  </button>
+                  {uniqueVehicleTypes.map(vtype => {
+                    const vtObj = (vehicleTypes || []).find(v => v.value === vtype)
+                    return (
+                      <button key={vtype} onClick={() => setAvgTimeFilter(vtype)}
+                        className={`text-xs px-2.5 py-1 rounded-full font-semibold transition-colors ${avgTimeFilter === vtype ? 'bg-gray-800 dark:bg-gray-100 text-white dark:text-gray-900' : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'}`}>
+                        {vtObj ? `${vtObj.emoji} ${vtObj.label}` : vtype}
+                      </button>
+                    )
+                  })}
                 </div>
                 {editingAvgTime ? (
                   <div className="space-y-1.5">

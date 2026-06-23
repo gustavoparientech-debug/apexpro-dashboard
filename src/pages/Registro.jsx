@@ -1409,8 +1409,7 @@ export default function Registro() {
 
   const expensesToday = useMemo(() => {
     const all = (expenses || []).filter(e => hasRange ? (e.date >= rangeFrom && e.date <= rangeTo) : e.date === selectedDate)
-    // Trabajadores solo ven sus propios gastos
-    if (!canAdmin) return all.filter(e => e.worker_id === profile?.worker_id)
+    if (!canAdmin) return all.filter(e => e.worker_id === profile?.worker_id && !e.hidden_from_workers)
     return all
   }, [expenses, selectedDate, canAdmin, profile, hasRange, rangeFrom, rangeTo])
 
@@ -1554,24 +1553,43 @@ export default function Registro() {
             </button>
           </div>
 
-          {/* Total del día — prominente */}
-          {canAdmin && (
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-[10px] font-bold text-white/40 uppercase tracking-widest leading-none mb-1">
-                  {hasRange ? 'Total rango' : fechaLabel.split(',')[0]}
-                  {!hasRange && selectedDate !== today && <span className="ml-1.5 text-amber-400">· Lectura</span>}
-                </p>
+          {/* Resumen del día — visible para todos */}
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex-1">
+              <p className="text-[10px] font-bold text-white/40 uppercase tracking-widest leading-none mb-1">
+                {hasRange ? 'Total rango' : fechaLabel.split(',')[0]}
+                {!hasRange && selectedDate !== today && <span className="ml-1.5 text-amber-400">· Lectura</span>}
+              </p>
+              {canAdmin ? (
                 <p className="text-3xl font-black text-white leading-none tracking-tight">
-                  {hideTotal ? '•••••' : formatMoney(dayTotal)}
+                  {hideTotal ? '•••••' : formatMoney(dayGross)}
                 </p>
-              </div>
+              ) : (
+                <p className="text-3xl font-black text-white leading-none tracking-tight">{formatMoney(dayGross)}</p>
+              )}
+              {expensesTodayTotal > 0 && (
+                <div className="flex items-center gap-3 mt-2">
+                  <div className="flex items-center gap-1">
+                    <span className="text-[10px] text-white/40 uppercase tracking-widest">Gastos</span>
+                    <span className="text-xs font-bold text-amber-400">-{hideTotal && canAdmin ? '•••' : formatMoney(expensesTodayTotal)}</span>
+                  </div>
+                  <div className="w-px h-3 bg-white/20" />
+                  <div className="flex items-center gap-1">
+                    <span className="text-[10px] text-white/40 uppercase tracking-widest">Neto</span>
+                    <span className={`text-xs font-black ${dayTotal >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                      {hideTotal && canAdmin ? '•••' : formatMoney(dayTotal)}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+            {canAdmin && (
               <button onClick={() => setHideTotal(v => !v)}
-                className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 transition-colors">
+                className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 transition-colors mt-1">
                 <Eye className="w-4 h-4 text-gray-300" />
               </button>
-            </div>
-          )}
+            )}
+          </div>
 
           {/* Fila nav día + botón rango */}
           {canAdmin && (
@@ -1893,9 +1911,14 @@ export default function Registro() {
                     {exp.notes && <p className="text-xs text-gray-400 truncate">{exp.notes}</p>}
                     {worker && <p className="text-xs text-gray-400">{worker.name}</p>}
                   </div>
-                  <span className="text-sm font-bold text-amber-600">-{formatMoney(exp.amount)}</span>
+                  <span className={`text-sm font-bold ${exp.hidden_from_workers ? 'text-gray-400' : 'text-amber-600'}`}>-{formatMoney(exp.amount)}</span>
                   {canAdmin && (
                     <>
+                      <button title={exp.hidden_from_workers ? 'Mostrar a trabajadores' : 'Ocultar a trabajadores'}
+                        onClick={async () => { try { await updateExpense(exp.id, { hidden_from_workers: !exp.hidden_from_workers }) } catch { toast.error('Error') } }}
+                        className={`p-1.5 rounded-lg transition-colors ${exp.hidden_from_workers ? 'bg-gray-100 dark:bg-gray-800' : 'hover:bg-gray-100 dark:hover:bg-gray-800'}`}>
+                        <Eye className={`w-3.5 h-3.5 ${exp.hidden_from_workers ? 'text-gray-300' : 'text-gray-400'}`} />
+                      </button>
                       <button onClick={() => setEditingExpense({ ...exp })}
                         className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg">
                         <PenLine className="w-3.5 h-3.5 text-gray-400" />

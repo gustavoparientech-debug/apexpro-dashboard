@@ -531,14 +531,17 @@ export default function Dashboard() {
     const periodSummaries = sourceSummaries.filter(d => dateFilter(d.date))
     const periodExpenses  = sourceExpenses.filter(e => dateFilter(e.date))
 
-    // Promedios de tiempo por tipo+subcategoría (solo tickets con opened_at y closed_at, excluye manuales)
+    // Promedios de tiempo por tipo+subcategoría+extras (solo tickets con opened_at y closed_at, excluye manuales)
     const avgTimeByType = {}
     periodTickets.forEach(t => {
       if (!t.opened_at || !t.closed_at || t.is_manual) return
       const mins = Math.round((new Date(t.closed_at) - new Date(t.opened_at)) / 60000)
       if (mins < 1 || mins > 1440 * 7) return
-      const key = t.vehicle_subtype ? `${t.vehicle_type}||${t.vehicle_subtype}` : t.vehicle_type
-      if (!avgTimeByType[key]) avgTimeByType[key] = { total: 0, count: 0, vehicle_type: t.vehicle_type, vehicle_subtype: t.vehicle_subtype || null }
+      const extrasLabel = (t.extras?.length > 0)
+        ? t.extras.map(e => e.name || e.label || e).sort().join(', ')
+        : null
+      const key = [t.vehicle_type, t.vehicle_subtype, extrasLabel].filter(Boolean).join('||')
+      if (!avgTimeByType[key]) avgTimeByType[key] = { total: 0, count: 0, vehicle_type: t.vehicle_type, vehicle_subtype: t.vehicle_subtype || null, extras_label: extrasLabel }
       avgTimeByType[key].total += mins
       avgTimeByType[key].count += 1
     })
@@ -768,9 +771,9 @@ export default function Dashboard() {
               return m > 0 ? `${h}h ${m}m` : `${h}h`
             }
             const allEntries = Object.entries(data.avgTimeByType)
-              .map(([type, { total, count, vehicle_type, vehicle_subtype }]) => {
+              .map(([type, { total, count, vehicle_type, vehicle_subtype, extras_label }]) => {
                 const vt = (vehicleTypes || []).find(v => v.value === vehicle_type)
-                return { type, avg: Math.round(total / count), count, hasLabel: !!vt, vt, vehicle_subtype }
+                return { type, avg: Math.round(total / count), count, hasLabel: !!vt, vt, vehicle_subtype, extras_label }
               })
               .sort((a, b) => (a.hasLabel === b.hasLabel ? 0 : a.hasLabel ? -1 : 1))
             const ordered = avgTimeOrder
@@ -805,7 +808,7 @@ export default function Dashboard() {
                 {editingAvgTime ? (
                   <div className="space-y-1.5">
                     {ordered.map(({ type, avg, count, vt, vehicle_subtype }, idx) => {
-                      const label = vt ? `${vt.emoji} ${vt.label}${vehicle_subtype ? ` · ${vehicle_subtype}` : ''}` : type
+                      const label = vt ? `${vt.emoji} ${vt.label}${vehicle_subtype ? ` · ${vehicle_subtype}` : ''}${extras_label ? ` + ${extras_label}` : ''}` : type
                       const hidden = avgTimeHidden.includes(type)
                       return (
                         <div key={type} className={`flex items-center gap-2 px-2 py-2 rounded-xl border transition-colors ${hidden ? 'opacity-40 border-gray-100 dark:border-gray-800' : 'border-gray-200 dark:border-gray-700'}`}>
@@ -830,7 +833,7 @@ export default function Dashboard() {
                 ) : (
                   <div className="space-y-2.5">
                     {visibleEntries.map(({ type, avg, count, vt, vehicle_subtype }) => {
-                      const label = vt ? `${vt.emoji} ${vt.label}${vehicle_subtype ? ` · ${vehicle_subtype}` : ''}` : type
+                      const label = vt ? `${vt.emoji} ${vt.label}${vehicle_subtype ? ` · ${vehicle_subtype}` : ''}${extras_label ? ` + ${extras_label}` : ''}` : type
                       const pct = maxAvg > 0 ? Math.round((avg / maxAvg) * 100) : 0
                       return (
                         <div key={type}>

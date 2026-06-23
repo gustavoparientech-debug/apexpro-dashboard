@@ -410,6 +410,9 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
   const [manualPrice,   setManualPrice]   = useState('')
   const [variantPicker, setVariantPicker] = useState(null) // extra con variantes pendiente de selección
   const [editPrice,     setEditPrice]     = useState(false)
+  const [discountPct,   setDiscountPct]   = useState(ticket.discount_pct || 0)
+  const [discountFixed, setDiscountFixed] = useState(ticket.discount_fixed || 0)
+  const [showDiscount,  setShowDiscount]  = useState(!!(ticket.discount_pct || ticket.discount_fixed))
   const [basePrice,     setBasePrice]     = useState(ticket.price_charged || vehicle?.default_price || 0)
   const [deleteConfirm, setDeleteConfirm] = useState(false)
   const [saving,        setSaving]        = useState(false)
@@ -421,11 +424,13 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
 
   const extrasTotal = extras.reduce((s, e) => s + (e.price || 0), 0)
   const totalBruto = parseFloat(basePrice || 0) + extrasTotal
+  const discountAmt = Math.round((totalBruto * (discountPct / 100) + parseFloat(discountFixed || 0)) * 100) / 100
+  const totalFinal = Math.max(0, totalBruto - discountAmt)
   const effectivePayment = ticket.payment_method || 'yape'
   const isTransferencia = effectivePayment === 'transferencia'
   const isMixto = effectivePayment === 'mixto'
   const TRANSFER_FEE = 0.04
-  const total = isTransferencia ? Math.round(totalBruto * (1 - TRANSFER_FEE) * 100) / 100 : totalBruto
+  const total = isTransferencia ? Math.round(totalFinal * (1 - TRANSFER_FEE) * 100) / 100 : totalFinal
   const mixtoSum = (parseFloat(mixtoYape) || 0) + (parseFloat(mixtoEfectivo) || 0)
   const mixtoOk = !isMixto || Math.abs(mixtoSum - total) < 0.01
 
@@ -463,9 +468,11 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
     setSaving(true)
     try {
       await onUpdate(ticket.id, {
-        price_charged: parseFloat(basePrice) || 0,
+        price_charged: totalFinal,
         extras,
         notes,
+        discount_pct: discountPct || 0,
+        discount_fixed: parseFloat(discountFixed) || 0,
         ...(paymentPhoto && { payment_photo: paymentPhoto }),
         ...(isMixto && { mixto_yape: parseFloat(mixtoYape) || 0, mixto_efectivo: parseFloat(mixtoEfectivo) || 0 }),
       })
@@ -485,6 +492,8 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
       price_charged:  total,
       extras,
       notes,
+      discount_pct:   discountPct || 0,
+      discount_fixed: parseFloat(discountFixed) || 0,
       payment_method: effectivePayment,
       closed_at:      new Date().toISOString(),
       ...(paymentPhoto && { payment_photo: paymentPhoto }),
@@ -641,6 +650,48 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
             </div>
           </div>
         )}
+
+        {/* Descuento */}
+        <div className="px-4 pb-1">
+          {!showDiscount ? (
+            <button onClick={() => setShowDiscount(true)}
+              className="w-full py-2.5 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl text-sm font-medium text-gray-500 hover:border-amber-400 hover:text-amber-600 transition-colors flex items-center justify-center gap-2">
+              <span className="text-base leading-none">%</span> Agregar descuento
+            </button>
+          ) : (
+            <div className="border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/10 rounded-xl p-3 space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-bold text-amber-700 dark:text-amber-400 uppercase tracking-wide">Descuento</p>
+                <button onClick={() => { setShowDiscount(false); setDiscountPct(0); setDiscountFixed(0) }}>
+                  <X className="w-4 h-4 text-gray-400" />
+                </button>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500 mb-1.5">Porcentaje</p>
+                <div className="flex flex-wrap gap-2">
+                  {[5,10,15,20,25,30].map(p => (
+                    <button key={p} type="button" onClick={() => setDiscountPct(discountPct === p ? 0 : p)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold border-2 transition-all ${discountPct === p ? 'border-amber-500 bg-amber-500 text-white' : 'border-amber-200 dark:border-amber-700 text-amber-700 dark:text-amber-400 hover:bg-amber-100'}`}>
+                      {p}%
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500 mb-1.5">Descuento fijo (S/)</p>
+                <input type="number" min="0" step="0.5" placeholder="0.00" value={discountFixed}
+                  onChange={e => setDiscountFixed(e.target.value)}
+                  className="input text-sm w-full" />
+              </div>
+              {discountAmt > 0 && (
+                <div className="flex justify-between text-xs font-semibold pt-1 border-t border-amber-200 dark:border-amber-700">
+                  <span className="text-gray-500">Descuento aplicado</span>
+                  <span className="text-amber-600">-{formatMoney(discountAmt)}</span>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
 
         {/* Método de pago */}
         <div className="px-4 py-3 border-t border-gray-100 dark:border-gray-800">

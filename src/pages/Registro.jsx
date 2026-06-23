@@ -1409,10 +1409,7 @@ export default function Registro() {
 
   const expensesToday = useMemo(() => {
     const all = (expenses || []).filter(e => hasRange ? (e.date >= rangeFrom && e.date <= rangeTo) : e.date === selectedDate)
-    if (!canAdmin) {
-      const wid = profile?.worker_id
-      return all.filter(e => (!wid || e.worker_id === wid) && !e.hidden_from_workers)
-    }
+    if (!canAdmin) return all.filter(e => !e.hidden_from_workers)
     return all
   }, [expenses, selectedDate, canAdmin, profile, hasRange, rangeFrom, rangeTo])
 

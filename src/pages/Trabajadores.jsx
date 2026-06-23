@@ -845,7 +845,7 @@ export default function Trabajadores() {
                   <div key={w.id}>
                     <p className="text-sm font-medium text-gray-800 dark:text-gray-200 mb-2">{w.name}</p>
                     <div className="space-y-1 pl-3">
-                      {w.workerIncidents.map(i => (
+                      {[...w.workerIncidents].sort((a, b) => b.date.localeCompare(a.date)).map(i => (
                         <div key={i.id} className="flex items-center gap-2 text-xs group py-0.5">
                           <span className="text-gray-500 shrink-0">{formatDate(i.date)}</span>
                           <span className="text-gray-600 dark:text-gray-400 shrink-0">{INCIDENT_LABELS[i.type]}</span>

@@ -2187,7 +2187,7 @@ export default function Registro() {
       {/* Modal — Resumen ticket */}
       {summaryTicket && (
         <TicketSummaryModal
-          ticket={summaryTicket}
+          ticket={tickets.find(t => t.id === summaryTicket.id) || summaryTicket}
           workers={workers}
           vehicleTypes={vehicleTypes}
           onClose={() => setSummaryTicket(null)}

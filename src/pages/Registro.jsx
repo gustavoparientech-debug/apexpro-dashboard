@@ -319,21 +319,29 @@ function NewTicketForm({ onSave, onClose, workers, vehicleTypes, lockedWorkerId,
             })}
           </div>
           {vehicleVariantPicker && (
-            <div className="mt-3 p-3 rounded-xl border border-indigo-200 dark:border-indigo-700 bg-indigo-50 dark:bg-indigo-900/20">
-              <p className="text-xs font-semibold text-indigo-700 dark:text-indigo-300 mb-2">
-                {vehicleVariantPicker.emoji} {vehicleVariantPicker.label} — elige subcategoría
-              </p>
-              <div className="grid grid-cols-2 gap-2">
-                {vehicleVariantPicker.variants.map((v, i) => (
-                  <button key={i} type="button"
-                    onClick={() => handleVehicleVariant(vehicleVariantPicker, v)}
-                    className="flex items-center justify-between px-3 py-2 rounded-xl border border-indigo-200 dark:border-indigo-700 bg-white dark:bg-gray-900 text-sm font-medium text-gray-800 dark:text-gray-200 hover:border-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 transition-all">
-                    <span>{v.label}</span>
-                    <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400">S/{v.price}</span>
-                  </button>
-                ))}
+            <div className="fixed inset-0 z-50 flex flex-col justify-end" onClick={() => setVehicleVariantPicker(null)}>
+              <div className="absolute inset-0 bg-black/40" />
+              <div className="relative bg-white dark:bg-gray-900 rounded-t-3xl shadow-2xl p-5 pb-8" onClick={e => e.stopPropagation()}>
+                <div className="flex justify-center mb-3">
+                  <div className="w-10 h-1 rounded-full bg-gray-300 dark:bg-gray-600" />
+                </div>
+                <p className="text-sm font-bold text-gray-800 dark:text-gray-100 mb-4">
+                  {vehicleVariantPicker.emoji} {vehicleVariantPicker.label} — elige subcategoría
+                </p>
+                <div className="grid grid-cols-2 gap-3">
+                  {vehicleVariantPicker.variants.map((v, i) => (
+                    <button key={i} type="button"
+                      onClick={() => handleVehicleVariant(vehicleVariantPicker, v)}
+                      className="flex items-center justify-between px-4 py-3 rounded-2xl border-2 border-indigo-200 dark:border-indigo-700 bg-indigo-50 dark:bg-indigo-900/30 text-sm font-semibold text-gray-800 dark:text-gray-200 hover:border-indigo-500 hover:bg-indigo-100 active:scale-95 transition-all">
+                      <span>{v.label}</span>
+                      <span className="text-sm font-bold text-indigo-600 dark:text-indigo-400">S/{v.price}</span>
+                    </button>
+                  ))}
+                </div>
+                <button onClick={() => setVehicleVariantPicker(null)} className="w-full mt-4 py-2 text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition-colors">
+                  Cancelar
+                </button>
               </div>
-              <button onClick={() => setVehicleVariantPicker(null)} className="text-xs text-gray-400 hover:text-gray-600 mt-2">Cancelar</button>
             </div>
           )}
           {form.vehicle_type && !vehicleVariantPicker && (

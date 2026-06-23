@@ -173,6 +173,53 @@ export default function Configuracion() {
   const [anuncioTarget, setAnuncioTarget] = useState('all')
   const [anuncioWorker, setAnuncioWorker] = useState('')
   const [sendingAnuncio, setSendingAnuncio] = useState(false)
+  const [anuncioTone, setAnuncioTone] = useState('normal')
+  const [aiPreview, setAiPreview] = useState('')
+  const [generatingAi, setGeneratingAi] = useState(false)
+
+  async function handleGenerateAI() {
+    if (!anuncioMsg.trim()) { toast.error('Escribe un mensaje primero'); return }
+    setGeneratingAi(true)
+    setAiPreview('')
+    try {
+      const tonePrompts = {
+        formal: 'Transforma este mensaje en un anuncio formal y profesional para un taller automotriz. Usa máximo 2 emojis relevantes al inicio. Sé directo y respetuoso.',
+        normal: 'Transforma este mensaje en un anuncio amigable y claro para el equipo de un taller automotriz. Usa 3-4 emojis apropiados. Tono cercano pero profesional.',
+        alegre: 'Transforma este mensaje en un anuncio motivador y alegre para el equipo de un taller automotriz. Usa bastantes emojis expresivos. Tono energético y positivo.',
+      }
+      const { data, error } = await supabase.functions.invoke('ai-anuncio', {
+        body: { message: anuncioMsg.trim(), tone: anuncioTone, prompt: tonePrompts[anuncioTone] }
+      })
+      if (error) throw error
+      setAiPreview(data.result)
+    } catch {
+      // Fallback local si no hay edge function
+      const emojis = { formal: ['📋','📢'], normal: ['📢','👋','✅','🔧'], alegre: ['🎉','🚀','💪','⭐','🔥','👊'] }
+      const prefixes = {
+        formal: `Estimado equipo,\n\n`,
+        normal: `Hola equipo 👋\n\n`,
+        alegre: `¡Atención equipo! 🎉\n\n`,
+      }
+      const suffixes = {
+        formal: `\n\nQuedamos atentos a cualquier consulta.\nGracias por su colaboración.`,
+        normal: `\n\nCualquier duda, me avisan. ¡Gracias! ✅`,
+        alegre: `\n\n¡Vamos con todo equipo! 💪🔥`,
+      }
+      const e = emojis[anuncioTone]
+      setAiPreview(`${prefixes[anuncioTone]}${e[0]} ${anuncioMsg.trim()}${suffixes[anuncioTone]}`)
+    }
+    setGeneratingAi(false)
+  }
+
+  function handleUseAiPreview() {
+    setAnuncioMsg(aiPreview)
+    setAiPreview('')
+  }
+
+  function handleShareWhatsApp(text) {
+    const encoded = encodeURIComponent(text)
+    window.open(`https://wa.me/?text=${encoded}`, '_blank')
+  }
 
   async function handleSendAnuncio() {
     if (!anuncioMsg.trim()) { toast.error('Escribe un mensaje'); return }
@@ -580,19 +627,71 @@ export default function Configuracion() {
           </select>
         )}
 
+        {/* Selector de tono IA */}
+        <div className="flex gap-2 mb-3">
+          {[
+            { key: 'formal', label: '🎩 Formal', desc: 'Serio y profesional' },
+            { key: 'normal', label: '💬 Normal', desc: 'Claro y amigable' },
+            { key: 'alegre', label: '🎉 Alegre', desc: 'Energético y festivo' },
+          ].map(t => (
+            <button key={t.key} onClick={() => setAnuncioTone(t.key)}
+              className={`flex-1 py-2 px-1 rounded-xl text-xs font-semibold border transition-all ${anuncioTone === t.key ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:border-indigo-300'}`}>
+              {t.label}
+            </button>
+          ))}
+        </div>
+
         <textarea
-          className="input resize-none mb-3"
+          className="input resize-none mb-2"
           rows={3}
           placeholder="Escribe el anuncio o mensaje para el equipo..."
           value={anuncioMsg}
-          onChange={e => setAnuncioMsg(e.target.value)}
+          onChange={e => { setAnuncioMsg(e.target.value); setAiPreview('') }}
         />
 
-        <button onClick={handleSendAnuncio} disabled={sendingAnuncio}
-          className="btn-primary flex items-center gap-2">
-          <span>📣</span>
-          {sendingAnuncio ? 'Enviando...' : 'Enviar anuncio'}
+        {/* Botón generar IA */}
+        <button onClick={handleGenerateAI} disabled={generatingAi || !anuncioMsg.trim()}
+          className="w-full mb-3 py-2 rounded-xl text-sm font-semibold border-2 border-dashed border-indigo-300 dark:border-indigo-700 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 disabled:opacity-40 transition-all flex items-center justify-center gap-2">
+          {generatingAi
+            ? <><span className="animate-spin">⚙️</span> Generando mensaje...</>
+            : <><span>✨</span> Mejorar con IA</>}
         </button>
+
+        {/* Preview IA */}
+        {aiPreview && (
+          <div className="mb-3 rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-900/20 overflow-hidden">
+            <div className="flex items-center justify-between px-3 py-2 border-b border-indigo-200 dark:border-indigo-800">
+              <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400">✨ Sugerencia IA</span>
+              <button onClick={() => setAiPreview('')} className="text-gray-400 hover:text-gray-600 text-xs">✕</button>
+            </div>
+            <pre className="px-3 py-2.5 text-sm text-gray-700 dark:text-gray-200 whitespace-pre-wrap font-sans leading-relaxed">{aiPreview}</pre>
+            <div className="flex gap-2 px-3 pb-3">
+              <button onClick={handleUseAiPreview}
+                className="flex-1 py-1.5 rounded-lg bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700 transition-colors">
+                Usar este mensaje
+              </button>
+              <button onClick={() => handleShareWhatsApp(aiPreview)}
+                className="flex-1 py-1.5 rounded-lg bg-green-500 text-white text-xs font-semibold hover:bg-green-600 transition-colors flex items-center justify-center gap-1">
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.127.558 4.126 1.532 5.856L.054 23.25a.75.75 0 00.916.919l5.562-1.457A11.944 11.944 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.75a9.7 9.7 0 01-4.95-1.355l-.355-.211-3.684.966.984-3.595-.232-.371A9.718 9.718 0 012.25 12C2.25 6.615 6.615 2.25 12 2.25S21.75 6.615 21.75 12 17.385 21.75 12 21.75z"/></svg>
+                WhatsApp
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Botón enviar + WhatsApp directo */}
+        <div className="flex gap-2">
+          <button onClick={handleSendAnuncio} disabled={sendingAnuncio}
+            className="flex-1 btn-primary flex items-center justify-center gap-2">
+            <span>📣</span>
+            {sendingAnuncio ? 'Enviando...' : 'Enviar anuncio'}
+          </button>
+          <button onClick={() => handleShareWhatsApp(anuncioMsg)} disabled={!anuncioMsg.trim()}
+            title="Compartir en WhatsApp"
+            className="px-4 py-2 rounded-xl bg-green-500 hover:bg-green-600 disabled:opacity-40 text-white transition-colors flex items-center gap-1.5 text-sm font-semibold">
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.127.558 4.126 1.532 5.856L.054 23.25a.75.75 0 00.916.919l5.562-1.457A11.944 11.944 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.75a9.7 9.7 0 01-4.95-1.355l-.355-.211-3.684.966.984-3.595-.232-.371A9.718 9.718 0 012.25 12C2.25 6.615 6.615 2.25 12 2.25S21.75 6.615 21.75 12 17.385 21.75 12 21.75z"/></svg>
+          </button>
+        </div>
       </div>
 
       {/* Tipos de vehículo */}

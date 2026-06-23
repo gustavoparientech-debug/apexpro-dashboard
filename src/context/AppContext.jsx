@@ -118,7 +118,7 @@ function reducer(state, action) {
     case 'UPDATE_WORKER':     return { ...state, workers: state.workers.map(w => w.id === action.payload.id ? action.payload : w) }
     case 'ADD_SERVICE':       return { ...state, services: [...state.services, action.payload] }
     case 'UPDATE_SERVICE':    return { ...state, services: state.services.map(s => s.id === action.payload.id ? action.payload : s) }
-    case 'ADD_TICKET':        return { ...state, tickets: [...state.tickets, action.payload] }
+    case 'ADD_TICKET':        return state.tickets.find(t => t.id === action.payload.id) ? state : { ...state, tickets: [action.payload, ...state.tickets] }
     case 'UPDATE_TICKET':     return { ...state, tickets: state.tickets.map(t => t.id === action.payload.id ? action.payload : t) }
     case 'DELETE_TICKET':     return { ...state, tickets: state.tickets.filter(t => t.id !== action.payload) }
     case 'ADD_SUMMARY':       return { ...state, dailySummaries: [...state.dailySummaries, action.payload] }

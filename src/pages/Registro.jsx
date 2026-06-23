@@ -1022,6 +1022,17 @@ function ClosedTicketCard({ ticket, workers, vehicleTypes, onDelete, onEdit, onS
   )
 }
 
+const COUNTRY_CODES = [
+  { flag: '🇵🇪', code: '51', label: 'PE' },
+  { flag: '🇲🇽', code: '52', label: 'MX' },
+  { flag: '🇨🇴', code: '57', label: 'CO' },
+  { flag: '🇨🇱', code: '56', label: 'CL' },
+  { flag: '🇦🇷', code: '54', label: 'AR' },
+  { flag: '🇺🇸', code: '1',  label: 'US' },
+  { flag: '🇧🇷', code: '55', label: 'BR' },
+  { flag: '🇪🇸', code: '34', label: 'ES' },
+]
+
 // ─── Modal resumen ticket cerrado ────────────────────────────────────────────
 function TicketSummaryModal({ ticket, workers, vehicleTypes, onClose }) {
   const [closing, setClosing] = useState(false)
@@ -1034,6 +1045,10 @@ function TicketSummaryModal({ ticket, workers, vehicleTypes, onClose }) {
     setClosing(true)
     setTimeout(onClose, 160)
   }
+  const [showWaPanel, setShowWaPanel] = useState(false)
+  const [waCountry, setWaCountry] = useState('51')
+  const [waPhone, setWaPhone] = useState(ticket.client_phone || '')
+
   const show = animateIn && !closing
   const worker  = workers.find(w => w.id === ticket.worker_id)
   const vehicle = (vehicleTypes || []).find(v => v.value === ticket.vehicle_type)
@@ -1054,7 +1069,7 @@ function TicketSummaryModal({ ticket, workers, vehicleTypes, onClose }) {
     ? new Date(ticket.closed_at).toLocaleString('es-PE', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' })
     : ticket.date
 
-  function shareWhatsApp() {
+  function shareWhatsApp(phone) {
     const paymentLabel = ticket.payment_method === 'yape' ? 'Yape 📱' : ticket.payment_method === 'transferencia' ? 'Transferencia 🏦' : 'Efectivo 💵'
     const sep = '━━━━━━━━━━━━━━━━━━━━'
     const lines = [
@@ -1076,12 +1091,11 @@ function TicketSummaryModal({ ticket, workers, vehicleTypes, onClose }) {
       sep,
       `🙌 *¡Gracias por preferirnos!*`,
     ].filter(v => v !== null).join('\n')
-    const url = `https://api.whatsapp.com/send?text=${encodeURIComponent(lines)}`
-    if (navigator.share && /android|iphone|ipad|ipod/i.test(navigator.userAgent)) {
-      navigator.share({ text: lines }).catch(() => window.open(url, '_blank'))
-    } else {
-      window.open(url, '_blank')
-    }
+    const cleanPhone = phone ? phone.replace(/\D/g, '') : ''
+    const url = cleanPhone
+      ? `https://api.whatsapp.com/send?phone=${waCountry}${cleanPhone}&text=${encodeURIComponent(lines)}`
+      : `https://api.whatsapp.com/send?text=${encodeURIComponent(lines)}`
+    window.open(url, '_blank')
   }
 
   async function downloadPDF() {
@@ -1169,8 +1183,8 @@ function TicketSummaryModal({ ticket, workers, vehicleTypes, onClose }) {
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-gray-800">
           <span className="font-mono font-black text-xl text-gray-900 dark:text-white">{ticket.plate || 'Sin placa'}</span>
           <div className="flex items-center gap-2">
-            <button onClick={shareWhatsApp}
-              className="flex items-center gap-1.5 bg-green-500 hover:bg-green-600 text-white text-xs font-bold px-3 py-1.5 rounded-full transition-colors">
+            <button onClick={() => setShowWaPanel(v => !v)}
+              className={`flex items-center gap-1.5 text-white text-xs font-bold px-3 py-1.5 rounded-full transition-colors ${showWaPanel ? 'bg-green-700' : 'bg-green-500 hover:bg-green-600'}`}>
               <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.106.546 4.083 1.502 5.808L0 24l6.342-1.486A11.945 11.945 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.818a9.818 9.818 0 01-5.003-1.366l-.36-.213-3.767.883.921-3.669-.234-.377A9.818 9.818 0 112.182 12 9.818 9.818 0 0112 21.818z"/></svg>
               WhatsApp
             </button>
@@ -1184,6 +1198,36 @@ function TicketSummaryModal({ ticket, workers, vehicleTypes, onClose }) {
             </button>
           </div>
         </div>
+
+        {/* Panel WhatsApp */}
+        {showWaPanel && (
+          <div className="px-5 py-3 bg-green-50 dark:bg-green-900/20 border-b border-green-100 dark:border-green-800">
+            <p className="text-xs font-bold text-green-700 dark:text-green-400 mb-2 flex items-center gap-1.5">
+              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.106.546 4.083 1.502 5.808L0 24l6.342-1.486A11.945 11.945 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.818a9.818 9.818 0 01-5.003-1.366l-.36-.213-3.767.883.921-3.669-.234-.377A9.818 9.818 0 112.182 12 9.818 9.818 0 0112 21.818z"/></svg>
+              Enviar comprobante por WhatsApp
+            </p>
+            <div className="flex gap-2 items-center">
+              <select value={waCountry} onChange={e => setWaCountry(e.target.value)}
+                className="text-xs border border-gray-200 dark:border-gray-700 rounded-xl px-2 py-2.5 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-green-400">
+                {COUNTRY_CODES.map(c => (
+                  <option key={c.code} value={c.code}>{c.flag} +{c.code}</option>
+                ))}
+              </select>
+              <input
+                type="tel" inputMode="numeric"
+                placeholder="Número del cliente"
+                value={waPhone}
+                onChange={e => setWaPhone(e.target.value.replace(/\D/g, ''))}
+                className="flex-1 text-sm border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2.5 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-green-400"
+              />
+              <button onClick={() => shareWhatsApp(waPhone)}
+                className="bg-green-500 hover:bg-green-600 text-white text-sm font-bold px-4 py-2.5 rounded-xl transition-colors whitespace-nowrap">
+                Enviar
+              </button>
+            </div>
+            <p className="text-xs text-gray-400 mt-1.5 text-center">Elige el país y escribe el número — funciona aunque no esté en tu agenda</p>
+          </div>
+        )}
 
         {/* Foto vehículo */}
         {ticket.photo_url && (

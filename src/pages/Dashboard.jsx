@@ -738,7 +738,11 @@ export default function Dashboard() {
           return m > 0 ? `${h}h ${m}m` : `${h}h`
         }
         const allEntries = Object.entries(data.avgTimeByType)
-          .map(([type, { total, count }]) => ({ type, avg: Math.round(total / count), count }))
+          .map(([type, { total, count }]) => {
+            const vt = (vehicleTypes || []).find(v => v.value === type)
+            return { type, avg: Math.round(total / count), count, hasLabel: !!vt }
+          })
+          .sort((a, b) => (a.hasLabel === b.hasLabel ? 0 : a.hasLabel ? -1 : 1))
 
         // Aplicar orden guardado o usar orden por avg asc
         const ordered = avgTimeOrder

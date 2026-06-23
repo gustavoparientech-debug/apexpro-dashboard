@@ -125,6 +125,9 @@ function VehicleTypeRow({ vt, onSave, onDelete }) {
   const [form, setForm] = useState({ emoji: vt.emoji, label: vt.label, default_price: vt.default_price })
   const [variants, setVariants] = useState(vt.variants || [])
 
+  // Sync variants cuando el contexto actualiza vt
+  useEffect(() => { setVariants(vt.variants || []) }, [vt.variants])
+
   async function handleSave() {
     await onSave(vt.id, { ...form, default_price: parseFloat(form.default_price) || 0 })
     setEditing(false)
@@ -197,13 +200,15 @@ function VehicleTypeRow({ vt, onSave, onDelete }) {
       <div className="flex items-center gap-3 px-3 py-2.5">
         <span className="text-2xl w-8 text-center">{vt.emoji}</span>
         <span className="flex-1 text-sm font-medium text-gray-800 dark:text-gray-200">{vt.label}</span>
-        {variants.length > 0 && (
-          <span className="text-xs text-indigo-500 font-medium">{variants.length} subcateg.</span>
-        )}
-        <div className="flex items-center gap-1 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-1.5 min-w-[80px] justify-end">
-          <span className="text-xs text-gray-400">S/</span>
-          <span className="text-sm font-bold text-gray-900 dark:text-white">{vt.default_price}</span>
-        </div>
+        {variants.length > 0
+          ? <span className="text-xs text-indigo-500 font-medium">{variants.length} subcateg.</span>
+          : (
+            <div className="flex items-center gap-1 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-1.5 min-w-[80px] justify-end">
+              <span className="text-xs text-gray-400">S/</span>
+              <span className="text-sm font-bold text-gray-900 dark:text-white">{vt.default_price}</span>
+            </div>
+          )
+        }
         <button onClick={() => setEditingVariants(true)} title="Subcategorías"
           className="p-1.5 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-lg">
           <svg className="w-4 h-4 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h8m-8 6h16"/></svg>

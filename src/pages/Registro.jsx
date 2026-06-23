@@ -44,6 +44,8 @@ function formatElapsed(ms) {
   const s = Math.floor(ms / 1000)
   const m = Math.floor(s / 60)
   const h = Math.floor(m / 60)
+  const d = Math.floor(h / 24)
+  if (d > 0) return `${d}d ${h % 24}h ${String(m % 60).padStart(2, '0')}m`
   if (h > 0) return `${h}h ${String(m % 60).padStart(2, '0')}m`
   return `${String(m).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`
 }
@@ -773,6 +775,8 @@ function serviceDuration(ticket) {
   if (mins < 60) return `${mins} min`
   const h = Math.floor(mins / 60)
   const m = mins % 60
+  const d = Math.floor(h / 24)
+  if (d > 0) return m > 0 ? `${d}d ${h % 24}h ${m}min` : `${d}d ${h % 24}h`
   return m > 0 ? `${h}h ${m}min` : `${h}h`
 }
 

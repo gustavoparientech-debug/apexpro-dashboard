@@ -455,7 +455,7 @@ function RankingPanel({ ranking, workingDaysElapsed }) {
 }
 
 export default function Dashboard() {
-  const { tickets, dailySummaries, expenses, workers, services, incidents, monthlyCosts, bonuses, addBonus, deleteBonus, loading, loadData, invalidateAllCache } = useApp()
+  const { tickets, dailySummaries, expenses, workers, services, incidents, monthlyCosts, bonuses, addBonus, deleteBonus, loading, loadData, invalidateAllCache, vehicleTypes } = useApp()
   const { month: cm, year: cy } = currentMonthYear()
   const [selMonth, setSelMonth] = useState(cm)
   const [selYear,  setSelYear]  = useState(cy)
@@ -499,6 +499,17 @@ export default function Dashboard() {
     const periodTickets   = sourceTickets.filter(t => dateFilter(t.date) && t.status !== 'abierto')
     const periodSummaries = sourceSummaries.filter(d => dateFilter(d.date))
     const periodExpenses  = sourceExpenses.filter(e => dateFilter(e.date))
+
+    // Promedios de tiempo por tipo de vehículo (solo tickets con opened_at y closed_at, excluye manuales)
+    const avgTimeByType = {}
+    periodTickets.forEach(t => {
+      if (!t.opened_at || !t.closed_at || t.is_manual) return
+      const mins = Math.round((new Date(t.closed_at) - new Date(t.opened_at)) / 60000)
+      if (mins < 1 || mins > 1440 * 7) return // ignora < 1min o > 7 días (outliers)
+      if (!avgTimeByType[t.vehicle_type]) avgTimeByType[t.vehicle_type] = { total: 0, count: 0 }
+      avgTimeByType[t.vehicle_type].total += mins
+      avgTimeByType[t.vehicle_type].count += 1
+    })
 
     const ticketIncome    = periodTickets.reduce((s, t) => s + (t.price_charged || 0), 0)
     const summaryIncome   = periodSummaries.reduce((s, d) => s + (d.total_income || 0), 0)
@@ -585,7 +596,7 @@ export default function Dashboard() {
       workingDaysElapsed, workingDaysRemaining, workingDaysTotal,
       bestDay, efectivo, yape, transferencia, onTrack, projectedIncome, dailyData,
       workerRanking, monthBonusAmt, workerExpTotal, periodExpenses, costItemsData,
-      proportionalFixed, proportionRatio,
+      proportionalFixed, proportionRatio, avgTimeByType,
     }
   }, [tickets, dailySummaries, expenses, pastTickets, pastSummaries, pastExpenses, workers, services, incidents, monthlyCosts, bonuses, prefix, selMonth, selYear, isCurrentMonth, rangeFrom, rangeTo, hasRange])
 
@@ -705,6 +716,49 @@ export default function Dashboard() {
         <StatCard label={hasRange ? 'Gastos del rango' : 'Total gastos'} value={formatMoney(data.displayCosts)} sub={hasRange ? `Fijos prop. + gastos` : `Planilla: ${formatMoney(data.payrollTotal)}`} icon={CreditCard} color="neutral" />
         <StatCard label="Vehículos"          value={data.totalCars}                 sub={`Prom: ${formatMoney(data.totalCars ? data.totalIncome / data.totalCars : 0)}/carro`} icon={Car} color="neutral" />
       </div>
+
+      {/* Tiempos promedio por tipo de vehículo */}
+      {Object.keys(data.avgTimeByType).length > 0 && (() => {
+        const fmtMins = (mins) => {
+          if (mins < 60) return `${mins} min`
+          const h = Math.floor(mins / 60), m = mins % 60
+          return m > 0 ? `${h}h ${m}m` : `${h}h`
+        }
+        const entries = Object.entries(data.avgTimeByType)
+          .map(([type, { total, count }]) => ({ type, avg: Math.round(total / count), count }))
+          .sort((a, b) => a.avg - b.avg)
+        const maxAvg = Math.max(...entries.map(e => e.avg))
+        return (
+          <div className="card">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-base">⏱</span>
+              <p className="text-sm font-bold text-gray-700 dark:text-gray-300">Tiempo promedio por servicio</p>
+              <span className="text-xs text-gray-400 ml-auto">solo tickets con timer</span>
+            </div>
+            <div className="space-y-2.5">
+              {entries.map(({ type, avg, count }) => {
+                const vt = (vehicleTypes || []).find(v => v.value === type)
+                const label = vt ? `${vt.emoji} ${vt.label}` : type
+                const pct = maxAvg > 0 ? Math.round((avg / maxAvg) * 100) : 0
+                return (
+                  <div key={type}>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-semibold text-gray-600 dark:text-gray-300">{label}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-400">{count} serv.</span>
+                        <span className="text-xs font-bold text-blue-600 dark:text-blue-400">{fmtMins(avg)}</span>
+                      </div>
+                    </div>
+                    <div className="h-1.5 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
+                      <div className="h-full bg-blue-500 rounded-full transition-all duration-500" style={{ width: `${pct}%` }} />
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )
+      })()}
 
       {/* Barra de progreso — solo vista mensual */}
       {!hasRange && (

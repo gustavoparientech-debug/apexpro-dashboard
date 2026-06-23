@@ -464,6 +464,19 @@ export default function Dashboard() {
   const isCurrentMonth = selMonth === cm && selYear === cy
   const hasRange = rangeFrom && rangeTo
 
+  const [avgTimeOrder, setAvgTimeOrder] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('apexpro_avgtime_order') || 'null') } catch { return null }
+  })
+  const [avgTimeHidden, setAvgTimeHidden] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('apexpro_avgtime_hidden') || '[]') } catch { return [] }
+  })
+  const [editingAvgTime, setEditingAvgTime] = useState(false)
+
+  function saveAvgTimePrefs(order, hidden) {
+    localStorage.setItem('apexpro_avgtime_order', JSON.stringify(order))
+    localStorage.setItem('apexpro_avgtime_hidden', JSON.stringify(hidden))
+  }
+
   const [refreshing, setRefreshing] = useState(false)
   async function handleRefresh() {
     setRefreshing(true)
@@ -724,38 +737,94 @@ export default function Dashboard() {
           const h = Math.floor(mins / 60), m = mins % 60
           return m > 0 ? `${h}h ${m}m` : `${h}h`
         }
-        const entries = Object.entries(data.avgTimeByType)
+        const allEntries = Object.entries(data.avgTimeByType)
           .map(([type, { total, count }]) => ({ type, avg: Math.round(total / count), count }))
-          .sort((a, b) => a.avg - b.avg)
-        const maxAvg = Math.max(...entries.map(e => e.avg))
+
+        // Aplicar orden guardado o usar orden por avg asc
+        const ordered = avgTimeOrder
+          ? [...avgTimeOrder.map(t => allEntries.find(e => e.type === t)).filter(Boolean),
+             ...allEntries.filter(e => !avgTimeOrder.includes(e.type))]
+          : [...allEntries].sort((a, b) => a.avg - b.avg)
+
+        const visibleEntries = ordered.filter(e => !avgTimeHidden.includes(e.type))
+        const maxAvg = Math.max(...ordered.map(e => e.avg))
+
+        const moveEntry = (idx, dir) => {
+          const newOrder = ordered.map(e => e.type)
+          const ni = idx + dir
+          if (ni < 0 || ni >= newOrder.length) return
+          ;[newOrder[idx], newOrder[ni]] = [newOrder[ni], newOrder[idx]]
+          setAvgTimeOrder(newOrder)
+          saveAvgTimePrefs(newOrder, avgTimeHidden)
+        }
+        const toggleHidden = (type) => {
+          const nh = avgTimeHidden.includes(type) ? avgTimeHidden.filter(t => t !== type) : [...avgTimeHidden, type]
+          setAvgTimeHidden(nh)
+          saveAvgTimePrefs(avgTimeOrder || ordered.map(e => e.type), nh)
+        }
+
         return (
           <div className="card">
             <div className="flex items-center gap-2 mb-3">
               <span className="text-base">⏱</span>
               <p className="text-sm font-bold text-gray-700 dark:text-gray-300">Tiempo promedio por servicio</p>
-              <span className="text-xs text-gray-400 ml-auto">solo tickets con timer</span>
+              <button onClick={() => setEditingAvgTime(v => !v)}
+                className={`ml-auto text-xs px-2 py-1 rounded-lg font-semibold transition-colors ${editingAvgTime ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800'}`}>
+                {editingAvgTime ? 'Listo' : '✏️ Editar'}
+              </button>
             </div>
-            <div className="space-y-2.5">
-              {entries.map(({ type, avg, count }) => {
-                const vt = (vehicleTypes || []).find(v => v.value === type)
-                const label = vt ? `${vt.emoji} ${vt.label}` : type
-                const pct = maxAvg > 0 ? Math.round((avg / maxAvg) * 100) : 0
-                return (
-                  <div key={type}>
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-xs font-semibold text-gray-600 dark:text-gray-300">{label}</span>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-gray-400">{count} serv.</span>
-                        <span className="text-xs font-bold text-blue-600 dark:text-blue-400">{fmtMins(avg)}</span>
+
+            {editingAvgTime ? (
+              <div className="space-y-1.5">
+                {ordered.map(({ type, avg, count }, idx) => {
+                  const vt = (vehicleTypes || []).find(v => v.value === type)
+                  const label = vt ? `${vt.emoji} ${vt.label}` : type
+                  const hidden = avgTimeHidden.includes(type)
+                  return (
+                    <div key={type} className={`flex items-center gap-2 px-2 py-2 rounded-xl border transition-colors ${hidden ? 'opacity-40 border-gray-100 dark:border-gray-800' : 'border-gray-200 dark:border-gray-700'}`}>
+                      <div className="flex flex-col gap-0.5">
+                        <button onClick={() => moveEntry(idx, -1)} disabled={idx === 0}
+                          className="p-0.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-20">
+                          <svg className="w-3 h-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7"/></svg>
+                        </button>
+                        <button onClick={() => moveEntry(idx, 1)} disabled={idx === ordered.length - 1}
+                          className="p-0.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-20">
+                          <svg className="w-3 h-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7"/></svg>
+                        </button>
+                      </div>
+                      <span className="flex-1 text-xs font-semibold text-gray-700 dark:text-gray-200">{label}</span>
+                      <span className="text-xs text-gray-400">{count} serv. · {fmtMins(avg)}</span>
+                      <button onClick={() => toggleHidden(type)}
+                        className={`text-xs px-2 py-0.5 rounded-lg font-semibold transition-colors ${hidden ? 'bg-gray-200 dark:bg-gray-700 text-gray-500' : 'bg-green-100 dark:bg-green-900/30 text-green-600'}`}>
+                        {hidden ? 'Oculto' : 'Visible'}
+                      </button>
+                    </div>
+                  )
+                })}
+              </div>
+            ) : (
+              <div className="space-y-2.5">
+                {visibleEntries.map(({ type, avg, count }) => {
+                  const vt = (vehicleTypes || []).find(v => v.value === type)
+                  const label = vt ? `${vt.emoji} ${vt.label}` : type
+                  const pct = maxAvg > 0 ? Math.round((avg / maxAvg) * 100) : 0
+                  return (
+                    <div key={type}>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-semibold text-gray-600 dark:text-gray-300">{label}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-gray-400">{count} serv.</span>
+                          <span className="text-xs font-bold text-blue-600 dark:text-blue-400">{fmtMins(avg)}</span>
+                        </div>
+                      </div>
+                      <div className="h-1.5 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
+                        <div className="h-full bg-blue-500 rounded-full transition-all duration-500" style={{ width: `${pct}%` }} />
                       </div>
                     </div>
-                    <div className="h-1.5 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
-                      <div className="h-full bg-blue-500 rounded-full transition-all duration-500" style={{ width: `${pct}%` }} />
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
+                  )
+                })}
+              </div>
+            )}
           </div>
         )
       })()}

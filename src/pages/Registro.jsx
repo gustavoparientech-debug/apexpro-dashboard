@@ -285,24 +285,37 @@ function NewTicketForm({ onSave, onClose, workers, vehicleTypes, lockedWorkerId,
         <div>
           <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-2">Tipo de vehículo</p>
           <div className="grid grid-cols-2 gap-2">
-            {activeVehicles.map(v => (
-              <button key={v.value} type="button" onClick={() => handleVehicle(v)}
-                className={`flex items-center justify-between px-3 py-2.5 rounded-xl border text-sm font-medium transition-all ${
-                  form.vehicle_type === v.value
-                    ? 'border-red-500 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400'
-                    : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300'
-                }`}>
-                <span className="flex items-center gap-2">
-                  <span className="text-lg">{v.emoji}</span>
-                  <span>{v.label}</span>
-                </span>
-                {v.default_price > 0 && (
-                  <span className={`text-xs font-bold ${form.vehicle_type === v.value ? 'text-red-500' : 'text-gray-400'}`}>
-                    S/{v.default_price}
+            {activeVehicles.map(v => {
+              const isSelected = form.vehicle_type === v.value
+              const isPicking = vehicleVariantPicker?.value === v.value
+              const hasVariants = v.variants?.length > 0
+              return (
+                <button key={v.value} type="button" onClick={() => handleVehicle(v)}
+                  className={`flex items-center justify-between px-3 py-2.5 rounded-xl border text-sm font-medium transition-all ${
+                    isSelected
+                      ? 'border-red-500 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400'
+                      : isPicking
+                        ? 'border-indigo-400 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400'
+                        : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300'
+                  }`}>
+                  <span className="flex items-center gap-2">
+                    <span className="text-lg">{v.emoji}</span>
+                    <span className="text-left leading-tight">
+                      {v.label}
+                      {hasVariants && <span className="block text-[10px] font-normal text-indigo-400 leading-none mt-0.5">▾ elegir tipo</span>}
+                    </span>
                   </span>
-                )}
-              </button>
-            ))}
+                  {!hasVariants && v.default_price > 0 && (
+                    <span className={`text-xs font-bold shrink-0 ${isSelected ? 'text-red-500' : 'text-gray-400'}`}>
+                      S/{v.default_price}
+                    </span>
+                  )}
+                  {hasVariants && (
+                    <span className="text-[10px] font-semibold text-indigo-400 shrink-0">{v.variants.length} tipos</span>
+                  )}
+                </button>
+              )
+            })}
           </div>
           {vehicleVariantPicker && (
             <div className="mt-3 p-3 rounded-xl border border-indigo-200 dark:border-indigo-700 bg-indigo-50 dark:bg-indigo-900/20">

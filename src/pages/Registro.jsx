@@ -1561,24 +1561,22 @@ export default function Registro() {
                 {!hasRange && selectedDate !== today && <span className="ml-1.5 text-amber-400">· Lectura</span>}
               </p>
               {canAdmin ? (
-                <p className="text-3xl font-black text-white leading-none tracking-tight">
-                  {hideTotal ? '•••••' : formatMoney(dayGross)}
+                <p className={`text-3xl font-black leading-none tracking-tight ${dayTotal >= 0 ? 'text-white' : 'text-red-400'}`}>
+                  {hideTotal ? '•••••' : formatMoney(dayTotal)}
                 </p>
               ) : (
-                <p className="text-3xl font-black text-white leading-none tracking-tight">{formatMoney(dayGross)}</p>
+                <p className={`text-3xl font-black leading-none tracking-tight ${dayTotal >= 0 ? 'text-white' : 'text-red-400'}`}>{formatMoney(dayTotal)}</p>
               )}
               {expensesTodayTotal > 0 && (
                 <div className="flex items-center gap-3 mt-2">
                   <div className="flex items-center gap-1">
-                    <span className="text-[10px] text-white/40 uppercase tracking-widest">Gastos</span>
-                    <span className="text-xs font-bold text-amber-400">-{hideTotal && canAdmin ? '•••' : formatMoney(expensesTodayTotal)}</span>
+                    <span className="text-[10px] text-white/40 uppercase tracking-widest">Ingresos</span>
+                    <span className="text-xs font-bold text-white/70">{hideTotal && canAdmin ? '•••' : formatMoney(dayGross)}</span>
                   </div>
                   <div className="w-px h-3 bg-white/20" />
                   <div className="flex items-center gap-1">
-                    <span className="text-[10px] text-white/40 uppercase tracking-widest">Neto</span>
-                    <span className={`text-xs font-black ${dayTotal >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                      {hideTotal && canAdmin ? '•••' : formatMoney(dayTotal)}
-                    </span>
+                    <span className="text-[10px] text-white/40 uppercase tracking-widest">Gastos</span>
+                    <span className="text-xs font-bold text-amber-400">-{hideTotal && canAdmin ? '•••' : formatMoney(expensesTodayTotal)}</span>
                   </div>
                 </div>
               )}

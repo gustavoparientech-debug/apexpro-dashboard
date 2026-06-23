@@ -1210,7 +1210,7 @@ function TicketSummaryModal({ ticket, workers, vehicleTypes, onClose }) {
     doc.setFontSize(9).setFont(undefined, 'bold').setTextColor(0,0,0)
     doc.text('¡Gracias por preferirnos!', mid, y, { align: 'center' }); y += 4.5
     doc.setFontSize(7).setFont(undefined, 'normal').setTextColor(150,150,150)
-    doc.text('Apex Pro Detailing — Mas que un Carwash', mid, y, { align: 'center' })
+    doc.text('Apex Pro Detailing — Taller de detallado', mid, y, { align: 'center' })
 
     doc.save(`ticket_${ticket.plate || 'apex'}_${ticket.date || ''}.pdf`)
   }

@@ -170,7 +170,7 @@ function enrichIncident(incident, workers) {
 async function refreshInBackground({ m, y, prefix, startDate, endDate, staticCached, supabase, dispatch, enrichIncident }) {
   try {
     const [ticketsRes, summaries, incidents, costs, expensesRes] = await Promise.all([
-      supabase.from('tickets').select('*').gte('date', startDate).lte('date', endDate).order('created_at', { ascending: false }),
+      supabase.from('tickets').select('id,date,plate,status,vehicle_type,vehicle_subtype,worker_id,price_charged,payment_method,extras,notes,opened_at,closed_at,is_manual,mixto_yape,mixto_efectivo,discount_pct,discount_fixed,created_at').gte('date', startDate).lte('date', endDate).order('created_at', { ascending: false }),
       supabase.from('daily_summary').select('*').gte('date', startDate).lte('date', endDate),
       supabase.from('attendance_incidents').select('*').gte('date', startDate).lte('date', endDate),
       supabase.from('monthly_costs').select('*').eq('month', m).eq('year', y).maybeSingle(),
@@ -360,7 +360,7 @@ export function AppProvider({ children }) {
 
       // ── Sin caché: fetch normal con spinner ───────────────────────────────
       const [ticketsRes, summaries, incidents, costs, expensesRes, ...staticResults] = await Promise.all([
-        supabase.from('tickets').select('*').gte('date', startDate).lte('date', endDate).order('created_at', { ascending: false }),
+        supabase.from('tickets').select('id,date,plate,status,vehicle_type,vehicle_subtype,worker_id,price_charged,payment_method,extras,notes,opened_at,closed_at,is_manual,mixto_yape,mixto_efectivo,discount_pct,discount_fixed,created_at').gte('date', startDate).lte('date', endDate).order('created_at', { ascending: false }),
         supabase.from('daily_summary').select('*').gte('date', startDate).lte('date', endDate),
         supabase.from('attendance_incidents').select('*').gte('date', startDate).lte('date', endDate),
         supabase.from('monthly_costs').select('*').eq('month', m).eq('year', y).maybeSingle(),
@@ -832,6 +832,16 @@ export function AppProvider({ children }) {
     }
   }
 
+  // ─── Cargar fotos de un ticket (lazy, para no descargar en bulk) ────────────
+  const fetchTicketPhotos = async (ticketId) => {
+    if (IS_DEMO) return null
+    const { data } = await supabase.from('tickets').select('photo_url, payment_photo').eq('id', ticketId).single()
+    if (data) {
+      dispatch({ type: 'UPDATE_TICKET', payload: { ...state.tickets.find(t => t.id === ticketId), ...data } })
+    }
+    return data
+  }
+
   // ─── Utilidad: borrar todos los datos guardados (reset) ─────────────────────
   const resetDemoData = () => {
     localStorage.removeItem(LS_KEY)
@@ -845,6 +855,7 @@ export function AppProvider({ children }) {
       isDemo: IS_DEMO,
       loadData,
       invalidateAllCache,
+      fetchTicketPhotos,
       addWorker, updateWorker,
       addService, updateService,
       addTicket, updateTicket, deleteTicket,

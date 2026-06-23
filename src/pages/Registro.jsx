@@ -404,6 +404,14 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
   const worker  = workers.find(w => w.id === ticket.worker_id)
   const vehicle = (vehicleTypes || []).find(v => v.value === ticket.vehicle_type)
   const extras  = ticket.extras || []
+  const { fetchTicketPhotos } = useApp()
+
+  // Cargar fotos lazy al abrir el ticket (no vienen en la consulta inicial)
+  useEffect(() => {
+    if (!ticket.photo_url && !ticket.payment_photo) {
+      fetchTicketPhotos(ticket.id)
+    }
+  }, [ticket.id])
 
   const [showAddExtra,  setShowAddExtra]  = useState(false)
   const [manualName,    setManualName]    = useState('')

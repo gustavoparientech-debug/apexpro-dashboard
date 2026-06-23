@@ -135,7 +135,9 @@ function reducer(state, action) {
     case 'ADD_EXTRA':            return { ...state, extrasCatalog: [...state.extrasCatalog, action.payload] }
     case 'UPDATE_EXTRA':         return { ...state, extrasCatalog: state.extrasCatalog.map(e => e.id === action.payload.id ? action.payload : e) }
     case 'DELETE_EXTRA':         return { ...state, extrasCatalog: state.extrasCatalog.filter(e => e.id !== action.payload) }
-    case 'ADD_EXPENSE':    return { ...state, expenses: [...state.expenses, action.payload] }
+    case 'ADD_EXPENSE':    return state.expenses.find(e => e.id === action.payload.id) ? state : { ...state, expenses: [action.payload, ...state.expenses] }
+    case 'UPDATE_EXPENSE': return { ...state, expenses: state.expenses.map(e => e.id === action.payload.id ? action.payload : e) }
+    case 'DELETE_EXPENSE': return { ...state, expenses: state.expenses.filter(e => e.id !== action.payload) }
     case 'SET_EXPENSES':   return { ...state, expenses: action.payload }
     case 'ADD_BONUS':      return { ...state, bonuses: [...state.bonuses, action.payload] }
     case 'DELETE_BONUS':   return { ...state, bonuses: state.bonuses.filter(b => b.id !== action.payload) }
@@ -432,6 +434,24 @@ export function AppProvider({ children }) {
       })
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'tickets' }, ({ old: t }) => {
         dispatch({ type: 'DELETE_TICKET', payload: t.id })
+      })
+      .subscribe()
+    return () => supabase.removeChannel(channel)
+  }, [])
+
+  // ── Realtime: sincronizar gastos entre dispositivos ─────────────────────────
+  useEffect(() => {
+    if (IS_DEMO) return
+    const channel = supabase
+      .channel('expenses-realtime')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'worker_expenses' }, ({ new: e }) => {
+        dispatch({ type: 'ADD_EXPENSE', payload: e })
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'worker_expenses' }, ({ new: e }) => {
+        dispatch({ type: 'UPDATE_EXPENSE', payload: e })
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'worker_expenses' }, ({ old: e }) => {
+        dispatch({ type: 'DELETE_EXPENSE', payload: e.id })
       })
       .subscribe()
     return () => supabase.removeChannel(channel)

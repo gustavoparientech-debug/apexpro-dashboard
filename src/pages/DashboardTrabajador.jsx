@@ -173,6 +173,7 @@ export default function DashboardTrabajador() {
   const [refreshing,      setRefreshing]      = useState(false)
   const [uploadingPhoto,  setUploadingPhoto]  = useState(false)
   const [localAvatar,     setLocalAvatar]     = useState(null)
+  const [avatarLoaded,    setAvatarLoaded]    = useState(false)
 
   async function handlePhotoUpload(e) {
     const file = e.target.files?.[0]
@@ -187,7 +188,7 @@ export default function DashboardTrabajador() {
       const { error: upErr } = await supabase.storage.from('payment-photos').upload(path, blob, { upsert: true, contentType: 'image/jpeg' })
       if (upErr) throw upErr
       const { data } = supabase.storage.from('payment-photos').getPublicUrl(path)
-      const remoteUrl = data.publicUrl + '?t=' + Date.now()
+      const remoteUrl = data.publicUrl
       await supabase.from('profiles').update({ avatar_url: remoteUrl }).eq('id', profile.id)
       await refreshProfile()
       setLocalAvatar(null)
@@ -341,7 +342,19 @@ export default function DashboardTrabajador() {
             <label className="relative cursor-pointer flex-shrink-0 group">
               <input type="file" accept="image/*" capture="environment" className="hidden" onClick={e => { e.target.value = '' }} onChange={handlePhotoUpload} disabled={uploadingPhoto} />
               {(localAvatar || profile?.avatar_url) ? (
-                <img src={localAvatar || profile.avatar_url} alt={nombre} className="w-14 h-14 rounded-2xl object-cover border-2 border-white/20 group-hover:opacity-80 transition-opacity" />
+                <div className="relative w-14 h-14">
+                  {!avatarLoaded && (
+                    <div className="absolute inset-0 rounded-2xl bg-red-600/80 flex items-center justify-center border-2 border-white/10">
+                      <span className="text-white font-black text-xl">{nombre[0]?.toUpperCase()}</span>
+                    </div>
+                  )}
+                  <img
+                    src={localAvatar || profile.avatar_url}
+                    alt={nombre}
+                    onLoad={() => setAvatarLoaded(true)}
+                    className={`w-14 h-14 rounded-2xl object-cover border-2 border-white/20 group-hover:opacity-80 transition-opacity ${avatarLoaded ? 'opacity-100' : 'opacity-0'}`}
+                  />
+                </div>
               ) : (
                 <div className="w-14 h-14 rounded-2xl bg-red-600/80 flex items-center justify-center border-2 border-white/10 group-hover:bg-red-500/80 transition-colors">
                   <span className="text-white font-black text-xl">{nombre[0]?.toUpperCase()}</span>

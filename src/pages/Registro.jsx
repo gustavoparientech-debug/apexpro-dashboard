@@ -211,7 +211,7 @@ export function NewTicketForm({ onSave, onClose, workers, vehicleTypes, lockedWo
       const status = defaultStatus || 'abierto'
       await onSave({
         ...form,
-        price_charged:  parseFloat(form.price_charged) || defaultPriceCharged || 0,
+        price_charged:  defaultPriceCharged ?? (parseFloat(form.price_charged) || 0),
         payment_method: form.payment_method || 'yape',
         status,
         opened_at:      now,

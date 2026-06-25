@@ -133,7 +133,7 @@ function Modal({ open, onClose, title, children }) {
 }
 
 // ─── Formulario nuevo ticket (simplificado) ───────────────────────────────────
-function NewTicketForm({ onSave, onClose, workers, vehicleTypes, lockedWorkerId, canAdmin, defaultDate, allTickets }) {
+export function NewTicketForm({ onSave, onClose, workers, vehicleTypes, lockedWorkerId, canAdmin, defaultDate, allTickets, defaultExtras, defaultStatus, defaultPriceCharged }) {
   const [form, setForm] = useState({
     date:           defaultDate || todayISO(),
     worker_id:      lockedWorkerId || '',
@@ -207,13 +207,16 @@ function NewTicketForm({ onSave, onClose, workers, vehicleTypes, lockedWorkerId,
     if (submitting) return
     setSubmitting(true)
     try {
+      const now = new Date().toISOString()
+      const status = defaultStatus || 'abierto'
       await onSave({
         ...form,
-        price_charged:  parseFloat(form.price_charged) || 0,
+        price_charged:  parseFloat(form.price_charged) || defaultPriceCharged || 0,
         payment_method: form.payment_method || 'yape',
-        status:         'abierto',
-        opened_at:      new Date().toISOString(),
-        extras:         [],
+        status,
+        opened_at:      now,
+        ...(status === 'cerrado' ? { closed_at: now } : {}),
+        extras:         defaultExtras || [],
       })
       onClose()
     } finally { setSubmitting(false) }

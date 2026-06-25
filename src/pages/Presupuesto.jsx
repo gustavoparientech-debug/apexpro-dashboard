@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext'
 import { useApp } from '../context/AppContext'
 import { supabase } from '../lib/supabase'
 import { Edit2, Check, X, ChevronDown, ChevronUp, FileText, MessageCircle, PlusCircle } from 'lucide-react'
+import { NewTicketForm } from './Registro'
 import toast from 'react-hot-toast'
 import jsPDF from 'jspdf'
 
@@ -548,8 +549,6 @@ export default function Presupuesto() {
   const [exportModal, setExportModal] = useState(false)
   const [exportTarget, setExportTarget] = useState(null)
   const [ticketModal, setTicketModal] = useState(false)
-  const [ticketForm, setTicketForm] = useState({ plate: '', worker_id: '', payment_method: 'yape', date: new Date().toISOString().slice(0, 10), notes: '' })
-  const [ticketBusy, setTicketBusy] = useState(false)
   const DEFAULT_CONDICIONES = 'Forma de pago: 50% de adelanto y 50% contra entrega. Vigencia: 15 dias calendario. Tiempo de entrega: maximo 3 dias habiles tras recibir el vehiculo. Precios incluyen IGV.'
   const [exportForm, setExportForm] = useState({ nombre: '', celular: '', ruc: '', marca: '', modelo: '', placa: '', anio: '', color: '', observaciones: '', condiciones: DEFAULT_CONDICIONES })
   const [cotizacionNum, setCotizacionNum] = useState(150)
@@ -588,37 +587,6 @@ export default function Presupuesto() {
     }
   }
 
-  async function doCreateTicket(allSelected, grandTotal, discountPct) {
-    if (!ticketForm.plate.trim()) { toast.error('Ingresa la placa'); return }
-    if (!ticketForm.worker_id) { toast.error('Selecciona un técnico'); return }
-    setTicketBusy(true)
-    try {
-      const extras = allSelected.map(item => ({ name: item.label, price: item.price }))
-      const now = new Date().toISOString()
-      await addTicket({
-        plate:          ticketForm.plate.trim().toUpperCase(),
-        date:           ticketForm.date,
-        status:         'cerrado',
-        opened_at:      now,
-        closed_at:      now,
-        worker_id:      ticketForm.worker_id,
-        payment_method: ticketForm.payment_method,
-        price_charged:  grandTotal,
-        service_id:     null,
-        vehicle_type:   'auto',
-        extras,
-        discount_pct:   discountPct || 0,
-        discount_fixed: 0,
-        notes:          ticketForm.notes || '',
-        client_name:    exportForm.nombre || '',
-        client_phone:   exportForm.celular || '',
-      })
-      toast.success('Ticket creado ✓')
-      setTicketModal(false)
-      setTicketForm({ plate: '', worker_id: '', payment_method: 'yape', date: new Date().toISOString().slice(0, 10), notes: '' })
-    } catch (err) { toast.error('Error: ' + err.message) }
-    finally { setTicketBusy(false) }
-  }
 
   function buildWhatsApp() {
     const { nombre, celular, marca, modelo, placa, anio, color, observaciones, condiciones } = exportForm
@@ -1797,85 +1765,23 @@ export default function Presupuesto() {
         </div>
       )}
 
-      {/* Modal: crear ticket desde presupuesto */}
+      {/* Modal: crear ticket desde presupuesto — usa el formulario original */}
       {ticketModal && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 px-3 pb-3"
-          onClick={() => setTicketModal(false)}>
-          <div className="bg-white dark:bg-gray-900 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden"
-            onClick={e => e.stopPropagation()}>
-            <div className="bg-indigo-600 px-5 py-3 flex items-center justify-between">
-              <div>
-                <p className="font-bold text-white text-base">Crear ticket</p>
-                <p className="text-indigo-200 text-xs">{ticketModal.allSelected?.length} ítem(s) · S/ {ticketModal.grandTotal?.toFixed(2)}</p>
-              </div>
-              <button onClick={() => setTicketModal(false)} className="text-white/70 hover:text-white"><X className="w-5 h-5" /></button>
-            </div>
-            <div className="p-4 space-y-3 max-h-[70vh] overflow-y-auto">
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="text-xs text-gray-500 mb-0.5 block">Placa *</label>
-                  <input className="input w-full text-sm font-mono uppercase tracking-widest" placeholder="ABC 123"
-                    value={ticketForm.plate} onChange={e => setTicketForm(f => ({ ...f, plate: e.target.value.toUpperCase() }))} maxLength={8} autoFocus />
-                </div>
-                <div>
-                  <label className="text-xs text-gray-500 mb-0.5 block">Fecha</label>
-                  <input type="date" className="input w-full text-sm" value={ticketForm.date}
-                    onChange={e => setTicketForm(f => ({ ...f, date: e.target.value }))} />
-                </div>
-              </div>
-              <div>
-                <label className="text-xs text-gray-500 mb-1 block">Técnico *</label>
-                <div className="grid grid-cols-2 gap-1.5">
-                  {workers.filter(w => w.active).map(w => (
-                    <button key={w.id} type="button" onClick={() => setTicketForm(f => ({ ...f, worker_id: w.id }))}
-                      className={`py-2 px-3 rounded-xl border text-sm font-medium transition-all ${
-                        ticketForm.worker_id === w.id
-                          ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600'
-                          : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300'
-                      }`}>{w.name}</button>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <label className="text-xs text-gray-500 mb-1 block">Método de pago</label>
-                <div className="grid grid-cols-3 gap-1.5">
-                  {[{ v: 'yape', l: '📱 Yape' }, { v: 'efectivo', l: '💵 Efectivo' }, { v: 'transferencia', l: '🏦 Transferencia' }].map(p => (
-                    <button key={p.v} type="button" onClick={() => setTicketForm(f => ({ ...f, payment_method: p.v }))}
-                      className={`py-2 px-2 rounded-xl border text-xs font-medium transition-all ${
-                        ticketForm.payment_method === p.v
-                          ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600'
-                          : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400'
-                      }`}>{p.l}</button>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <label className="text-xs text-gray-500 mb-0.5 block">Notas (opcional)</label>
-                <input className="input w-full text-sm" placeholder="Observaciones..."
-                  value={ticketForm.notes} onChange={e => setTicketForm(f => ({ ...f, notes: e.target.value }))} />
-              </div>
-              <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-3 text-xs text-gray-500 space-y-1">
-                {ticketModal.allSelected?.map(item => (
-                  <div key={item.key} className="flex justify-between">
-                    <span className="truncate mr-2">{item.label}</span>
-                    <span className="font-semibold shrink-0">S/ {item.price?.toFixed(2)}</span>
-                  </div>
-                ))}
-                <div className="flex justify-between font-bold text-gray-800 dark:text-gray-200 pt-1 border-t border-gray-200 dark:border-gray-700">
-                  <span>Total</span>
-                  <span>S/ {ticketModal.grandTotal?.toFixed(2)}</span>
-                </div>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-2 px-4 pb-4 pt-2">
-              <button onClick={() => setTicketModal(false)} className="btn-secondary py-3 text-sm rounded-xl">Cancelar</button>
-              <button onClick={() => doCreateTicket(ticketModal.allSelected, ticketModal.grandTotal, ticketModal.discountPct)}
-                disabled={ticketBusy}
-                className="btn-primary py-3 text-sm rounded-xl font-bold bg-indigo-600 hover:bg-indigo-700 border-indigo-600">
-                {ticketBusy ? 'Creando...' : '✓ Crear ticket'}
-              </button>
-            </div>
-          </div>
+        <div className="fixed inset-0 z-50 flex flex-col bg-white dark:bg-gray-950 overflow-hidden">
+          <NewTicketForm
+            onClose={() => setTicketModal(false)}
+            onSave={async (data) => {
+              await addTicket(data)
+              toast.success('Ticket creado ✓')
+              setTicketModal(false)
+            }}
+            workers={workers}
+            vehicleTypes={vehicleTypes}
+            canAdmin={canAdmin}
+            defaultExtras={ticketModal.allSelected?.map(i => ({ name: i.label, price: i.price }))}
+            defaultStatus="cerrado"
+            defaultPriceCharged={ticketModal.grandTotal}
+          />
         </div>
       )}
 

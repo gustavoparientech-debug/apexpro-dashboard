@@ -58,6 +58,7 @@ const CATEGORIES = [
   { id: 'ppf',         label: 'PPF',         icon: '🛡️', sub: 'Protección' },
   { id: 'polarizados', label: 'Polarizados', icon: '🌟', sub: 'Láminas' },
   { id: 'lavados',     label: 'Lavados',     icon: '🚿', sub: '& Detailing' },
+  { id: 'servicios',   label: 'Servicios',   icon: '🧰', sub: 'Adicionales' },
 ]
 
 const CAT_VEHICLES = {
@@ -65,7 +66,56 @@ const CAT_VEHICLES = {
   ppf:         [{ id: 'auto', label: 'Auto / HB' }, { id: 'suv', label: 'SUV' }, { id: 'pickup', label: 'Pickup' }],
   polarizados: [],
   lavados:     [{ id: 'auto', label: 'Auto' }, { id: 'suv', label: 'SUV' }, { id: 'suv_xl', label: 'SUV XL' }, { id: 'pickup', label: 'Pickup' }, { id: 'pickup_xl', label: 'Pickup XL' }],
+  servicios:   [],
 }
+
+const SERVICIOS_DATA = [
+  { id: 'sv_techo_g1',       name: 'Lavado de Techo G1',                        price: 80  },
+  { id: 'sv_techo_g2',       name: 'Lavado de Techo G2',                        price: 90  },
+  { id: 'sv_techo_g3',       name: 'Lavado de Techo G3',                        price: 100 },
+  { id: 'sv_ret_asientos',   name: 'Retirada de asientos',                      price: 60  },
+  { id: 'sv_asientos_1f',    name: 'Lavado de asientos 1 Fila',                 price: 40  },
+  { id: 'sv_asientos_2f',    name: 'Lavado de asientos 2 Filas',                price: 80  },
+  { id: 'sv_asientos_3f',    name: 'Lavado de asientos 3 Filas',                price: 110 },
+  { id: 'sv_ext_cam',        name: 'Lavado Exterior Camioneta',                 price: 25  },
+  { id: 'sv_ext_auto',       name: 'Lavado exterior (Básico) / Auto',           price: 25  },
+  { id: 'sv_ext_suv',        name: 'Lavado exterior (Básico) / SUV',            price: 30  },
+  { id: 'sv_ext_pickup',     name: 'Lavado exterior (Básico) / Pick-UP',        price: 35  },
+  { id: 'sv_ext_xl',         name: 'Lavado exterior (Básico) / XL',             price: 40  },
+  { id: 'sv_off_auto',       name: 'Lavado OffRoad / Auto',                     price: 55  },
+  { id: 'sv_off_suv',        name: 'Lavado OffRoad / SUV',                      price: 60  },
+  { id: 'sv_off_pickup',     name: 'Lavado OffRoad / Pick-UP',                  price: 65  },
+  { id: 'sv_off_xl',         name: 'Lavado OffRoad / XL',                       price: 70  },
+  { id: 'sv_chasis',         name: 'Lavado Chasis V-Mol',                       price: 50  },
+  { id: 'sv_alumax',         name: 'Alumax y Removex',                          price: 30  },
+  { id: 'sv_ret_llantas',    name: 'Retirado de llantas',                       price: 80  },
+  { id: 'sv_det_interior',   name: 'Detallado interior',                        price: 90  },
+  { id: 'sv_elixir',         name: 'Elixir CarPro',                             price: 20  },
+  { id: 'sv_encerado',       name: 'Encerado Bleend 3 meses de duración',       price: 20  },
+  { id: 'sv_cer_cp2_auto',   name: 'Tratamiento cerámico CarPro 2 Años / Auto', price: 799 },
+  { id: 'sv_cer_cp2_suv',    name: 'Tratamiento cerámico CarPro 2 Años / SUV',  price: 899 },
+  { id: 'sv_cer_cp2_pickup', name: 'Tratamiento cerámico CarPro 2 Años / Pick-UP', price: 999 },
+  { id: 'sv_cer_ap3_auto',   name: 'Tratamiento Cerámico AutoPremium 3 Años / Auto', price: 499 },
+  { id: 'sv_cer_ap3_suv',    name: 'Tratamiento Cerámico AutoPremium 3 Años / SUV',  price: 599 },
+  { id: 'sv_cer_ap3_pickup', name: 'Tratamiento Cerámico AutoPremium 3 Años / Pick-UP', price: 699 },
+  { id: 'sv_cer_g3',         name: 'Tratamiento Cerámico G3',                   price: 100 },
+  { id: 'sv_gliss',          name: 'Aplicación de Gliss Car Pro',               price: 100 },
+  { id: 'sv_lav_piso',       name: 'Lavado de Piso',                            price: 80  },
+  { id: 'sv_ret_alfombra',   name: 'Retirado de Alfombra',                      price: 40  },
+  { id: 'sv_motor_basico',   name: 'Lavado de Motor (Básico)',                  price: 20  },
+  { id: 'sv_motor_det',      name: 'Lavado de Motor (Detallado)',               price: 40  },
+  { id: 'sv_berniz',         name: 'Berniz de Motor',                           price: 15  },
+  { id: 'sv_cera_vonixx',    name: 'Cera en pasta Vonixx',                      price: 20  },
+  { id: 'sv_pul1_auto',      name: 'Pulido 1 Paso / Auto',                      price: 130 },
+  { id: 'sv_pul1_suv',       name: 'Pulido 1 Paso / SUV',                       price: 150 },
+  { id: 'sv_pul1_xl',        name: 'Pulido 1 Paso / PickUP XL',                 price: 170 },
+  { id: 'sv_pul3_auto',      name: 'Pulido 3 Pasos / Auto',                     price: 260 },
+  { id: 'sv_pul3_suv',       name: 'Pulido 3 Pasos / SUV',                      price: 280 },
+  { id: 'sv_pul3_xl',        name: 'Pulido 3 Pasos / PickUP XL',                price: 300 },
+  { id: 'sv_desc_auto',      name: 'Descontaminación Auto',                     price: 120 },
+  { id: 'sv_desc_suv',       name: 'Descontaminación SUV',                      price: 140 },
+  { id: 'sv_desc_pickup',    name: 'Descontaminación PickUP',                   price: 160 },
+]
 
 const LAVADOS_DATA = [
   { id: 'estandar',     name: 'Apex Estándar',       tag: 'Básico',         time: '50 min', desc: 'Lavado por fuera · Limpieza de neumáticos · Aspirado de salón · Aplicación de acondicionador interiores',                                                     prices: { auto: 25,  suv: 30,  suv_xl: 35,  pickup: 35,  pickup_xl: 40  } },
@@ -381,6 +431,7 @@ export default function Presupuesto() {
     if (category === 'ppf')         return applyMeta(PPF_DATA, 'ppf')
     if (category === 'polarizados') return applyMeta(POLARIZADOS_DATA, 'polarizados')
     if (category === 'lavados')     return applyMeta(LAVADOS_DATA, 'lavados')
+    if (category === 'servicios')   return applyMeta(SERVICIOS_DATA, 'servicios')
     return []
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [category, catMeta])
@@ -391,6 +442,7 @@ export default function Presupuesto() {
     ...applyMeta(PPF_DATA, 'ppf'),
     ...applyMeta(POLARIZADOS_DATA, 'polarizados'),
     ...applyMeta(LAVADOS_DATA, 'lavados'),
+    ...applyMeta(SERVICIOS_DATA, 'servicios'),
   // eslint-disable-next-line react-hooks/exhaustive-deps
   ], [catMeta])
 

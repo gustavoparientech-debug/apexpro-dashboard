@@ -605,7 +605,7 @@ export default function Presupuesto() {
         payment_method: ticketForm.payment_method,
         price_charged:  0,
         service_id:     null,
-        vehicle_type:   null,
+        vehicle_type:   'auto',
         extras,
         discount_pct:   discountPct || 0,
         discount_fixed: 0,

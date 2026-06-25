@@ -306,6 +306,28 @@ export default function Presupuesto() {
     saveCatMeta(next)
   }
 
+  function addVehiclePrices(s) {
+    const flat = s.price ?? 0
+    const prices = { auto: flat, suv: flat, pickup: flat, xl: flat }
+    const next = { ...catMeta, overrides: { ...catMeta.overrides, [s.id]: { ...catMeta.overrides[s.id], prices, price: null } } }
+    saveCatMeta(next)
+    // initialize per-vehicle price overrides too so they're editable
+    const ov = { auto: flat, suv: flat, pickup: flat, xl: flat }
+    const nextPrices = { ...catPriceOverrides, [s.id]: ov }
+    setCatPriceOverrides(nextPrices)
+    supabase.from('app_settings').upsert({ key: 'cat_prices', value: nextPrices, updated_at: new Date().toISOString() }, { onConflict: 'key' })
+  }
+
+  function removeVehiclePrices(s) {
+    const autoPrice = getEffectivePrice(s, 'auto') || 0
+    const overrides = { ...catMeta.overrides, [s.id]: { ...catMeta.overrides[s.id], prices: null, price: autoPrice } }
+    saveCatMeta({ ...catMeta, overrides })
+    // clear per-vehicle price overrides for this service
+    const { [s.id]: _removed, ...rest } = catPriceOverrides
+    setCatPriceOverrides(rest)
+    supabase.from('app_settings').upsert({ key: 'cat_prices', value: rest, updated_at: new Date().toISOString() }, { onConflict: 'key' })
+  }
+
   function deleteService(id) {
     const next = { ...catMeta, deleted: [...catMeta.deleted.filter(x => x !== id), id], added: catMeta.added.filter(a => a.id !== id) }
     saveCatMeta(next)
@@ -1141,6 +1163,16 @@ export default function Presupuesto() {
                           <div className="flex-1 space-y-1">
                             <EditableTextCell label="Nombre" value={s.name} onSave={v => updateServiceField(s.id, 'name', v)} />
                             <EditableTextCell label="Descripción" value={s.desc} onSave={v => updateServiceField(s.id, 'desc', v)} />
+                            {isSv && (
+                              <button onClick={() => hasVehiclePrices ? removeVehiclePrices(s) : addVehiclePrices(s)}
+                                className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border transition-all ${
+                                  hasVehiclePrices
+                                    ? 'border-indigo-300 text-indigo-600 bg-indigo-50 dark:bg-indigo-900/20 hover:bg-red-50 hover:text-red-600 hover:border-red-300'
+                                    : 'border-gray-200 text-gray-400 hover:border-indigo-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20'
+                                }`}>
+                                {hasVehiclePrices ? '✓ Subcategorías por vehículo — quitar' : '+ Agregar subcategorías por vehículo'}
+                              </button>
+                            )}
                           </div>
                           <button onClick={() => { if (confirm(`¿Eliminar "${s.name}"?`)) deleteService(s.id) }}
                             className="self-start mt-0.5 text-red-400 hover:text-red-600 transition-colors">

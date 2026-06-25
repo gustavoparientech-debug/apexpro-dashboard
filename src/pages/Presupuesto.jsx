@@ -306,26 +306,45 @@ export default function Presupuesto() {
     saveCatMeta(next)
   }
 
-  function addVehiclePrices(s) {
-    const flat = s.price ?? 0
-    const prices = { auto: flat, suv: flat, pickup: flat, xl: flat }
-    const next = { ...catMeta, overrides: { ...catMeta.overrides, [s.id]: { ...catMeta.overrides[s.id], prices, price: null } } }
-    saveCatMeta(next)
-    // initialize per-vehicle price overrides too so they're editable
-    const ov = { auto: flat, suv: flat, pickup: flat, xl: flat }
-    const nextPrices = { ...catPriceOverrides, [s.id]: ov }
-    setCatPriceOverrides(nextPrices)
-    supabase.from('app_settings').upsert({ key: 'cat_prices', value: nextPrices, updated_at: new Date().toISOString() }, { onConflict: 'key' })
+  function openSubcatConfig(s) {
+    const items = s.subcats?.length
+      ? s.subcats.map(x => ({ ...x }))
+      : s.prices
+        ? Object.entries(s.prices).map(([k]) => ({ key: k, label: SV_VK_LABELS[k] || k, price: getEffectivePrice(s, k) }))
+        : [{ key: 'op1', label: '', price: '' }, { key: 'op2', label: '', price: '' }]
+    setSubcatDraft({ group: s.subcatGroup || '', items })
+    setSubcatConfigId(s.id)
   }
 
-  function removeVehiclePrices(s) {
-    const autoPrice = getEffectivePrice(s, 'auto') || 0
-    const overrides = { ...catMeta.overrides, [s.id]: { ...catMeta.overrides[s.id], prices: null, price: autoPrice } }
+  function saveSubcatConfig(s) {
+    const items = subcatDraft.items.filter(i => i.label.trim())
+      .map((i, idx) => ({ key: i.key || `op${idx + 1}`, label: i.label.trim(), price: parseFloat(i.price) || 0 }))
+    if (items.length === 0) { removeAllSubcats(s); return }
+    const overrides = {
+      ...catMeta.overrides,
+      [s.id]: { ...catMeta.overrides[s.id], subcats: items, subcatGroup: subcatDraft.group, prices: null, price: null }
+    }
     saveCatMeta({ ...catMeta, overrides })
-    // clear per-vehicle price overrides for this service
-    const { [s.id]: _removed, ...rest } = catPriceOverrides
+    setSubcatConfigId(null)
+  }
+
+  function removeAllSubcats(s) {
+    const overrides = { ...catMeta.overrides, [s.id]: { ...catMeta.overrides[s.id], subcats: null, prices: null, price: getEffectivePrice(s, 'auto') || getEffectivePrice(s, null) || 0 } }
+    saveCatMeta({ ...catMeta, overrides })
+    const { [s.id]: _r, ...rest } = catPriceOverrides
     setCatPriceOverrides(rest)
     supabase.from('app_settings').upsert({ key: 'cat_prices', value: rest, updated_at: new Date().toISOString() }, { onConflict: 'key' })
+    setSubcatConfigId(null)
+  }
+
+  function quickFillVehicle(s) {
+    const flat = s.price ?? 0
+    setSubcatDraft({ group: 'Tipo de vehículo', items: [
+      { key: 'auto', label: 'Auto', price: flat },
+      { key: 'suv', label: 'SUV', price: flat },
+      { key: 'pickup', label: 'Pickup', price: flat },
+      { key: 'xl', label: 'XL', price: flat },
+    ]})
   }
 
   function deleteService(id) {
@@ -485,17 +504,22 @@ export default function Presupuesto() {
   const catTotalFinal = catTotal - catDiscountAmt
 
   const SV_VK_LABELS = { auto: 'Auto', suv: 'SUV', pickup: 'Pickup', xl: 'XL' }
+  const [subcatConfigId, setSubcatConfigId] = useState(null)
+  const [subcatDraft, setSubcatDraft] = useState({ group: '', items: [] })
+
   const serviciosRows = useMemo(() => {
     return Object.keys(serviciosSelected).filter(k => serviciosSelected[k]).map(key => {
-      const vks = ['_auto', '_suv', '_pickup', '_xl']
-      const vkSuffix = vks.find(v => key.endsWith(v))
-      if (vkSuffix) {
-        const baseId = key.slice(0, -vkSuffix.length)
-        const vk = vkSuffix.slice(1)
-        const svc = ALL_CAT_DATA.find(s => s.id === baseId)
-        if (svc) return { id: key, label: `${svc.name} — ${SV_VK_LABELS[vk]}`, price: getEffectivePrice(svc, vk) }
+      for (const svc of ALL_CAT_DATA) {
+        if (!key.startsWith(svc.id + '_')) continue
+        const subKey = key.slice(svc.id.length + 1)
+        if (svc.subcats?.length) {
+          const sc = svc.subcats.find(x => x.key === subKey)
+          if (sc) return { id: key, label: `${svc.name} — ${sc.label}`, price: sc.price }
+        }
+        if (svc.prices && SV_VK_LABELS[subKey]) {
+          return { id: key, label: `${svc.name} — ${SV_VK_LABELS[subKey]}`, price: getEffectivePrice(svc, subKey) }
+        }
       }
-      // flat service (no vehicle suffix)
       const svc = ALL_CAT_DATA.find(s => s.id === key)
       if (svc) return { id: key, label: svc.name, price: getEffectivePrice(svc, null) }
       return null
@@ -1080,50 +1104,51 @@ export default function Presupuesto() {
               ) : (
                 data.map(s => {
                   const hasVehiclePrices = !!s.prices && isSv
-                  const price = hasVehiclePrices ? null : getEffectivePrice(s, activeVehicle)
+                  const hasCustomSubcats = isSv && !!s.subcats?.length
+                  const hasSubcats = hasVehiclePrices || hasCustomSubcats
+                  const price = hasSubcats ? null : getEffectivePrice(s, activeVehicle)
                   const vKey = s.prices && !isSv ? activeVehicle : null
-                  const anyChipSelected = hasVehiclePrices && Object.keys(s.prices).some(vk => serviciosSelected[`${s.id}_${vk}`])
-                  const isSelected = isSv ? (hasVehiclePrices ? anyChipSelected : serviciosSelected[s.id]) : catSelected[s.id]
+                  const anyChipSel = hasSubcats && (
+                    hasCustomSubcats
+                      ? s.subcats.some(sc => serviciosSelected[`${s.id}_${sc.key}`])
+                      : Object.keys(s.prices).some(vk => serviciosSelected[`${s.id}_${vk}`])
+                  )
+                  const isSelected = isSv ? (hasSubcats ? anyChipSel : serviciosSelected[s.id]) : catSelected[s.id]
+                  const chips = hasCustomSubcats
+                    ? s.subcats.map(sc => ({ key: sc.key, label: sc.label, price: sc.price }))
+                    : hasVehiclePrices
+                      ? Object.entries(s.prices).map(([vk]) => ({ key: vk, label: SV_VK_LABELS[vk] || vk, price: getEffectivePrice(s, vk) }))
+                      : null
+                  const isConfiguring = subcatConfigId === s.id
                   return (
                     <div key={s.id} className={`rounded-xl border transition-all ${
                       isSelected
                         ? 'border-red-500 bg-red-50 dark:bg-red-900/10'
                         : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800'
                     }`}>
-                      {hasVehiclePrices ? (
-                        /* Servicios con precios por vehículo → chips inline */
+                      {hasSubcats ? (
                         <div className="p-3">
-                          <div className="flex items-center justify-between mb-2">
-                            <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">{s.name}</p>
-                            {s.desc && <p className="text-xs text-gray-400 truncate ml-2">{s.desc}</p>}
+                          <div className="flex items-center gap-2 mb-2">
+                            <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 flex-1">{s.name}</p>
+                            {s.subcatGroup && <span className="text-[10px] text-indigo-500 font-semibold">{s.subcatGroup}</span>}
+                            {s.desc && <p className="text-xs text-gray-400 truncate">{s.desc}</p>}
                           </div>
                           <div className="flex flex-wrap gap-1.5">
-                            {Object.entries(s.prices).map(([vk]) => {
-                              const chipPrice = getEffectivePrice(s, vk)
-                              const chipKey = `${s.id}_${vk}`
+                            {chips.map(chip => {
+                              const chipKey = `${s.id}_${chip.key}`
                               const chipSel = !!serviciosSelected[chipKey]
                               return (
-                                <button key={vk} onClick={() => setServiciosSelected(p => ({ ...p, [chipKey]: !p[chipKey] }))}
+                                <button key={chip.key} onClick={() => setServiciosSelected(p => ({ ...p, [chipKey]: !p[chipKey] }))}
                                   className={`px-2.5 py-1 rounded-full text-xs font-semibold border transition-all ${
                                     chipSel
                                       ? 'bg-indigo-600 border-indigo-600 text-white'
                                       : 'bg-indigo-50 dark:bg-indigo-900/20 border-indigo-200 dark:border-indigo-700 text-indigo-700 dark:text-indigo-300 hover:border-indigo-400'
                                   }`}>
-                                  {SV_VK_LABELS[vk]} · S/{chipPrice}
+                                  {chip.label} · S/{chip.price}
                                 </button>
                               )
                             })}
                           </div>
-                          {canAdmin && (
-                            <div className="flex gap-2 flex-wrap mt-2 pt-2 border-t border-gray-100 dark:border-gray-700">
-                              {Object.entries(s.prices).map(([vk]) => (
-                                <div key={vk} className="flex items-center gap-1 text-[10px] text-gray-400" onClick={e => e.stopPropagation()}>
-                                  <span>{SV_VK_LABELS[vk]}:</span>
-                                  <EditableCell value={getEffectivePrice(s, vk)} onSave={v => saveCatPriceOverride(s.id, vk, v)} />
-                                </div>
-                              ))}
-                            </div>
-                          )}
                         </div>
                       ) : (
                         <button onClick={() => isSv
@@ -1159,25 +1184,59 @@ export default function Presupuesto() {
                         </button>
                       )}
                       {canAdmin && (
-                        <div className="flex gap-3 px-3 pb-2 border-t border-gray-100 dark:border-gray-700 pt-1.5" onClick={e => e.stopPropagation()}>
-                          <div className="flex-1 space-y-1">
-                            <EditableTextCell label="Nombre" value={s.name} onSave={v => updateServiceField(s.id, 'name', v)} />
-                            <EditableTextCell label="Descripción" value={s.desc} onSave={v => updateServiceField(s.id, 'desc', v)} />
-                            {isSv && (
-                              <button onClick={() => hasVehiclePrices ? removeVehiclePrices(s) : addVehiclePrices(s)}
-                                className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border transition-all ${
-                                  hasVehiclePrices
-                                    ? 'border-indigo-300 text-indigo-600 bg-indigo-50 dark:bg-indigo-900/20 hover:bg-red-50 hover:text-red-600 hover:border-red-300'
-                                    : 'border-gray-200 text-gray-400 hover:border-indigo-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20'
-                                }`}>
-                                {hasVehiclePrices ? '✓ Subcategorías por vehículo — quitar' : '+ Agregar subcategorías por vehículo'}
+                        <div className="border-t border-gray-100 dark:border-gray-700" onClick={e => e.stopPropagation()}>
+                          {isConfiguring ? (
+                            /* ── Inline subcat config ── */
+                            <div className="p-3 space-y-2 bg-indigo-50 dark:bg-indigo-900/10">
+                              <div className="flex items-center gap-2">
+                                <p className="text-xs font-bold text-indigo-700 dark:text-indigo-300 flex-1">Configurar subcategorías</p>
+                                <button onClick={() => quickFillVehicle(s)} className="text-[10px] px-2 py-0.5 rounded-full bg-white dark:bg-gray-800 border border-indigo-200 text-indigo-600 font-semibold">Por vehículo</button>
+                              </div>
+                              <input placeholder="Nombre del grupo (ej: Nivel de suciedad)"
+                                value={subcatDraft.group}
+                                onChange={e => setSubcatDraft(d => ({ ...d, group: e.target.value }))}
+                                className="w-full text-xs border border-indigo-200 dark:border-indigo-700 rounded-lg px-2.5 py-1.5 dark:bg-gray-800 dark:text-white" />
+                              {subcatDraft.items.map((item, idx) => (
+                                <div key={idx} className="flex gap-1.5 items-center">
+                                  <input placeholder="Etiqueta (ej: Bajo)" value={item.label}
+                                    onChange={e => setSubcatDraft(d => { const items = [...d.items]; items[idx] = { ...items[idx], label: e.target.value }; return { ...d, items } })}
+                                    className="flex-1 text-xs border border-gray-200 dark:border-gray-600 rounded-lg px-2 py-1.5 dark:bg-gray-800 dark:text-white" />
+                                  <input placeholder="S/" type="number" value={item.price}
+                                    onChange={e => setSubcatDraft(d => { const items = [...d.items]; items[idx] = { ...items[idx], price: e.target.value }; return { ...d, items } })}
+                                    className="w-20 text-xs border border-gray-200 dark:border-gray-600 rounded-lg px-2 py-1.5 dark:bg-gray-800 dark:text-white" />
+                                  <button onClick={() => setSubcatDraft(d => ({ ...d, items: d.items.filter((_, i) => i !== idx) }))} className="text-red-400 hover:text-red-600"><X className="w-3.5 h-3.5" /></button>
+                                </div>
+                              ))}
+                              <button onClick={() => setSubcatDraft(d => ({ ...d, items: [...d.items, { key: `op${Date.now()}`, label: '', price: '' }] }))}
+                                className="text-xs text-indigo-600 font-semibold">+ Agregar opción</button>
+                              <div className="flex gap-2 pt-1">
+                                <button onClick={() => saveSubcatConfig(s)} className="flex-1 py-1.5 rounded-xl bg-indigo-600 text-white text-xs font-bold">Guardar</button>
+                                {hasSubcats && <button onClick={() => removeAllSubcats(s)} className="px-3 py-1.5 rounded-xl border border-red-300 text-red-500 text-xs font-semibold">Quitar</button>}
+                                <button onClick={() => setSubcatConfigId(null)} className="px-3 py-1.5 rounded-xl border border-gray-200 dark:border-gray-600 text-gray-500 text-xs">Cancelar</button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="flex gap-3 px-3 pb-2 pt-1.5">
+                              <div className="flex-1 space-y-1">
+                                <EditableTextCell label="Nombre" value={s.name} onSave={v => updateServiceField(s.id, 'name', v)} />
+                                <EditableTextCell label="Descripción" value={s.desc} onSave={v => updateServiceField(s.id, 'desc', v)} />
+                                {isSv && (
+                                  <button onClick={() => openSubcatConfig(s)}
+                                    className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border transition-all ${
+                                      hasSubcats
+                                        ? 'border-indigo-300 text-indigo-600 bg-indigo-50 dark:bg-indigo-900/20'
+                                        : 'border-gray-200 text-gray-400 hover:border-indigo-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20'
+                                    }`}>
+                                    {hasSubcats ? `✎ Editar subcategorías${s.subcatGroup ? ` (${s.subcatGroup})` : ''}` : '+ Agregar subcategorías'}
+                                  </button>
+                                )}
+                              </div>
+                              <button onClick={() => { if (confirm(`¿Eliminar "${s.name}"?`)) deleteService(s.id) }}
+                                className="self-start mt-0.5 text-red-400 hover:text-red-600 transition-colors">
+                                <X className="w-4 h-4" />
                               </button>
-                            )}
-                          </div>
-                          <button onClick={() => { if (confirm(`¿Eliminar "${s.name}"?`)) deleteService(s.id) }}
-                            className="self-start mt-0.5 text-red-400 hover:text-red-600 transition-colors">
-                            <X className="w-4 h-4" />
-                          </button>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>

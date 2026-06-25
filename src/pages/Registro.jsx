@@ -1361,15 +1361,31 @@ function EditClosedTicket({ ticket, workers, vehicleTypes, onSave, onClose }) {
   const activeWorkers  = workers.filter(w => w.active)
   const activeVehicles = (vehicleTypes || []).filter(v => v.active !== false)
   const [form, setForm] = useState({
-    plate:          ticket.plate || '',
-    vehicle_type:   ticket.vehicle_type || '',
-    worker_id:      ticket.worker_id || '',
-    price_charged:  ticket.price_charged || '',
-    payment_method: ticket.payment_method || 'yape',
-    date:           ticket.date || todayISO(),
-    notes:          ticket.notes || '',
+    plate:            ticket.plate || '',
+    vehicle_type:     ticket.vehicle_type || '',
+    vehicle_subtype:  ticket.vehicle_subtype || '',
+    worker_id:        ticket.worker_id || '',
+    price_charged:    ticket.price_charged || '',
+    payment_method:   ticket.payment_method || 'yape',
+    date:             ticket.date || todayISO(),
+    notes:            ticket.notes || '',
   })
   const [busy, setBusy] = useState(false)
+  const [subtypePicker, setSubtypePicker] = useState(null)
+
+  function selectVehicle(v) {
+    if (v.variants?.length > 0) {
+      setSubtypePicker(v)
+      setForm(f => ({ ...f, vehicle_type: v.value, price_charged: f.price_charged || v.default_price, vehicle_subtype: '' }))
+    } else {
+      setForm(f => ({ ...f, vehicle_type: v.value, price_charged: f.price_charged || v.default_price, vehicle_subtype: '' }))
+    }
+  }
+
+  function selectVariant(vt, variant) {
+    setForm(f => ({ ...f, vehicle_type: vt.value, price_charged: variant.price, vehicle_subtype: variant.label }))
+    setSubtypePicker(null)
+  }
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -1398,21 +1414,45 @@ function EditClosedTicket({ ticket, workers, vehicleTypes, onSave, onClose }) {
       </div>
 
       <div>
-        <label className="label">Tipo de vehículo</label>
+        <label className="label">Tipo de vehículo{form.vehicle_subtype ? <span className="ml-2 text-indigo-500 font-semibold">· {form.vehicle_subtype}</span> : null}</label>
         <div className="grid grid-cols-2 gap-2">
-          {activeVehicles.map(v => (
-            <button key={v.value} type="button" onClick={() => setForm(f => ({ ...f, vehicle_type: v.value, price_charged: f.price_charged || v.default_price }))}
-              className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-sm font-medium transition-all ${
-                form.vehicle_type === v.value
-                  ? 'border-red-500 bg-red-50 dark:bg-red-900/20 text-red-600'
-                  : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300'
-              }`}>
-              <span>{v.emoji}</span><span className="flex-1 text-left">{v.label}</span>
-              <span className="text-xs text-gray-400">S/{v.default_price}</span>
-            </button>
-          ))}
+          {activeVehicles.map(v => {
+            const hasVariants = v.variants?.length > 0
+            const isSelected = form.vehicle_type === v.value
+            return (
+              <button key={v.value} type="button" onClick={() => selectVehicle(v)}
+                className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-sm font-medium transition-all text-left ${
+                  isSelected ? 'border-red-500 bg-red-50 dark:bg-red-900/20 text-red-600' : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300'
+                }`}>
+                <span>{v.emoji}</span>
+                <span className="flex-1">{v.label}</span>
+                {hasVariants
+                  ? <span className="text-[10px] font-semibold text-indigo-400">{v.variants.length} tipos</span>
+                  : <span className="text-xs text-gray-400">S/{v.default_price}</span>}
+              </button>
+            )
+          })}
         </div>
       </div>
+
+      {/* Picker subcategoría flotante */}
+      {subtypePicker && (
+        <div className="fixed inset-0 z-50 flex flex-col justify-end" onClick={() => setSubtypePicker(null)}>
+          <div className="bg-white dark:bg-gray-900 rounded-t-3xl shadow-2xl p-5 pb-8" onClick={e => e.stopPropagation()}>
+            <div className="w-10 h-1 bg-gray-300 dark:bg-gray-600 rounded-full mx-auto mb-4" />
+            <p className="text-sm font-bold text-indigo-600 dark:text-indigo-400 mb-3">{subtypePicker.emoji} {subtypePicker.label} — elige el tipo</p>
+            <div className="grid grid-cols-2 gap-2">
+              {subtypePicker.variants.map((v, i) => (
+                <button key={i} type="button" onClick={() => selectVariant(subtypePicker, v)}
+                  className="flex items-center justify-between px-4 py-3 rounded-2xl border border-gray-200 dark:border-gray-700 hover:border-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-all">
+                  <span className="text-sm font-semibold text-gray-800 dark:text-gray-100">{v.label}</span>
+                  <span className="text-sm font-bold text-indigo-500">S/{v.price}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       <div>
         <label className="label">Técnico</label>

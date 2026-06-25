@@ -66,55 +66,41 @@ const CAT_VEHICLES = {
   ppf:         [{ id: 'auto', label: 'Auto / HB' }, { id: 'suv', label: 'SUV' }, { id: 'pickup', label: 'Pickup' }],
   polarizados: [],
   lavados:     [{ id: 'auto', label: 'Auto' }, { id: 'suv', label: 'SUV' }, { id: 'suv_xl', label: 'SUV XL' }, { id: 'pickup', label: 'Pickup' }, { id: 'pickup_xl', label: 'Pickup XL' }],
-  servicios:   [],
+  servicios:   [{ id: 'auto', label: 'Auto' }, { id: 'suv', label: 'SUV' }, { id: 'pickup', label: 'Pickup' }, { id: 'xl', label: 'XL' }],
 }
 
 const SERVICIOS_DATA = [
-  { id: 'sv_techo_g1',       name: 'Lavado de Techo G1',                        price: 80  },
-  { id: 'sv_techo_g2',       name: 'Lavado de Techo G2',                        price: 90  },
-  { id: 'sv_techo_g3',       name: 'Lavado de Techo G3',                        price: 100 },
-  { id: 'sv_ret_asientos',   name: 'Retirada de asientos',                      price: 60  },
-  { id: 'sv_asientos_1f',    name: 'Lavado de asientos 1 Fila',                 price: 40  },
-  { id: 'sv_asientos_2f',    name: 'Lavado de asientos 2 Filas',                price: 80  },
-  { id: 'sv_asientos_3f',    name: 'Lavado de asientos 3 Filas',                price: 110 },
-  { id: 'sv_ext_cam',        name: 'Lavado Exterior Camioneta',                 price: 25  },
-  { id: 'sv_ext_auto',       name: 'Lavado exterior (Básico) / Auto',           price: 25  },
-  { id: 'sv_ext_suv',        name: 'Lavado exterior (Básico) / SUV',            price: 30  },
-  { id: 'sv_ext_pickup',     name: 'Lavado exterior (Básico) / Pick-UP',        price: 35  },
-  { id: 'sv_ext_xl',         name: 'Lavado exterior (Básico) / XL',             price: 40  },
-  { id: 'sv_off_auto',       name: 'Lavado OffRoad / Auto',                     price: 55  },
-  { id: 'sv_off_suv',        name: 'Lavado OffRoad / SUV',                      price: 60  },
-  { id: 'sv_off_pickup',     name: 'Lavado OffRoad / Pick-UP',                  price: 65  },
-  { id: 'sv_off_xl',         name: 'Lavado OffRoad / XL',                       price: 70  },
-  { id: 'sv_chasis',         name: 'Lavado Chasis V-Mol',                       price: 50  },
-  { id: 'sv_alumax',         name: 'Alumax y Removex',                          price: 30  },
-  { id: 'sv_ret_llantas',    name: 'Retirado de llantas',                       price: 80  },
-  { id: 'sv_det_interior',   name: 'Detallado interior',                        price: 90  },
-  { id: 'sv_elixir',         name: 'Elixir CarPro',                             price: 20  },
-  { id: 'sv_encerado',       name: 'Encerado Bleend 3 meses de duración',       price: 20  },
-  { id: 'sv_cer_cp2_auto',   name: 'Tratamiento cerámico CarPro 2 Años / Auto', price: 799 },
-  { id: 'sv_cer_cp2_suv',    name: 'Tratamiento cerámico CarPro 2 Años / SUV',  price: 899 },
-  { id: 'sv_cer_cp2_pickup', name: 'Tratamiento cerámico CarPro 2 Años / Pick-UP', price: 999 },
-  { id: 'sv_cer_ap3_auto',   name: 'Tratamiento Cerámico AutoPremium 3 Años / Auto', price: 499 },
-  { id: 'sv_cer_ap3_suv',    name: 'Tratamiento Cerámico AutoPremium 3 Años / SUV',  price: 599 },
-  { id: 'sv_cer_ap3_pickup', name: 'Tratamiento Cerámico AutoPremium 3 Años / Pick-UP', price: 699 },
-  { id: 'sv_cer_g3',         name: 'Tratamiento Cerámico G3',                   price: 100 },
-  { id: 'sv_gliss',          name: 'Aplicación de Gliss Car Pro',               price: 100 },
-  { id: 'sv_lav_piso',       name: 'Lavado de Piso',                            price: 80  },
-  { id: 'sv_ret_alfombra',   name: 'Retirado de Alfombra',                      price: 40  },
-  { id: 'sv_motor_basico',   name: 'Lavado de Motor (Básico)',                  price: 20  },
-  { id: 'sv_motor_det',      name: 'Lavado de Motor (Detallado)',               price: 40  },
-  { id: 'sv_berniz',         name: 'Berniz de Motor',                           price: 15  },
-  { id: 'sv_cera_vonixx',    name: 'Cera en pasta Vonixx',                      price: 20  },
-  { id: 'sv_pul1_auto',      name: 'Pulido 1 Paso / Auto',                      price: 130 },
-  { id: 'sv_pul1_suv',       name: 'Pulido 1 Paso / SUV',                       price: 150 },
-  { id: 'sv_pul1_xl',        name: 'Pulido 1 Paso / PickUP XL',                 price: 170 },
-  { id: 'sv_pul3_auto',      name: 'Pulido 3 Pasos / Auto',                     price: 260 },
-  { id: 'sv_pul3_suv',       name: 'Pulido 3 Pasos / SUV',                      price: 280 },
-  { id: 'sv_pul3_xl',        name: 'Pulido 3 Pasos / PickUP XL',                price: 300 },
-  { id: 'sv_desc_auto',      name: 'Descontaminación Auto',                     price: 120 },
-  { id: 'sv_desc_suv',       name: 'Descontaminación SUV',                      price: 140 },
-  { id: 'sv_desc_pickup',    name: 'Descontaminación PickUP',                   price: 160 },
+  // ── Precio fijo (no varía por vehículo) ──────────────────────────────────
+  { id: 'sv_techo_g1',     name: 'Lavado de Techo G1',              price: 80  },
+  { id: 'sv_techo_g2',     name: 'Lavado de Techo G2',              price: 90  },
+  { id: 'sv_techo_g3',     name: 'Lavado de Techo G3',              price: 100 },
+  { id: 'sv_ret_asientos', name: 'Retirada de asientos',            price: 60  },
+  { id: 'sv_asientos_1f',  name: 'Lavado de asientos 1 Fila',       price: 40  },
+  { id: 'sv_asientos_2f',  name: 'Lavado de asientos 2 Filas',      price: 80  },
+  { id: 'sv_asientos_3f',  name: 'Lavado de asientos 3 Filas',      price: 110 },
+  { id: 'sv_ext_cam',      name: 'Lavado Exterior Camioneta',       price: 25  },
+  { id: 'sv_chasis',       name: 'Lavado Chasis V-Mol',             price: 50  },
+  { id: 'sv_alumax',       name: 'Alumax y Removex',                price: 30  },
+  { id: 'sv_ret_llantas',  name: 'Retirado de llantas',             price: 80  },
+  { id: 'sv_det_interior', name: 'Detallado interior',              price: 90  },
+  { id: 'sv_elixir',       name: 'Elixir CarPro',                   price: 20  },
+  { id: 'sv_encerado',     name: 'Encerado Bleend 3 meses',         price: 20  },
+  { id: 'sv_cer_g3',       name: 'Tratamiento Cerámico G3',         price: 100 },
+  { id: 'sv_gliss',        name: 'Aplicación de Gliss Car Pro',     price: 100 },
+  { id: 'sv_lav_piso',     name: 'Lavado de Piso',                  price: 80  },
+  { id: 'sv_ret_alfombra', name: 'Retirado de Alfombra',            price: 40  },
+  { id: 'sv_motor_basico', name: 'Lavado de Motor (Básico)',        price: 20  },
+  { id: 'sv_motor_det',    name: 'Lavado de Motor (Detallado)',     price: 40  },
+  { id: 'sv_berniz',       name: 'Berniz de Motor',                 price: 15  },
+  { id: 'sv_cera_vonixx',  name: 'Cera en pasta Vonixx',           price: 20  },
+  // ── Precio según vehículo ─────────────────────────────────────────────────
+  { id: 'sv_ext_basico',   name: 'Lavado Exterior (Básico)',        prices: { auto: 25, suv: 30, pickup: 35, xl: 40 } },
+  { id: 'sv_offroad',      name: 'Lavado OffRoad',                  prices: { auto: 55, suv: 60, pickup: 65, xl: 70 } },
+  { id: 'sv_pul1',         name: 'Pulido 1 Paso',                   prices: { auto: 130, suv: 150, pickup: 170, xl: 170 } },
+  { id: 'sv_pul3',         name: 'Pulido 3 Pasos',                  prices: { auto: 260, suv: 280, pickup: 300, xl: 300 } },
+  { id: 'sv_desc',         name: 'Descontaminación',                prices: { auto: 120, suv: 140, pickup: 160, xl: 160 } },
+  { id: 'sv_cer_cp2',      name: 'Cerámico CarPro 2 Años',          prices: { auto: 799, suv: 899, pickup: 999, xl: 999 } },
+  { id: 'sv_cer_ap3',      name: 'Cerámico AutoPremium 3 Años',     prices: { auto: 499, suv: 599, pickup: 699, xl: 699 } },
 ]
 
 const LAVADOS_DATA = [
@@ -254,6 +240,7 @@ export default function Presupuesto() {
 
   // ── otras categorías ─────────────────────────────────────────────────────
   const [catVehicle, setCatVehicle] = useState('auto')
+  const [serviciosVehicle, setServiciosVehicle] = useState('auto')
   const [catSelected, setCatSelected] = useState({})
   const [catDiscountPct, setCatDiscountPct] = useState(0)
   const [catPriceOverrides, setCatPriceOverrides] = useState({})
@@ -458,14 +445,17 @@ export default function Presupuesto() {
   const catRows = useMemo(() =>
     ALL_CAT_DATA
       .filter(s => catSelected[s.id])
-      .map(s => ({
-        id: s.id,
-        label: s.brand ? `${s.brand} — ${s.cobertura}` : s.name,
-        price: getEffectivePrice(s, catVehicle),
-        desc: s.desc,
-      })),
+      .map(s => {
+        const vKey = s.id.startsWith('sv_') ? serviciosVehicle : catVehicle
+        return {
+          id: s.id,
+          label: s.brand ? `${s.brand} — ${s.cobertura}` : s.name,
+          price: getEffectivePrice(s, vKey),
+          desc: s.desc,
+        }
+      }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [ALL_CAT_DATA, catSelected, catVehicle, catPriceOverrides]
+    [ALL_CAT_DATA, catSelected, catVehicle, serviciosVehicle, catPriceOverrides]
   )
   const catTotal = catRows.reduce((s, r) => s + r.price, 0)
   const catDiscountAmt = Math.round(catTotal * catDiscountPct / 100)
@@ -973,6 +963,9 @@ export default function Presupuesto() {
         const vehicles = CAT_VEHICLES[category] || []
         const data = catData
         const isPol = category === 'polarizados'
+        const isSv = category === 'servicios'
+        const activeVehicle = isSv ? serviciosVehicle : catVehicle
+        const setActiveVehicle = isSv ? setServiciosVehicle : setCatVehicle
 
         return (
           <div className="space-y-3">
@@ -982,9 +975,9 @@ export default function Presupuesto() {
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Tipo de vehículo</p>
                 <div className="flex gap-2 flex-wrap">
                   {vehicles.map(v => (
-                    <button key={v.id} onClick={() => setCatVehicle(v.id)}
+                    <button key={v.id} onClick={() => setActiveVehicle(v.id)}
                       className={`px-3 py-2 rounded-xl text-xs font-semibold border transition-all ${
-                        catVehicle === v.id
+                        activeVehicle === v.id
                           ? 'border-red-500 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400'
                           : 'border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400'
                       }`}>{v.label}</button>
@@ -1031,9 +1024,9 @@ export default function Presupuesto() {
                           <p className="text-xs text-gray-500 dark:text-gray-400">{s.desc}</p>
                         </div>
                         <div className="flex-shrink-0 flex flex-col items-end gap-0.5" onClick={e => e.stopPropagation()}>
-                          <p className="text-sm font-bold text-red-600 dark:text-red-400">{formatMoney(getEffectivePrice(s, catVehicle))}</p>
+                          <p className="text-sm font-bold text-red-600 dark:text-red-400">{formatMoney(getEffectivePrice(s, activeVehicle))}</p>
                           {canAdmin && (
-                            <EditableCell value={getEffectivePrice(s, catVehicle)}
+                            <EditableCell value={getEffectivePrice(s, activeVehicle)}
                               onSave={v => saveCatPriceOverride(s.id, null, v)} />
                           )}
                         </div>
@@ -1043,8 +1036,8 @@ export default function Presupuesto() {
                 ))
               ) : (
                 data.map(s => {
-                  const price = getEffectivePrice(s, catVehicle)
-                  const vKey = s.prices ? catVehicle : null
+                  const price = getEffectivePrice(s, activeVehicle)
+                  const vKey = s.prices ? activeVehicle : null
                   return (
                     <div key={s.id} className={`rounded-xl border transition-all ${
                       catSelected[s.id]

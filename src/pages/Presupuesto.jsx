@@ -603,7 +603,7 @@ export default function Presupuesto() {
         closed_at:      now,
         worker_id:      ticketForm.worker_id,
         payment_method: ticketForm.payment_method,
-        price_charged:  0,
+        price_charged:  grandTotal,
         service_id:     null,
         vehicle_type:   'auto',
         extras,

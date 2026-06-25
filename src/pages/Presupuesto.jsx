@@ -66,7 +66,7 @@ const CAT_VEHICLES = {
   ppf:         [{ id: 'auto', label: 'Auto / HB' }, { id: 'suv', label: 'SUV' }, { id: 'pickup', label: 'Pickup' }],
   polarizados: [],
   lavados:     [{ id: 'auto', label: 'Auto' }, { id: 'suv', label: 'SUV' }, { id: 'suv_xl', label: 'SUV XL' }, { id: 'pickup', label: 'Pickup' }, { id: 'pickup_xl', label: 'Pickup XL' }],
-  servicios:   [{ id: 'auto', label: 'Auto' }, { id: 'suv', label: 'SUV' }, { id: 'pickup', label: 'Pickup' }, { id: 'xl', label: 'XL' }],
+  servicios:   [],
 }
 
 const SERVICIOS_DATA = [
@@ -241,6 +241,7 @@ export default function Presupuesto() {
   // ── otras categorías ─────────────────────────────────────────────────────
   const [catVehicle, setCatVehicle] = useState('auto')
   const [serviciosVehicle, setServiciosVehicle] = useState('auto')
+  const [serviciosSelected, setServiciosSelected] = useState({})
   const [catSelected, setCatSelected] = useState({})
   const [catDiscountPct, setCatDiscountPct] = useState(0)
   const [catPriceOverrides, setCatPriceOverrides] = useState({})
@@ -461,6 +462,26 @@ export default function Presupuesto() {
   const catDiscountAmt = Math.round(catTotal * catDiscountPct / 100)
   const catTotalFinal = catTotal - catDiscountAmt
 
+  const SV_VK_LABELS = { auto: 'Auto', suv: 'SUV', pickup: 'Pickup', xl: 'XL' }
+  const serviciosRows = useMemo(() => {
+    return Object.keys(serviciosSelected).filter(k => serviciosSelected[k]).map(key => {
+      const vks = ['_auto', '_suv', '_pickup', '_xl']
+      const vkSuffix = vks.find(v => key.endsWith(v))
+      if (vkSuffix) {
+        const baseId = key.slice(0, -vkSuffix.length)
+        const vk = vkSuffix.slice(1)
+        const svc = ALL_CAT_DATA.find(s => s.id === baseId)
+        if (svc) return { id: key, label: `${svc.name} — ${SV_VK_LABELS[vk]}`, price: getEffectivePrice(svc, vk) }
+      }
+      // flat service (no vehicle suffix)
+      const svc = ALL_CAT_DATA.find(s => s.id === key)
+      if (svc) return { id: key, label: svc.name, price: getEffectivePrice(svc, null) }
+      return null
+    }).filter(Boolean)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [serviciosSelected, ALL_CAT_DATA, catPriceOverrides])
+  const serviciosTotal = serviciosRows.reduce((s, r) => s + r.price, 0)
+
   // Filas actuales de la categoría visible (para el catData useMemo que ya existe)
   const catRows_current = useMemo(() =>
     catData.filter(s => catSelected[s.id]).length,
@@ -503,7 +524,7 @@ export default function Presupuesto() {
   }
 
   const manualTotal = manualItems.reduce((s, i) => s + i.monto, 0)
-  const totalItemsSelected = selectedCount + catRows.length + manualItems.length
+  const totalItemsSelected = selectedCount + catRows.length + serviciosRows.length + manualItems.length
 
   function openExportModal(target) {
     if (totalItemsSelected === 0) { toast.error('Selecciona al menos un servicio'); return }
@@ -570,7 +591,7 @@ export default function Presupuesto() {
       ...catRows.map(r => ({ label: r.label, price: r.price })),
       ...manualItems.map(r => ({ label: r.titulo + (r.descripcion ? ` — ${r.descripcion}` : ''), price: r.monto })),
     ]
-    const activeTotal = totalFinal + catTotalFinal + manualTotal
+    const activeTotal = totalFinal + catTotalFinal + serviciosTotal + manualTotal
 
     const SEP = '--------------------'
     let msg = `*APEX PRO DETAILING* 🚗✨\n`
@@ -750,7 +771,7 @@ export default function Presupuesto() {
       ...catRows,
       ...manualItems.map(r => ({ id: r.id, label: r.titulo + (r.descripcion ? ` — ${r.descripcion}` : ''), price: r.monto })),
     ]
-    const pdfTotal = totalFinal + catTotalFinal + manualTotal
+    const pdfTotal = totalFinal + catTotalFinal + serviciosTotal + manualTotal
     const isPlanchado = false // rows already labeled above
 
     pdfRows.forEach((r, i) => {
@@ -990,8 +1011,8 @@ export default function Presupuesto() {
             <div className="card space-y-2">
               <div className="flex items-center justify-between mb-1">
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Servicios disponibles</p>
-                {Object.values(catSelected).some(Boolean) && (
-                  <button onClick={() => setCatSelected({})}
+                {(Object.values(isSv ? serviciosSelected : catSelected).some(Boolean)) && (
+                  <button onClick={() => isSv ? setServiciosSelected({}) : setCatSelected({})}
                     className="text-xs text-red-500">Limpiar</button>
                 )}
               </div>
@@ -1036,43 +1057,85 @@ export default function Presupuesto() {
                 ))
               ) : (
                 data.map(s => {
-                  const price = getEffectivePrice(s, activeVehicle)
-                  const vKey = s.prices ? activeVehicle : null
+                  const hasVehiclePrices = !!s.prices && isSv
+                  const price = hasVehiclePrices ? null : getEffectivePrice(s, activeVehicle)
+                  const vKey = s.prices && !isSv ? activeVehicle : null
+                  const anyChipSelected = hasVehiclePrices && Object.keys(s.prices).some(vk => serviciosSelected[`${s.id}_${vk}`])
+                  const isSelected = isSv ? (hasVehiclePrices ? anyChipSelected : serviciosSelected[s.id]) : catSelected[s.id]
                   return (
                     <div key={s.id} className={`rounded-xl border transition-all ${
-                      catSelected[s.id]
+                      isSelected
                         ? 'border-red-500 bg-red-50 dark:bg-red-900/10'
                         : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800'
                     }`}>
-                      <button onClick={() => setCatSelected(p => ({ ...p, [s.id]: !p[s.id] }))}
-                        className="w-full flex items-center gap-3 p-3 text-left">
-                        <div className={`w-4 h-4 rounded border-2 flex-shrink-0 flex items-center justify-center transition-all ${
-                          catSelected[s.id] ? 'bg-red-600 border-red-600' : 'border-gray-300 dark:border-gray-600'
-                        }`}>
-                          {catSelected[s.id] && <Check className="w-2.5 h-2.5 text-white" />}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-1.5 flex-wrap">
+                      {hasVehiclePrices ? (
+                        /* Servicios con precios por vehículo → chips inline */
+                        <div className="p-3">
+                          <div className="flex items-center justify-between mb-2">
                             <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">{s.name}</p>
-                            {s.tag && (
-                              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${
-                                s.tag === 'Paq' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-                                : s.tag === 'Prep' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
-                                : s.tag === 'Premium' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
-                                : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
-                              }`}>{s.tag}</span>
-                            )}
-                            {s.time && <span className="text-[10px] text-gray-400">⏱ {s.time}</span>}
+                            {s.desc && <p className="text-xs text-gray-400 truncate ml-2">{s.desc}</p>}
                           </div>
-                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 leading-tight">{s.desc}</p>
-                        </div>
-                        <div className="flex-shrink-0 flex flex-col items-end gap-0.5" onClick={e => e.stopPropagation()}>
-                          <p className="text-sm font-bold text-red-600 dark:text-red-400">{formatMoney(price)}</p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {Object.entries(s.prices).map(([vk]) => {
+                              const chipPrice = getEffectivePrice(s, vk)
+                              const chipKey = `${s.id}_${vk}`
+                              const chipSel = !!serviciosSelected[chipKey]
+                              return (
+                                <button key={vk} onClick={() => setServiciosSelected(p => ({ ...p, [chipKey]: !p[chipKey] }))}
+                                  className={`px-2.5 py-1 rounded-full text-xs font-semibold border transition-all ${
+                                    chipSel
+                                      ? 'bg-indigo-600 border-indigo-600 text-white'
+                                      : 'bg-indigo-50 dark:bg-indigo-900/20 border-indigo-200 dark:border-indigo-700 text-indigo-700 dark:text-indigo-300 hover:border-indigo-400'
+                                  }`}>
+                                  {SV_VK_LABELS[vk]} · S/{chipPrice}
+                                </button>
+                              )
+                            })}
+                          </div>
                           {canAdmin && (
-                            <EditableCell value={price} onSave={v => saveCatPriceOverride(s.id, vKey, v)} />
+                            <div className="flex gap-2 flex-wrap mt-2 pt-2 border-t border-gray-100 dark:border-gray-700">
+                              {Object.entries(s.prices).map(([vk]) => (
+                                <div key={vk} className="flex items-center gap-1 text-[10px] text-gray-400" onClick={e => e.stopPropagation()}>
+                                  <span>{SV_VK_LABELS[vk]}:</span>
+                                  <EditableCell value={getEffectivePrice(s, vk)} onSave={v => saveCatPriceOverride(s.id, vk, v)} />
+                                </div>
+                              ))}
+                            </div>
                           )}
                         </div>
-                      </button>
+                      ) : (
+                        <button onClick={() => isSv
+                          ? setServiciosSelected(p => ({ ...p, [s.id]: !p[s.id] }))
+                          : setCatSelected(p => ({ ...p, [s.id]: !p[s.id] }))}
+                          className="w-full flex items-center gap-3 p-3 text-left">
+                          <div className={`w-4 h-4 rounded border-2 flex-shrink-0 flex items-center justify-center transition-all ${
+                            isSelected ? 'bg-red-600 border-red-600' : 'border-gray-300 dark:border-gray-600'
+                          }`}>
+                            {isSelected && <Check className="w-2.5 h-2.5 text-white" />}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">{s.name}</p>
+                              {s.tag && (
+                                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${
+                                  s.tag === 'Paq' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                                  : s.tag === 'Prep' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                                  : s.tag === 'Premium' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                                  : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
+                                }`}>{s.tag}</span>
+                              )}
+                              {s.time && <span className="text-[10px] text-gray-400">⏱ {s.time}</span>}
+                            </div>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 leading-tight">{s.desc}</p>
+                          </div>
+                          <div className="flex-shrink-0 flex flex-col items-end gap-0.5" onClick={e => e.stopPropagation()}>
+                            <p className="text-sm font-bold text-red-600 dark:text-red-400">{formatMoney(price)}</p>
+                            {canAdmin && (
+                              <EditableCell value={price} onSave={v => saveCatPriceOverride(s.id, vKey, v)} />
+                            )}
+                          </div>
+                        </button>
+                      )}
                       {canAdmin && (
                         <div className="flex gap-3 px-3 pb-2 border-t border-gray-100 dark:border-gray-700 pt-1.5" onClick={e => e.stopPropagation()}>
                           <div className="flex-1 space-y-1">
@@ -1455,6 +1518,12 @@ export default function Presupuesto() {
             price: r.price,
             onRemove: () => setCatSelected(s => ({ ...s, [r.id]: false })),
           })),
+          ...serviciosRows.map(r => ({
+            key: `sv_${r.id}`,
+            label: r.label,
+            price: r.price,
+            onRemove: () => setServiciosSelected(s => ({ ...s, [r.id]: false })),
+          })),
           ...manualItems.map(r => ({
             key: `m_${r.id}`,
             label: r.titulo,
@@ -1464,7 +1533,7 @@ export default function Presupuesto() {
             onRemove: () => setManualItems(items => items.filter(i => i.id !== r.id)),
           })),
         ]
-        const grandTotal = totalFinal + catTotalFinal + manualTotal
+        const grandTotal = totalFinal + catTotalFinal + serviciosTotal + manualTotal
         return (
           <div className="sticky bottom-4 z-20">
             <div className="card shadow-xl border border-red-100 dark:border-red-900/30 overflow-hidden">
@@ -1519,7 +1588,7 @@ export default function Presupuesto() {
                     <p className="text-lg font-black text-red-600 dark:text-red-400">{formatMoney(grandTotal)}</p>
                   </div>
                   <button
-                    onClick={() => { setSelected({}); setCatSelected({}); setManualItems([]) }}
+                    onClick={() => { setSelected({}); setCatSelected({}); setServiciosSelected({}); setManualItems([]) }}
                     className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-400 hover:text-red-500 hover:border-red-300 text-xs transition-all">
                     <X className="w-3 h-3" />Limpiar
                   </button>

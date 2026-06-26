@@ -1282,16 +1282,20 @@ export default function Presupuesto() {
                     </button>
                   ))}
                 </div>
-                {catDiscountPct > 0 && (
-                  <div className="flex justify-between mt-2 pt-2 border-t border-gray-100 dark:border-gray-800 text-xs">
-                    <span className="text-gray-500">Subtotal</span><span>{formatMoney(catTotal)}</span>
-                  </div>
-                )}
-                {catDiscountPct > 0 && (
-                  <div className="flex justify-between text-xs text-green-600 font-semibold">
-                    <span>Descuento {catDiscountPct}%</span><span>-{formatMoney(catDiscountAmt)}</span>
-                  </div>
-                )}
+                {catDiscountPct > 0 && (() => {
+                  const bruto = catTotal + serviciosTotal + manualTotal
+                  const disc = Math.round(bruto * catDiscountPct / 100)
+                  return (
+                    <>
+                      <div className="flex justify-between mt-2 pt-2 border-t border-gray-100 dark:border-gray-800 text-xs">
+                        <span className="text-gray-500">Subtotal</span><span>{formatMoney(bruto)}</span>
+                      </div>
+                      <div className="flex justify-between text-xs text-green-600 font-semibold">
+                        <span>Descuento {catDiscountPct}%</span><span>-{formatMoney(disc)}</span>
+                      </div>
+                    </>
+                  )
+                })()}
               </div>
             )}
 

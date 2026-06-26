@@ -399,12 +399,10 @@ export function NewTicketForm({ onSave, onClose, workers, vehicleTypes, lockedWo
               </div>
             ))}
           </div>
-          {defaultPriceCharged != null && (
-            <div className="flex items-center justify-between px-3 py-2 bg-gray-100 dark:bg-gray-700/50 border-t border-gray-200 dark:border-gray-700">
-              <p className="text-xs font-bold text-gray-700 dark:text-gray-200">Total</p>
-              <p className="text-sm font-black text-red-600">S/ {defaultPriceCharged.toFixed(2)}</p>
-            </div>
-          )}
+          <div className="flex items-center justify-between px-3 py-2 bg-gray-100 dark:bg-gray-700/50 border-t border-gray-200 dark:border-gray-700">
+            <p className="text-xs font-bold text-gray-700 dark:text-gray-200">Total</p>
+            <p className="text-sm font-black text-red-600">S/ {defaultExtras.reduce((s, e) => s + (e.price || 0), 0).toFixed(2)}</p>
+          </div>
         </div>
       )}
 

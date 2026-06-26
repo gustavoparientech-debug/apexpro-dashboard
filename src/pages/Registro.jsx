@@ -417,7 +417,7 @@ export function NewTicketForm({ onSave, onClose, workers, vehicleTypes, lockedWo
               ? 'bg-red-600 hover:bg-red-700 text-white active:scale-95'
               : 'bg-gray-200 dark:bg-gray-700 text-gray-400 cursor-not-allowed'
           }`}>
-          Abrir ticket
+          {defaultExtras?.length > 0 ? 'Cerrar ticket' : 'Abrir ticket'}
         </button>
       </div>
     </div>

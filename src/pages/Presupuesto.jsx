@@ -1216,6 +1216,7 @@ export default function Presupuesto() {
                               <div className="flex-1 space-y-1">
                                 <EditableTextCell label="Nombre" value={s.name} onSave={v => updateServiceField(s.id, 'name', v)} />
                                 <EditableTextCell label="Descripción" value={s.desc} onSave={v => updateServiceField(s.id, 'desc', v)} />
+                                <EditableTextCell label="Tiempo (ej: 50 min)" value={s.time} onSave={v => updateServiceField(s.id, 'time', v || null)} />
                                 {isSv && (
                                   <button onClick={() => openSubcatConfig(s)}
                                     className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border transition-all ${

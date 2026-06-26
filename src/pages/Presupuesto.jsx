@@ -1271,7 +1271,7 @@ export default function Presupuesto() {
               <div className="card">
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Descuento</p>
                 <div className="flex gap-2">
-                  {[0, 5, 10, 15, 20].map(pct => (
+                  {[0, 5, 10, 15, 20, 25, 30].map(pct => (
                     <button key={pct} onClick={() => setCatDiscountPct(pct)}
                       className={`flex-1 py-2 rounded-xl text-xs font-bold border transition-all ${
                         catDiscountPct === pct

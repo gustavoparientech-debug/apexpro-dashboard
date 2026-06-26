@@ -2083,7 +2083,13 @@ export default function Presupuesto() {
                 </div>
                 <div className="grid grid-cols-4 gap-1.5">
                   {loadedQuoteId === q.id ? (
-                    <button onClick={() => setSaveQuoteModal({ allSelected, grandTotal, discountPct: catDiscountPct || discountPct || 0, updateId: q.id })}
+                    <button onClick={() => {
+                      if (profile?.worker_id) setSaveQuoteForm(f => ({ ...f, worker_id: profile.worker_id }))
+                      const { sections, grandTotalExport } = buildExportSections()
+                      const allItems = sections.flatMap(s => s.items.map(i => ({ label: i.label, price: i.price })))
+                      const activePct = discountMode === 'global' ? (manualDiscountPct != null ? manualDiscountPct : catDiscountPct) : 0
+                      setSaveQuoteModal({ allSelected: allItems, grandTotal: grandTotalExport, discountPct: activePct, updateId: q.id })
+                    }}
                       className="flex items-center justify-center gap-1 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 active:scale-95 text-white font-bold text-xs transition-all">
                       Actualizar
                     </button>

@@ -233,7 +233,7 @@ function EditableTextCell({ label, value, onSave }) {
 
 // ─── Página principal ─────────────────────────────────────────────────────────
 export default function Presupuesto() {
-  const { isAdmin, isDemo } = useAuth()
+  const { isAdmin, isDemo, isWorker, profile } = useAuth()
   const canAdmin = isAdmin || isDemo
   const { addTicket, workers = [], vehicleTypes = [] } = useApp()
 
@@ -1980,7 +1980,10 @@ export default function Presupuesto() {
                     className="flex items-center justify-center gap-1 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-bold text-sm transition-all">
                     <PlusCircle className="w-4 h-4" />Ticket
                   </button>
-                  <button onClick={() => setSaveQuoteModal({ allSelected, grandTotal, discountPct: catDiscountPct || discountPct || 0 })}
+                  <button onClick={() => {
+                    if (profile?.worker_id) setSaveQuoteForm(f => ({ ...f, worker_id: profile.worker_id }))
+                    setSaveQuoteModal({ allSelected, grandTotal, discountPct: catDiscountPct || discountPct || 0 })
+                  }}
                     className="flex items-center justify-center gap-1 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 active:scale-95 text-white font-bold text-sm transition-all">
                     <Save className="w-4 h-4" />Guardar
                   </button>
@@ -2082,16 +2085,19 @@ export default function Presupuesto() {
                 value={saveQuoteForm.placa}
                 onChange={e => setSaveQuoteForm(f => ({ ...f, placa: e.target.value.toUpperCase() }))} />
               <div>
-                <p className="text-xs text-gray-500 mb-1.5">Técnico asignado (opcional)</p>
+                <p className="text-xs text-gray-500 mb-1.5">
+                  Técnico asignado {isWorker ? '' : '(opcional)'}
+                </p>
                 <div className="flex flex-wrap gap-2">
-                  {workers.filter(w => w.active !== false).map(w => (
+                  {workers.filter(w => w.active !== false && (!isWorker || w.id === profile?.worker_id)).map(w => (
                     <button key={w.id} type="button"
-                      onClick={() => setSaveQuoteForm(f => ({ ...f, worker_id: f.worker_id === w.id ? '' : w.id }))}
+                      disabled={isWorker}
+                      onClick={() => !isWorker && setSaveQuoteForm(f => ({ ...f, worker_id: f.worker_id === w.id ? '' : w.id }))}
                       className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${
                         saveQuoteForm.worker_id === w.id
                           ? 'border-amber-500 bg-amber-500 text-white'
                           : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400'
-                      }`}>
+                      } ${isWorker ? 'cursor-default' : ''}`}>
                       {w.name}
                     </button>
                   ))}

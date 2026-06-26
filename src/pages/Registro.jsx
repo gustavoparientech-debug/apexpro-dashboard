@@ -132,12 +132,14 @@ function Modal({ open, onClose, title, children }) {
   )
 }
 
-function PresupuestoResumen({ defaultExtras, form, vehicleTypes }) {
+function PresupuestoResumen({ defaultExtras, form, vehicleTypes, discountPct }) {
   const basePrice = parseFloat(form.price_charged) || 0
   const baseVt = form.vehicle_type ? (vehicleTypes || []).find(v => v.value === form.vehicle_type) : null
   const baseLabel = baseVt ? `${baseVt.label}${form.vehicle_subtype ? ' · ' + form.vehicle_subtype : ''}` : null
   const extrasTotal = defaultExtras.reduce((s, e) => s + (e.price || 0), 0)
-  const total = basePrice + extrasTotal
+  const bruto = basePrice + extrasTotal
+  const discAmt = discountPct > 0 ? Math.round(bruto * discountPct / 100) : 0
+  const total = bruto - discAmt
   const count = defaultExtras.length + (baseLabel ? 1 : 0)
   return (
     <div className="mx-4 mb-3 rounded-xl bg-gray-50 dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700 overflow-hidden">
@@ -159,6 +161,12 @@ function PresupuestoResumen({ defaultExtras, form, vehicleTypes }) {
           </div>
         ))}
       </div>
+      {discAmt > 0 && (
+        <div className="flex items-center justify-between px-3 py-1.5 border-t border-gray-100 dark:border-gray-700">
+          <p className="text-xs text-green-600 font-semibold">Descuento {discountPct}%</p>
+          <p className="text-xs font-semibold text-green-600">-S/ {discAmt.toFixed(2)}</p>
+        </div>
+      )}
       <div className="flex items-center justify-between px-3 py-2 bg-gray-100 dark:bg-gray-700/50 border-t border-gray-200 dark:border-gray-700">
         <p className="text-xs font-bold text-gray-700 dark:text-gray-200">Total</p>
         <p className="text-sm font-black text-red-600">S/ {total.toFixed(2)}</p>
@@ -168,7 +176,7 @@ function PresupuestoResumen({ defaultExtras, form, vehicleTypes }) {
 }
 
 // ─── Formulario nuevo ticket (simplificado) ───────────────────────────────────
-export function NewTicketForm({ onSave, onClose, workers, vehicleTypes, lockedWorkerId, canAdmin, defaultDate, allTickets, defaultExtras, defaultStatus, defaultPriceCharged }) {
+export function NewTicketForm({ onSave, onClose, workers, vehicleTypes, lockedWorkerId, canAdmin, defaultDate, allTickets, defaultExtras, defaultStatus, defaultPriceCharged, defaultDiscountPct }) {
   const [form, setForm] = useState({
     date:           defaultDate || todayISO(),
     worker_id:      lockedWorkerId || '',
@@ -428,7 +436,7 @@ export function NewTicketForm({ onSave, onClose, workers, vehicleTypes, lockedWo
       </div>
 
       {/* Resumen de servicios — solo cuando viene desde presupuesto */}
-      {defaultExtras?.length > 0 && <PresupuestoResumen defaultExtras={defaultExtras} form={form} vehicleTypes={vehicleTypes} />}
+      {defaultExtras?.length > 0 && <PresupuestoResumen defaultExtras={defaultExtras} form={form} vehicleTypes={vehicleTypes} discountPct={defaultDiscountPct || 0} />}
 
       {/* Footer */}
       <div className="px-4 pt-3 pb-5 border-t border-gray-100 dark:border-gray-800">

@@ -390,6 +390,7 @@ export default function Presupuesto() {
     const next = savedQuotes.map(q => q.id === id ? { ...q, ...quote } : q)
     await persistSavedQuotes(next)
     setSaveQuoteModal(false)
+    setLoadedQuoteId(null)
     toast.success('Cotización actualizada ✓')
   }
 
@@ -1973,7 +1974,7 @@ export default function Presupuesto() {
                     <p className="text-lg font-black text-red-600 dark:text-red-400">{formatMoney(grandTotal)}</p>
                   </div>
                   <button
-                    onClick={() => { setSelected({}); setCatSelected({}); setServiciosSelected({}); setManualItems([]); setLavItems([]) }}
+                    onClick={() => { setSelected({}); setCatSelected({}); setServiciosSelected({}); setManualItems([]); setLavItems([]); setLoadedQuoteId(null) }}
                     className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-400 hover:text-red-500 hover:border-red-300 text-xs transition-all">
                     <X className="w-3 h-3" />Limpiar
                   </button>
@@ -2082,7 +2083,7 @@ export default function Presupuesto() {
                   {q.items.length > 3 && <p className="text-gray-400">+ {q.items.length - 3} más</p>}
                 </div>
                 <div className="grid grid-cols-4 gap-1.5">
-                  {loadedQuoteId === q.id ? (
+                  {loadedQuoteId === q.id && totalItemsSelected > 0 ? (
                     <button onClick={() => {
                       if (profile?.worker_id) setSaveQuoteForm(f => ({ ...f, worker_id: profile.worker_id }))
                       const { sections, grandTotalExport } = buildExportSections()

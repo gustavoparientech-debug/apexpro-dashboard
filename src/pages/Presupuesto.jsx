@@ -263,6 +263,7 @@ export default function Presupuesto() {
 
   // ── otras categorías ─────────────────────────────────────────────────────
   const [catVehicle, setCatVehicle] = useState('auto')
+  const [lavSubtype, setLavSubtype] = useState(null) // { label, price, lavKey } variante del vt de lavados
   const [serviciosVehicle, setServiciosVehicle] = useState('auto')
   const [serviciosSelected, setServiciosSelected] = useState({})
   const [catSelected, setCatSelected] = useState({})
@@ -579,10 +580,14 @@ export default function Presupuesto() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   ], [catMeta])
 
+  // Precio de variante → clave de precio en LAVADOS_DATA
+  const VARIANT_PRICE_TO_LAV_KEY = { 15: 'auto', 25: 'auto', 30: 'suv', 35: 'suv_xl', 40: 'pickup_xl' }
+
   function getEffectivePrice(s, vehicleKey) {
     // Para lavados, el vehicleKey es el value del ticket → mapeamos a la clave de LAVADOS_DATA
     const lavadosIds = new Set(LAVADOS_DATA.map(x => x.id))
-    const resolvedKey = lavadosIds.has(s.id) ? (VT_TO_LAVADOS_KEY[vehicleKey] ?? vehicleKey) : vehicleKey
+    const lavKey = lavSubtype?.lavKey ?? VT_TO_LAVADOS_KEY[vehicleKey] ?? vehicleKey
+    const resolvedKey = lavadosIds.has(s.id) ? lavKey : vehicleKey
     const ov = catPriceOverrides[s.id]
     if (ov !== undefined) {
       if (typeof ov === 'object') return ov[resolvedKey] ?? s.prices?.[resolvedKey] ?? 0
@@ -604,7 +609,7 @@ export default function Presupuesto() {
         }
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [ALL_CAT_DATA, catSelected, catVehicle, serviciosVehicle, catPriceOverrides]
+    [ALL_CAT_DATA, catSelected, catVehicle, serviciosVehicle, catPriceOverrides, lavSubtype]
   )
   const catTotal = catRows.reduce((s, r) => s + r.price, 0)
   const catDiscountAmt = Math.round(catTotal * catDiscountPct / 100)
@@ -1125,7 +1130,10 @@ export default function Presupuesto() {
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Tipo de vehículo</p>
                 <div className="flex gap-2 flex-wrap">
                   {vehicles.map(v => (
-                    <button key={v.id} onClick={() => setActiveVehicle(v.id)}
+                    <button key={v.id} onClick={() => {
+                      setActiveVehicle(v.id)
+                      setLavSubtype(null)
+                    }}
                       className={`px-3 py-2 rounded-xl text-xs font-semibold border transition-all ${
                         activeVehicle === v.id
                           ? 'border-red-500 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400'
@@ -1133,6 +1141,32 @@ export default function Presupuesto() {
                       }`}>{v.label}</button>
                   ))}
                 </div>
+                {isLav && (() => {
+                  const vtObj = vehicleTypes.find(v => v.value === activeVehicle)
+                  if (!vtObj?.variants?.length) return null
+                  return (
+                    <div className="mt-2 pt-2 border-t border-gray-100 dark:border-gray-700">
+                      <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Subtipo</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {vtObj.variants.map((variant, i) => {
+                          const isSelV = lavSubtype?.label === variant.label
+                          return (
+                            <button key={i} onClick={() => setLavSubtype(
+                              isSelV ? null : { label: variant.label, price: variant.price, lavKey: VARIANT_PRICE_TO_LAV_KEY[variant.price] ?? VT_TO_LAVADOS_KEY[activeVehicle] ?? 'auto' }
+                            )}
+                              className={`px-2.5 py-1 rounded-lg text-xs font-semibold border transition-all ${
+                                isSelV
+                                  ? 'border-indigo-500 bg-indigo-500 text-white'
+                                  : 'border-indigo-200 dark:border-indigo-800 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20'
+                              }`}>
+                              {variant.label} · S/{variant.price}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )
+                })()}
               </div>
             )}
 

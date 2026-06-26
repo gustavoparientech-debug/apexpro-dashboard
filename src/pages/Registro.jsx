@@ -708,13 +708,21 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
           <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-800 space-y-2">
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Extras</p>
             {extras.map((ex, i) => (
-              <div key={i} className="flex items-center justify-between">
-                <span className="text-sm text-gray-700 dark:text-gray-300">
+              <div key={i} className="flex items-start justify-between gap-2">
+                <span className="text-sm text-gray-700 dark:text-gray-300 flex-1">
                   {ex.manual && <span className="text-xs bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 px-1 rounded mr-1">manual</span>}
                   {ex.name}
+                  {ex.discount_pct > 0 && (
+                    <span className="ml-1.5 text-xs text-green-600 font-semibold">-{ex.discount_pct}%</span>
+                  )}
                 </span>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-semibold text-gray-800 dark:text-gray-200">+{formatMoney(ex.price)}</span>
+                <div className="flex items-center gap-2 shrink-0">
+                  <div className="text-right">
+                    {ex.original_price > 0 && ex.original_price !== ex.price && (
+                      <p className="text-xs text-gray-400 line-through">{formatMoney(ex.original_price)}</p>
+                    )}
+                    <span className="text-sm font-semibold text-gray-800 dark:text-gray-200">+{formatMoney(ex.price)}</span>
+                  </div>
                   <button onClick={() => removeExtra(i)}
                     className="p-1 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg">
                     <X className="w-3.5 h-3.5 text-red-400" />

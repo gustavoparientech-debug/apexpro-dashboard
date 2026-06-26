@@ -2321,10 +2321,14 @@ export default function Presupuesto() {
             defaultExtras={
               ticketModal.ticketSections
                 ? ticketModal.ticketSections.flatMap(s =>
-                    s.items.map(i => ({
-                      name: i.name,
-                      price: i.price - Math.round(i.price * (s.discountPct || 0) / 100),
-                    }))
+                    s.items.map(i => {
+                      const discAmt = Math.round(i.price * (s.discountPct || 0) / 100)
+                      return {
+                        name: i.name,
+                        price: i.price - discAmt,
+                        ...(s.discountPct > 0 ? { original_price: i.price, discount_pct: s.discountPct } : {}),
+                      }
+                    })
                   )
                 : ticketModal.allSelected?.map(i => ({ name: i.label, price: i.price }))
             }

@@ -1970,35 +1970,25 @@ export default function Presupuesto() {
                   </button>
                   <button onClick={() => {
                     const hasLavado = lavSel.length > 0
-                    // Descuento efectivo global: si es por sección calculamos el % equivalente
-                    let effDisc = 0
-                    if (discountMode === 'global') {
-                      effDisc = catDiscountPct || discountPct || 0
-                    } else if (subtotalBruto > 0) {
-                      const totalDiscAmt = sections => sections.reduce((a, s) => {
-                        const sub = s.items.reduce((x, i) => x + i.price, 0)
-                        return a + Math.round(sub * (sectionDiscounts[s.key] || 0) / 100)
-                      }, 0)
-                      const sectList = [
-                        { key: 'planchado', items: planchadoSel },
-                        { key: 'ceramico', items: ceramicoSel },
-                        { key: 'polarizados', items: polSel },
-                        { key: 'lavados', items: lavSel },
-                        { key: 'servicios', items: serviciosSel },
-                        { key: 'manual', items: manualSel },
-                      ]
-                      const discAmt = totalDiscAmt(sectList)
-                      effDisc = subtotalBruto > 0 ? Math.round(discAmt * 100 / subtotalBruto) : 0
-                    }
-                    // Subtype del primer lavado seleccionado
                     const firstLav = lavSel[0]
                     const lavSubLabel = firstLav?.label?.includes(' — ') ? firstLav.label.split(' — ').slice(1).join(' — ') : undefined
+                    const effDisc = discountMode === 'global' ? (catDiscountPct || discountPct || 0) : 0
+                    // Secciones con descuento para mostrar en el ticket
+                    const ticketSections = discountMode === 'section' ? [
+                      { title: 'Planchado', items: planchadoSel.map(i => ({ name: i.label, price: i.price })), discountPct: sectionDiscounts.planchado },
+                      { title: 'Cerám/PPF', items: ceramicoSel.map(i => ({ name: i.label, price: i.price })), discountPct: sectionDiscounts.ceramico },
+                      { title: 'Polarizados', items: polSel.map(i => ({ name: i.label, price: i.price })), discountPct: sectionDiscounts.polarizados },
+                      { title: 'Lavados', items: lavSel.map(i => ({ name: i.label, price: i.price })), discountPct: sectionDiscounts.lavados },
+                      { title: 'Servicios', items: serviciosSel.map(i => ({ name: i.label, price: i.price })), discountPct: sectionDiscounts.servicios },
+                      { title: 'Personalizados', items: manualSel.map(i => ({ name: i.label, price: i.price })), discountPct: sectionDiscounts.manual },
+                    ].filter(s => s.items.length > 0) : null
                     setTicketModal({
                       allSelected, grandTotal,
                       discountPct: effDisc,
                       vehicle_type: hasLavado ? (firstLav?.vtValue || catVehicle) : undefined,
                       vehicle_subtype: lavSubLabel,
                       price_charged: hasLavado && firstLav ? firstLav.price : undefined,
+                      ticketSections,
                     })
                   }}
                     className="flex items-center justify-center gap-1 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-bold text-sm transition-all">
@@ -2320,6 +2310,7 @@ export default function Presupuesto() {
             defaultVehicleType={ticketModal.vehicle_type}
             defaultVehicleSubtype={ticketModal.vehicle_subtype}
             defaultPriceCharged={ticketModal.price_charged}
+            presupuestoSections={ticketModal.ticketSections}
           />
         </div>
       )}

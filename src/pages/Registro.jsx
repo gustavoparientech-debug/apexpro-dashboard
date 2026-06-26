@@ -132,10 +132,67 @@ function Modal({ open, onClose, title, children }) {
   )
 }
 
-function PresupuestoResumen({ defaultExtras, form, vehicleTypes, discountPct }) {
+function PresupuestoResumen({ defaultExtras, form, vehicleTypes, discountPct, presupuestoSections }) {
   const basePrice = parseFloat(form.price_charged) || 0
   const baseVt = form.vehicle_type ? (vehicleTypes || []).find(v => v.value === form.vehicle_type) : null
   const baseLabel = baseVt ? `${baseVt.label}${form.vehicle_subtype ? ' · ' + form.vehicle_subtype : ''}` : null
+
+  // Modo secciones: render agrupado
+  if (presupuestoSections?.length > 0) {
+    const totalDisc = presupuestoSections.reduce((a, s) => {
+      const sub = s.items.reduce((x, i) => x + (i.price || 0), 0)
+      return a + Math.round(sub * (s.discountPct || 0) / 100)
+    }, 0)
+    const brutoSect = presupuestoSections.reduce((a, s) => a + s.items.reduce((x, i) => x + (i.price || 0), 0), 0) + basePrice
+    const count = presupuestoSections.reduce((a, s) => a + s.items.length, 0) + (baseLabel ? 1 : 0)
+    return (
+      <div className="overflow-hidden">
+        <div className="px-3 py-2 flex items-center justify-between border-b border-indigo-100 dark:border-indigo-900/60">
+          <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Resumen</p>
+          <p className="text-xs font-bold text-red-600">{count} ítem{count !== 1 ? 's' : ''}</p>
+        </div>
+        {baseLabel && (
+          <div className="flex items-center justify-between px-3 py-1.5 border-b border-indigo-100 dark:border-indigo-900/40">
+            <p className="text-xs text-gray-600 dark:text-gray-300 truncate flex-1 mr-2">{baseLabel}</p>
+            <p className="text-xs font-semibold text-gray-800 dark:text-gray-200 shrink-0">S/ {basePrice.toFixed(2)}</p>
+          </div>
+        )}
+        {presupuestoSections.map(s => {
+          const sub = s.items.reduce((a, i) => a + (i.price || 0), 0)
+          const discAmt = Math.round(sub * (s.discountPct || 0) / 100)
+          return (
+            <div key={s.title} className="border-b border-indigo-100 dark:border-indigo-900/40">
+              <div className="flex items-center justify-between px-3 py-1 bg-indigo-50/50 dark:bg-indigo-950/20">
+                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">{s.title}</span>
+                <div className="flex items-center gap-1.5">
+                  {s.discountPct > 0 && <span className="text-[10px] font-bold text-green-500">-{s.discountPct}%</span>}
+                  <span className="text-[10px] font-semibold text-gray-500">S/ {(sub - discAmt).toFixed(2)}</span>
+                </div>
+              </div>
+              {s.items.map((e, i) => (
+                <div key={i} className="flex items-center justify-between px-3 py-1">
+                  <p className="text-xs text-gray-600 dark:text-gray-300 truncate flex-1 mr-2">{e.name}</p>
+                  <p className="text-xs text-gray-700 dark:text-gray-300 shrink-0">S/ {(e.price || 0).toFixed(2)}</p>
+                </div>
+              ))}
+            </div>
+          )
+        })}
+        {totalDisc > 0 && (
+          <div className="flex items-center justify-between px-3 py-1 border-t border-gray-100 dark:border-gray-700">
+            <p className="text-xs text-green-600 font-semibold">Descuento por sección</p>
+            <p className="text-xs font-semibold text-green-600">-S/ {totalDisc.toFixed(2)}</p>
+          </div>
+        )}
+        <div className="flex items-center justify-between px-3 py-2 bg-indigo-100/60 dark:bg-indigo-900/30 border-t border-indigo-100 dark:border-indigo-900/60">
+          <p className="text-xs font-bold text-gray-700 dark:text-gray-200">Total</p>
+          <p className="text-sm font-black text-red-600">S/ {(brutoSect - totalDisc).toFixed(2)}</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Modo global (o sin descuento)
   const extrasTotal = defaultExtras.reduce((s, e) => s + (e.price || 0), 0)
   const bruto = basePrice + extrasTotal
   const discAmt = discountPct > 0 ? Math.round(bruto * discountPct / 100) : 0
@@ -176,7 +233,7 @@ function PresupuestoResumen({ defaultExtras, form, vehicleTypes, discountPct }) 
 }
 
 // ─── Formulario nuevo ticket (simplificado) ───────────────────────────────────
-export function NewTicketForm({ onSave, onClose, workers, vehicleTypes, lockedWorkerId, canAdmin, defaultDate, allTickets, defaultExtras, defaultStatus, defaultPriceCharged, defaultDiscountPct, defaultVehicleType, defaultVehicleSubtype }) {
+export function NewTicketForm({ onSave, onClose, workers, vehicleTypes, lockedWorkerId, canAdmin, defaultDate, allTickets, defaultExtras, defaultStatus, defaultPriceCharged, defaultDiscountPct, defaultVehicleType, defaultVehicleSubtype, presupuestoSections }) {
   const [form, setForm] = useState({
     date:           defaultDate || todayISO(),
     worker_id:      lockedWorkerId || '',
@@ -440,12 +497,14 @@ export function NewTicketForm({ onSave, onClose, workers, vehicleTypes, lockedWo
       {/* Resumen de servicios — solo cuando viene desde presupuesto */}
       {defaultExtras?.length > 0 && (
         <div className="mx-4 mb-3 rounded-2xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-900/60 overflow-hidden">
-          <PresupuestoResumen defaultExtras={defaultExtras} form={form} vehicleTypes={vehicleTypes} discountPct={formDiscountPct} />
+          <PresupuestoResumen defaultExtras={defaultExtras} form={form} vehicleTypes={vehicleTypes} discountPct={formDiscountPct} presupuestoSections={presupuestoSections} />
           <div className="px-3 pb-3 pt-1 border-t border-indigo-100 dark:border-indigo-900/60">
             <p className="text-xs font-semibold text-indigo-400 uppercase tracking-wide mb-2">Descuento</p>
-            {defaultDiscountPct > 0 ? (
+            {(defaultDiscountPct > 0 || presupuestoSections?.length > 0) ? (
               <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
-                <span className="text-xs font-bold text-green-600 dark:text-green-400">✓ {formDiscountPct}% aplicado desde presupuesto</span>
+                <span className="text-xs font-bold text-green-600 dark:text-green-400">
+                  {presupuestoSections?.length > 0 ? '✓ Descuentos por sección aplicados desde presupuesto' : `✓ ${formDiscountPct}% aplicado desde presupuesto`}
+                </span>
               </div>
             ) : (
               <div className="flex flex-wrap gap-1.5">

@@ -1707,8 +1707,8 @@ export default function Presupuesto() {
               )}
 
               {/* Footer con total y botones */}
-              <div className="flex items-center justify-between pt-2 border-t border-gray-100 dark:border-gray-800 mt-2">
-                <div className="flex items-center gap-3">
+              <div className="pt-2 border-t border-gray-100 dark:border-gray-800 mt-2 space-y-2">
+                <div className="flex items-center justify-between">
                   <div>
                     <p className="text-[10px] text-gray-400">{totalItemsSelected} servicio{totalItemsSelected !== 1 ? 's' : ''}</p>
                     <p className="text-lg font-black text-red-600 dark:text-red-400">{formatMoney(grandTotal)}</p>
@@ -1719,18 +1719,18 @@ export default function Presupuesto() {
                     <X className="w-3 h-3" />Limpiar
                   </button>
                 </div>
-                <div className="flex gap-1.5">
+                <div className="grid grid-cols-3 gap-2">
                   <button onClick={() => openExportModal('whatsapp')}
-                    className="flex items-center gap-1 px-3 py-2.5 rounded-xl bg-green-500 hover:bg-green-600 active:scale-95 text-white font-bold text-sm transition-all">
-                    <MessageCircle className="w-4 h-4" /><span>WA</span>
+                    className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-green-500 hover:bg-green-600 active:scale-95 text-white font-bold text-sm transition-all">
+                    <MessageCircle className="w-4 h-4" />WA
                   </button>
                   <button onClick={() => openExportModal('pdf')}
-                    className="flex items-center gap-1 px-3 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 active:scale-95 text-white font-bold text-sm transition-all">
-                    <FileText className="w-4 h-4" /><span>PDF</span>
+                    className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 active:scale-95 text-white font-bold text-sm transition-all">
+                    <FileText className="w-4 h-4" />PDF
                   </button>
                   <button onClick={() => setTicketModal({ allSelected, grandTotal, discountPct: catDiscountPct || discountPct || 0 })}
-                    className="flex items-center gap-1 px-3 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-bold text-sm transition-all">
-                    <PlusCircle className="w-4 h-4" /><span>Ticket</span>
+                    className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-bold text-sm transition-all">
+                    <PlusCircle className="w-4 h-4" />Ticket
                   </button>
                 </div>
               </div>

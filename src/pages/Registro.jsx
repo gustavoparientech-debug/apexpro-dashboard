@@ -260,6 +260,7 @@ export function NewTicketForm({ onSave, onClose, workers, vehicleTypes, lockedWo
         opened_at:      now,
         ...(status === 'cerrado' ? { closed_at: now } : {}),
         extras:         defaultExtras || [],
+        ...(defaultDiscountPct ? { discount_pct: defaultDiscountPct } : {}),
       })
       onClose()
     } finally { setSubmitting(false) }

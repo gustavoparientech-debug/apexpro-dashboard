@@ -391,12 +391,14 @@ export default function Presupuesto() {
     await persistSavedQuotes(next)
     setSaveQuoteModal(false)
     setLoadedQuoteId(null)
-    // Limpiar presupuesto tras actualizar
-    setSelected({}); setCatSelected({}); setServiciosSelected({})
-    setManualItems([]); setLavItems([])
-    setSectionDiscounts({ planchado: 0, ceramico: 0, polarizados: 0, lavados: 0, servicios: 0, manual: 0 })
-    setDiscountMode('global')
     toast.success('Cotización actualizada ✓')
+    // Limpiar en el siguiente tick para evitar conflictos con el cierre del modal
+    setTimeout(() => {
+      setSelected({}); setCatSelected({}); setServiciosSelected({})
+      setManualItems([]); setLavItems([])
+      setSectionDiscounts({ planchado: 0, ceramico: 0, polarizados: 0, lavados: 0, servicios: 0, manual: 0 })
+      setDiscountMode('global')
+    }, 50)
   }
 
   function loadQuote(q) {

@@ -1717,7 +1717,7 @@ export default function Presupuesto() {
                     className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 active:scale-95 text-white font-bold text-sm transition-all">
                     <FileText className="w-4 h-4" />PDF
                   </button>
-                  <button onClick={() => setTicketModal({ allSelected, grandTotal, discountPct: discountPct || 0 })}
+                  <button onClick={() => setTicketModal({ allSelected, grandTotal, discountPct: catDiscountPct || discountPct || 0 })}
                     className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-bold text-sm transition-all">
                     <PlusCircle className="w-4 h-4" />Ticket
                   </button>

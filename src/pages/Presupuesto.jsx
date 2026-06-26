@@ -1779,7 +1779,6 @@ export default function Presupuesto() {
             vehicleTypes={vehicleTypes}
             canAdmin={canAdmin}
             defaultExtras={ticketModal.allSelected?.map(i => ({ name: i.label, price: i.price }))}
-            defaultStatus="cerrado"
             defaultPriceCharged={ticketModal.grandTotal}
           />
         </div>

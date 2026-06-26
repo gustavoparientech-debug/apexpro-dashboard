@@ -719,9 +719,11 @@ export default function Presupuesto() {
         price: r.price,
       })),
       ...catRows.map(r => ({ label: r.label, price: r.price })),
+      ...lavItems.map(r => ({ label: r.label, price: r.price })),
       ...manualItems.map(r => ({ label: r.titulo + (r.descripcion ? ` — ${r.descripcion}` : ''), price: r.monto })),
     ]
-    const activeTotal = totalFinal + catTotalFinal + serviciosTotal + manualTotal
+    const lavTotalWA = lavItems.reduce((s, i) => s + i.price, 0)
+    const activeTotal = totalFinal + catTotalFinal + serviciosTotal + manualTotal + lavTotalWA
 
     const SEP = '--------------------'
     let msg = `*APEX PRO DETAILING* 🚗✨\n`
@@ -899,9 +901,11 @@ export default function Presupuesto() {
         _isPlanchado: true,
       })),
       ...catRows,
+      ...lavItems.map(r => ({ id: r.id, label: r.label, price: r.price })),
       ...manualItems.map(r => ({ id: r.id, label: r.titulo + (r.descripcion ? ` — ${r.descripcion}` : ''), price: r.monto })),
     ]
-    const pdfTotal = totalFinal + catTotalFinal + serviciosTotal + manualTotal
+    const lavTotalPDF = lavItems.reduce((s, i) => s + i.price, 0)
+    const pdfTotal = totalFinal + catTotalFinal + serviciosTotal + manualTotal + lavTotalPDF
     const isPlanchado = false // rows already labeled above
 
     pdfRows.forEach((r, i) => {
@@ -1833,7 +1837,7 @@ export default function Presupuesto() {
         const grandDiscount = Math.round(subtotalBruto * activePct / 100)
         const grandTotal = activePct > 0
           ? subtotalBruto - grandDiscount
-          : totalFinal + catTotalFinal + serviciosTotal + manualTotal
+          : totalFinal + catTotalFinal + serviciosTotal + manualTotal + lavTotal
         return (
           <div className="sticky bottom-4 z-20">
             <div className="card shadow-xl border border-red-100 dark:border-red-900/30 overflow-hidden">

@@ -176,12 +176,12 @@ function PresupuestoResumen({ defaultExtras, form, vehicleTypes, discountPct }) 
 }
 
 // ─── Formulario nuevo ticket (simplificado) ───────────────────────────────────
-export function NewTicketForm({ onSave, onClose, workers, vehicleTypes, lockedWorkerId, canAdmin, defaultDate, allTickets, defaultExtras, defaultStatus, defaultPriceCharged, defaultDiscountPct }) {
+export function NewTicketForm({ onSave, onClose, workers, vehicleTypes, lockedWorkerId, canAdmin, defaultDate, allTickets, defaultExtras, defaultStatus, defaultPriceCharged, defaultDiscountPct, defaultVehicleType }) {
   const [form, setForm] = useState({
     date:           defaultDate || todayISO(),
     worker_id:      lockedWorkerId || '',
     price_charged:  '',
-    vehicle_type:   '',
+    vehicle_type:   defaultVehicleType || '',
     vehicle_subtype: '',
     notes:          '',
     plate:          '',

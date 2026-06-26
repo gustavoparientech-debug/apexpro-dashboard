@@ -65,8 +65,19 @@ const CAT_VEHICLES = {
   ceramico:    [{ id: 'auto', label: 'Auto / HB' }, { id: 'suv', label: 'SUV' }, { id: 'pickup', label: 'Pickup' }],
   ppf:         [{ id: 'auto', label: 'Auto / HB' }, { id: 'suv', label: 'SUV' }, { id: 'pickup', label: 'Pickup' }],
   polarizados: [],
-  lavados:     [{ id: 'auto', label: 'Auto' }, { id: 'suv', label: 'SUV' }, { id: 'suv_xl', label: 'SUV XL' }, { id: 'pickup', label: 'Pickup' }, { id: 'pickup_xl', label: 'Pickup XL' }],
+  lavados:     [], // se genera dinámicamente desde vehicleTypes del sistema
   servicios:   [],
+}
+
+// Mapeo de ticket vehicle_type.value → clave de precio en LAVADOS_DATA
+const VT_TO_LAVADOS_KEY = {
+  moto:             'auto',
+  auto_exterior:    'auto',
+  auto:             'auto',
+  camioneta_small:  'suv',
+  camioneta_large:  'suv_xl',
+  offroad:          'pickup',
+  otro:             'pickup_xl',
 }
 
 const SERVICIOS_DATA = [
@@ -557,12 +568,15 @@ export default function Presupuesto() {
   ], [catMeta])
 
   function getEffectivePrice(s, vehicleKey) {
+    // Para lavados, el vehicleKey es el value del ticket → mapeamos a la clave de LAVADOS_DATA
+    const lavadosIds = new Set(LAVADOS_DATA.map(x => x.id))
+    const resolvedKey = lavadosIds.has(s.id) ? (VT_TO_LAVADOS_KEY[vehicleKey] ?? vehicleKey) : vehicleKey
     const ov = catPriceOverrides[s.id]
     if (ov !== undefined) {
-      if (typeof ov === 'object') return ov[vehicleKey] ?? s.prices?.[vehicleKey] ?? 0
+      if (typeof ov === 'object') return ov[resolvedKey] ?? s.prices?.[resolvedKey] ?? 0
       return ov
     }
-    return s.price ?? (s.prices?.[vehicleKey] ?? 0)
+    return s.price ?? (s.prices?.[resolvedKey] ?? 0)
   }
 
   const catRows = useMemo(() =>
@@ -1080,7 +1094,10 @@ export default function Presupuesto() {
 
       {/* ── UI otras categorías ─────────────────────────────────── */}
       {category !== 'planchado' && (() => {
-        const vehicles = CAT_VEHICLES[category] || []
+        const isLav = category === 'lavados'
+        const vehicles = isLav
+          ? vehicleTypes.filter(v => v.active !== false).map(v => ({ id: v.value, label: `${v.emoji || ''} ${v.label}`.trim() }))
+          : (CAT_VEHICLES[category] || [])
         const data = catData
         const isPol = category === 'polarizados'
         const isSv = category === 'servicios'
@@ -1793,7 +1810,15 @@ export default function Presupuesto() {
                     className="flex items-center justify-center gap-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 active:scale-95 text-white font-bold text-sm transition-all">
                     <FileText className="w-4 h-4" />PDF
                   </button>
-                  <button onClick={() => setTicketModal({ allSelected, grandTotal, discountPct: catDiscountPct || discountPct || 0 })}
+                  <button onClick={() => {
+                    const lavadosIds = new Set(LAVADOS_DATA.map(x => x.id))
+                    const hasLavado = catRows.some(r => lavadosIds.has(r.id))
+                    setTicketModal({
+                      allSelected, grandTotal,
+                      discountPct: catDiscountPct || discountPct || 0,
+                      vehicle_type: hasLavado ? catVehicle : undefined,
+                    })
+                  }}
                     className="flex items-center justify-center gap-1 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-bold text-sm transition-all">
                     <PlusCircle className="w-4 h-4" />Ticket
                   </button>
@@ -2055,6 +2080,7 @@ export default function Presupuesto() {
             canAdmin={canAdmin}
             defaultExtras={ticketModal.allSelected?.map(i => ({ name: i.label, price: i.price }))}
             defaultDiscountPct={ticketModal.discountPct || 0}
+            defaultVehicleType={ticketModal.vehicle_type}
           />
         </div>
       )}

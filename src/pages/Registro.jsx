@@ -224,6 +224,14 @@ export function NewTicketForm({ onSave, onClose, workers, vehicleTypes, lockedWo
 
   return (
     <div className="flex flex-col h-full">
+      {onClose && (
+        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-800 shrink-0">
+          <p className="font-bold text-gray-900 dark:text-white text-base">Nuevo ticket</p>
+          <button onClick={onClose} className="p-1.5 rounded-full text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+      )}
       <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-5 pt-2">
 
         {/* Fecha (solo admin) */}

@@ -452,7 +452,24 @@ export default function Presupuesto() {
       .filter(s => !catMeta.deleted.includes(s.id))
       .map(s => ({ ...s, ...(catMeta.overrides[s.id] || {}) }))
     const extras = catMeta.added.filter(a => a.category === cat)
-    return [...base, ...extras]
+    const all = [...base, ...extras]
+    const order = catMeta.order?.[cat]
+    if (!order?.length) return all
+    const orderMap = Object.fromEntries(order.map((id, i) => [id, i]))
+    return [...all].sort((a, b) => (orderMap[a.id] ?? 9999) - (orderMap[b.id] ?? 9999))
+  }
+
+  function moveService(id, dir) {
+    const cat = 'servicios'
+    const data = applyMeta(SERVICIOS_DATA, cat)
+    const ids = data.map(s => s.id)
+    const idx = ids.indexOf(id)
+    if (idx < 0) return
+    const newIdx = idx + dir
+    if (newIdx < 0 || newIdx >= ids.length) return
+    const next = [...ids]
+    ;[next[idx], next[newIdx]] = [next[newIdx], next[idx]]
+    saveCatMeta({ ...catMeta, order: { ...catMeta.order, [cat]: next } })
   }
 
   // ── Filas para otras categorías ──────────────────────────────────────────
@@ -1199,6 +1216,16 @@ export default function Presupuesto() {
                                   </button>
                                 )}
                               </div>
+                              {isSv && (
+                                <div className="flex flex-col gap-0.5">
+                                  <button onClick={() => moveService(s.id, -1)} className="p-0.5 text-gray-300 hover:text-indigo-500 transition-colors" title="Mover arriba">
+                                    <ChevronUp className="w-4 h-4" />
+                                  </button>
+                                  <button onClick={() => moveService(s.id, 1)} className="p-0.5 text-gray-300 hover:text-indigo-500 transition-colors" title="Mover abajo">
+                                    <ChevronDown className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              )}
                               <button onClick={() => { if (confirm(`¿Eliminar "${s.name}"?`)) deleteService(s.id) }}
                                 className="self-start mt-0.5 text-red-400 hover:text-red-600 transition-colors">
                                 <X className="w-4 h-4" />
@@ -1558,6 +1585,26 @@ export default function Presupuesto() {
 
       {/* Botones de exportar (planchado) */}
       </>)}
+
+      {/* ── Barra fija de acciones (siempre visible) ── */}
+      {totalItemsSelected === 0 && (
+        <div className="sticky bottom-4 z-20 mx-1">
+          <div className="card shadow-xl border border-gray-100 dark:border-gray-800 flex items-center justify-between px-4 py-3">
+            <p className="text-xs text-gray-400">Selecciona servicios para continuar</p>
+            <div className="flex gap-2">
+              <button disabled className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-gray-200 dark:bg-gray-700 text-gray-400 font-bold text-sm cursor-not-allowed">
+                <MessageCircle className="w-4 h-4" />WA
+              </button>
+              <button disabled className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-gray-200 dark:bg-gray-700 text-gray-400 font-bold text-sm cursor-not-allowed">
+                <FileText className="w-4 h-4" />PDF
+              </button>
+              <button disabled className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-gray-200 dark:bg-gray-700 text-gray-400 font-bold text-sm cursor-not-allowed">
+                <PlusCircle className="w-4 h-4" />Ticket
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Barra de exportación unificada (todas las categorías) ── */}
       {totalItemsSelected > 0 && (() => {

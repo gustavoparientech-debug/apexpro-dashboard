@@ -55,8 +55,7 @@ const SB_KEY = 'presupuesto_config'
 
 const CATEGORIES = [
   { id: 'planchado',   label: 'Planchado',   icon: '🔨', sub: '& Pintura' },
-  { id: 'ceramico',    label: 'Cerámico',    icon: '✨', sub: 'Tratamientos' },
-  { id: 'ppf',         label: 'PPF',         icon: '🛡️', sub: 'Protección' },
+  { id: 'ceramico',    label: 'Cerám/PPF',   icon: '✨', sub: 'Tratamientos' },
   { id: 'polarizados', label: 'Polarizados', icon: '🌟', sub: 'Láminas' },
   { id: 'lavados',     label: 'Lavados',     icon: '🚿', sub: '& Detailing' },
   { id: 'servicios',   label: 'Servicios',   icon: '🧰', sub: 'Adicionales' },
@@ -474,8 +473,11 @@ export default function Presupuesto() {
 
   // ── Filas para otras categorías ──────────────────────────────────────────
   const catData = useMemo(() => {
-    if (category === 'ceramico')    return applyMeta(CERAMICO_DATA, 'ceramico')
-    if (category === 'ppf')         return applyMeta(PPF_DATA, 'ppf')
+    if (category === 'ceramico')    return [
+      ...applyMeta(CERAMICO_DATA, 'ceramico'),
+      { id: '__ppf_divider__', _divider: true, label: 'PPF' },
+      ...applyMeta(PPF_DATA, 'ppf'),
+    ]
     if (category === 'polarizados') return applyMeta(POLARIZADOS_DATA, 'polarizados')
     if (category === 'lavados')     return applyMeta(LAVADOS_DATA, 'lavados')
     if (category === 'servicios')   return applyMeta(SERVICIOS_DATA, 'servicios')
@@ -980,10 +982,12 @@ export default function Presupuesto() {
       <div className="grid grid-cols-5 gap-2">
         {CATEGORIES.map(cat => {
           const isActive = category === cat.id
+          const ceramicoPpfIds = new Set([...CERAMICO_DATA, ...PPF_DATA].map(s => s.id))
           const hasSelected = cat.id === 'planchado'
             ? selectedCount > 0
             : catRows.some(r => {
-                const src = cat.id === 'ceramico' ? CERAMICO_DATA : cat.id === 'ppf' ? PPF_DATA : cat.id === 'polarizados' ? POLARIZADOS_DATA : LAVADOS_DATA
+                if (cat.id === 'ceramico') return ceramicoPpfIds.has(r.id)
+                const src = cat.id === 'polarizados' ? POLARIZADOS_DATA : cat.id === 'lavados' ? LAVADOS_DATA : SERVICIOS_DATA
                 return src.some(s => s.id === r.id)
               })
           return (
@@ -1088,6 +1092,13 @@ export default function Presupuesto() {
                 ))
               ) : (
                 data.map(s => {
+                  if (s._divider) return (
+                    <div key={s.id} className="flex items-center gap-2 py-1">
+                      <div className="flex-1 h-px bg-gray-200 dark:bg-gray-700" />
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{s.label}</span>
+                      <div className="flex-1 h-px bg-gray-200 dark:bg-gray-700" />
+                    </div>
+                  )
                   const hasVehiclePrices = !!s.prices && isSv
                   const hasCustomSubcats = isSv && !!s.subcats?.length
                   const hasSubcats = hasVehiclePrices || hasCustomSubcats

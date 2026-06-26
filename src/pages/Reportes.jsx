@@ -138,14 +138,25 @@ export default function Historial() {
     const byWorker = {}
     periodTickets.forEach(t => {
       if (!t.worker_id) return
-      if (!byWorker[t.worker_id]) byWorker[t.worker_id] = { income: 0, cars: 0, dates: new Set() }
+      if (!byWorker[t.worker_id]) byWorker[t.worker_id] = { income: 0, cars: 0, dates: new Set(), byDate: {} }
       byWorker[t.worker_id].income += t.price_charged
       byWorker[t.worker_id].cars   += 1
       byWorker[t.worker_id].dates.add(t.date)
+      byWorker[t.worker_id].byDate[t.date] = (byWorker[t.worker_id].byDate[t.date] || 0) + t.price_charged
     })
     const workerRanking = Object.entries(byWorker)
-      .map(([id, s]) => ({ worker: workers.find(w => w.id === id), income: s.income, cars: s.cars, daysWorked: s.dates.size }))
-      .filter(r => r.worker)
+      .map(([id, s]) => {
+        const worker = workers.find(w => w.id === id)
+        if (!worker) return null
+        const dailyGoal = worker.daily_goal ? Number(worker.daily_goal) : 0
+        const daysHitGoal = dailyGoal > 0
+          ? Object.values(s.byDate).filter(v => v >= dailyGoal).length
+          : 0
+        const totalDays = mode === 'mes' ? workingDaysElapsed : s.dates.size
+        const goalPct = (dailyGoal > 0 && totalDays > 0) ? Math.round((daysHitGoal / totalDays) * 100) : null
+        return { worker, income: s.income, cars: s.cars, daysWorked: s.dates.size, daysHitGoal, goalPct, dailyGoal }
+      })
+      .filter(Boolean)
       .sort((a, b) => b.income - a.income)
 
     return {
@@ -409,18 +420,38 @@ ${workerLines}`
                 <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Por lavador</p>
                 <div className="space-y-3">
                   {d.workerRanking.map((r, i) => (
-                    <div key={r.worker.id} className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <span className="w-6 h-6 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-xs font-bold text-gray-500">{i+1}</span>
-                        <div>
-                          <p className="font-medium text-gray-900 dark:text-white text-sm">{r.worker.name}</p>
-                          <p className="text-xs text-gray-400">{r.cars} carro{r.cars !== 1 ? 's' : ''}</p>
+                    <div key={r.worker.id} className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <span className="w-6 h-6 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-xs font-bold text-gray-500">{i+1}</span>
+                          <div>
+                            <p className="font-medium text-gray-900 dark:text-white text-sm">{r.worker.name}</p>
+                            <p className="text-xs text-gray-400">{r.cars} carro{r.cars !== 1 ? 's' : ''} · {formatMoney(r.income / (r.cars || 1))}/carro</p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-bold text-sm text-red-600 dark:text-red-400">{formatMoney(r.income)}</p>
+                          <p className="text-xs text-gray-400">{formatMoney(r.income / (r.daysWorked || 1))}/día</p>
                         </div>
                       </div>
-                      <div className="text-right">
-                        <p className="font-bold text-sm text-red-600 dark:text-red-400">{formatMoney(r.income)}</p>
-                        <p className="text-xs text-gray-400">{formatMoney(r.income / (r.cars || 1))}/carro · {formatMoney(r.income / (r.daysWorked || 1))}/día</p>
-                      </div>
+                      {r.dailyGoal > 0 && (
+                        <div className="ml-9">
+                          <div className="flex items-center justify-between mb-0.5">
+                            <span className="text-[11px] text-gray-400">
+                              Meta diaria {formatMoney(r.dailyGoal)} — cumplida <span className="font-semibold text-gray-700 dark:text-gray-200">{r.daysHitGoal} día{r.daysHitGoal !== 1 ? 's' : ''}</span>
+                            </span>
+                            <span className={`text-[11px] font-bold ${r.goalPct >= 80 ? 'text-green-500' : r.goalPct >= 50 ? 'text-yellow-500' : 'text-red-400'}`}>
+                              {r.goalPct}%
+                            </span>
+                          </div>
+                          <div className="h-1.5 rounded-full bg-gray-100 dark:bg-gray-800 overflow-hidden">
+                            <div
+                              className={`h-full rounded-full transition-all ${r.goalPct >= 80 ? 'bg-green-500' : r.goalPct >= 50 ? 'bg-yellow-400' : 'bg-red-400'}`}
+                              style={{ width: `${Math.min(r.goalPct, 100)}%` }}
+                            />
+                          </div>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>

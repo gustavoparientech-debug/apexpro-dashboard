@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { useApp } from '../context/AppContext'
 import { supabase } from '../lib/supabase'
-import { Edit2, Check, X, ChevronDown, ChevronUp, FileText, MessageCircle, PlusCircle } from 'lucide-react'
+import { Edit2, Check, X, ChevronDown, ChevronUp, FileText, MessageCircle, PlusCircle, Save, Clock, Trash2 } from 'lucide-react'
 import { NewTicketForm } from './Registro'
 import toast from 'react-hot-toast'
 import jsPDF from 'jspdf'
@@ -256,10 +256,11 @@ export default function Presupuesto() {
       const raw = localStorage.getItem(LS_KEY)
       if (raw) setConfig(mergeConfig(JSON.parse(raw)))
 
-      const [{ data, error }, { data: catData2 }, { data: catMetaData }] = await Promise.all([
+      const [{ data, error }, { data: catData2 }, { data: catMetaData }, { data: sqData }] = await Promise.all([
         supabase.from('app_settings').select('value').eq('key', SB_KEY).maybeSingle(),
         supabase.from('app_settings').select('value').eq('key', 'cat_prices').maybeSingle(),
         supabase.from('app_settings').select('value').eq('key', 'cat_meta').maybeSingle(),
+        supabase.from('app_settings').select('value').eq('key', 'saved_quotes').maybeSingle(),
       ])
 
       if (error) toast.error(`Error al cargar: ${error.message}`)
@@ -270,6 +271,10 @@ export default function Presupuesto() {
       }
       if (catData2?.value) setCatPriceOverrides(catData2.value)
       if (catMetaData?.value) setCatMeta(m => ({ overrides: {}, added: [], deleted: [], ...m, ...catMetaData.value }))
+      if (sqData?.value) {
+        const now = Date.now()
+        setSavedQuotes((sqData.value || []).filter(q => q.expires_at > now))
+      }
       setLoading(false)
     }
     load()
@@ -304,6 +309,61 @@ export default function Presupuesto() {
   function updateServiceField(id, field, value) {
     const next = { ...catMeta, overrides: { ...catMeta.overrides, [id]: { ...catMeta.overrides[id], [field]: value } } }
     saveCatMeta(next)
+  }
+
+  async function persistSavedQuotes(list) {
+    setSavedQuotes(list)
+    await supabase.from('app_settings').upsert(
+      { key: 'saved_quotes', value: list, updated_at: new Date().toISOString() },
+      { onConflict: 'key' }
+    )
+  }
+
+  function buildCurrentSnapshot(allSel, grandTot, discPct) {
+    return {
+      id: Date.now(),
+      nombre: saveQuoteForm.nombre.trim(),
+      placa: saveQuoteForm.placa.trim().toUpperCase(),
+      items: allSel.map(i => ({ label: i.label, price: i.price })),
+      grand_total: grandTot,
+      discount_pct: discPct,
+      selected, catSelected, serviciosSelected,
+      catVehicle, serviciosVehicle,
+      manualItems,
+      catDiscountPct,
+      created_at: Date.now(),
+      expires_at: Date.now() + 7 * 24 * 60 * 60 * 1000,
+    }
+  }
+
+  async function saveQuote(allSel, grandTot, discPct) {
+    if (!saveQuoteForm.nombre && !saveQuoteForm.placa) {
+      toast.error('Ingresa nombre o placa del cliente')
+      return
+    }
+    const quote = buildCurrentSnapshot(allSel, grandTot, discPct)
+    const next = [...savedQuotes, quote]
+    await persistSavedQuotes(next)
+    setSaveQuoteModal(false)
+    setSaveQuoteForm({ nombre: '', placa: '' })
+    toast.success('Cotización guardada por 7 días ✓')
+  }
+
+  async function deleteQuote(id) {
+    const next = savedQuotes.filter(q => q.id !== id)
+    await persistSavedQuotes(next)
+    toast.success('Cotización eliminada')
+  }
+
+  function loadQuote(q) {
+    setSelected(q.selected || {})
+    setCatSelected(q.catSelected || {})
+    setServiciosSelected(q.serviciosSelected || {})
+    setCatVehicle(q.catVehicle || 'auto')
+    setServiciosVehicle(q.serviciosVehicle || 'auto')
+    setManualItems(q.manualItems || [])
+    setCatDiscountPct(q.catDiscountPct || 0)
+    toast.success(`Cotización "${q.nombre || q.placa}" cargada ✓`)
   }
 
   function openSubcatConfig(s) {
@@ -568,6 +628,9 @@ export default function Presupuesto() {
   const [exportModal, setExportModal] = useState(false)
   const [exportTarget, setExportTarget] = useState(null)
   const [ticketModal, setTicketModal] = useState(false)
+  const [savedQuotes, setSavedQuotes] = useState([])
+  const [saveQuoteModal, setSaveQuoteModal] = useState(false)
+  const [saveQuoteForm, setSaveQuoteForm] = useState({ nombre: '', placa: '' })
   const DEFAULT_CONDICIONES = 'Forma de pago: 50% de adelanto y 50% contra entrega. Vigencia: 15 dias calendario. Tiempo de entrega: maximo 3 dias habiles tras recibir el vehiculo. Precios incluyen IGV.'
   const [exportForm, setExportForm] = useState({ nombre: '', celular: '', ruc: '', marca: '', modelo: '', placa: '', anio: '', color: '', observaciones: '', condiciones: DEFAULT_CONDICIONES })
   const [cotizacionNum, setCotizacionNum] = useState(150)
@@ -1720,18 +1783,22 @@ export default function Presupuesto() {
                     <X className="w-3 h-3" />Limpiar
                   </button>
                 </div>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-4 gap-1.5">
                   <button onClick={() => openExportModal('whatsapp')}
-                    className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-green-500 hover:bg-green-600 active:scale-95 text-white font-bold text-sm transition-all">
+                    className="flex items-center justify-center gap-1 py-2.5 rounded-xl bg-green-500 hover:bg-green-600 active:scale-95 text-white font-bold text-sm transition-all">
                     <MessageCircle className="w-4 h-4" />WA
                   </button>
                   <button onClick={() => openExportModal('pdf')}
-                    className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 active:scale-95 text-white font-bold text-sm transition-all">
+                    className="flex items-center justify-center gap-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 active:scale-95 text-white font-bold text-sm transition-all">
                     <FileText className="w-4 h-4" />PDF
                   </button>
                   <button onClick={() => setTicketModal({ allSelected, grandTotal, discountPct: catDiscountPct || discountPct || 0 })}
-                    className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-bold text-sm transition-all">
+                    className="flex items-center justify-center gap-1 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-bold text-sm transition-all">
                     <PlusCircle className="w-4 h-4" />Ticket
+                  </button>
+                  <button onClick={() => setSaveQuoteModal({ allSelected, grandTotal, discountPct: catDiscountPct || discountPct || 0 })}
+                    className="flex items-center justify-center gap-1 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 active:scale-95 text-white font-bold text-sm transition-all">
+                    <Save className="w-4 h-4" />Guardar
                   </button>
                 </div>
               </div>
@@ -1739,6 +1806,109 @@ export default function Presupuesto() {
           </div>
         )
       })()}
+
+      {/* ── Cotizaciones guardadas ─────────────────────────────────────────── */}
+      {savedQuotes.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide px-1">
+            Cotizaciones guardadas ({savedQuotes.length})
+          </p>
+          {savedQuotes.map(q => {
+            const daysLeft = Math.ceil((q.expires_at - Date.now()) / (1000 * 60 * 60 * 24))
+            return (
+              <div key={q.id} className="card border border-amber-100 dark:border-amber-900/40 bg-amber-50/40 dark:bg-amber-950/20">
+                <div className="flex items-start justify-between gap-2 mb-2">
+                  <div>
+                    <p className="font-bold text-sm text-gray-800 dark:text-gray-200">
+                      {q.nombre || q.placa || 'Sin nombre'}
+                      {q.nombre && q.placa && <span className="ml-1.5 text-xs font-normal text-gray-400">{q.placa}</span>}
+                    </p>
+                    <p className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1 mt-0.5">
+                      <Clock className="w-3 h-3" />
+                      Vence en {daysLeft} día{daysLeft !== 1 ? 's' : ''}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <p className="text-sm font-black text-red-600">{formatMoney(q.grand_total)}</p>
+                    <button onClick={() => deleteQuote(q.id)}
+                      className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all">
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+                <div className="text-xs text-gray-500 dark:text-gray-400 mb-2 space-y-0.5">
+                  {q.items.slice(0, 3).map((it, i) => (
+                    <p key={i} className="truncate">· {it.label}</p>
+                  ))}
+                  {q.items.length > 3 && <p className="text-gray-400">+ {q.items.length - 3} más</p>}
+                </div>
+                <div className="grid grid-cols-4 gap-1.5">
+                  <button onClick={() => loadQuote(q)}
+                    className="flex items-center justify-center gap-1 py-2 rounded-xl bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 font-bold text-xs transition-all hover:bg-gray-200 active:scale-95">
+                    Cargar
+                  </button>
+                  <button onClick={() => { loadQuote(q); setTimeout(() => openExportModal('whatsapp'), 100) }}
+                    className="flex items-center justify-center gap-1 py-2 rounded-xl bg-green-500 hover:bg-green-600 active:scale-95 text-white font-bold text-xs transition-all">
+                    <MessageCircle className="w-3.5 h-3.5" />WA
+                  </button>
+                  <button onClick={() => { loadQuote(q); setTimeout(() => openExportModal('pdf'), 100) }}
+                    className="flex items-center justify-center gap-1 py-2 rounded-xl bg-red-600 hover:bg-red-700 active:scale-95 text-white font-bold text-xs transition-all">
+                    <FileText className="w-3.5 h-3.5" />PDF
+                  </button>
+                  <button onClick={() => {
+                    const discPct = q.discount_pct || 0
+                    setTicketModal({ allSelected: q.items, grandTotal: q.grand_total, discountPct: discPct })
+                  }}
+                    className="flex items-center justify-center gap-1 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-bold text-xs transition-all">
+                    <PlusCircle className="w-3.5 h-3.5" />Ticket
+                  </button>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Modal: guardar cotización */}
+      {saveQuoteModal && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 px-3 pb-6"
+          onClick={() => setSaveQuoteModal(false)}>
+          <div className="w-full max-w-lg bg-white dark:bg-gray-900 rounded-2xl p-5 space-y-4"
+            onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <p className="font-bold text-base text-gray-900 dark:text-white">Guardar cotización</p>
+              <button onClick={() => setSaveQuoteModal(false)} className="p-1.5 rounded-full text-gray-400 hover:text-gray-700">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <p className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1.5 bg-amber-50 dark:bg-amber-950/30 px-3 py-2 rounded-xl">
+              <Clock className="w-3.5 h-3.5 shrink-0" />
+              Esta cotización estará disponible por 7 días y luego se eliminará automáticamente.
+            </p>
+            <div className="space-y-2">
+              <input className="input w-full" placeholder="Nombre del cliente"
+                value={saveQuoteForm.nombre}
+                onChange={e => setSaveQuoteForm(f => ({ ...f, nombre: e.target.value }))} />
+              <input className="input w-full uppercase" placeholder="Placa (opcional)"
+                maxLength={8}
+                value={saveQuoteForm.placa}
+                onChange={e => setSaveQuoteForm(f => ({ ...f, placa: e.target.value.toUpperCase() }))} />
+            </div>
+            <div className="text-xs text-gray-500 space-y-0.5">
+              {saveQuoteModal.allSelected?.slice(0, 4).map((it, i) => (
+                <p key={i} className="truncate">· {it.label} — {formatMoney(it.price)}</p>
+              ))}
+              {saveQuoteModal.allSelected?.length > 4 && <p>+ {saveQuoteModal.allSelected.length - 4} más</p>}
+              <p className="font-bold text-gray-700 dark:text-gray-300 pt-1">Total: {formatMoney(saveQuoteModal.grandTotal)}</p>
+            </div>
+            <button
+              onClick={() => saveQuote(saveQuoteModal.allSelected, saveQuoteModal.grandTotal, saveQuoteModal.discountPct)}
+              className="w-full py-3 rounded-2xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-sm transition-all active:scale-95">
+              <Save className="w-4 h-4 inline mr-1.5" />Guardar cotización
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Modal: datos del cliente y vehículo */}
       {exportModal && (

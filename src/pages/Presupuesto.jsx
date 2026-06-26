@@ -667,8 +667,7 @@ export default function Presupuesto() {
   const [savedQuotes, setSavedQuotes] = useState([])
   const [saveQuoteModal, setSaveQuoteModal] = useState(false)
   const [saveQuoteForm, setSaveQuoteForm] = useState({ nombre: '', placa: '', worker_id: '' })
-  const DEFAULT_CONDICIONES = 'Forma de pago: 50% de adelanto y 50% contra entrega. Vigencia: 15 dias calendario. Tiempo de entrega: maximo 3 dias habiles tras recibir el vehiculo. Precios incluyen IGV.'
-  const [exportForm, setExportForm] = useState({ nombre: '', celular: '', ruc: '', marca: '', modelo: '', placa: '', anio: '', color: '', observaciones: '', condiciones: DEFAULT_CONDICIONES })
+  const [exportForm, setExportForm] = useState({ nombre: '', celular: '', ruc: '', marca: '', modelo: '', placa: '', anio: '', color: '', observaciones: '', vigencia: '15 dias calendario', tiempoEntrega: 'maximo 3 dias habiles tras recibir el vehiculo' })
   const [cotizacionNum, setCotizacionNum] = useState(150)
 
   useEffect(() => {
@@ -745,7 +744,7 @@ export default function Presupuesto() {
   }
 
   function buildWhatsApp() {
-    const { nombre, celular, marca, modelo, placa, anio, color, observaciones, condiciones } = exportForm
+    const { nombre, celular, marca, modelo, placa, anio, color, observaciones, vigencia, tiempoEntrega } = exportForm
     const today = new Date().toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric' })
     const catVehicleLabel = CAT_VEHICLES[category]?.find(v => v.id === catVehicle)?.label || ''
     const { sections, subtotalBruto, grandTotalExport } = buildExportSections()
@@ -789,12 +788,10 @@ export default function Presupuesto() {
     msg += `💵 *TOTAL: ${formatMoney(grandTotalExport)}*\n`
     msg += `${SEP}\n\n`
     if (observaciones) msg += `📝 *Nota:* ${observaciones}\n\n`
-    if (condiciones) msg += `${condiciones}\n\n`
-    else {
-      msg += `✅ 50% adelanto / 50% contra entrega\n`
-      msg += `⏳ Vigencia: 15 dias\n`
-      msg += `💰 Precios incluyen IGV\n\n`
-    }
+    msg += `Forma de pago: 50% de adelanto y 50% contra entrega.\n`
+    if (vigencia) msg += `Vigencia: ${vigencia}.\n`
+    if (tiempoEntrega) msg += `Tiempo de entrega: ${tiempoEntrega}.\n`
+    msg += `Precios incluyen IGV.\n\n`
     msg += `📍 Calle Idelfonzo Lopez N 700 Zamacola, Arequipa\n`
     msg += `📞 959240309`
 
@@ -802,7 +799,7 @@ export default function Presupuesto() {
   }
 
   function buildPDF(numCotizacion) {
-    const { nombre, celular, ruc, marca, modelo, placa, anio, color, observaciones, condiciones } = exportForm
+    const { nombre, celular, ruc, marca, modelo, placa, anio, color, observaciones, vigencia, tiempoEntrega } = exportForm
     const doc = new jsPDF({ unit: 'mm', format: 'a4' })
     const W = 210
     const mL = 14, mR = 14
@@ -1027,8 +1024,14 @@ export default function Presupuesto() {
     }
 
     // Condiciones
-    if (condiciones) {
-      const condLines = doc.splitTextToSize(condiciones, cW - 4)
+    {
+      const condText = [
+        'Forma de pago: 50% de adelanto y 50% contra entrega.',
+        vigencia ? `Vigencia: ${vigencia}.` : '',
+        tiempoEntrega ? `Tiempo de entrega: ${tiempoEntrega}.` : '',
+        'Precios incluyen IGV.',
+      ].filter(Boolean).join(' ')
+      const condLines = doc.splitTextToSize(condText, cW - 4)
       const condH = Math.max(10, condLines.length * 4.5 + 4)
       doc.setFillColor(245, 245, 245)
       doc.rect(mL, y, cW, condH, 'F')
@@ -2291,10 +2294,17 @@ export default function Presupuesto() {
               </div>
 
               {/* Condiciones */}
-              <div>
-                <label className="text-xs text-gray-500 mb-0.5 block">Condiciones de pago y entrega</label>
-                <textarea rows={3} className="input w-full text-sm resize-none"
-                  value={exportForm.condiciones} onChange={e => setExportForm(f => ({ ...f, condiciones: e.target.value }))} />
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-xs text-gray-500 mb-0.5 block">Vigencia de propuesta</label>
+                  <input className="input w-full text-sm" placeholder="15 dias calendario"
+                    value={exportForm.vigencia} onChange={e => setExportForm(f => ({ ...f, vigencia: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 mb-0.5 block">Tiempo de entrega</label>
+                  <input className="input w-full text-sm" placeholder="maximo 3 dias habiles"
+                    value={exportForm.tiempoEntrega} onChange={e => setExportForm(f => ({ ...f, tiempoEntrega: e.target.value }))} />
+                </div>
               </div>
             </div>
 

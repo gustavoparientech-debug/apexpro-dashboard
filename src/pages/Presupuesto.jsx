@@ -1606,15 +1606,15 @@ export default function Presupuesto() {
         <div className="sticky bottom-4 z-20 mx-1">
           <div className="card shadow-xl border border-gray-100 dark:border-gray-800 flex items-center justify-between px-4 py-3">
             <p className="text-xs text-gray-400">Selecciona servicios para continuar</p>
-            <div className="flex gap-2">
-              <button disabled className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-gray-200 dark:bg-gray-700 text-gray-400 font-bold text-sm cursor-not-allowed">
-                <MessageCircle className="w-4 h-4" />WA
+            <div className="flex gap-1.5">
+              <button disabled className="flex items-center gap-1 px-3 py-2.5 rounded-xl bg-gray-200 dark:bg-gray-700 text-gray-400 font-bold text-sm cursor-not-allowed">
+                <MessageCircle className="w-4 h-4" /><span>WA</span>
               </button>
-              <button disabled className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-gray-200 dark:bg-gray-700 text-gray-400 font-bold text-sm cursor-not-allowed">
-                <FileText className="w-4 h-4" />PDF
+              <button disabled className="flex items-center gap-1 px-3 py-2.5 rounded-xl bg-gray-200 dark:bg-gray-700 text-gray-400 font-bold text-sm cursor-not-allowed">
+                <FileText className="w-4 h-4" /><span>PDF</span>
               </button>
-              <button disabled className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-gray-200 dark:bg-gray-700 text-gray-400 font-bold text-sm cursor-not-allowed">
-                <PlusCircle className="w-4 h-4" />Ticket
+              <button disabled className="flex items-center gap-1 px-3 py-2.5 rounded-xl bg-gray-200 dark:bg-gray-700 text-gray-400 font-bold text-sm cursor-not-allowed">
+                <PlusCircle className="w-4 h-4" /><span>Ticket</span>
               </button>
             </div>
           </div>
@@ -1719,18 +1719,18 @@ export default function Presupuesto() {
                     <X className="w-3 h-3" />Limpiar
                   </button>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-1.5">
                   <button onClick={() => openExportModal('whatsapp')}
-                    className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-green-500 hover:bg-green-600 active:scale-95 text-white font-bold text-sm transition-all">
-                    <MessageCircle className="w-4 h-4" />WA
+                    className="flex items-center gap-1 px-3 py-2.5 rounded-xl bg-green-500 hover:bg-green-600 active:scale-95 text-white font-bold text-sm transition-all">
+                    <MessageCircle className="w-4 h-4" /><span>WA</span>
                   </button>
                   <button onClick={() => openExportModal('pdf')}
-                    className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 active:scale-95 text-white font-bold text-sm transition-all">
-                    <FileText className="w-4 h-4" />PDF
+                    className="flex items-center gap-1 px-3 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 active:scale-95 text-white font-bold text-sm transition-all">
+                    <FileText className="w-4 h-4" /><span>PDF</span>
                   </button>
                   <button onClick={() => setTicketModal({ allSelected, grandTotal, discountPct: catDiscountPct || discountPct || 0 })}
-                    className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-bold text-sm transition-all">
-                    <PlusCircle className="w-4 h-4" />Ticket
+                    className="flex items-center gap-1 px-3 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-bold text-sm transition-all">
+                    <PlusCircle className="w-4 h-4" /><span>Ticket</span>
                   </button>
                 </div>
               </div>

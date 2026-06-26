@@ -142,12 +142,12 @@ function PresupuestoResumen({ defaultExtras, form, vehicleTypes, discountPct }) 
   const total = bruto - discAmt
   const count = defaultExtras.length + (baseLabel ? 1 : 0)
   return (
-    <div className="mx-4 mb-3 rounded-xl bg-gray-50 dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700 overflow-hidden">
-      <div className="px-3 py-2 flex items-center justify-between border-b border-gray-200 dark:border-gray-700">
+    <div className="overflow-hidden">
+      <div className="px-3 py-2 flex items-center justify-between border-b border-indigo-100 dark:border-indigo-900/60">
         <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Resumen</p>
         <p className="text-xs font-bold text-red-600">{count} ítem{count !== 1 ? 's' : ''}</p>
       </div>
-      <div className="divide-y divide-gray-100 dark:divide-gray-700/50">
+      <div className="divide-y divide-indigo-100 dark:divide-indigo-900/40">
         {baseLabel && (
           <div className="flex items-center justify-between px-3 py-1.5">
             <p className="text-xs text-gray-600 dark:text-gray-300 truncate flex-1 mr-2">{baseLabel}</p>
@@ -167,7 +167,7 @@ function PresupuestoResumen({ defaultExtras, form, vehicleTypes, discountPct }) 
           <p className="text-xs font-semibold text-green-600">-S/ {discAmt.toFixed(2)}</p>
         </div>
       )}
-      <div className="flex items-center justify-between px-3 py-2 bg-gray-100 dark:bg-gray-700/50 border-t border-gray-200 dark:border-gray-700">
+      <div className="flex items-center justify-between px-3 py-2 bg-indigo-100/60 dark:bg-indigo-900/30 border-t border-indigo-100 dark:border-indigo-900/60">
         <p className="text-xs font-bold text-gray-700 dark:text-gray-200">Total</p>
         <p className="text-sm font-black text-red-600">S/ {total.toFixed(2)}</p>
       </div>
@@ -439,20 +439,20 @@ export function NewTicketForm({ onSave, onClose, workers, vehicleTypes, lockedWo
 
       {/* Resumen de servicios — solo cuando viene desde presupuesto */}
       {defaultExtras?.length > 0 && (
-        <>
+        <div className="mx-4 mb-3 rounded-2xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-900/60 overflow-hidden">
           <PresupuestoResumen defaultExtras={defaultExtras} form={form} vehicleTypes={vehicleTypes} discountPct={formDiscountPct} />
-          <div className="mx-4 mb-3 rounded-xl bg-gray-50 dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700 px-3 py-2">
-            <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Descuento</p>
+          <div className="px-3 pb-3 pt-1 border-t border-indigo-100 dark:border-indigo-900/60">
+            <p className="text-xs font-semibold text-indigo-400 uppercase tracking-wide mb-2">Descuento</p>
             <div className="flex flex-wrap gap-1.5">
               {[0, 5, 10, 15, 20, 25, 30].map(p => (
                 <button key={p} type="button" onClick={() => setFormDiscountPct(p)}
-                  className={`px-3 py-1 rounded-lg text-xs font-bold border-2 transition-all ${formDiscountPct === p ? 'border-red-500 bg-red-500 text-white' : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-100'}`}>
+                  className={`px-3 py-1 rounded-lg text-xs font-bold border-2 transition-all ${formDiscountPct === p ? 'border-red-500 bg-red-500 text-white' : 'border-indigo-200 dark:border-indigo-800 text-indigo-500 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/40'}`}>
                   {p === 0 ? 'Sin desc.' : `${p}%`}
                 </button>
               ))}
             </div>
           </div>
-        </>
+        </div>
       )}
 
       {/* Footer */}

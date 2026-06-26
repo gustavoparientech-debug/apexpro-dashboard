@@ -137,8 +137,8 @@ function PresupuestoResumen({ defaultExtras, form, vehicleTypes, discountPct, pr
   const baseVt = form.vehicle_type ? (vehicleTypes || []).find(v => v.value === form.vehicle_type) : null
   const baseLabel = baseVt ? `${baseVt.label}${form.vehicle_subtype ? ' · ' + form.vehicle_subtype : ''}` : null
 
-  // Modo secciones: render agrupado
-  if (presupuestoSections?.length > 0) {
+  // Modo secciones: render agrupado (null = modo global, [] = sección sin extras)
+  if (presupuestoSections != null) {
     const totalDisc = presupuestoSections.reduce((a, s) => {
       const sub = s.items.reduce((x, i) => x + (i.price || 0), 0)
       return a + Math.round(sub * (s.discountPct || 0) / 100)

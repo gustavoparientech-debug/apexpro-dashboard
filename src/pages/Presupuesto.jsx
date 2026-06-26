@@ -1449,7 +1449,7 @@ export default function Presupuesto() {
             </div>}
 
             {/* Descuento para servicios no-planchado */}
-            {catRows.length > 0 && (
+            {(catRows.length > 0 || lavItems.length > 0) && (
               <div className="card">
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Descuento</p>
                 <div className="flex gap-2">

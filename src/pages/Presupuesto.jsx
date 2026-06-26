@@ -1640,9 +1640,10 @@ export default function Presupuesto() {
           })),
         ]
         const subtotalBruto = total + catTotal + serviciosTotal + manualTotal
-        const manualDisc = manualDiscountPct != null ? Math.round(subtotalBruto * manualDiscountPct / 100) : 0
-        const grandTotal = manualDisc > 0
-          ? subtotalBruto - manualDisc
+        const activePct = manualDiscountPct != null ? manualDiscountPct : catDiscountPct
+        const grandDiscount = Math.round(subtotalBruto * activePct / 100)
+        const grandTotal = activePct > 0
+          ? subtotalBruto - grandDiscount
           : totalFinal + catTotalFinal + serviciosTotal + manualTotal
         return (
           <div className="sticky bottom-4 z-20">

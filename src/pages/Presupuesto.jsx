@@ -263,7 +263,8 @@ export default function Presupuesto() {
 
   // ── otras categorías ─────────────────────────────────────────────────────
   const [catVehicle, setCatVehicle] = useState('auto')
-  const [lavSubtype, setLavSubtype] = useState(null) // { label, price, lavKey } variante del vt de lavados
+  const [lavSubtype, setLavSubtype] = useState(null)
+  const [lavItems, setLavItems] = useState([]) // lavados seleccionados directamente
   const [serviciosVehicle, setServiciosVehicle] = useState('auto')
   const [serviciosSelected, setServiciosSelected] = useState({})
   const [catSelected, setCatSelected] = useState({})
@@ -354,7 +355,7 @@ export default function Presupuesto() {
       discount_pct: discPct,
       selected, catSelected, serviciosSelected,
       catVehicle, serviciosVehicle,
-      manualItems,
+      manualItems, lavItems,
       catDiscountPct,
       created_at: Date.now(),
       expires_at: Date.now() + 7 * 24 * 60 * 60 * 1000,
@@ -387,6 +388,7 @@ export default function Presupuesto() {
     setCatVehicle(q.catVehicle || 'auto')
     setServiciosVehicle(q.serviciosVehicle || 'auto')
     setManualItems(q.manualItems || [])
+    setLavItems(q.lavItems || [])
     setCatDiscountPct(q.catDiscountPct || 0)
     toast.success(`Cotización "${q.nombre || q.placa}" cargada ✓`)
   }
@@ -683,7 +685,7 @@ export default function Presupuesto() {
   }
 
   const manualTotal = manualItems.reduce((s, i) => s + i.monto, 0)
-  const totalItemsSelected = selectedCount + catRows.length + serviciosRows.length + manualItems.length
+  const totalItemsSelected = selectedCount + catRows.length + serviciosRows.length + manualItems.length + lavItems.length
 
   function openExportModal(target) {
     if (totalItemsSelected === 0) { toast.error('Selecciona al menos un servicio'); return }
@@ -1129,17 +1131,43 @@ export default function Presupuesto() {
               <div className="card">
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Tipo de vehículo</p>
                 <div className="flex gap-2 flex-wrap">
-                  {vehicles.map(v => (
-                    <button key={v.id} onClick={() => {
-                      setActiveVehicle(v.id)
-                      setLavSubtype(null)
-                    }}
-                      className={`px-3 py-2 rounded-xl text-xs font-semibold border transition-all ${
-                        activeVehicle === v.id
-                          ? 'border-red-500 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400'
-                          : 'border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400'
-                      }`}>{v.label}</button>
-                  ))}
+                  {vehicles.map(v => {
+                    const vtObj = vehicleTypes.find(vt => vt.value === v.id)
+                    const hasVariants = isLav && vtObj?.variants?.length > 0
+                    const isActiveVT = activeVehicle === v.id
+                    // Si no tiene variantes, está "en carrito" si existe en lavItems
+                    const lavKey = `lav_${v.id}`
+                    const inCart = !hasVariants && lavItems.some(i => i.id === lavKey)
+                    return (
+                      <button key={v.id} onClick={() => {
+                        setActiveVehicle(v.id)
+                        setLavSubtype(null)
+                        if (isLav && !hasVariants) {
+                          // toggle directo en lavItems
+                          if (inCart) {
+                            setLavItems(items => items.filter(i => i.id !== lavKey))
+                          } else {
+                            setLavItems(items => [...items, {
+                              id: lavKey,
+                              label: v.label.trim(),
+                              price: vtObj?.default_price || 0,
+                              vtValue: v.id,
+                            }])
+                          }
+                        }
+                      }}
+                        className={`px-3 py-2 rounded-xl text-xs font-semibold border transition-all ${
+                          inCart
+                            ? 'border-green-500 bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400'
+                            : isActiveVT
+                              ? 'border-red-500 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400'
+                              : 'border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400'
+                        }`}>
+                        {v.label}
+                        {!hasVariants && vtObj?.default_price ? ` · S/${vtObj.default_price}` : ''}
+                      </button>
+                    )
+                  })}
                 </div>
                 {isLav && (() => {
                   const vtObj = vehicleTypes.find(v => v.value === activeVehicle)
@@ -1149,14 +1177,24 @@ export default function Presupuesto() {
                       <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Subtipo</p>
                       <div className="flex flex-wrap gap-1.5">
                         {vtObj.variants.map((variant, i) => {
-                          const isSelV = lavSubtype?.label === variant.label
+                          const vKey = `lav_${activeVehicle}_${variant.label}`
+                          const inCartV = lavItems.some(it => it.id === vKey)
                           return (
-                            <button key={i} onClick={() => setLavSubtype(
-                              isSelV ? null : { label: variant.label, price: variant.price, lavKey: VARIANT_PRICE_TO_LAV_KEY[variant.price] ?? VT_TO_LAVADOS_KEY[activeVehicle] ?? 'auto' }
-                            )}
+                            <button key={i} onClick={() => {
+                              if (inCartV) {
+                                setLavItems(items => items.filter(it => it.id !== vKey))
+                              } else {
+                                setLavItems(items => [...items, {
+                                  id: vKey,
+                                  label: `${vtObj.label} — ${variant.label}`,
+                                  price: variant.price,
+                                  vtValue: activeVehicle,
+                                }])
+                              }
+                            }}
                               className={`px-2.5 py-1 rounded-lg text-xs font-semibold border transition-all ${
-                                isSelV
-                                  ? 'border-indigo-500 bg-indigo-500 text-white'
+                                inCartV
+                                  ? 'border-green-500 bg-green-500 text-white'
                                   : 'border-indigo-200 dark:border-indigo-800 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20'
                               }`}>
                               {variant.label} · S/{variant.price}
@@ -1170,8 +1208,8 @@ export default function Presupuesto() {
               </div>
             )}
 
-            {/* Servicios */}
-            <div className="card space-y-2">
+            {/* Servicios — oculto para lavados (se agregan desde los chips de VT) */}
+            {!isLav && <div className="card space-y-2">
               <div className="flex items-center justify-between mb-1">
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Servicios disponibles</p>
                 {(Object.values(isSv ? serviciosSelected : catSelected).some(Boolean)) && (
@@ -1404,7 +1442,7 @@ export default function Presupuesto() {
                   </button>
                 )
               )}
-            </div>
+            </div>}
 
             {/* Descuento para servicios no-planchado */}
             {catRows.length > 0 && (
@@ -1774,6 +1812,12 @@ export default function Presupuesto() {
             price: r.price,
             onRemove: () => setServiciosSelected(s => ({ ...s, [r.id]: false })),
           })),
+          ...lavItems.map(r => ({
+            key: r.id,
+            label: r.label,
+            price: r.price,
+            onRemove: () => setLavItems(items => items.filter(i => i.id !== r.id)),
+          })),
           ...manualItems.map(r => ({
             key: `m_${r.id}`,
             label: r.titulo,
@@ -1783,7 +1827,8 @@ export default function Presupuesto() {
             onRemove: () => setManualItems(items => items.filter(i => i.id !== r.id)),
           })),
         ]
-        const subtotalBruto = total + catTotal + serviciosTotal + manualTotal
+        const lavTotal = lavItems.reduce((s, i) => s + i.price, 0)
+        const subtotalBruto = total + catTotal + serviciosTotal + manualTotal + lavTotal
         const activePct = manualDiscountPct != null ? manualDiscountPct : catDiscountPct
         const grandDiscount = Math.round(subtotalBruto * activePct / 100)
         const grandTotal = activePct > 0

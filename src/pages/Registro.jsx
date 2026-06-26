@@ -190,6 +190,7 @@ export function NewTicketForm({ onSave, onClose, workers, vehicleTypes, lockedWo
     client_phone:   '',
   })
   const [photoPreview, setPhotoPreview] = useState('')
+  const [formDiscountPct, setFormDiscountPct] = useState(defaultDiscountPct || 0)
   const fileRef = useRef()
 
   // Auto-rellenar datos del cliente si la placa ya tiene historial
@@ -260,7 +261,7 @@ export function NewTicketForm({ onSave, onClose, workers, vehicleTypes, lockedWo
         opened_at:      now,
         ...(status === 'cerrado' ? { closed_at: now } : {}),
         extras:         defaultExtras || [],
-        ...(defaultDiscountPct ? { discount_pct: defaultDiscountPct } : {}),
+        ...(formDiscountPct ? { discount_pct: formDiscountPct } : {}),
       })
       onClose()
     } finally { setSubmitting(false) }
@@ -437,7 +438,22 @@ export function NewTicketForm({ onSave, onClose, workers, vehicleTypes, lockedWo
       </div>
 
       {/* Resumen de servicios — solo cuando viene desde presupuesto */}
-      {defaultExtras?.length > 0 && <PresupuestoResumen defaultExtras={defaultExtras} form={form} vehicleTypes={vehicleTypes} discountPct={defaultDiscountPct || 0} />}
+      {defaultExtras?.length > 0 && (
+        <>
+          <PresupuestoResumen defaultExtras={defaultExtras} form={form} vehicleTypes={vehicleTypes} discountPct={formDiscountPct} />
+          <div className="mx-4 mb-3 rounded-xl bg-gray-50 dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700 px-3 py-2">
+            <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Descuento</p>
+            <div className="flex flex-wrap gap-1.5">
+              {[0, 5, 10, 15, 20, 25, 30].map(p => (
+                <button key={p} type="button" onClick={() => setFormDiscountPct(p)}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold border-2 transition-all ${formDiscountPct === p ? 'border-red-500 bg-red-500 text-white' : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-100'}`}>
+                  {p === 0 ? 'Sin desc.' : `${p}%`}
+                </button>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Footer */}
       <div className="px-4 pt-3 pb-5 border-t border-gray-100 dark:border-gray-800">

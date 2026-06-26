@@ -445,8 +445,24 @@ function RankingPanel({ ranking, workingDaysElapsed }) {
             <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold text-gray-900 dark:text-white">{r.worker.name}</p>
               <p className="text-xs text-gray-400">{r.cars} veh. · prom {formatMoney(r.avgCar)}/carro · {formatMoney(r.avgDay)}/día</p>
+              {r.dailyGoal > 0 && (
+                <div className="mt-1">
+                  <div className="flex items-center justify-between mb-0.5">
+                    <span className="text-[10px] text-gray-400">
+                      Meta {formatMoney(r.dailyGoal)}/día · <span className="font-semibold text-gray-600 dark:text-gray-300">{r.daysHitGoal} día{r.daysHitGoal !== 1 ? 's' : ''} cumplido{r.daysHitGoal !== 1 ? 's' : ''}</span>
+                    </span>
+                    <span className={`text-[10px] font-bold ml-2 ${r.goalPct >= 80 ? 'text-green-500' : r.goalPct >= 50 ? 'text-yellow-500' : 'text-red-400'}`}>
+                      {r.goalPct}%
+                    </span>
+                  </div>
+                  <div className="h-1 rounded-full bg-gray-100 dark:bg-gray-800 overflow-hidden">
+                    <div className={`h-full rounded-full ${r.goalPct >= 80 ? 'bg-green-500' : r.goalPct >= 50 ? 'bg-yellow-400' : 'bg-red-400'}`}
+                      style={{ width: `${Math.min(r.goalPct, 100)}%` }} />
+                  </div>
+                </div>
+              )}
             </div>
-            <p className="text-sm font-bold text-gray-900 dark:text-white">{valueLabel(r)}</p>
+            <p className="text-sm font-bold text-gray-900 dark:text-white shrink-0">{valueLabel(r)}</p>
           </div>
         ))}
       </div>
@@ -617,13 +633,21 @@ export default function Dashboard() {
     const workerMap = {}
     periodTickets.forEach(t => {
       if (!t.worker_id) return
-      if (!workerMap[t.worker_id]) workerMap[t.worker_id] = { income: 0, cars: 0 }
+      if (!workerMap[t.worker_id]) workerMap[t.worker_id] = { income: 0, cars: 0, byDate: {} }
       workerMap[t.worker_id].income += t.price_charged
       workerMap[t.worker_id].cars   += 1
+      workerMap[t.worker_id].byDate[t.date] = (workerMap[t.worker_id].byDate[t.date] || 0) + t.price_charged
     })
     const workerRanking = Object.entries(workerMap)
-      .map(([id, s]) => ({ worker: workers.find(w => w.id === id), ...s }))
-      .filter(r => r.worker && r.worker.active)
+      .map(([id, s]) => {
+        const worker = workers.find(w => w.id === id)
+        if (!worker || !worker.active) return null
+        const dailyGoal = worker.daily_goal ? Number(worker.daily_goal) : 0
+        const daysHitGoal = dailyGoal > 0 ? Object.values(s.byDate).filter(v => v >= dailyGoal).length : 0
+        const goalPct = (dailyGoal > 0 && workingDaysElapsed > 0) ? Math.round((daysHitGoal / workingDaysElapsed) * 100) : null
+        return { worker, income: s.income, cars: s.cars, dailyGoal, daysHitGoal, goalPct }
+      })
+      .filter(Boolean)
       .sort((a, b) => b.income - a.income)
 
     const displayCosts = hasRange ? proportionalFixed + workerExpTotal : totalCosts

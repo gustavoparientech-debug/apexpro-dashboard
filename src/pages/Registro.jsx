@@ -429,7 +429,6 @@ export function NewTicketForm({ onSave, onClose, workers, vehicleTypes, lockedWo
 
       {/* Resumen de servicios — solo cuando viene desde presupuesto */}
       {defaultExtras?.length > 0 && <PresupuestoResumen defaultExtras={defaultExtras} form={form} vehicleTypes={vehicleTypes} />}
-      )}
 
       {/* Footer */}
       <div className="px-4 pt-3 pb-5 border-t border-gray-100 dark:border-gray-800">

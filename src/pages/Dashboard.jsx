@@ -398,10 +398,11 @@ function ExpensesPanel({ expenses, workers }) {
 }
 
 const RANK_SORTS = [
-  { value: 'income',   label: 'Ingresos' },
-  { value: 'cars',     label: 'Vehículos' },
-  { value: 'avgCar',   label: 'Prom/carro' },
-  { value: 'avgDay',   label: 'Prom/día' },
+  { value: 'income',      label: 'Ingresos' },
+  { value: 'cars',        label: 'Vehículos' },
+  { value: 'avgCar',      label: 'Prom/carro' },
+  { value: 'avgDay',      label: 'Prom/día' },
+  { value: 'daysHitGoal', label: 'Metas' },
 ]
 
 function RankingPanel({ ranking, workingDaysElapsed }) {
@@ -415,9 +416,10 @@ function RankingPanel({ ranking, workingDaysElapsed }) {
   }, [ranking, sort, workingDaysElapsed])
 
   const valueLabel = r => {
-    if (sort === 'cars')   return `${r.cars} veh.`
-    if (sort === 'avgCar') return formatMoney(r.avgCar)
-    if (sort === 'avgDay') return formatMoney(r.avgDay)
+    if (sort === 'cars')        return `${r.cars} veh.`
+    if (sort === 'avgCar')      return formatMoney(r.avgCar)
+    if (sort === 'avgDay')      return formatMoney(r.avgDay)
+    if (sort === 'daysHitGoal') return r.dailyGoal > 0 ? `${r.daysHitGoal} día${r.daysHitGoal !== 1 ? 's' : ''}` : '—'
     return formatMoney(r.income)
   }
 

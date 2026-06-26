@@ -266,6 +266,8 @@ export default function Presupuesto() {
   const [lavSubtype, setLavSubtype] = useState(null)
   const [lavItems, setLavItems] = useState([]) // lavados seleccionados directamente
   const [serviciosVehicle, setServiciosVehicle] = useState('auto')
+  const [discountMode, setDiscountMode] = useState('global') // 'global' | 'section'
+  const [sectionDiscounts, setSectionDiscounts] = useState({ planchado: 0, ceramico: 0, polarizados: 0, lavados: 0, servicios: 0, manual: 0 })
   const [serviciosSelected, setServiciosSelected] = useState({})
   const [catSelected, setCatSelected] = useState({})
   const [catDiscountPct, setCatDiscountPct] = useState(0)
@@ -1448,36 +1450,48 @@ export default function Presupuesto() {
               )}
             </div>}
 
-            {/* Descuento para servicios no-planchado */}
-            {(catRows.length > 0 || lavItems.length > 0) && (
+            {/* Descuento */}
+            {totalItemsSelected > 0 && (
               <div className="card">
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Descuento</p>
-                <div className="flex gap-2">
-                  {[0, 5, 10, 15, 20, 25, 30].map(pct => (
-                    <button key={pct} onClick={() => setCatDiscountPct(pct)}
-                      className={`flex-1 py-2 rounded-xl text-xs font-bold border transition-all ${
-                        catDiscountPct === pct
-                          ? 'border-red-500 bg-red-600 text-white'
-                          : 'border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400'
-                      }`}>
-                      {pct === 0 ? 'Sin desc.' : `${pct}%`}
-                    </button>
-                  ))}
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Descuento</p>
+                  <div className="flex rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700 text-xs">
+                    {['global', 'section'].map(m => (
+                      <button key={m} onClick={() => setDiscountMode(m)}
+                        className={`px-3 py-1 font-semibold transition-all ${discountMode === m ? 'bg-red-600 text-white' : 'text-gray-500 dark:text-gray-400'}`}>
+                        {m === 'global' ? 'Global' : 'Por sección'}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-                {catDiscountPct > 0 && (() => {
-                  const bruto = catTotal + serviciosTotal + manualTotal + lavItems.reduce((s, i) => s + i.price, 0)
-                  const disc = Math.round(bruto * catDiscountPct / 100)
-                  return (
-                    <>
-                      <div className="flex justify-between mt-2 pt-2 border-t border-gray-100 dark:border-gray-800 text-xs">
-                        <span className="text-gray-500">Subtotal</span><span>{formatMoney(bruto)}</span>
-                      </div>
-                      <div className="flex justify-between text-xs text-green-600 font-semibold">
-                        <span>Descuento {catDiscountPct}%</span><span>-{formatMoney(disc)}</span>
-                      </div>
-                    </>
-                  )
-                })()}
+                {discountMode === 'global' && (
+                  <>
+                    <div className="flex gap-1.5 flex-wrap">
+                      {[0, 5, 10, 15, 20, 25, 30].map(pct => (
+                        <button key={pct} onClick={() => setCatDiscountPct(pct)}
+                          className={`flex-1 py-2 rounded-xl text-xs font-bold border transition-all ${
+                            catDiscountPct === pct
+                              ? 'border-red-500 bg-red-600 text-white'
+                              : 'border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400'
+                          }`}>
+                          {pct === 0 ? 'Sin desc.' : `${pct}%`}
+                        </button>
+                      ))}
+                    </div>
+                    {catDiscountPct > 0 && (() => {
+                      const bruto = total + catTotal + serviciosTotal + manualTotal + lavItems.reduce((s, i) => s + i.price, 0)
+                      const disc = Math.round(bruto * catDiscountPct / 100)
+                      return (
+                        <div className="flex justify-between mt-2 pt-2 border-t border-gray-100 dark:border-gray-800 text-xs text-green-600 font-semibold">
+                          <span>Descuento {catDiscountPct}%</span><span>-{formatMoney(disc)}</span>
+                        </div>
+                      )
+                    })()}
+                  </>
+                )}
+                {discountMode === 'section' && (
+                  <p className="text-[11px] text-gray-400">Los descuentos se configuran por sección en el resumen.</p>
+                )}
               </div>
             )}
 
@@ -1794,69 +1808,117 @@ export default function Presupuesto() {
 
       {/* ── Barra de exportación unificada (todas las categorías) ── */}
       {totalItemsSelected > 0 && (() => {
-        const planchadoSel = rows.filter(r => selected[r.id])
-        const allSelected = [
-          ...planchadoSel.map(r => ({
-            key: `p_${r.id}`,
-            label: r.damageId !== 'none'
-              ? `${r.label} + Planchado (${DAMAGE_LEVELS.find(d => d.id === r.damageId)?.label})`
-              : `Pintado — ${r.label}`,
-            price: r.price,
-            onRemove: () => setSelected(s => ({ ...s, [r.id]: false })),
-          })),
-          ...catRows.map(r => ({
-            key: `c_${r.id}`,
-            label: r.label,
-            price: r.price,
-            onRemove: () => setCatSelected(s => ({ ...s, [r.id]: false })),
-          })),
-          ...serviciosRows.map(r => ({
-            key: `sv_${r.id}`,
-            label: r.label,
-            price: r.price,
-            onRemove: () => setServiciosSelected(s => ({ ...s, [r.id]: false })),
-          })),
-          ...lavItems.map(r => ({
-            key: r.id,
-            label: r.label,
-            price: r.price,
-            onRemove: () => setLavItems(items => items.filter(i => i.id !== r.id)),
-          })),
-          ...manualItems.map(r => ({
-            key: `m_${r.id}`,
-            label: r.titulo,
-            sub: r.descripcion,
-            price: r.monto,
-            manual: true,
-            onRemove: () => setManualItems(items => items.filter(i => i.id !== r.id)),
-          })),
-        ]
+        const ceramicoIds = new Set(CERAMICO_DATA.map(x => x.id))
+        const ppfIds = new Set(PPF_DATA.map(x => x.id))
+        const polIds = new Set(POLARIZADOS_DATA.map(x => x.id))
+        const planchadoSel = rows.filter(r => selected[r.id]).map(r => ({
+          key: `p_${r.id}`, label: r.damageId !== 'none' ? `${r.label} + Planchado (${DAMAGE_LEVELS.find(d => d.id === r.damageId)?.label})` : `Pintado — ${r.label}`,
+          price: r.price, onRemove: () => setSelected(s => ({ ...s, [r.id]: false })),
+        }))
+        const ceramicoSel = catRows.filter(r => ceramicoIds.has(r.id) || ppfIds.has(r.id)).map(r => ({
+          key: `c_${r.id}`, label: r.label, price: r.price, onRemove: () => setCatSelected(s => ({ ...s, [r.id]: false })),
+        }))
+        const polSel = catRows.filter(r => polIds.has(r.id)).map(r => ({
+          key: `pol_${r.id}`, label: r.label, price: r.price, onRemove: () => setCatSelected(s => ({ ...s, [r.id]: false })),
+        }))
+        const lavSel = lavItems.map(r => ({
+          key: r.id, label: r.label, price: r.price, onRemove: () => setLavItems(items => items.filter(i => i.id !== r.id)),
+        }))
+        const serviciosSel = serviciosRows.map(r => ({
+          key: `sv_${r.id}`, label: r.label, price: r.price, onRemove: () => setServiciosSelected(s => ({ ...s, [r.id]: false })),
+        }))
+        const manualSel = manualItems.map(r => ({
+          key: `m_${r.id}`, label: r.titulo, sub: r.descripcion, price: r.monto, manual: true,
+          onRemove: () => setManualItems(items => items.filter(i => i.id !== r.id)),
+        }))
+        const allSelected = [...planchadoSel, ...ceramicoSel, ...polSel, ...lavSel, ...serviciosSel, ...manualSel]
+
+        // Totales por sección
         const lavTotal = lavItems.reduce((s, i) => s + i.price, 0)
-        const subtotalBruto = total + catTotal + serviciosTotal + manualTotal + lavTotal
-        const activePct = manualDiscountPct != null ? manualDiscountPct : catDiscountPct
-        const grandDiscount = Math.round(subtotalBruto * activePct / 100)
-        const grandTotal = activePct > 0
-          ? subtotalBruto - grandDiscount
-          : totalFinal + catTotalFinal + serviciosTotal + manualTotal + lavTotal
+        const planchadoTotal = planchadoSel.reduce((s, i) => s + i.price, 0)
+        const ceramicoTotal = ceramicoSel.reduce((s, i) => s + i.price, 0)
+        const polTotal = polSel.reduce((s, i) => s + i.price, 0)
+        const lavTot = lavSel.reduce((s, i) => s + i.price, 0)
+        const serviciosTot = serviciosSel.reduce((s, i) => s + i.price, 0)
+        const manualTot = manualSel.reduce((s, i) => s + i.price, 0)
+
+        const subtotalBruto = planchadoTotal + ceramicoTotal + polTotal + lavTot + serviciosTot + manualTot
+
+        let grandTotal
+        if (discountMode === 'global') {
+          const activePct = manualDiscountPct != null ? manualDiscountPct : catDiscountPct
+          const grandDiscount = Math.round(subtotalBruto * activePct / 100)
+          grandTotal = subtotalBruto - grandDiscount
+        } else {
+          const sd = sectionDiscounts
+          grandTotal = subtotalBruto
+            - Math.round(planchadoTotal * sd.planchado / 100)
+            - Math.round(ceramicoTotal * sd.ceramico / 100)
+            - Math.round(polTotal * sd.polarizados / 100)
+            - Math.round(lavTot * sd.lavados / 100)
+            - Math.round(serviciosTot * sd.servicios / 100)
+            - Math.round(manualTot * sd.manual / 100)
+        }
+
+        // Chips de descuento por sección
+        const DISC_PCTS = [0, 5, 10, 15, 20, 25, 30]
+        function SectDiscount({ sectKey, label }) {
+          const pct = sectionDiscounts[sectKey]
+          return (
+            <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
+              <span className="text-[10px] text-gray-400 shrink-0">{label}</span>
+              {DISC_PCTS.map(p => (
+                <button key={p} onClick={() => setSectionDiscounts(d => ({ ...d, [sectKey]: p }))}
+                  className={`px-2 py-0.5 rounded-lg text-[10px] font-bold border transition-all ${pct === p ? 'bg-red-600 border-red-500 text-white' : 'border-gray-200 dark:border-gray-700 text-gray-400'}`}>
+                  {p === 0 ? '0%' : `${p}%`}
+                </button>
+              ))}
+            </div>
+          )
+        }
+
+        function SectGroup({ title, items, sectKey, total: sectTotal }) {
+          if (!items.length) return null
+          const disc = discountMode === 'section' ? sectionDiscounts[sectKey] : 0
+          const discAmt = Math.round(sectTotal * disc / 100)
+          return (
+            <div className="mb-1">
+              <div className="flex items-center justify-between py-1.5 border-b border-gray-100 dark:border-gray-800">
+                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">{title}</span>
+                <div className="text-right">
+                  {disc > 0 && <span className="text-[10px] text-green-500 font-semibold mr-2">-{disc}%</span>}
+                  <span className="text-xs font-semibold text-gray-600 dark:text-gray-400">{formatMoney(sectTotal - discAmt)}</span>
+                </div>
+              </div>
+              {items.map(item => (
+                <div key={item.key} className="flex items-center gap-2 py-1.5">
+                  <button onClick={item.onRemove} className="w-5 h-5 flex-shrink-0 flex items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30 text-red-500 hover:bg-red-200 transition-colors">
+                    <X className="w-3 h-3" />
+                  </button>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs text-gray-700 dark:text-gray-300 leading-tight">{item.label}</p>
+                    {item.sub && <p className="text-[10px] text-gray-400 truncate">{item.sub}</p>}
+                  </div>
+                  {item.manual && <span className="text-[9px] font-bold text-blue-500 bg-blue-50 dark:bg-blue-900/20 px-1.5 py-0.5 rounded">MANUAL</span>}
+                  <p className="text-xs font-bold text-gray-800 dark:text-gray-200 flex-shrink-0">{formatMoney(item.price)}</p>
+                </div>
+              ))}
+              {discountMode === 'section' && <SectDiscount sectKey={sectKey} label={`Desc. ${title.toLowerCase()}`} />}
+            </div>
+          )
+        }
+
         return (
           <div className="sticky bottom-4 z-20">
             <div className="card shadow-xl border border-red-100 dark:border-red-900/30 overflow-hidden">
-              {/* Detalle items */}
-              <div className="divide-y divide-gray-100 dark:divide-gray-800">
-                {allSelected.map(item => (
-                  <div key={item.key} className="flex items-center gap-2 py-2">
-                    <button onClick={item.onRemove}
-                      className="w-6 h-6 flex-shrink-0 flex items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30 text-red-500 hover:bg-red-200 transition-colors">
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs text-gray-700 dark:text-gray-300 leading-tight">{item.label}</p>
-                      {item.sub && <p className="text-[10px] text-gray-400 truncate">{item.sub}</p>}
-                    </div>
-                    {item.manual && <span className="text-[9px] font-bold text-blue-500 bg-blue-50 dark:bg-blue-900/20 px-1.5 py-0.5 rounded">MANUAL</span>}
-                    <p className="text-xs font-bold text-gray-800 dark:text-gray-200 flex-shrink-0">{formatMoney(item.price)}</p>
-                  </div>
-                ))}
+              {/* Detalle agrupado por categoría */}
+              <div>
+                <SectGroup title="Planchado" items={planchadoSel} sectKey="planchado" total={planchadoTotal} />
+                <SectGroup title="Cerám/PPF" items={ceramicoSel} sectKey="ceramico" total={ceramicoTotal} />
+                <SectGroup title="Polarizados" items={polSel} sectKey="polarizados" total={polTotal} />
+                <SectGroup title="Lavados" items={lavSel} sectKey="lavados" total={lavTot} />
+                <SectGroup title="Servicios" items={serviciosSel} sectKey="servicios" total={serviciosTot} />
+                <SectGroup title="Personalizados" items={manualSel} sectKey="manual" total={manualTot} />
               </div>
 
               {/* Formulario ítem manual */}
@@ -1907,12 +1969,12 @@ export default function Presupuesto() {
                     <FileText className="w-4 h-4" />PDF
                   </button>
                   <button onClick={() => {
-                    const lavadosIds = new Set(LAVADOS_DATA.map(x => x.id))
-                    const hasLavado = catRows.some(r => lavadosIds.has(r.id))
+                    const hasLavado = lavSel.length > 0
+                    const effDisc = discountMode === 'global' ? (catDiscountPct || discountPct || 0) : 0
                     setTicketModal({
                       allSelected, grandTotal,
-                      discountPct: catDiscountPct || discountPct || 0,
-                      vehicle_type: hasLavado ? catVehicle : undefined,
+                      discountPct: effDisc,
+                      vehicle_type: hasLavado ? (lavSel[0]?.vtValue || catVehicle) : undefined,
                     })
                   }}
                     className="flex items-center justify-center gap-1 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-bold text-sm transition-all">

@@ -2098,29 +2098,78 @@ export default function Presupuesto() {
                 </div>
               </div>
             </div>
-            <div className="text-xs text-gray-500 dark:text-gray-400 space-y-0.5 bg-gray-50 dark:bg-gray-800/50 rounded-xl px-3 py-2.5">
-              {saveQuoteModal.allSelected?.slice(0, 4).map((it, i) => (
-                <p key={i} className="truncate">· {it.label} — {formatMoney(it.price)}</p>
-              ))}
-              {saveQuoteModal.allSelected?.length > 4 && <p className="text-gray-400">+ {saveQuoteModal.allSelected.length - 4} más</p>}
-              {saveQuoteModal.discountPct > 0 && (() => {
-                const bruto = saveQuoteModal.allSelected?.reduce((s, i) => s + i.price, 0) || 0
-                const disc = Math.round(bruto * saveQuoteModal.discountPct / 100)
-                return (
-                  <>
-                    <div className="flex justify-between pt-1 border-t border-gray-200 dark:border-gray-700 mt-1">
+            {/* Preview detallado por categoría */}
+            {(() => {
+              const ceramicoIds = new Set(CERAMICO_DATA.map(x => x.id))
+              const ppfIds = new Set(PPF_DATA.map(x => x.id))
+              const polIds = new Set(POLARIZADOS_DATA.map(x => x.id))
+              const planchadoItems = rows.filter(r => selected[r.id]).map(r => ({
+                label: r.damageId !== 'none' ? `${r.label} + Planchado` : `Pintado — ${r.label}`, price: r.price,
+              }))
+              const ceramicoItems = catRows.filter(r => ceramicoIds.has(r.id) || ppfIds.has(r.id)).map(r => ({ label: r.label, price: r.price }))
+              const polItems = catRows.filter(r => polIds.has(r.id)).map(r => ({ label: r.label, price: r.price }))
+              const lavadosItems = lavItems.map(r => ({ label: r.label, price: r.price }))
+              const serviciosItems = serviciosRows.map(r => ({ label: r.label, price: r.price }))
+              const manualItemsP = manualItems.map(r => ({ label: r.titulo + (r.descripcion ? ` — ${r.descripcion}` : ''), price: r.monto }))
+
+              const sections = [
+                { key: 'planchado', title: 'Planchado', items: planchadoItems },
+                { key: 'ceramico', title: 'Cerám/PPF', items: ceramicoItems },
+                { key: 'polarizados', title: 'Polarizados', items: polItems },
+                { key: 'lavados', title: 'Lavados', items: lavadosItems },
+                { key: 'servicios', title: 'Servicios', items: serviciosItems },
+                { key: 'manual', title: 'Personalizados', items: manualItemsP },
+              ].filter(s => s.items.length > 0)
+
+              const bruto = sections.flatMap(s => s.items).reduce((a, i) => a + i.price, 0)
+              let totalDisc = 0
+              if (discountMode === 'global' && saveQuoteModal.discountPct > 0) {
+                totalDisc = Math.round(bruto * saveQuoteModal.discountPct / 100)
+              } else if (discountMode === 'section') {
+                totalDisc = sections.reduce((a, s) => {
+                  const sub = s.items.reduce((x, i) => x + i.price, 0)
+                  return a + Math.round(sub * (sectionDiscounts[s.key] || 0) / 100)
+                }, 0)
+              }
+
+              return (
+                <div className="text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800/50 rounded-xl px-3 py-2.5 space-y-1">
+                  {sections.map(s => {
+                    const sub = s.items.reduce((a, i) => a + i.price, 0)
+                    const pct = discountMode === 'section' ? (sectionDiscounts[s.key] || 0) : 0
+                    const discAmt = Math.round(sub * pct / 100)
+                    return (
+                      <div key={s.key}>
+                        <div className="flex justify-between items-center font-semibold text-gray-600 dark:text-gray-300 border-b border-gray-200 dark:border-gray-700 pb-0.5 mb-0.5">
+                          <span className="uppercase text-[10px] tracking-wide">{s.title}</span>
+                          <div className="flex items-center gap-1.5">
+                            {pct > 0 && <span className="text-green-500 text-[10px]">-{pct}%</span>}
+                            <span>{formatMoney(sub - discAmt)}</span>
+                          </div>
+                        </div>
+                        {s.items.map((it, i) => (
+                          <p key={i} className="truncate pl-1">· {it.label} — {formatMoney(it.price)}</p>
+                        ))}
+                      </div>
+                    )
+                  })}
+                  <div className="pt-1 border-t border-gray-200 dark:border-gray-700 space-y-0.5">
+                    <div className="flex justify-between text-gray-500">
                       <span>Subtotal</span><span>{formatMoney(bruto)}</span>
                     </div>
-                    <div className="flex justify-between text-green-600 font-semibold">
-                      <span>Descuento {saveQuoteModal.discountPct}%</span><span>-{formatMoney(disc)}</span>
-                    </div>
-                  </>
-                )
-              })()}
-              <p className="font-bold text-gray-700 dark:text-gray-300 pt-1 border-t border-gray-200 dark:border-gray-700 mt-1">
-                Total: {formatMoney(saveQuoteModal.grandTotal)}
-              </p>
-            </div>
+                    {totalDisc > 0 && (
+                      <div className="flex justify-between text-green-600 font-semibold">
+                        <span>Descuento {discountMode === 'global' ? `${saveQuoteModal.discountPct}%` : 'por sección'}</span>
+                        <span>-{formatMoney(totalDisc)}</span>
+                      </div>
+                    )}
+                    <p className="font-bold text-gray-700 dark:text-gray-300">
+                      Total: {formatMoney(bruto - totalDisc)}
+                    </p>
+                  </div>
+                </div>
+              )
+            })()}
             <button
               onClick={() => saveQuote(saveQuoteModal.allSelected, saveQuoteModal.grandTotal, saveQuoteModal.discountPct)}
               className="w-full py-3 rounded-2xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-sm transition-all active:scale-95">

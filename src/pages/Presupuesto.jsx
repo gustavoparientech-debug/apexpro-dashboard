@@ -706,26 +706,49 @@ export default function Presupuesto() {
   }
 
 
+  function buildExportSections() {
+    const ceramicoIds = new Set(CERAMICO_DATA.map(x => x.id))
+    const ppfIds = new Set(PPF_DATA.map(x => x.id))
+    const polIds = new Set(POLARIZADOS_DATA.map(x => x.id))
+    const planchadoSel = rows.filter(r => selected[r.id]).map(r => ({
+      label: r.damageId !== 'none'
+        ? `${r.label} + Planchado (${DAMAGE_LEVELS.find(d => d.id === r.damageId)?.label})`
+        : `Pintado de ${r.label}`,
+      price: r.price,
+    }))
+    const ceramicoSel = catRows.filter(r => !r._divider && (ceramicoIds.has(r.id) || ppfIds.has(r.id))).map(r => ({ label: r.label, price: r.price }))
+    const polSel = catRows.filter(r => polIds.has(r.id)).map(r => ({ label: r.label, price: r.price }))
+    const lavSel = lavItems.map(r => ({ label: r.label, price: r.price }))
+    const svSel = serviciosRows.map(r => ({ label: r.label, price: r.price }))
+    const manualSel = manualItems.map(r => ({ label: r.titulo + (r.descripcion ? ` — ${r.descripcion}` : ''), price: r.monto }))
+    const sections = [
+      { title: 'Planchado & Pintura', items: planchadoSel, sectKey: 'planchado' },
+      { title: 'Cerám/PPF', items: ceramicoSel, sectKey: 'ceramico' },
+      { title: 'Polarizados', items: polSel, sectKey: 'polarizados' },
+      { title: 'Lavados', items: lavSel, sectKey: 'lavados' },
+      { title: 'Servicios', items: svSel, sectKey: 'servicios' },
+      { title: 'Personalizados', items: manualSel, sectKey: 'manual' },
+    ].filter(s => s.items.length > 0)
+    const subtotalBruto = sections.reduce((a, s) => a + s.items.reduce((b, i) => b + i.price, 0), 0)
+    let grandTotalExport
+    if (discountMode === 'global') {
+      const activePct = manualDiscountPct != null ? manualDiscountPct : catDiscountPct
+      grandTotalExport = subtotalBruto - Math.round(subtotalBruto * activePct / 100)
+    } else {
+      const sd = sectionDiscounts
+      grandTotalExport = sections.reduce((a, s) => {
+        const sub = s.items.reduce((b, i) => b + i.price, 0)
+        return a + sub - Math.round(sub * (sd[s.sectKey] || 0) / 100)
+      }, 0)
+    }
+    return { sections, subtotalBruto, grandTotalExport }
+  }
+
   function buildWhatsApp() {
     const { nombre, celular, marca, modelo, placa, anio, color, observaciones, condiciones } = exportForm
     const today = new Date().toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric' })
     const catVehicleLabel = CAT_VEHICLES[category]?.find(v => v.id === catVehicle)?.label || ''
-
-    // Construir lista unificada de servicios
-    const planchadoRows = rows.filter(r => selected[r.id])
-    const allRows = [
-      ...planchadoRows.map(r => ({
-        label: r.damageId !== 'none'
-          ? `${r.label} + Planchado (${DAMAGE_LEVELS.find(d => d.id === r.damageId)?.label})`
-          : `Pintado de ${r.label}`,
-        price: r.price,
-      })),
-      ...catRows.map(r => ({ label: r.label, price: r.price })),
-      ...lavItems.map(r => ({ label: r.label, price: r.price })),
-      ...manualItems.map(r => ({ label: r.titulo + (r.descripcion ? ` — ${r.descripcion}` : ''), price: r.monto })),
-    ]
-    const lavTotalWA = lavItems.reduce((s, i) => s + i.price, 0)
-    const activeTotal = totalFinal + catTotalFinal + serviciosTotal + manualTotal + lavTotalWA
+    const { sections, subtotalBruto, grandTotalExport } = buildExportSections()
 
     const SEP = '--------------------'
     let msg = `*APEX PRO DETAILING* 🚗✨\n`
@@ -743,20 +766,27 @@ export default function Presupuesto() {
     }
     msg += `\n✨ *SERVICIOS:*\n`
     msg += `${SEP}\n`
-    allRows.forEach((r, idx) => {
-      msg += `*${idx + 1}.* ${r.label}\n`
-      msg += `   💰 ${formatMoney(r.price)}\n`
+    let idx = 1
+    sections.forEach(s => {
+      const sub = s.items.reduce((a, i) => a + i.price, 0)
+      const discPctS = discountMode === 'section' ? (sectionDiscounts[s.sectKey] || 0) : 0
+      const discAmtS = Math.round(sub * discPctS / 100)
+      if (sections.length > 1) msg += `\n*${s.title.toUpperCase()}*${discPctS > 0 ? ` (-${discPctS}%)` : ''}\n`
+      s.items.forEach(r => {
+        msg += `*${idx++}.* ${r.label}\n`
+        msg += `   💰 ${formatMoney(r.price)}\n`
+      })
+      if (discPctS > 0) msg += `   🎁 Dto. ${s.title}: -${formatMoney(discAmtS)}\n`
     })
     msg += `${SEP}\n`
-    if (planchadoRows.length > 0 && discountPct > 0) {
-      msg += `Subtotal: ${formatMoney(total)}\n`
-      msg += `🎁 Descuento (${discountPct}%): -${formatMoney(discountAmt)}\n`
+    if (discountMode === 'global') {
+      const activePct = manualDiscountPct != null ? manualDiscountPct : catDiscountPct
+      if (activePct > 0) {
+        msg += `Subtotal: ${formatMoney(subtotalBruto)}\n`
+        msg += `🎁 Descuento (${activePct}%): -${formatMoney(Math.round(subtotalBruto * activePct / 100))}\n`
+      }
     }
-    if (catTotalFinal < catTotal) {
-      msg += `Subtotal servicios: ${formatMoney(catTotal)}\n`
-      msg += `🎁 Descuento (${catDiscountPct}%): -${formatMoney(catDiscountAmt)}\n`
-    }
-    msg += `💵 *TOTAL: ${formatMoney(activeTotal)}*\n`
+    msg += `💵 *TOTAL: ${formatMoney(grandTotalExport)}*\n`
     msg += `${SEP}\n\n`
     if (observaciones) msg += `📝 *Nota:* ${observaciones}\n\n`
     if (condiciones) msg += `${condiciones}\n\n`
@@ -893,62 +923,54 @@ export default function Presupuesto() {
     doc.text('TOTAL', W - mR - 2, y + 4.2, { align: 'right' })
     y += 6
 
-    const planchadoRowsPDF = rows.filter(r => selected[r.id])
-    const pdfRows = [
-      ...planchadoRowsPDF.map(r => ({
-        ...r,
-        label: r.damageId !== 'none'
-          ? `${r.label} + Planchado (${DAMAGE_LEVELS.find(d => d.id === r.damageId)?.label})`
-          : `Pintado de ${r.label}`,
-        _isPlanchado: true,
-      })),
-      ...catRows,
-      ...lavItems.map(r => ({ id: r.id, label: r.label, price: r.price })),
-      ...manualItems.map(r => ({ id: r.id, label: r.titulo + (r.descripcion ? ` — ${r.descripcion}` : ''), price: r.monto })),
-    ]
-    const lavTotalPDF = lavItems.reduce((s, i) => s + i.price, 0)
-    const pdfTotal = totalFinal + catTotalFinal + serviciosTotal + manualTotal + lavTotalPDF
-    const isPlanchado = false // rows already labeled above
+    const { sections: pdfSections, subtotalBruto: pdfBruto, grandTotalExport: pdfTotal } = buildExportSections()
+    const allPdfItems = pdfSections.flatMap(s => s.items)
 
-    pdfRows.forEach((r, i) => {
-      const hasDmg = isPlanchado && r.damageId !== 'none'
-      const dmg = hasDmg ? DAMAGE_LEVELS.find(d => d.id === r.damageId) : null
-      const rowH = hasDmg ? 11 : 7.5
-      if (i % 2 === 0) { doc.setFillColor(250, 250, 250); doc.rect(mL, y, cW, rowH, 'F') }
-      doc.setDrawColor(235, 235, 235)
-      doc.setLineWidth(0.2)
-      doc.line(mL, y + rowH, mL + cW, y + rowH)
-      doc.setTextColor(100, 100, 100)
-      doc.setFontSize(7.5)
-      doc.setFont('helvetica', 'normal')
-      doc.text(`${i + 1}`, mL + 3, y + 5, { align: 'center' })
-      const label = isPlanchado ? (hasDmg ? `${r.label} + Planchado` : `Pintado de ${r.label}`) : r.label
-      doc.setTextColor(20, 20, 20)
-      doc.setFontSize(8.5)
-      const labelLines = doc.splitTextToSize(label, cW - 30)
-      doc.text(labelLines, mL + 12, y + 5)
-      if (hasDmg) {
-        doc.setFontSize(7)
-        doc.setTextColor(160, 80, 0)
-        doc.text(`Daño ${dmg?.label} — planchado: ${formatMoney(r.planchadoPrice)} / pintura: ${formatMoney(r.paintPrice)}`, mL + 12, y + 9)
+    // Render items grouped by section
+    let rowIdx = 0
+    pdfSections.forEach(s => {
+      const secHasDiscount = discountMode === 'section' && (sectionDiscounts[s.sectKey] || 0) > 0
+      // Section header row (only when multiple sections)
+      if (pdfSections.length > 1) {
+        const secSub = s.items.reduce((a, i) => a + i.price, 0)
+        const secDisc = secHasDiscount ? Math.round(secSub * sectionDiscounts[s.sectKey] / 100) : 0
+        doc.setFillColor(230, 230, 240)
+        doc.rect(mL, y, cW, 6, 'F')
+        doc.setTextColor(60, 60, 120)
+        doc.setFontSize(7.5)
+        doc.setFont('helvetica', 'bold')
+        doc.text(s.title.toUpperCase(), mL + 3, y + 4.2)
+        if (secHasDiscount) {
+          doc.setTextColor(185, 28, 28)
+          doc.text(`-${sectionDiscounts[s.sectKey]}%  ${formatMoney(secSub - secDisc)}`, W - mR - 2, y + 4.2, { align: 'right' })
+        }
+        y += 6
       }
-      doc.setTextColor(20, 20, 20)
-      doc.setFont('helvetica', 'bold')
-      doc.setFontSize(8.5)
-      doc.text(formatMoney(r.price), W - mR - 2, y + 5, { align: 'right' })
-      y += rowH
+      s.items.forEach(r => {
+        const rowH = 7.5
+        if (rowIdx % 2 === 0) { doc.setFillColor(250, 250, 250); doc.rect(mL, y, cW, rowH, 'F') }
+        doc.setDrawColor(235, 235, 235); doc.setLineWidth(0.2)
+        doc.line(mL, y + rowH, mL + cW, y + rowH)
+        doc.setTextColor(100, 100, 100); doc.setFontSize(7.5); doc.setFont('helvetica', 'normal')
+        doc.text(`${rowIdx + 1}`, mL + 3, y + 5, { align: 'center' })
+        doc.setTextColor(20, 20, 20); doc.setFontSize(8.5)
+        const labelLines = doc.splitTextToSize(r.label, cW - 30)
+        doc.text(labelLines, mL + 12, y + 5)
+        doc.setFont('helvetica', 'bold')
+        doc.text(formatMoney(r.price), W - mR - 2, y + 5, { align: 'right' })
+        y += rowH
+        rowIdx++
+      })
     })
 
     // Filas vacías hasta completar al menos 10 ítems
-    const emptyRows = Math.max(0, 10 - pdfRows.length)
+    const emptyRows = Math.max(0, 10 - allPdfItems.length)
     for (let i = 0; i < emptyRows; i++) {
-      const ii = pdfRows.length + i
+      const ii = allPdfItems.length + i
       if (ii % 2 === 0) { doc.setFillColor(250, 250, 250); doc.rect(mL, y, cW, 7.5, 'F') }
       doc.setDrawColor(235, 235, 235)
       doc.line(mL, y + 7.5, mL + cW, y + 7.5)
-      doc.setTextColor(180, 180, 180)
-      doc.setFontSize(7.5)
-      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(180, 180, 180); doc.setFontSize(7.5); doc.setFont('helvetica', 'normal')
       doc.text(`${ii + 1}`, mL + 3, y + 5, { align: 'center' })
       y += 7.5
     }
@@ -956,56 +978,37 @@ export default function Presupuesto() {
 
     // Subtotal / descuento / total
     const numCol = W - mR - 35
-    if (planchadoRowsPDF.length > 0 && discountPct > 0) {
-      doc.setFontSize(8)
-      doc.setFont('helvetica', 'normal')
-      doc.setTextColor(100, 100, 100)
-      doc.text('Subtotal Planchado & Pintura:', numCol, y + 5, { align: 'right' })
-      doc.text(formatMoney(total), W - mR - 2, y + 5, { align: 'right' })
-      y += 7
-      doc.setFillColor(255, 240, 240)
-      doc.rect(mL, y, cW, 7, 'F')
-      doc.setTextColor(185, 28, 28)
-      doc.setFont('helvetica', 'bold')
-      doc.text(`Descuento Planchado & Pintura (${discountPct}%):`, numCol, y + 5, { align: 'right' })
-      doc.text(`-${formatMoney(discountAmt)}`, W - mR - 2, y + 5, { align: 'right' })
-      y += 9
+    if (discountMode === 'global') {
+      const activePct = manualDiscountPct != null ? manualDiscountPct : catDiscountPct
+      if (activePct > 0) {
+        doc.setFontSize(8); doc.setFont('helvetica', 'normal'); doc.setTextColor(100, 100, 100)
+        doc.text('Subtotal:', numCol, y + 5, { align: 'right' })
+        doc.text(formatMoney(pdfBruto), W - mR - 2, y + 5, { align: 'right' })
+        y += 7
+        doc.setFillColor(255, 240, 240); doc.rect(mL, y, cW, 7, 'F')
+        doc.setTextColor(185, 28, 28); doc.setFont('helvetica', 'bold')
+        doc.text(`Descuento (${activePct}%):`, numCol, y + 5, { align: 'right' })
+        doc.text(`-${formatMoney(Math.round(pdfBruto * activePct / 100))}`, W - mR - 2, y + 5, { align: 'right' })
+        y += 9
+      }
+    } else {
+      // Por sección: mostrar subtotal bruto y descuento total
+      const totalDiscAmt = pdfBruto - pdfTotal
+      if (totalDiscAmt > 0) {
+        doc.setFontSize(8); doc.setFont('helvetica', 'normal'); doc.setTextColor(100, 100, 100)
+        doc.text('Subtotal:', numCol, y + 5, { align: 'right' })
+        doc.text(formatMoney(pdfBruto), W - mR - 2, y + 5, { align: 'right' })
+        y += 7
+        doc.setFillColor(255, 240, 240); doc.rect(mL, y, cW, 7, 'F')
+        doc.setTextColor(185, 28, 28); doc.setFont('helvetica', 'bold')
+        doc.text('Descuento por sección:', numCol, y + 5, { align: 'right' })
+        doc.text(`-${formatMoney(totalDiscAmt)}`, W - mR - 2, y + 5, { align: 'right' })
+        y += 9
+      }
     }
-    // Descuento de servicios adicionales (no planchado)
-    if (catRows.length > 0 && catDiscountPct > 0) {
-      // Detectar qué categorías hay en catRows
-      const ceramicoIds = new Set(CERAMICO_DATA.map(x => x.id))
-      const ppfIds = new Set(PPF_DATA.map(x => x.id))
-      const polIds = new Set(POLARIZADOS_DATA.map(x => x.id))
-      const lavIds = new Set(LAVADOS_DATA.map(x => x.id))
-      const catNames = []
-      if (catRows.some(r => ceramicoIds.has(r.id))) catNames.push('Ceramico')
-      if (catRows.some(r => ppfIds.has(r.id))) catNames.push('PPF')
-      if (catRows.some(r => polIds.has(r.id))) catNames.push('Polarizados')
-      if (catRows.some(r => lavIds.has(r.id))) catNames.push('Lavados')
-      const catLabel = catNames.join(' / ')
-      doc.setFontSize(8)
-      doc.setFont('helvetica', 'normal')
-      doc.setTextColor(100, 100, 100)
-      doc.text(`Subtotal ${catLabel}:`, numCol, y + 5, { align: 'right' })
-      doc.text(formatMoney(catTotal), W - mR - 2, y + 5, { align: 'right' })
-      y += 7
-      doc.setFillColor(255, 240, 240)
-      doc.rect(mL, y, cW, 7, 'F')
-      doc.setTextColor(185, 28, 28)
-      doc.setFont('helvetica', 'bold')
-      doc.text(`Descuento ${catLabel} (${catDiscountPct}%):`, numCol, y + 5, { align: 'right' })
-      doc.text(`-${formatMoney(catDiscountAmt)}`, W - mR - 2, y + 5, { align: 'right' })
-      y += 9
-    }
-    doc.setFillColor(189, 189, 189)
-    doc.rect(mL, y, cW, 9, 'F')
-    doc.setDrawColor(150, 150, 150)
-    doc.setLineWidth(0.3)
-    doc.rect(mL, y, cW, 9, 'S')
-    doc.setTextColor(20, 20, 20)
-    doc.setFontSize(10)
-    doc.setFont('helvetica', 'bold')
+    doc.setFillColor(189, 189, 189); doc.rect(mL, y, cW, 9, 'F')
+    doc.setDrawColor(150, 150, 150); doc.setLineWidth(0.3); doc.rect(mL, y, cW, 9, 'S')
+    doc.setTextColor(20, 20, 20); doc.setFontSize(10); doc.setFont('helvetica', 'bold')
     doc.text('TOTAL:', numCol, y + 6.3, { align: 'right' })
     doc.text(formatMoney(pdfTotal), W - mR - 2, y + 6.3, { align: 'right' })
     y += 13

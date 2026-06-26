@@ -2318,8 +2318,17 @@ export default function Presupuesto() {
             workers={workers}
             vehicleTypes={vehicleTypes}
             canAdmin={canAdmin}
-            defaultExtras={ticketModal.allSelected?.map(i => ({ name: i.label, price: i.price }))}
-            defaultDiscountPct={ticketModal.discountPct || 0}
+            defaultExtras={
+              ticketModal.ticketSections
+                ? ticketModal.ticketSections.flatMap(s =>
+                    s.items.map(i => ({
+                      name: i.name,
+                      price: i.price - Math.round(i.price * (s.discountPct || 0) / 100),
+                    }))
+                  )
+                : ticketModal.allSelected?.map(i => ({ name: i.label, price: i.price }))
+            }
+            defaultDiscountPct={ticketModal.ticketSections ? 0 : (ticketModal.discountPct || 0)}
             defaultVehicleType={ticketModal.vehicle_type}
             defaultVehicleSubtype={ticketModal.vehicle_subtype}
             defaultPriceCharged={ticketModal.price_charged}

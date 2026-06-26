@@ -667,7 +667,7 @@ export default function Presupuesto() {
   const [savedQuotes, setSavedQuotes] = useState([])
   const [saveQuoteModal, setSaveQuoteModal] = useState(false)
   const [saveQuoteForm, setSaveQuoteForm] = useState({ nombre: '', placa: '', worker_id: '' })
-  const [exportForm, setExportForm] = useState({ nombre: '', celular: '', ruc: '', marca: '', modelo: '', placa: '', anio: '', color: '', observaciones: '', vigencia: '15 dias calendario', tiempoEntrega: 'maximo 3 dias habiles tras recibir el vehiculo' })
+  const [exportForm, setExportForm] = useState({ nombre: '', celular: '', ruc: '', marca: '', modelo: '', placa: '', anio: '', color: '', observaciones: '', vigenciaDias: '15', tiempoEntregaDias: '3' })
   const [cotizacionNum, setCotizacionNum] = useState(150)
 
   useEffect(() => {
@@ -744,7 +744,7 @@ export default function Presupuesto() {
   }
 
   function buildWhatsApp() {
-    const { nombre, celular, marca, modelo, placa, anio, color, observaciones, vigencia, tiempoEntrega } = exportForm
+    const { nombre, celular, marca, modelo, placa, anio, color, observaciones, vigenciaDias, tiempoEntregaDias } = exportForm
     const today = new Date().toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric' })
     const catVehicleLabel = CAT_VEHICLES[category]?.find(v => v.id === catVehicle)?.label || ''
     const { sections, subtotalBruto, grandTotalExport } = buildExportSections()
@@ -789,8 +789,8 @@ export default function Presupuesto() {
     msg += `${SEP}\n\n`
     if (observaciones) msg += `📝 *Nota:* ${observaciones}\n\n`
     msg += `Forma de pago: 50% de adelanto y 50% contra entrega.\n`
-    if (vigencia) msg += `Vigencia: ${vigencia}.\n`
-    if (tiempoEntrega) msg += `Tiempo de entrega: ${tiempoEntrega}.\n`
+    if (vigenciaDias) msg += `Vigencia: ${vigenciaDias} dias calendario.\n`
+    if (tiempoEntregaDias) msg += `Tiempo de entrega: maximo ${tiempoEntregaDias} dias habiles tras recibir el vehiculo.\n`
     msg += `Precios incluyen IGV.\n\n`
     msg += `📍 Calle Idelfonzo Lopez N 700 Zamacola, Arequipa\n`
     msg += `📞 959240309`
@@ -799,7 +799,7 @@ export default function Presupuesto() {
   }
 
   function buildPDF(numCotizacion) {
-    const { nombre, celular, ruc, marca, modelo, placa, anio, color, observaciones, vigencia, tiempoEntrega } = exportForm
+    const { nombre, celular, ruc, marca, modelo, placa, anio, color, observaciones, vigenciaDias, tiempoEntregaDias } = exportForm
     const doc = new jsPDF({ unit: 'mm', format: 'a4' })
     const W = 210
     const mL = 14, mR = 14
@@ -1027,8 +1027,8 @@ export default function Presupuesto() {
     {
       const condText = [
         'Forma de pago: 50% de adelanto y 50% contra entrega.',
-        vigencia ? `Vigencia: ${vigencia}.` : '',
-        tiempoEntrega ? `Tiempo de entrega: ${tiempoEntrega}.` : '',
+        vigenciaDias ? `Vigencia: ${vigenciaDias} dias calendario.` : '',
+        tiempoEntregaDias ? `Tiempo de entrega: maximo ${tiempoEntregaDias} dias habiles tras recibir el vehiculo.` : '',
         'Precios incluyen IGV.',
       ].filter(Boolean).join(' ')
       const condLines = doc.splitTextToSize(condText, cW - 4)
@@ -2296,14 +2296,20 @@ export default function Presupuesto() {
               {/* Condiciones */}
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="text-xs text-gray-500 mb-0.5 block">Vigencia de propuesta</label>
-                  <input className="input w-full text-sm" placeholder="15 dias calendario"
-                    value={exportForm.vigencia} onChange={e => setExportForm(f => ({ ...f, vigencia: e.target.value }))} />
+                  <label className="text-xs text-gray-500 mb-0.5 block">Vigencia</label>
+                  <div className="flex items-center gap-1.5">
+                    <input type="number" min="1" className="input w-16 text-sm text-center" placeholder="15"
+                      value={exportForm.vigenciaDias} onChange={e => setExportForm(f => ({ ...f, vigenciaDias: e.target.value }))} />
+                    <span className="text-xs text-gray-400">días calendario</span>
+                  </div>
                 </div>
                 <div>
                   <label className="text-xs text-gray-500 mb-0.5 block">Tiempo de entrega</label>
-                  <input className="input w-full text-sm" placeholder="maximo 3 dias habiles"
-                    value={exportForm.tiempoEntrega} onChange={e => setExportForm(f => ({ ...f, tiempoEntrega: e.target.value }))} />
+                  <div className="flex items-center gap-1.5">
+                    <input type="number" min="1" className="input w-16 text-sm text-center" placeholder="3"
+                      value={exportForm.tiempoEntregaDias} onChange={e => setExportForm(f => ({ ...f, tiempoEntregaDias: e.target.value }))} />
+                    <span className="text-xs text-gray-400">días hábiles</span>
+                  </div>
                 </div>
               </div>
             </div>

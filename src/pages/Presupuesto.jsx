@@ -1465,7 +1465,7 @@ export default function Presupuesto() {
                   ))}
                 </div>
                 {catDiscountPct > 0 && (() => {
-                  const bruto = catTotal + serviciosTotal + manualTotal
+                  const bruto = catTotal + serviciosTotal + manualTotal + lavItems.reduce((s, i) => s + i.price, 0)
                   const disc = Math.round(bruto * catDiscountPct / 100)
                   return (
                     <>

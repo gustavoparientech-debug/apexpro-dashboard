@@ -80,6 +80,18 @@ const VT_TO_LAVADOS_KEY = {
   otro:             'pickup_xl',
 }
 
+// Qué servicios de lavado se muestran según el tipo de vehículo del ticket
+// null = mostrar todos
+const VT_LAVADOS_FILTER = {
+  moto:            ['estandar'],
+  auto_exterior:   ['estandar'],
+  auto:            ['estandar', 'offroad', 'offroad_full', 'detailing', 'pro_detallado'],
+  camioneta_small: ['estandar', 'offroad', 'offroad_full', 'detailing', 'pro_detallado'],
+  camioneta_large: ['estandar', 'offroad', 'offroad_full', 'detailing', 'pro_detallado'],
+  offroad:         ['offroad', 'offroad_full', 'detailing', 'pro_detallado'],
+  otro:            null,
+}
+
 const SERVICIOS_DATA = [
   // ── Precio fijo (no varía por vehículo) ──────────────────────────────────
   { id: 'sv_techo_g1',     name: 'Lavado de Techo G1',              price: 80  },
@@ -1098,11 +1110,12 @@ export default function Presupuesto() {
         const vehicles = isLav
           ? vehicleTypes.filter(v => v.active !== false).map(v => ({ id: v.value, label: `${v.emoji || ''} ${v.label}`.trim() }))
           : (CAT_VEHICLES[category] || [])
-        const data = catData
         const isPol = category === 'polarizados'
         const isSv = category === 'servicios'
         const activeVehicle = isSv ? serviciosVehicle : catVehicle
         const setActiveVehicle = isSv ? setServiciosVehicle : setCatVehicle
+        const allowedIds = isLav ? VT_LAVADOS_FILTER[activeVehicle] : null
+        const data = (isLav && allowedIds) ? catData.filter(s => !s._divider && allowedIds.includes(s.id)) : catData
 
         return (
           <div className="space-y-3">

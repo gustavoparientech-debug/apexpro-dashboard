@@ -1892,7 +1892,7 @@ export default function Presupuesto() {
                     <p className="text-lg font-black text-red-600 dark:text-red-400">{formatMoney(grandTotal)}</p>
                   </div>
                   <button
-                    onClick={() => { setSelected({}); setCatSelected({}); setServiciosSelected({}); setManualItems([]) }}
+                    onClick={() => { setSelected({}); setCatSelected({}); setServiciosSelected({}); setManualItems([]); setLavItems([]) }}
                     className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-400 hover:text-red-500 hover:border-red-300 text-xs transition-all">
                     <X className="w-3 h-3" />Limpiar
                   </button>

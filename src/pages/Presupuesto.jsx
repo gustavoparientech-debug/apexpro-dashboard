@@ -380,7 +380,17 @@ export default function Presupuesto() {
   async function deleteQuote(id) {
     const next = savedQuotes.filter(q => q.id !== id)
     await persistSavedQuotes(next)
+    if (loadedQuoteId === id) setLoadedQuoteId(null)
     toast.success('Cotización eliminada')
+  }
+
+  async function updateQuote(id, allSel, grandTot, discPct) {
+    const quote = buildCurrentSnapshot(allSel, grandTot, discPct)
+    quote.id = id
+    const next = savedQuotes.map(q => q.id === id ? { ...q, ...quote } : q)
+    await persistSavedQuotes(next)
+    setSaveQuoteModal(false)
+    toast.success('Cotización actualizada ✓')
   }
 
   function loadQuote(q) {
@@ -392,6 +402,8 @@ export default function Presupuesto() {
     setManualItems(q.manualItems || [])
     setLavItems(q.lavItems || [])
     setCatDiscountPct(q.catDiscountPct || 0)
+    setLoadedQuoteId(q.id)
+    setSaveQuoteForm({ nombre: q.nombre || '', placa: q.placa || '', worker_id: q.worker_id || '' })
     toast.success(`Cotización "${q.nombre || q.placa}" cargada ✓`)
   }
 
@@ -666,6 +678,7 @@ export default function Presupuesto() {
   const [ticketModal, setTicketModal] = useState(false)
   const [savedQuotes, setSavedQuotes] = useState([])
   const [saveQuoteModal, setSaveQuoteModal] = useState(false)
+  const [loadedQuoteId, setLoadedQuoteId] = useState(null)
   const [saveQuoteForm, setSaveQuoteForm] = useState({ nombre: '', placa: '', worker_id: '' })
   const [exportForm, setExportForm] = useState({ nombre: '', celular: '', ruc: '', marca: '', modelo: '', placa: '', anio: '', color: '', observaciones: '', vigenciaDias: '15', tiempoEntregaDias: '3' })
   const [cotizacionNum, setCotizacionNum] = useState(150)
@@ -2054,10 +2067,12 @@ export default function Presupuesto() {
                   </div>
                   <div className="flex items-center gap-1">
                     <p className="text-sm font-black text-red-600">{formatMoney(q.grand_total)}</p>
-                    <button onClick={() => deleteQuote(q.id)}
-                      className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all">
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                    {canAdmin && (
+                      <button onClick={() => deleteQuote(q.id)}
+                        className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all">
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                   </div>
                 </div>
                 <div className="text-xs text-gray-500 dark:text-gray-400 mb-2 space-y-0.5">
@@ -2067,10 +2082,17 @@ export default function Presupuesto() {
                   {q.items.length > 3 && <p className="text-gray-400">+ {q.items.length - 3} más</p>}
                 </div>
                 <div className="grid grid-cols-4 gap-1.5">
-                  <button onClick={() => loadQuote(q)}
-                    className="flex items-center justify-center gap-1 py-2 rounded-xl bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 font-bold text-xs transition-all hover:bg-gray-200 active:scale-95">
-                    Cargar
-                  </button>
+                  {loadedQuoteId === q.id ? (
+                    <button onClick={() => setSaveQuoteModal({ allSelected, grandTotal, discountPct: catDiscountPct || discountPct || 0, updateId: q.id })}
+                      className="flex items-center justify-center gap-1 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 active:scale-95 text-white font-bold text-xs transition-all">
+                      Actualizar
+                    </button>
+                  ) : (
+                    <button onClick={() => loadQuote(q)}
+                      className="flex items-center justify-center gap-1 py-2 rounded-xl bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 font-bold text-xs transition-all hover:bg-gray-200 active:scale-95">
+                      Cargar
+                    </button>
+                  )}
                   <button onClick={() => { loadQuote(q); setTimeout(() => openExportModal('whatsapp'), 100) }}
                     className="flex items-center justify-center gap-1 py-2 rounded-xl bg-green-500 hover:bg-green-600 active:scale-95 text-white font-bold text-xs transition-all">
                     <MessageCircle className="w-3.5 h-3.5" />WA
@@ -2210,9 +2232,12 @@ export default function Presupuesto() {
               )
             })()}
             <button
-              onClick={() => saveQuote(saveQuoteModal.allSelected, saveQuoteModal.grandTotal, saveQuoteModal.discountPct)}
+              onClick={() => saveQuoteModal.updateId
+                ? updateQuote(saveQuoteModal.updateId, saveQuoteModal.allSelected, saveQuoteModal.grandTotal, saveQuoteModal.discountPct)
+                : saveQuote(saveQuoteModal.allSelected, saveQuoteModal.grandTotal, saveQuoteModal.discountPct)
+              }
               className="w-full py-3 rounded-2xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-sm transition-all active:scale-95">
-              <Save className="w-4 h-4 inline mr-1.5" />Guardar cotización
+              <Save className="w-4 h-4 inline mr-1.5" />{saveQuoteModal.updateId ? 'Actualizar cotización' : 'Guardar cotización'}
             </button>
           </div>
         </div>

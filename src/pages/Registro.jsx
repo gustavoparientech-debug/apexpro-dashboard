@@ -132,6 +132,41 @@ function Modal({ open, onClose, title, children }) {
   )
 }
 
+function PresupuestoResumen({ defaultExtras, form, vehicleTypes }) {
+  const basePrice = parseFloat(form.price_charged) || 0
+  const baseVt = form.vehicle_type ? (vehicleTypes || []).find(v => v.value === form.vehicle_type) : null
+  const baseLabel = baseVt ? `${baseVt.label}${form.vehicle_subtype ? ' · ' + form.vehicle_subtype : ''}` : null
+  const extrasTotal = defaultExtras.reduce((s, e) => s + (e.price || 0), 0)
+  const total = basePrice + extrasTotal
+  const count = defaultExtras.length + (baseLabel ? 1 : 0)
+  return (
+    <div className="mx-4 mb-3 rounded-xl bg-gray-50 dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700 overflow-hidden">
+      <div className="px-3 py-2 flex items-center justify-between border-b border-gray-200 dark:border-gray-700">
+        <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Resumen</p>
+        <p className="text-xs font-bold text-red-600">{count} ítem{count !== 1 ? 's' : ''}</p>
+      </div>
+      <div className="divide-y divide-gray-100 dark:divide-gray-700/50">
+        {baseLabel && (
+          <div className="flex items-center justify-between px-3 py-1.5">
+            <p className="text-xs text-gray-600 dark:text-gray-300 truncate flex-1 mr-2">{baseLabel}</p>
+            <p className="text-xs font-semibold text-gray-800 dark:text-gray-200 shrink-0">S/ {basePrice.toFixed(2)}</p>
+          </div>
+        )}
+        {defaultExtras.map((e, i) => (
+          <div key={i} className="flex items-center justify-between px-3 py-1.5">
+            <p className="text-xs text-gray-600 dark:text-gray-300 truncate flex-1 mr-2">{e.name}</p>
+            <p className="text-xs font-semibold text-gray-800 dark:text-gray-200 shrink-0">S/ {(e.price || 0).toFixed(2)}</p>
+          </div>
+        ))}
+      </div>
+      <div className="flex items-center justify-between px-3 py-2 bg-gray-100 dark:bg-gray-700/50 border-t border-gray-200 dark:border-gray-700">
+        <p className="text-xs font-bold text-gray-700 dark:text-gray-200">Total</p>
+        <p className="text-sm font-black text-red-600">S/ {total.toFixed(2)}</p>
+      </div>
+    </div>
+  )
+}
+
 // ─── Formulario nuevo ticket (simplificado) ───────────────────────────────────
 export function NewTicketForm({ onSave, onClose, workers, vehicleTypes, lockedWorkerId, canAdmin, defaultDate, allTickets, defaultExtras, defaultStatus, defaultPriceCharged }) {
   const [form, setForm] = useState({
@@ -393,39 +428,7 @@ export function NewTicketForm({ onSave, onClose, workers, vehicleTypes, lockedWo
       </div>
 
       {/* Resumen de servicios — solo cuando viene desde presupuesto */}
-      {defaultExtras?.length > 0 && (() => {
-        const basePrice = parseFloat(form.price_charged) || 0
-        const baseVt = form.vehicle_type ? (vehicleTypes || []).find(v => v.value === form.vehicle_type) : null
-        const baseLabel = baseVt ? `${baseVt.label}${form.vehicle_subtype ? ' · ' + form.vehicle_subtype : ''}` : null
-        const extrasTotal = defaultExtras.reduce((s, e) => s + (e.price || 0), 0)
-        const grandTotal = basePrice + extrasTotal
-        return (
-          <div className="mx-4 mb-3 rounded-xl bg-gray-50 dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700 overflow-hidden">
-            <div className="px-3 py-2 flex items-center justify-between border-b border-gray-200 dark:border-gray-700">
-              <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Resumen</p>
-              <p className="text-xs font-bold text-red-600">{defaultExtras.length + (baseLabel ? 1 : 0)} ítem{(defaultExtras.length + (baseLabel ? 1 : 0)) !== 1 ? 's' : ''}</p>
-            </div>
-            <div className="divide-y divide-gray-100 dark:divide-gray-700/50">
-              {baseLabel && (
-                <div className="flex items-center justify-between px-3 py-1.5">
-                  <p className="text-xs text-gray-600 dark:text-gray-300 truncate flex-1 mr-2">{baseLabel}</p>
-                  <p className="text-xs font-semibold text-gray-800 dark:text-gray-200 shrink-0">S/ {basePrice.toFixed(2)}</p>
-                </div>
-              )}
-              {defaultExtras.map((e, i) => (
-                <div key={i} className="flex items-center justify-between px-3 py-1.5">
-                  <p className="text-xs text-gray-600 dark:text-gray-300 truncate flex-1 mr-2">{e.name}</p>
-                  <p className="text-xs font-semibold text-gray-800 dark:text-gray-200 shrink-0">S/ {(e.price || 0).toFixed(2)}</p>
-                </div>
-              ))}
-            </div>
-            <div className="flex items-center justify-between px-3 py-2 bg-gray-100 dark:bg-gray-700/50 border-t border-gray-200 dark:border-gray-700">
-              <p className="text-xs font-bold text-gray-700 dark:text-gray-200">Total</p>
-              <p className="text-sm font-black text-red-600">S/ {grandTotal.toFixed(2)}</p>
-            </div>
-          </div>
-        )
-      })()}
+      {defaultExtras?.length > 0 && <PresupuestoResumen defaultExtras={defaultExtras} form={form} vehicleTypes={vehicleTypes} />}
       )}
 
       {/* Footer */}

@@ -1974,20 +1974,33 @@ export default function Presupuesto() {
                     const lavSubLabel = firstLav?.label?.includes(' — ') ? firstLav.label.split(' — ').slice(1).join(' — ') : undefined
                     const effDisc = discountMode === 'global' ? (catDiscountPct || discountPct || 0) : 0
                     // Secciones con descuento para mostrar en el ticket
+                    // Si hay lavado, el primer item es el vehículo → excluirlo de la sección Lavados
+                    // y pasar su precio ya descontado como price_charged
+                    const lavDiscPct = sectionDiscounts.lavados || 0
+                    const lavPriceDiscounted = hasLavado && firstLav
+                      ? firstLav.price - Math.round(firstLav.price * lavDiscPct / 100)
+                      : undefined
+                    const lavSectItems = hasLavado
+                      ? lavSel.slice(1).map(i => ({ name: i.label, price: i.price }))
+                      : lavSel.map(i => ({ name: i.label, price: i.price }))
                     const ticketSections = discountMode === 'section' ? [
                       { title: 'Planchado', items: planchadoSel.map(i => ({ name: i.label, price: i.price })), discountPct: sectionDiscounts.planchado },
                       { title: 'Cerám/PPF', items: ceramicoSel.map(i => ({ name: i.label, price: i.price })), discountPct: sectionDiscounts.ceramico },
                       { title: 'Polarizados', items: polSel.map(i => ({ name: i.label, price: i.price })), discountPct: sectionDiscounts.polarizados },
-                      { title: 'Lavados', items: lavSel.map(i => ({ name: i.label, price: i.price })), discountPct: sectionDiscounts.lavados },
+                      { title: 'Lavados', items: lavSectItems, discountPct: lavDiscPct },
                       { title: 'Servicios', items: serviciosSel.map(i => ({ name: i.label, price: i.price })), discountPct: sectionDiscounts.servicios },
                       { title: 'Personalizados', items: manualSel.map(i => ({ name: i.label, price: i.price })), discountPct: sectionDiscounts.manual },
                     ].filter(s => s.items.length > 0) : null
+                    // Excluir firstLav de allSelected para que no aparezca en extras del ticket
+                    const allSelectedForTicket = hasLavado && firstLav
+                      ? allSelected.filter(i => i !== firstLav)
+                      : allSelected
                     setTicketModal({
-                      allSelected, grandTotal,
+                      allSelected: allSelectedForTicket, grandTotal,
                       discountPct: effDisc,
                       vehicle_type: hasLavado ? (firstLav?.vtValue || catVehicle) : undefined,
                       vehicle_subtype: lavSubLabel,
-                      price_charged: hasLavado && firstLav ? firstLav.price : undefined,
+                      price_charged: lavPriceDiscounted,
                       ticketSections,
                     })
                   }}

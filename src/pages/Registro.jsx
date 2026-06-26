@@ -176,13 +176,13 @@ function PresupuestoResumen({ defaultExtras, form, vehicleTypes, discountPct }) 
 }
 
 // ─── Formulario nuevo ticket (simplificado) ───────────────────────────────────
-export function NewTicketForm({ onSave, onClose, workers, vehicleTypes, lockedWorkerId, canAdmin, defaultDate, allTickets, defaultExtras, defaultStatus, defaultPriceCharged, defaultDiscountPct, defaultVehicleType }) {
+export function NewTicketForm({ onSave, onClose, workers, vehicleTypes, lockedWorkerId, canAdmin, defaultDate, allTickets, defaultExtras, defaultStatus, defaultPriceCharged, defaultDiscountPct, defaultVehicleType, defaultVehicleSubtype }) {
   const [form, setForm] = useState({
     date:           defaultDate || todayISO(),
     worker_id:      lockedWorkerId || '',
-    price_charged:  '',
+    price_charged:  defaultVehicleSubtype && defaultPriceCharged ? String(defaultPriceCharged) : '',
     vehicle_type:   defaultVehicleType || '',
-    vehicle_subtype: '',
+    vehicle_subtype: defaultVehicleSubtype || '',
     notes:          '',
     plate:          '',
     photo_url:      '',
@@ -443,14 +443,20 @@ export function NewTicketForm({ onSave, onClose, workers, vehicleTypes, lockedWo
           <PresupuestoResumen defaultExtras={defaultExtras} form={form} vehicleTypes={vehicleTypes} discountPct={formDiscountPct} />
           <div className="px-3 pb-3 pt-1 border-t border-indigo-100 dark:border-indigo-900/60">
             <p className="text-xs font-semibold text-indigo-400 uppercase tracking-wide mb-2">Descuento</p>
-            <div className="flex flex-wrap gap-1.5">
-              {[0, 5, 10, 15, 20, 25, 30].map(p => (
-                <button key={p} type="button" onClick={() => setFormDiscountPct(p)}
-                  className={`px-3 py-1 rounded-lg text-xs font-bold border-2 transition-all ${formDiscountPct === p ? 'border-red-500 bg-red-500 text-white' : 'border-indigo-200 dark:border-indigo-800 text-indigo-500 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/40'}`}>
-                  {p === 0 ? 'Sin desc.' : `${p}%`}
-                </button>
-              ))}
-            </div>
+            {defaultDiscountPct > 0 ? (
+              <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
+                <span className="text-xs font-bold text-green-600 dark:text-green-400">✓ {formDiscountPct}% aplicado desde presupuesto</span>
+              </div>
+            ) : (
+              <div className="flex flex-wrap gap-1.5">
+                {[0, 5, 10, 15, 20, 25, 30].map(p => (
+                  <button key={p} type="button" onClick={() => setFormDiscountPct(p)}
+                    className={`px-3 py-1 rounded-lg text-xs font-bold border-2 transition-all ${formDiscountPct === p ? 'border-red-500 bg-red-500 text-white' : 'border-indigo-200 dark:border-indigo-800 text-indigo-500 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/40'}`}>
+                    {p === 0 ? 'Sin desc.' : `${p}%`}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}

@@ -1639,7 +1639,11 @@ export default function Presupuesto() {
             onRemove: () => setManualItems(items => items.filter(i => i.id !== r.id)),
           })),
         ]
-        const grandTotal = totalFinal + catTotalFinal + serviciosTotal + manualTotal
+        const subtotalBruto = total + catTotal + serviciosTotal + manualTotal
+        const manualDisc = manualDiscountPct != null ? Math.round(subtotalBruto * manualDiscountPct / 100) : 0
+        const grandTotal = manualDisc > 0
+          ? subtotalBruto - manualDisc
+          : totalFinal + catTotalFinal + serviciosTotal + manualTotal
         return (
           <div className="sticky bottom-4 z-20">
             <div className="card shadow-xl border border-red-100 dark:border-red-900/30 overflow-hidden">

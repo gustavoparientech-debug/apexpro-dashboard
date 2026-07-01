@@ -292,14 +292,26 @@ export default function Trabajadores() {
     if (isCurrentMonth) { setPastMonthData(null); return }
     const prefix = `${selYear}-${String(selMonth).padStart(2, '0')}`
     const start = `${prefix}-01`
-    const end   = `${prefix}-31`
+    const end   = `${prefix}-30` // máx 30/31 — postgres acepta hasta el último día real
     Promise.all([
-      supabase.from('tickets').select('id,date,worker_id,price_charged,vehicle_type').gte('date', start).lte('date', end),
-      supabase.from('attendance_incidents').select('*').gte('date', start).lte('date', end),
+      supabase.from('tickets').select('id,date,worker_id,price_charged,vehicle_type').gte('date', start).lte('date', `${prefix}-31`),
+      supabase.from('attendance_incidents').select('*').gte('date', start).lte('date', `${prefix}-31`),
     ]).then(([{ data: t }, { data: i }]) => {
-      setPastMonthData({ tickets: t || [], incidents: i || [] })
+      // Enriquecer incidencias con discount_amount calculado (igual que AppContext)
+      const enriched = (i || []).map(inc => {
+        const w = workers.find(x => x.id === inc.worker_id)
+        if (!inc.apply_discount || !w) return { ...inc, discount_amount: 0 }
+        let discount = 0
+        if (inc.type === 'falta')      discount = calcAbsenceDiscount(w.base_salary, w.weekly_hours)
+        else if (inc.type === 'tardanza' || inc.type === 'permiso_horas') discount = calcLatenessDiscount(w.base_salary, w.weekly_hours, inc.hours_late || 0)
+        else if (inc.type === 'hora_extra') discount = calcOvertimePay(w.base_salary, w.weekly_hours, inc.hours_late || 0)
+        else if (inc.type === 'multa' || inc.type === 'adelanto') discount = inc.multa_amount || inc.discount_amount || 0
+        else if (inc.type === 'no_marcacion') discount = 5 * (inc.no_marcacion_count || 1)
+        return { ...inc, discount_amount: discount }
+      })
+      setPastMonthData({ tickets: t || [], incidents: enriched })
     })
-  }, [selMonth, selYear, isCurrentMonth])
+  }, [selMonth, selYear, isCurrentMonth, workers])
 
   // Obtiene el salario efectivo de un trabajador para el mes seleccionado
   function getWorkerSalary(w) {

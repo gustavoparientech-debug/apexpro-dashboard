@@ -46,7 +46,7 @@ function VariantEditor({ extra, onSave }) {
 }
 import { useApp } from '../context/AppContext'
 import { supabase } from '../lib/supabase'
-import { formatMoney, calcRealSalary, currentMonthYear, getWorkingDaysInMonth } from '../lib/utils'
+import { formatMoney, calcRealSalary, currentMonthYear, getWorkingDaysInMonth, monthName } from '../lib/utils'
 import Modal from '../components/ui/Modal'
 import ConfirmDialog from '../components/ui/ConfirmDialog'
 import Badge from '../components/ui/Badge'

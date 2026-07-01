@@ -405,7 +405,7 @@ export default function Presupuesto() {
       selected, catSelected, serviciosSelected,
       catVehicle, serviciosVehicle,
       manualItems, lavItems,
-      catDiscountPct,
+      catDiscountPct, damage,
       created_at: Date.now(),
       expires_at: Date.now() + 7 * 24 * 60 * 60 * 1000,
     }
@@ -457,6 +457,7 @@ export default function Presupuesto() {
     setManualItems(q.manualItems || [])
     setLavItems(q.lavItems || [])
     setCatDiscountPct(q.catDiscountPct || 0)
+    setDamage(q.damage || {})
     setLoadedQuoteId(q.id)
     setSaveQuoteForm({ nombre: q.nombre || '', placa: q.placa || '', worker_id: q.worker_id || '' })
     toast.success(`Cotización "${q.nombre || q.placa}" cargada ✓`)

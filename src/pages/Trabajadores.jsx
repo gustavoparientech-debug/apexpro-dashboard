@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { useApp } from '../context/AppContext'
+import { supabase } from '../lib/supabase'
 import {
   formatMoney, formatDate, calcRealSalary, calcDailySalary, calcProratedSalary,
   calcAbsenceDiscount, calcLatenessDiscount, calcOvertimePay, getRatioColor, currentMonthYear, monthName, todayISO
@@ -281,15 +282,34 @@ export default function Trabajadores() {
   }
 
   const [workerMonthlyConfigs, setWorkerMonthlyConfigs] = useState([])
+  const [pastMonthData, setPastMonthData] = useState(null) // { tickets, incidents } para meses anteriores
+
   useEffect(() => {
     fetchWorkerMonthlyConfigs(selYear, selMonth).then(setWorkerMonthlyConfigs)
   }, [selMonth, selYear])
+
+  useEffect(() => {
+    if (isCurrentMonth) { setPastMonthData(null); return }
+    const prefix = `${selYear}-${String(selMonth).padStart(2, '0')}`
+    const start = `${prefix}-01`
+    const end   = `${prefix}-31`
+    Promise.all([
+      supabase.from('tickets').select('id,date,worker_id,price_charged,vehicle_type').gte('date', start).lte('date', end),
+      supabase.from('attendance_incidents').select('*').gte('date', start).lte('date', end),
+    ]).then(([{ data: t }, { data: i }]) => {
+      setPastMonthData({ tickets: t || [], incidents: i || [] })
+    })
+  }, [selMonth, selYear, isCurrentMonth])
 
   // Obtiene el salario efectivo de un trabajador para el mes seleccionado
   function getWorkerSalary(w) {
     const mc = workerMonthlyConfigs.find(c => c.worker_id === w.id)
     return { base_salary: mc?.base_salary ?? w.base_salary, weekly_hours: mc?.weekly_hours ?? w.weekly_hours }
   }
+
+  // Usar datos del mes seleccionado (pasado o actual)
+  const activeTickets   = isCurrentMonth ? tickets   : (pastMonthData?.tickets   || [])
+  const activeIncidents = isCurrentMonth ? incidents : (pastMonthData?.incidents || [])
 
   const [activeTab, setActiveTab] = useState('equipo')
 
@@ -370,10 +390,10 @@ export default function Trabajadores() {
         const realSalary = leftThisMonth(w)
           ? calcProratedSalary(base_salary, weekly_hours, year, month, w.terminated_at, w.hire_date)
           : calcRealSalary(base_salary, weekly_hours)
-        const workerTickets = tickets.filter(t => t.worker_id === w.id)
+        const workerTickets = activeTickets.filter(t => t.worker_id === w.id)
         const income = workerTickets.reduce((s, t) => s + t.price_charged, 0)
         const cars = workerTickets.length
-        const workerIncidents = incidents.filter(i => i.worker_id === w.id)
+        const workerIncidents = activeIncidents.filter(i => i.worker_id === w.id)
         const totalDiscounts = workerIncidents.filter(i => i.apply_discount && !i.is_addition).reduce((s, i) => s + (i.discount_amount || 0), 0)
         const totalOvertime  = workerIncidents.filter(i => i.apply_discount && i.is_addition).reduce((s, i) => s + (i.discount_amount || 0), 0)
         const finalPay = realSalary - totalDiscounts + totalOvertime
@@ -384,7 +404,7 @@ export default function Trabajadores() {
 
         return { ...w, realSalary, income, cars, workerIncidents, totalDiscounts, totalOvertime, finalPay, ratio, avgDaily, avgPerCar }
       })
-  }, [workers, tickets, incidents, month, year])
+  }, [workers, activeTickets, activeIncidents, month, year, workerMonthlyConfigs])
 
   const chartData = workerStats.filter(w => w.active).map(w => ({ name: w.name, income: w.income, salario: w.realSalary }))
 
@@ -461,7 +481,7 @@ export default function Trabajadores() {
         const realSalary = leftThisMonth(w)
           ? calcProratedSalary(w.base_salary, w.weekly_hours, year, month, w.terminated_at, w.hire_date)
           : calcRealSalary(w.base_salary, w.weekly_hours)
-        const workerIncidents = incidents.filter(i => i.worker_id === w.id)
+        const workerIncidents = activeIncidents.filter(i => i.worker_id === w.id)
         const totalDiscounts = workerIncidents.filter(i => i.apply_discount && !i.is_addition).reduce((s, i) => s + (i.discount_amount || 0), 0)
         const totalOvertime  = workerIncidents.filter(i => i.apply_discount && i.is_addition).reduce((s, i) => s + (i.discount_amount || 0), 0)
         const finalPay = realSalary - totalDiscounts + totalOvertime
@@ -677,12 +697,12 @@ export default function Trabajadores() {
       )}
 
       {/* Lista de incidencias del mes */}
-      {incidents.length > 0 && (
+      {activeIncidents.length > 0 && (
         <div className="card">
           <div className="flex items-center gap-2 mb-0">
             <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 flex-1">
               Incidencias del mes
-              <span className="ml-2 text-xs font-normal text-gray-400">{incidents.length} total</span>
+              <span className="ml-2 text-xs font-normal text-gray-400">{activeIncidents.length} total</span>
             </p>
             {incExpanded && (incFilter.worker || incFilter.type || incFilter.sort !== 'date_desc') && (
               <button onClick={() => setIncFilter({ worker: '', type: '', sort: 'date_desc' })}
@@ -701,7 +721,7 @@ export default function Trabajadores() {
           {!incExpanded && (
             <div className="flex flex-wrap gap-2 mt-2">
               {['falta','tardanza','adelanto','multa','hora_extra','permiso','permiso_horas','no_marcacion'].map(type => {
-                const count = incidents.filter(i => i.type === type).length
+                const count = activeIncidents.filter(i => i.type === type).length
                 if (!count) return null
                 return (
                   <span key={type} className="text-xs bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 px-2 py-0.5 rounded-full">
@@ -718,7 +738,7 @@ export default function Trabajadores() {
             <select value={incFilter.worker} onChange={e => setIncFilter(f => ({ ...f, worker: e.target.value }))}
               className="text-xs border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1.5 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-1 focus:ring-red-500">
               <option value="">Todos los trabajadores</option>
-              {workers.filter(w => incidents.some(i => i.worker_id === w.id)).map(w => (
+              {workers.filter(w => activeIncidents.some(i => i.worker_id === w.id)).map(w => (
                 <option key={w.id} value={w.id}>{w.name}</option>
               ))}
             </select>
@@ -726,7 +746,7 @@ export default function Trabajadores() {
             <select value={incFilter.type} onChange={e => setIncFilter(f => ({ ...f, type: e.target.value }))}
               className="text-xs border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1.5 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-1 focus:ring-red-500">
               <option value="">Todos los tipos</option>
-              {[...new Set(incidents.map(i => i.type))].map(t => (
+              {[...new Set(activeIncidents.map(i => i.type))].map(t => (
                 <option key={t} value={t}>{INCIDENT_LABELS[t]}</option>
               ))}
             </select>
@@ -878,7 +898,7 @@ export default function Trabajadores() {
           </div>
 
           {/* Desglose incidencias */}
-          {incidents.length > 0 && (
+          {activeIncidents.length > 0 && (
             <div className="card">
               <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">Desglose de descuentos por incidencia</p>
               <div className="space-y-4">

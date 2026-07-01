@@ -50,6 +50,53 @@ const DAMAGE_LEVELS = [
   { id: 'severo',   label: 'Severo',       short: 'Severo',   pct: 1.0, color: 'border-red-500 text-red-700 dark:border-red-500 dark:text-red-400' },
 ]
 
+// Estimación de tiempo de entrega basada en nivel de daño y cantidad de paños
+function estimateDays(selectedRows) {
+  if (!selectedRows.length) return null
+  const sev  = selectedRows.filter(r => r.damageId === 'severo').length
+  const mod  = selectedRows.filter(r => r.damageId === 'moderado').length
+  const lev  = selectedRows.filter(r => r.damageId === 'leve').length
+  const none = selectedRows.filter(r => r.damageId === 'none').length
+  const hasDamage = sev + mod + lev > 0
+
+  if (!hasDamage) {
+    // Solo pintura: siempre 2 días (preparación + pintado + secado)
+    return { text: '2 días', color: 'blue', detail: 'Preparación + pintado' }
+  }
+
+  // Días de trabajo de planchado+preparación (algunos paños en paralelo)
+  // Severo: 1 día planchado + 1 día prep por paño → 2 días/paño
+  // Moderado: 1 día (planchado+prep juntos) por paño
+  // Leve: 0.5 días (planchado+prep rápido) por paño
+  const workDays = sev * 2 + mod * 1 + lev * 0.5
+  // Paralelo parcial: 2 técnicos pueden trabajar en paños distintos
+  const parallelFactor = (sev + mod + lev) > 1 ? 0.75 : 1
+  const prepDays = Math.max(1, Math.round(workDays * parallelFactor * 2) / 2) // redondea a 0.5
+  const paintDay = 1 // el pintado siempre es 1 día compartido
+  const totalMin = prepDays + paintDay
+  const totalMax = totalMin + (sev > 0 ? 1 : 0.5)
+
+  let text, detail, color
+  if (sev > 0 && mod === 0 && lev === 0 && sev === 1) {
+    text = '3 días'; color = 'red'; detail = '1 planchado · 1 preparación · 1 pintado'
+  } else if (sev > 1) {
+    const d = Math.round(totalMin)
+    text = `${d}-${d+1} días`; color = 'red'; detail = `${sev} paños severos + pintado`
+  } else if (sev === 1) {
+    text = `${Math.round(totalMin)}-${Math.round(totalMax)} días`; color = 'red'; detail = 'Planchado severo + preparación + pintado'
+  } else if (mod > 0 && lev === 0) {
+    text = mod === 1 ? '2 días' : `${Math.round(totalMin)}-${Math.round(totalMax)} días`
+    color = 'orange'; detail = mod === 1 ? 'Planchado+prep · pintado' : `${mod} paños moderados + pintado`
+  } else if (mod > 0) {
+    text = `${Math.round(totalMin)}-${Math.round(totalMax)} días`; color = 'orange'; detail = 'Daño mixto + pintado'
+  } else {
+    // Solo leve
+    text = lev === 1 ? '1-2 días' : '2 días'; color = 'yellow'
+    detail = lev === 1 ? 'Planchado+prep+pintado en 1 día' : `${lev} paños leves + pintado`
+  }
+  return { text, color, detail }
+}
+
 const LS_KEY = 'apexpro_presupuesto_config'
 const SB_KEY = 'presupuesto_config'
 
@@ -1799,6 +1846,22 @@ export default function Presupuesto() {
               {discountPct > 0 && (
                 <p className="text-xs text-green-600 font-semibold mt-0.5">🎁 Descuento {discountPct}% {manualDiscountPct !== null ? 'manual' : 'automático'}</p>
               )}
+              {(() => {
+                const est = estimateDays(rows.filter(r => selected[r.id]))
+                if (!est) return null
+                const cls = est.color === 'red' ? 'text-red-600 bg-red-100 dark:bg-red-900/30 dark:text-red-400'
+                  : est.color === 'orange' ? 'text-orange-600 bg-orange-100 dark:bg-orange-900/30 dark:text-orange-400'
+                  : est.color === 'yellow' ? 'text-yellow-700 bg-yellow-100 dark:bg-yellow-900/30 dark:text-yellow-400'
+                  : 'text-blue-600 bg-blue-100 dark:bg-blue-900/30 dark:text-blue-400'
+                return (
+                  <div className="mt-1.5">
+                    <span className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full ${cls}`}>
+                      🕐 {est.text}
+                    </span>
+                    <p className="text-[10px] text-gray-400 mt-0.5">{est.detail}</p>
+                  </div>
+                )
+              })()}
             </div>
             <div className="text-right">
               {discountPct > 0 && (

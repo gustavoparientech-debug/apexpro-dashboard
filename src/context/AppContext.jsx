@@ -755,6 +755,27 @@ export function AppProvider({ children }) {
     dispatch({ type: 'DELETE_EXTRA', payload: id })
   }
 
+  // ─── Monthly Costs (fetch for arbitrary month) ─────────────────────────────
+  const fetchMonthlyCosts = async (year, month) => {
+    if (IS_DEMO) return null
+    const { data } = await supabase.from('monthly_costs').select('*').eq('month', month).eq('year', year).maybeSingle()
+    return data
+  }
+
+  // ─── Worker Monthly Config ──────────────────────────────────────────────────
+  const fetchWorkerMonthlyConfigs = async (year, month) => {
+    if (IS_DEMO) return []
+    const { data } = await supabase.from('worker_monthly_config').select('*').eq('year', year).eq('month', month)
+    return data || []
+  }
+
+  const saveWorkerMonthlyConfig = async ({ worker_id, year, month, base_salary, weekly_hours, daily_goal }) => {
+    if (IS_DEMO) return
+    const payload = { worker_id, year, month, base_salary, weekly_hours, daily_goal, updated_at: new Date().toISOString() }
+    const { error } = await supabase.from('worker_monthly_config').upsert(payload, { onConflict: 'worker_id,year,month' })
+    if (error) throw error
+  }
+
   // ─── Monthly Costs ──────────────────────────────────────────────────────────
   const saveMonthlyCosts = async (data) => {
     if (IS_DEMO) {
@@ -872,6 +893,7 @@ export function AppProvider({ children }) {
       addExpense, updateExpense, deleteExpense,
       addBonus, deleteBonus,
       saveMonthlyCosts,
+      fetchMonthlyCosts, saveWorkerMonthlyConfig, fetchWorkerMonthlyConfigs,
       resetDemoData,
     }}>
       {children}

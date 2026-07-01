@@ -50,7 +50,7 @@ import { formatMoney, calcRealSalary, currentMonthYear, getWorkingDaysInMonth } 
 import Modal from '../components/ui/Modal'
 import ConfirmDialog from '../components/ui/ConfirmDialog'
 import Badge from '../components/ui/Badge'
-import { Plus, Edit2, ToggleLeft, ToggleRight, Save, Trash2, ChevronUp, ChevronDown, X } from 'lucide-react'
+import { Plus, Edit2, ToggleLeft, ToggleRight, Save, Trash2, ChevronUp, ChevronDown, X, ChevronLeft, ChevronRight } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 const EMOJI_OPTIONS = ['🏍️','🚗','🚙','🚐','🚛','🚌','🚑','🚒','🚕','🚜','🛻','🚚']
@@ -235,33 +235,79 @@ function VehicleTypeRow({ vt, onSave, onDelete }) {
 
 export default function Configuracion() {
   const { services, vehicleTypes, monthlyCosts, workers, incidents, extrasCatalog,
-          addService, updateService, saveMonthlyCosts, updateWorker,
+          addService, updateService, saveMonthlyCosts, fetchMonthlyCosts,
+          saveWorkerMonthlyConfig, fetchWorkerMonthlyConfigs, updateWorker,
           addVehicleType, updateVehicleType, deleteVehicleType,
           addExtra, updateExtra, deleteExtra } = useApp()
-  const { month, year } = currentMonthYear()
+  const { month: curMonth, year: curYear } = currentMonthYear()
+
+  // ── Selector de mes ────────────────────────────────────────────────────────
+  const [selMonth, setSelMonth] = useState(curMonth)
+  const [selYear,  setSelYear]  = useState(curYear)
+  const isCurrentMonth = selMonth === curMonth && selYear === curYear
+
+  function prevMonth() {
+    if (selMonth === 1) { setSelMonth(12); setSelYear(y => y - 1) }
+    else setSelMonth(m => m - 1)
+  }
+  function nextMonth() {
+    // No permitir navegar más allá del siguiente mes
+    const nextM = selMonth === 12 ? 1 : selMonth + 1
+    const nextY = selMonth === 12 ? selYear + 1 : selYear
+    if (nextY > curYear || (nextY === curYear && nextM > curMonth + 1)) return
+    setSelMonth(nextM); setSelYear(nextY)
+  }
+
   const [showServiceForm, setShowServiceForm] = useState(false)
   const [editingService, setEditingService] = useState(null)
   const [toggleTarget, setToggleTarget] = useState(null)
   const [costItems, setCostItems] = useState([])
-  const [costs, setCosts] = useState({
-    utility_goal: monthlyCosts?.utility_goal || 2000,
-  })
+  const [costs, setCosts] = useState({ utility_goal: 2000 })
+  const [loadingMonthData, setLoadingMonthData] = useState(false)
 
+  // Carga costos y metas/reparto del mes seleccionado
   useEffect(() => {
-    if (!monthlyCosts) return
-    const saved = monthlyCosts.cost_items
-    if (saved && Array.isArray(saved) && saved.length > 0) {
-      setCostItems(saved)
-    } else {
-      const items = []
-      if (monthlyCosts.rent)     items.push({ name: 'Alquiler', amount: monthlyCosts.rent })
-      if (monthlyCosts.supplies) items.push({ name: 'Insumos',  amount: monthlyCosts.supplies })
-      if (items.length === 0)    items.push({ name: 'Alquiler', amount: 2700 }, { name: 'Insumos', amount: 800 })
-      setCostItems(items)
+    async function loadMonthData() {
+      setLoadingMonthData(true)
+      // Costos del mes seleccionado (desde DB si no es el mes actual)
+      let mc = isCurrentMonth ? monthlyCosts : await fetchMonthlyCosts(selYear, selMonth)
+      if (mc) {
+        const saved = mc.cost_items
+        if (saved && Array.isArray(saved) && saved.length > 0) {
+          setCostItems(saved)
+        } else {
+          const items = []
+          if (mc.rent)     items.push({ name: 'Alquiler', amount: mc.rent })
+          if (mc.supplies) items.push({ name: 'Insumos',  amount: mc.supplies })
+          if (items.length === 0) items.push({ name: 'Alquiler', amount: 2700 }, { name: 'Insumos', amount: 800 })
+          setCostItems(items)
+        }
+        setCosts(c => ({ ...c, utility_goal: mc.utility_goal || 2000 }))
+        // Cargar reparto guardado en monthly_costs
+        if (mc.reparto) {
+          setRepartoMonto(mc.reparto.monto ?? '')
+          setRepartoPorc(mc.reparto.porcentajes ?? {})
+        }
+        // Cargar metas del mes desde monthly_costs.worker_goals
+        if (mc.worker_goals) {
+          setWorkerGoals(mc.worker_goals)
+        }
+      } else {
+        // Mes sin datos: usar defaults / valores del mes actual
+        setCostItems([{ name: 'Alquiler', amount: 2700 }, { name: 'Insumos', amount: 800 }])
+        setCosts({ utility_goal: 2000 })
+        setRepartoMonto('')
+        setRepartoPorc({})
+      }
+      // Cargar worker_monthly_config del mes seleccionado
+      const configs = await fetchWorkerMonthlyConfigs(selYear, selMonth)
+      setWorkerMonthlyConfigs(configs)
+      setLoadingMonthData(false)
     }
-    setCosts(c => ({ ...c, utility_goal: monthlyCosts.utility_goal || 2000 }))
-  }, [monthlyCosts])
+    loadMonthData()
+  }, [selMonth, selYear, monthlyCosts])
   const [savingCosts, setSavingCosts] = useState(false)
+  const [workerMonthlyConfigs, setWorkerMonthlyConfigs] = useState([])
   const [activeCategory, setActiveCategory] = useState('all')
   const [newVehicle, setNewVehicle] = useState({ emoji: '🚗', label: '', default_price: '' })
   const [showNewVehicle, setShowNewVehicle] = useState(false)
@@ -356,63 +402,66 @@ export default function Configuracion() {
     setSendingAnuncio(false)
   }
 
-  useEffect(() => {
-    supabase.from('app_settings').select('value').eq('key', 'reparto').maybeSingle()
-      .then(({ data }) => {
-        if (data?.value) {
-          setRepartoMonto(data.value.monto ?? '')
-          setRepartoPorc(data.value.porcentajes ?? {})
-        }
-      })
-  }, [])
+  // Reparto ahora se carga por mes en el useEffect de loadMonthData arriba
 
   async function handleSaveReparto() {
-    const totalPorc = activeWorkers.reduce((s, w) => s + (parseFloat(repartoPorc[w.id]) || 0), 0)
-
     setSavingReparto(true)
     try {
       const monto = parseFloat(repartoMonto) || 0
-      // Guardar reparto en app_settings
-      await supabase.from('app_settings').upsert(
-        { key: 'reparto', value: { monto, porcentajes: repartoPorc }, updated_at: new Date().toISOString() },
-        { onConflict: 'key' }
-      )
-      // Aplicar reparto como meta diaria de cada trabajador
+      // Calcular metas por trabajador según reparto
       const newGoals = {}
-      await Promise.all(activeWorkers.map(w => {
+      await Promise.all(activeWorkers.map(async w => {
         const porc = parseFloat(repartoPorc[w.id]) || 0
         const goal = monto > 0 && porc > 0 ? Math.round(monto * porc / 100) : 0
-        newGoals[w.id] = goal ?? ''
-        return updateWorker(w.id, { daily_goal: goal })
+        newGoals[w.id] = goal || ''
+        await saveWorkerMonthlyConfig({ worker_id: w.id, year: selYear, month: selMonth, daily_goal: goal || null })
       }))
-      setWorkerGoals(newGoals)
-      toast.success('Reparto guardado y aplicado como meta diaria ✓')
+      setWorkerGoals(prev => ({ ...prev, ...newGoals }))
+      // Guardar reparto en monthly_costs del mes
+      const mc = isCurrentMonth ? monthlyCosts : await fetchMonthlyCosts(selYear, selMonth)
+      const mcData = mc || {}
+      await saveMonthlyCosts({
+        ...mcData,
+        month: selMonth, year: selYear,
+        reparto: { monto, porcentajes: repartoPorc },
+        worker_goals: { ...((mcData.worker_goals) || {}), ...newGoals },
+      })
+      toast.success(`Reparto de ${monthName(selMonth)} ${selYear} guardado ✓`)
     } catch { toast.error('Error al guardar') }
     setSavingReparto(false)
   }
   const activeWorkers = workers.filter(w => w.active)
 
   useEffect(() => {
+    // Inicializar metas con valores de monthly_config o fallback a workers.daily_goal
     setWorkerGoals(prev => {
       const next = { ...prev }
       activeWorkers.forEach(w => {
-        if (!(w.id in next)) next[w.id] = w.daily_goal ?? ''
+        if (!(w.id in next)) {
+          const mc = workerMonthlyConfigs.find(c => c.worker_id === w.id)
+          next[w.id] = mc?.daily_goal ?? w.daily_goal ?? ''
+        }
       })
       return next
     })
-  }, [workers])
+  }, [workers, workerMonthlyConfigs])
 
   async function handleSaveGoals() {
     setSavingGoals(true)
     try {
       await Promise.all(
-        activeWorkers.map(w => {
+        activeWorkers.map(async w => {
           const v = workerGoals[w.id]
           const goal = (v !== '' && v !== undefined && v !== null) ? parseFloat(v) : null
-          return updateWorker(w.id, { daily_goal: goal })
+          await saveWorkerMonthlyConfig({ worker_id: w.id, year: selYear, month: selMonth, daily_goal: goal })
         })
       )
-      toast.success('Metas guardadas')
+      // Persistir worker_goals en monthly_costs del mes
+      const goalMap = {}
+      activeWorkers.forEach(w => { goalMap[w.id] = parseFloat(workerGoals[w.id]) || null })
+      const mc = isCurrentMonth ? monthlyCosts : await fetchMonthlyCosts(selYear, selMonth)
+      await saveMonthlyCosts({ ...(mc || {}), month: selMonth, year: selYear, worker_goals: goalMap })
+      toast.success(`Metas de ${monthName(selMonth)} ${selYear} guardadas`)
     } catch { toast.error('Error al guardar metas') }
     setSavingGoals(false)
   }
@@ -463,7 +512,7 @@ export default function Configuracion() {
 
   const fixedTotal = costItems.reduce((s, i) => s + (parseFloat(i.amount) || 0), 0)
   const incomeGoal = fixedTotal + payrollTotal + (parseFloat(costs.utility_goal) || 0)
-  const workingDaysTotal = getWorkingDaysInMonth(year, month)
+  const workingDaysTotal = getWorkingDaysInMonth(selYear, selMonth)
   const metaDiariaRef = activeWorkers.length > 0 && workingDaysTotal > 0
     ? Math.round(incomeGoal / workingDaysTotal / activeWorkers.length)
     : 0
@@ -499,9 +548,11 @@ export default function Configuracion() {
     setSavingCosts(true)
     try {
       const items = costItems.map(i => ({ name: i.name.trim(), amount: parseFloat(i.amount) || 0 }))
+      const existingMc = isCurrentMonth ? monthlyCosts : await fetchMonthlyCosts(selYear, selMonth)
       await saveMonthlyCosts({
-        month,
-        year,
+        ...(existingMc || {}),
+        month: selMonth,
+        year: selYear,
         rent: items.find(i => i.name === 'Alquiler')?.amount || 0,
         supplies: items.find(i => i.name === 'Insumos')?.amount || 0,
         utility_goal: parseFloat(costs.utility_goal),
@@ -553,9 +604,26 @@ export default function Configuracion() {
     <div className="space-y-6">
       <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Configuración</h1>
 
+      {/* Selector de mes */}
+      <div className="card flex items-center justify-between px-4 py-3">
+        <button onClick={prevMonth} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+          <ChevronLeft className="w-4 h-4 text-gray-500" />
+        </button>
+        <div className="text-center">
+          <p className="text-sm font-bold text-gray-900 dark:text-white capitalize">{monthName(selMonth)} {selYear}</p>
+          {!isCurrentMonth && <p className="text-[10px] text-amber-500 font-semibold">Editando mes diferente al actual</p>}
+          {isCurrentMonth && <p className="text-[10px] text-gray-400">Mes actual</p>}
+        </div>
+        <button onClick={nextMonth} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+          <ChevronRight className="w-4 h-4 text-gray-500" />
+        </button>
+      </div>
+
+      {loadingMonthData && <p className="text-xs text-center text-gray-400 -mt-2">Cargando datos del mes...</p>}
+
       {/* Costos fijos */}
       <div className="card">
-        <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">Costos fijos mensuales</p>
+        <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">Costos fijos — {monthName(selMonth)} {selYear}</p>
 
         <div className="space-y-2 mb-3">
           {costItems.map((item, idx) => (
@@ -628,7 +696,7 @@ export default function Configuracion() {
       <div className="card">
         <div className="flex items-start justify-between mb-1">
           <div>
-            <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">Metas y reparto por trabajador</p>
+            <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">Metas y reparto — {monthName(selMonth)} {selYear}</p>
             <p className="text-xs text-gray-400 mt-0.5">
               Ref. calculada: <span className="font-semibold text-gray-600 dark:text-gray-300">{formatMoney(metaDiariaRef)}/día</span> por trabajador
             </p>

@@ -7,7 +7,7 @@ import {
 import Modal from '../components/ui/Modal'
 import ConfirmDialog from '../components/ui/ConfirmDialog'
 import Badge from '../components/ui/Badge'
-import { Plus, Edit2, UserX, UserCheck, AlertCircle, Clock, Calendar, Download, FileSpreadsheet, Pencil, Check, X, Trash2, Users, Wallet } from 'lucide-react'
+import { Plus, Edit2, UserX, UserCheck, AlertCircle, Clock, Calendar, Download, FileSpreadsheet, Pencil, Check, X, Trash2, Users, Wallet, ChevronLeft, ChevronRight } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 
@@ -260,8 +260,37 @@ function monthRangeStr(year, month) {
 }
 
 export default function Trabajadores() {
-  const { workers, tickets, incidents, services, addWorker, updateWorker, addIncident, updateIncident, deleteIncident, addExpense } = useApp()
-  const { month, year } = currentMonthYear()
+  const { workers, tickets, incidents, services, addWorker, updateWorker, addIncident, updateIncident, deleteIncident, addExpense,
+          fetchWorkerMonthlyConfigs, saveWorkerMonthlyConfig } = useApp()
+  const { month: curMonth, year: curYear } = currentMonthYear()
+  const [selMonth, setSelMonth] = useState(curMonth)
+  const [selYear,  setSelYear]  = useState(curYear)
+  const month = selMonth
+  const year  = selYear
+  const isCurrentMonth = selMonth === curMonth && selYear === curYear
+
+  function prevMonthW() {
+    if (selMonth === 1) { setSelMonth(12); setSelYear(y => y - 1) }
+    else setSelMonth(m => m - 1)
+  }
+  function nextMonthW() {
+    const nextM = selMonth === 12 ? 1 : selMonth + 1
+    const nextY = selMonth === 12 ? selYear + 1 : selYear
+    if (nextY > curYear || (nextY === curYear && nextM > curMonth)) return
+    setSelMonth(nextM); setSelYear(nextY)
+  }
+
+  const [workerMonthlyConfigs, setWorkerMonthlyConfigs] = useState([])
+  useEffect(() => {
+    fetchWorkerMonthlyConfigs(selYear, selMonth).then(setWorkerMonthlyConfigs)
+  }, [selMonth, selYear])
+
+  // Obtiene el salario efectivo de un trabajador para el mes seleccionado
+  function getWorkerSalary(w) {
+    const mc = workerMonthlyConfigs.find(c => c.worker_id === w.id)
+    return { base_salary: mc?.base_salary ?? w.base_salary, weekly_hours: mc?.weekly_hours ?? w.weekly_hours }
+  }
+
   const [activeTab, setActiveTab] = useState('equipo')
 
   // Equipo state
@@ -304,11 +333,17 @@ export default function Trabajadores() {
 
   async function handleSaveNominaWorker() {
     try {
-      await updateWorker(editingNominaWorker.id, {
-        base_salary: parseFloat(editingNominaWorker.base_salary),
-        weekly_hours: parseFloat(editingNominaWorker.weekly_hours),
+      const base_salary  = parseFloat(editingNominaWorker.base_salary)
+      const weekly_hours = parseFloat(editingNominaWorker.weekly_hours)
+      // Si es mes actual y no hay config mensual previa, actualiza el trabajador globalmente
+      // Si hay config mensual o es mes pasado, guarda solo en worker_monthly_config
+      await saveWorkerMonthlyConfig({ worker_id: editingNominaWorker.id, year: selYear, month: selMonth, base_salary, weekly_hours })
+      if (isCurrentMonth) await updateWorker(editingNominaWorker.id, { base_salary, weekly_hours })
+      setWorkerMonthlyConfigs(prev => {
+        const filtered = prev.filter(c => c.worker_id !== editingNominaWorker.id)
+        return [...filtered, { worker_id: editingNominaWorker.id, year: selYear, month: selMonth, base_salary, weekly_hours }]
       })
-      toast.success('Salario actualizado')
+      toast.success(`Salario de ${monthName(selMonth)} ${selYear} actualizado`)
       setEditingNominaWorker(null)
     } catch { toast.error('Error al guardar') }
   }
@@ -331,9 +366,10 @@ export default function Trabajadores() {
     return workers
       .filter(w => w.active || leftThisMonth(w))
       .map(w => {
+        const { base_salary, weekly_hours } = getWorkerSalary(w)
         const realSalary = leftThisMonth(w)
-          ? calcProratedSalary(w.base_salary, w.weekly_hours, year, month, w.terminated_at, w.hire_date)
-          : calcRealSalary(w.base_salary, w.weekly_hours)
+          ? calcProratedSalary(base_salary, weekly_hours, year, month, w.terminated_at, w.hire_date)
+          : calcRealSalary(base_salary, weekly_hours)
         const workerTickets = tickets.filter(t => t.worker_id === w.id)
         const income = workerTickets.reduce((s, t) => s + t.price_charged, 0)
         const cars = workerTickets.length
@@ -481,7 +517,12 @@ export default function Trabajadores() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Equipo & Nómina</h1>
-          <p className="text-sm text-gray-500">{monthName(month)} {year}</p>
+          <div className="flex items-center gap-1 mt-0.5">
+            <button onClick={prevMonthW} className="p-0.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800"><ChevronLeft className="w-3.5 h-3.5 text-gray-400" /></button>
+            <span className="text-sm text-gray-500 capitalize">{monthName(month)} {year}</span>
+            <button onClick={nextMonthW} className="p-0.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800"><ChevronRight className="w-3.5 h-3.5 text-gray-400" /></button>
+            {!isCurrentMonth && <span className="text-[10px] font-semibold text-amber-500 ml-1">mes anterior</span>}
+          </div>
         </div>
         <div className="flex gap-2">
           {activeTab === 'equipo' ? (<>

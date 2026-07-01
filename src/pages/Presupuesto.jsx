@@ -858,7 +858,10 @@ export default function Presupuesto() {
     if (observaciones) msg += `📝 *Nota:* ${observaciones}\n\n`
     msg += `Forma de pago: 50% de adelanto y 50% contra entrega.\n`
     if (vigenciaDias) msg += `Vigencia: ${vigenciaDias} dias calendario.\n`
-    if (tiempoEntregaDias) msg += `Tiempo de entrega: maximo ${tiempoEntregaDias} dias habiles tras recibir el vehiculo.\n`
+    const planchadoSel = rows.filter(r => selected[r.id])
+    const estWA = planchadoSel.length > 0 ? estimateDays(planchadoSel) : null
+    const tiempoTexto = estWA ? estWA.text : (tiempoEntregaDias ? `${tiempoEntregaDias} dias habiles` : null)
+    if (tiempoTexto) msg += `Tiempo de entrega: maximo ${tiempoTexto} tras recibir el vehiculo.\n`
     msg += `Precios incluyen IGV.\n\n`
     msg += `📍 Calle Idelfonzo Lopez N 700 Zamacola, Arequipa\n`
     msg += `📞 959240309`
@@ -1093,10 +1096,13 @@ export default function Presupuesto() {
 
     // Condiciones
     {
+      const planchadoSelPDF = rows.filter(r => selected[r.id])
+      const estPDF = planchadoSelPDF.length > 0 ? estimateDays(planchadoSelPDF) : null
+      const tiempoTextoPDF = estPDF ? estPDF.text : (tiempoEntregaDias ? `${tiempoEntregaDias} dias habiles` : null)
       const condText = [
         'Forma de pago: 50% de adelanto y 50% contra entrega.',
         vigenciaDias ? `Vigencia: ${vigenciaDias} dias calendario.` : '',
-        tiempoEntregaDias ? `Tiempo de entrega: maximo ${tiempoEntregaDias} dias habiles tras recibir el vehiculo.` : '',
+        tiempoTextoPDF ? `Tiempo de entrega: maximo ${tiempoTextoPDF} tras recibir el vehiculo.` : '',
         'Precios incluyen IGV.',
       ].filter(Boolean).join(' ')
       const condLines = doc.splitTextToSize(condText, cW - 4)

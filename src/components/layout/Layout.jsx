@@ -6,7 +6,7 @@ import { useApp } from '../../context/AppContext'
 import {
   LayoutDashboard, ClipboardList, Users, Wallet, TrendingUp,
   Settings, History, BarChart2, Sun, Moon, Menu, X, ChevronRight, UserCog, LogOut,
-  Plus, TrendingDown, AlertCircle, Calculator, CalendarDays
+  Plus, TrendingDown, AlertCircle, Calculator, CalendarDays, Fingerprint
 } from 'lucide-react'
 import { cn, todayISO } from '../../lib/utils'
 import { IncidentForm } from '../../pages/Trabajadores'
@@ -278,6 +278,7 @@ const ADMIN_NAV = [
   { to: '/usuarios',      label: 'Usuarios',    icon: UserCog },
   { to: '/citas',         label: 'Citas',       icon: CalendarDays },
   { to: '/presupuesto',   label: 'Presupuesto', icon: Calculator },
+  { to: '/asistencia',    label: 'Asistencia',  icon: Fingerprint },
 ]
 
 const WORKER_NAV = [
@@ -285,6 +286,7 @@ const WORKER_NAV = [
   { to: '/registro',      label: 'Registro',    icon: ClipboardList },
   { to: '/citas',         label: 'Citas',       icon: CalendarDays },
   { to: '/presupuesto',   label: 'Presupuesto', icon: Calculator },
+  { to: '/asistencia',    label: 'Asistencia',  icon: Fingerprint },
 ]
 
 function NavItem({ item, collapsed, onClick }) {

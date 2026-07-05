@@ -56,45 +56,44 @@ function estimateDays(selectedRows) {
   const sev  = selectedRows.filter(r => r.damageId === 'severo').length
   const mod  = selectedRows.filter(r => r.damageId === 'moderado').length
   const lev  = selectedRows.filter(r => r.damageId === 'leve').length
-  const none = selectedRows.filter(r => r.damageId === 'none').length
-  const hasDamage = sev + mod + lev > 0
+  const none = selectedRows.filter(r => !r.damageId || r.damageId === 'none').length
+  const total = selectedRows.length
 
-  if (!hasDamage) {
-    // Solo pintura: siempre 2 días (preparación + pintado + secado)
-    return { text: '2 días', color: 'blue', detail: 'Preparación + pintado' }
-  }
+  // Días de trabajo por tipo: none=0.5 (2 paños/día), leve=0.75, moderado=1.25, severo=2.5
+  const prepWork = none * 0.5 + lev * 0.75 + mod * 1.25 + sev * 2.5
+  // Con 3+ paños se asumen 2 técnicos en paralelo
+  const workers = total >= 3 ? 2 : 1
+  // Días efectivos de preparación (redondeado a 0.5 días)
+  const prepDays = Math.max(1, Math.ceil((prepWork / workers) * 2) / 2)
+  // Pintado: 2 días para trabajos grandes (15+ paños), 1 día para el resto
+  const paintDays = total >= 15 ? 2 : 1
+  const totalMin = prepDays + paintDays
 
-  // Días de trabajo de planchado+preparación (algunos paños en paralelo)
-  // Severo: 1 día planchado + 1 día prep por paño → 2 días/paño
-  // Moderado: 1 día (planchado+prep juntos) por paño
-  // Leve: 0.5 días (planchado+prep rápido) por paño
-  const workDays = sev * 2 + mod * 1 + lev * 0.5
-  // Paralelo parcial: 2 técnicos pueden trabajar en paños distintos
-  const parallelFactor = (sev + mod + lev) > 1 ? 0.75 : 1
-  const prepDays = Math.max(1, Math.round(workDays * parallelFactor * 2) / 2) // redondea a 0.5
-  const paintDay = 1 // el pintado siempre es 1 día compartido
-  const totalMin = prepDays + paintDay
-  const totalMax = totalMin + (sev > 0 ? 1 : 0.5)
+  // Margen de buffer según gravedad
+  const buffer = sev > 0 ? 1 : (mod > 0 || lev > 0) ? 0.5 : 0
+  const totalMax = totalMin + buffer
 
-  let text, detail, color
-  if (sev > 0 && mod === 0 && lev === 0 && sev === 1) {
-    text = '3 días'; color = 'red'; detail = '1 planchado · 1 preparación · 1 pintado'
-  } else if (sev > 1) {
-    const d = Math.round(totalMin)
-    text = `${d}-${d+1} días`; color = 'red'; detail = `${sev} paños severos + pintado`
-  } else if (sev === 1) {
-    text = `${Math.round(totalMin)}-${Math.round(totalMax)} días`; color = 'red'; detail = 'Planchado severo + preparación + pintado'
-  } else if (mod > 0 && lev === 0) {
-    text = mod === 1 ? '2 días' : `${Math.round(totalMin)}-${Math.round(totalMax)} días`
-    color = 'orange'; detail = mod === 1 ? 'Planchado+prep · pintado' : `${mod} paños moderados + pintado`
-  } else if (mod > 0) {
-    text = `${Math.round(totalMin)}-${Math.round(totalMax)} días`; color = 'orange'; detail = 'Daño mixto + pintado'
-  } else {
-    // Solo leve
-    text = lev === 1 ? '1-2 días' : '2 días'; color = 'yellow'
-    detail = lev === 1 ? 'Planchado+prep+pintado en 1 día' : `${lev} paños leves + pintado`
-  }
-  return { text, color, detail }
+  // Texto: si min < max mostrar rango; si son decimales usar piso/techo
+  const lo = Number.isInteger(totalMin) ? totalMin : Math.floor(totalMin)
+  const hi = Math.ceil(totalMax)
+  const text = lo === hi ? `${lo} días` : `${lo}-${hi} días`
+
+  const color = sev > 0 ? 'red' : mod > 0 ? 'orange' : lev > 0 ? 'yellow' : 'blue'
+
+  // Desglose para mostrar en la UI
+  const panoLines = []
+  if (sev > 0)  panoLines.push(`${sev} paño${sev > 1 ? 's' : ''} severo${sev > 1 ? 's' : ''}`)
+  if (mod > 0)  panoLines.push(`${mod} paño${mod > 1 ? 's' : ''} moderado${mod > 1 ? 's' : ''}`)
+  if (lev > 0)  panoLines.push(`${lev} paño${lev > 1 ? 's' : ''} leve${lev > 1 ? 's' : ''}`)
+  if (none > 0) panoLines.push(`${none} paño${none > 1 ? 's' : ''} solo pintura`)
+
+  const prepLabel = workers > 1
+    ? `Planchado + prep (${workers} técnicos): ${prepDays} día${prepDays !== 1 ? 's' : ''}`
+    : `Planchado + prep: ${prepDays} día${prepDays !== 1 ? 's' : ''}`
+  const paintLabel = `Pintado + secado: ${paintDays} día${paintDays !== 1 ? 's' : ''}`
+  const bufferLabel = buffer > 0 ? `Margen: +${buffer} día${buffer !== 1 ? 's' : ''}` : null
+
+  return { text, color, panoLines, prepLabel, paintLabel, bufferLabel }
 }
 
 const LS_KEY = 'apexpro_presupuesto_config'
@@ -800,7 +799,7 @@ export default function Presupuesto() {
     const subtotalBruto = sections.reduce((a, s) => a + s.items.reduce((b, i) => b + i.price, 0), 0)
     let grandTotalExport
     if (discountMode === 'global') {
-      const activePct = manualDiscountPct != null ? manualDiscountPct : catDiscountPct
+      const activePct = manualDiscountPct != null ? manualDiscountPct : autoDiscountPct || catDiscountPct
       grandTotalExport = subtotalBruto - Math.round(subtotalBruto * activePct / 100)
     } else {
       const sd = sectionDiscounts
@@ -848,7 +847,7 @@ export default function Presupuesto() {
     })
     msg += `${SEP}\n`
     if (discountMode === 'global') {
-      const activePct = manualDiscountPct != null ? manualDiscountPct : catDiscountPct
+      const activePct = manualDiscountPct != null ? manualDiscountPct : autoDiscountPct || catDiscountPct
       if (activePct > 0) {
         msg += `Subtotal: ${formatMoney(subtotalBruto)}\n`
         msg += `🎁 Descuento (${activePct}%): -${formatMoney(Math.round(subtotalBruto * activePct / 100))}\n`
@@ -1048,7 +1047,7 @@ export default function Presupuesto() {
     // Subtotal / descuento / total
     const numCol = W - mR - 35
     if (discountMode === 'global') {
-      const activePct = manualDiscountPct != null ? manualDiscountPct : catDiscountPct
+      const activePct = manualDiscountPct != null ? manualDiscountPct : autoDiscountPct || catDiscountPct
       if (activePct > 0) {
         doc.setFontSize(8); doc.setFont('helvetica', 'normal'); doc.setTextColor(100, 100, 100)
         doc.text('Subtotal:', numCol, y + 5, { align: 'right' })
@@ -1749,9 +1748,9 @@ export default function Presupuesto() {
         </div>
 
         {/* Columnas header */}
-        <div className={`grid gap-0 text-[10px] font-semibold text-gray-400 uppercase tracking-wide px-4 py-2 bg-gray-50 dark:bg-gray-800/50 border-b border-gray-100 dark:border-gray-800 ${canAdmin ? 'grid-cols-[1fr_auto_auto_auto]' : 'grid-cols-[1fr_auto_auto]'}`}>
+        <div className="grid grid-cols-[1fr_auto_auto_auto] gap-0 text-[10px] font-semibold text-gray-400 uppercase tracking-wide px-4 py-2 bg-gray-50 dark:bg-gray-800/50 border-b border-gray-100 dark:border-gray-800">
           <span>Paño</span>
-          {canAdmin && <span className="w-16 text-center">Mult.</span>}
+          <span className="w-16 text-center">Mult.</span>
           <span className="w-20 text-right">Precio</span>
           <span className="w-8 text-center">✓</span>
         </div>
@@ -1763,7 +1762,7 @@ export default function Presupuesto() {
               {/* Fila principal */}
               <div
                 onClick={() => togglePanel(row.id)}
-                className={`grid items-center gap-0 px-4 py-2.5 cursor-pointer ${canAdmin ? 'grid-cols-[1fr_auto_auto_auto]' : 'grid-cols-[1fr_auto_auto]'} ${
+                className={`grid grid-cols-[1fr_auto_auto_auto] items-center gap-0 px-4 py-2.5 cursor-pointer ${
                   !selected[row.id] ? 'hover:bg-gray-50 dark:hover:bg-gray-800/30' : ''
                 }`}>
                 <div>
@@ -1774,11 +1773,12 @@ export default function Presupuesto() {
                     </p>
                   )}
                 </div>
-                {canAdmin && (
-                  <div className="w-16 flex justify-center" onClick={e => e.stopPropagation()}>
-                    <EditableCell value={row.mult} onSave={val => updateMult(row.id, vehicleType, val)} />
-                  </div>
-                )}
+                <div className="w-16 flex justify-center" onClick={e => e.stopPropagation()}>
+                  {canAdmin
+                    ? <EditableCell value={row.mult} onSave={val => updateMult(row.id, vehicleType, val)} />
+                    : <span className="text-sm font-semibold text-red-500">{row.mult}</span>
+                  }
+                </div>
                 <span className="w-20 text-right text-sm font-bold text-gray-900 dark:text-white">
                   {formatMoney(row.price)}
                 </span>
@@ -1861,11 +1861,25 @@ export default function Presupuesto() {
                   : est.color === 'yellow' ? 'text-yellow-700 bg-yellow-100 dark:bg-yellow-900/30 dark:text-yellow-400'
                   : 'text-blue-600 bg-blue-100 dark:bg-blue-900/30 dark:text-blue-400'
                 return (
-                  <div className="mt-1.5">
-                    <span className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full ${cls}`}>
-                      🕐 {est.text}
+                  <div className="mt-2 space-y-1.5">
+                    <span className={`inline-flex items-center gap-1 text-[12px] font-bold px-2.5 py-1 rounded-full ${cls}`}>
+                      🕐 {est.text} hábiles
                     </span>
-                    <p className="text-[10px] text-gray-400 mt-0.5">{est.detail}</p>
+                    <div className={`rounded-xl px-3 py-2 text-[11px] space-y-1 ${
+                      est.color === 'red' ? 'bg-red-50 dark:bg-red-900/20' :
+                      est.color === 'orange' ? 'bg-orange-50 dark:bg-orange-900/20' :
+                      est.color === 'yellow' ? 'bg-yellow-50 dark:bg-yellow-900/20' :
+                      'bg-blue-50 dark:bg-blue-900/20'
+                    }`}>
+                      {est.panoLines.map((l, i) => (
+                        <p key={i} className="text-gray-600 dark:text-gray-300 font-medium">• {l}</p>
+                      ))}
+                      <div className="border-t border-gray-200 dark:border-gray-700 pt-1 mt-1 space-y-0.5">
+                        <p className="text-gray-500 dark:text-gray-400">⚙️ {est.prepLabel}</p>
+                        <p className="text-gray-500 dark:text-gray-400">🎨 {est.paintLabel}</p>
+                        {est.bufferLabel && <p className="text-gray-400 dark:text-gray-500 italic">⏱ {est.bufferLabel}</p>}
+                      </div>
+                    </div>
                   </div>
                 )
               })()}
@@ -1943,7 +1957,7 @@ export default function Presupuesto() {
 
         let grandTotal
         if (discountMode === 'global') {
-          const activePct = manualDiscountPct != null ? manualDiscountPct : catDiscountPct
+          const activePct = manualDiscountPct != null ? manualDiscountPct : autoDiscountPct || catDiscountPct
           const grandDiscount = Math.round(subtotalBruto * activePct / 100)
           grandTotal = subtotalBruto - grandDiscount
         } else {
@@ -2165,7 +2179,7 @@ export default function Presupuesto() {
                       if (profile?.worker_id) setSaveQuoteForm(f => ({ ...f, worker_id: profile.worker_id }))
                       const { sections, grandTotalExport } = buildExportSections()
                       const allItems = sections.flatMap(s => s.items.map(i => ({ label: i.label, price: i.price })))
-                      const activePct = discountMode === 'global' ? (manualDiscountPct != null ? manualDiscountPct : catDiscountPct) : 0
+                      const activePct = discountMode === 'global' ? (manualDiscountPct != null ? manualDiscountPct : autoDiscountPct || catDiscountPct) : 0
                       setSaveQuoteModal({ allSelected: allItems, grandTotal: grandTotalExport, discountPct: activePct, updateId: q.id })
                     }}
                       className="flex items-center justify-center gap-1 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 active:scale-95 text-white font-bold text-xs transition-all">

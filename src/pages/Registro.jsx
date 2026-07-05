@@ -1719,6 +1719,17 @@ export default function Registro() {
   const [showIncidentForm, setShowIncidentForm] = useState(false)
   const [activeTicket, setActiveTicket]    = useState(null)
   const [editingTicket, setEditingTicket]  = useState(null)
+  const [overdueOpenTickets, setOverdueOpenTickets] = useState([])
+
+  const currentMonthStart = `${cy}-${String(cm).padStart(2, '0')}-01`
+
+  function loadOverdueTickets() {
+    supabase.from('tickets').select('*').eq('status', 'abierto').lt('date', currentMonthStart)
+      .order('created_at', { ascending: false })
+      .then(({ data }) => setOverdueOpenTickets(data || []))
+  }
+
+  useEffect(() => { loadOverdueTickets() }, [])
   const [summaryTicket, setSummaryTicket]  = useState(null)
   const [editingExpense, setEditingExpense] = useState(null)
 
@@ -1876,12 +1887,13 @@ export default function Registro() {
 
   // Si el ticket activo se actualiza (cerrado), cerramos el modal
   const activeTicketData = useMemo(
-    () => activeTicket ? tickets.find(t => t.id === activeTicket) : null,
-    [activeTicket, tickets]
+    () => activeTicket ? ([...tickets, ...overdueOpenTickets].find(t => t.id === activeTicket) || null) : null,
+    [activeTicket, tickets, overdueOpenTickets]
   )
   useEffect(() => {
     if (activeTicket && activeTicketData && activeTicketData.status !== 'abierto') {
       setActiveTicket(null)
+      loadOverdueTickets()
     }
   }, [activeTicket, activeTicketData])
 
@@ -2141,6 +2153,27 @@ export default function Registro() {
                   </span>
                 )}
               </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* TICKETS PENDIENTES MESES ANTERIORES */}
+      {overdueOpenTickets.length > 0 && (
+        <div>
+          <div className="flex items-center gap-2 mb-2">
+            <h2 className="text-sm font-bold text-orange-600 dark:text-orange-400 uppercase tracking-wide">
+              Pendientes de meses anteriores
+            </h2>
+            <span className="bg-orange-500 text-white text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center">
+              {overdueOpenTickets.length}
+            </span>
+          </div>
+          <div className="space-y-2">
+            {overdueOpenTickets.map(t => (
+              <ActiveTicketCard key={t.id} ticket={t} workers={workers} vehicleTypes={vehicleTypes}
+                onClick={() => setActiveTicket(t.id)}
+                onToggleHide={canAdmin ? handleToggleHideTicket : null} />
             ))}
           </div>
         </div>

@@ -99,7 +99,7 @@ export function IncidentForm({ workers, onSave, onClose, initial }) {
     type: initial?.type || 'falta',
     hours_h: initHours.h,
     hours_m: initHours.m,
-    multa_amount: initial?.discount_amount && initial?.type === 'multa' ? String(initial.discount_amount) : '',
+    multa_amount: initial?.discount_amount && ['multa','adelanto','permiso'].includes(initial?.type) ? String(initial.discount_amount) : '',
     no_marcacion_count: initial?.no_marcacion_count || 1,
     apply_discount: initial?.apply_discount !== false,
     observation: initial?.observation || '',
@@ -114,7 +114,7 @@ export function IncidentForm({ workers, onSave, onClose, initial }) {
     if (form.type === 'tardanza' || form.type === 'permiso_horas') return calcLatenessDiscount(worker.base_salary, worker.weekly_hours, hoursDecimal)
     if (form.type === 'hora_extra') return calcOvertimePay(worker.base_salary, worker.weekly_hours, hoursDecimal)
     if (form.type === 'no_marcacion') return 5 * (parseInt(form.no_marcacion_count) || 1)
-    if (form.type === 'multa') return parseFloat(form.multa_amount) || 0
+    if (form.type === 'multa' || form.type === 'permiso') return parseFloat(form.multa_amount) || 0
     return calcAbsenceDiscount(worker.base_salary, worker.weekly_hours)
   }, [worker, form, hoursDecimal])
 
@@ -131,7 +131,7 @@ export function IncidentForm({ workers, onSave, onClose, initial }) {
       apply_discount: (form.type === 'multa' || form.type === 'adelanto') ? true : form.apply_discount,
       observation: form.observation,
       is_addition: isAddition,
-      multa_amount: (form.type === 'multa' || form.type === 'adelanto') ? parseFloat(form.multa_amount) || 0 : undefined,
+      multa_amount: (form.type === 'multa' || form.type === 'adelanto' || form.type === 'permiso') ? parseFloat(form.multa_amount) || 0 : undefined,
     })
     onClose()
   }
@@ -206,9 +206,11 @@ export function IncidentForm({ workers, onSave, onClose, initial }) {
           </p>
         </div>
       )}
-      {(form.type === 'multa' || form.type === 'adelanto') && (
+      {(form.type === 'multa' || form.type === 'adelanto' || (form.type === 'permiso' && form.apply_discount)) && (
         <div>
-          <label className="label">{form.type === 'adelanto' ? 'Monto del adelanto (S/)' : 'Monto de la multa (S/)'}</label>
+          <label className="label">
+            {form.type === 'adelanto' ? 'Monto del adelanto (S/)' : form.type === 'permiso' ? 'Monto del descuento (S/)' : 'Monto de la multa (S/)'}
+          </label>
           <input
             type="number" className="input" min="0" step="0.01"
             value={form.multa_amount}
@@ -288,21 +290,22 @@ export default function Trabajadores() {
     fetchWorkerMonthlyConfigs(selYear, selMonth).then(setWorkerMonthlyConfigs)
   }, [selMonth, selYear])
 
-  useEffect(() => {
-    if (isCurrentMonth) { setPastMonthData(null); return }
-    const prefix = `${selYear}-${String(selMonth).padStart(2, '0')}`
+  function loadPastMonth(sMonth, sYear, wks) {
+    const prefix = `${sYear}-${String(sMonth).padStart(2, '0')}`
     const start = `${prefix}-01`
-    const end   = `${prefix}-30` // máx 30/31 — postgres acepta hasta el último día real
+    const nextM = sMonth === 12 ? 1 : sMonth + 1
+    const nextY = sMonth === 12 ? sYear + 1 : sYear
+    const end   = `${nextY}-${String(nextM).padStart(2, '0')}-01`
     Promise.all([
-      supabase.from('tickets').select('id,date,worker_id,price_charged,vehicle_type').gte('date', start).lte('date', `${prefix}-31`),
-      supabase.from('attendance_incidents').select('*').gte('date', start).lte('date', `${prefix}-31`),
+      supabase.from('tickets').select('id,date,worker_id,price_charged,vehicle_type').gte('date', start).lt('date', end),
+      supabase.from('attendance_incidents').select('*').gte('date', start).lt('date', end),
     ]).then(([{ data: t }, { data: i }]) => {
-      // Enriquecer incidencias con discount_amount calculado (igual que AppContext)
       const enriched = (i || []).map(inc => {
-        const w = workers.find(x => x.id === inc.worker_id)
-        if (!inc.apply_discount || !w) return { ...inc, discount_amount: 0 }
+        const w = wks.find(x => x.id === inc.worker_id)
+        if (!inc.apply_discount || !w) return { ...inc, discount_amount: inc.discount_amount || 0 }
         let discount = 0
-        if (inc.type === 'falta')      discount = calcAbsenceDiscount(w.base_salary, w.weekly_hours)
+        if (inc.type === 'falta')       discount = calcAbsenceDiscount(w.base_salary, w.weekly_hours)
+        else if (inc.type === 'permiso') discount = inc.multa_amount || inc.discount_amount || 0
         else if (inc.type === 'tardanza' || inc.type === 'permiso_horas') discount = calcLatenessDiscount(w.base_salary, w.weekly_hours, inc.hours_late || 0)
         else if (inc.type === 'hora_extra') discount = calcOvertimePay(w.base_salary, w.weekly_hours, inc.hours_late || 0)
         else if (inc.type === 'multa' || inc.type === 'adelanto') discount = inc.multa_amount || inc.discount_amount || 0
@@ -311,6 +314,11 @@ export default function Trabajadores() {
       })
       setPastMonthData({ tickets: t || [], incidents: enriched })
     })
+  }
+
+  useEffect(() => {
+    if (isCurrentMonth) { setPastMonthData(null); return }
+    loadPastMonth(selMonth, selYear, workers)
   }, [selMonth, selYear, isCurrentMonth, workers])
 
   // Obtiene el salario efectivo de un trabajador para el mes seleccionado
@@ -324,6 +332,7 @@ export default function Trabajadores() {
   const activeIncidents = isCurrentMonth ? incidents : (pastMonthData?.incidents || [])
 
   const [activeTab, setActiveTab] = useState('equipo')
+  const [pdfWorkerId, setPdfWorkerId] = useState('all') // 'all' | worker id
 
   // Equipo state
   const [showWorkerForm, setShowWorkerForm] = useState(false)
@@ -469,17 +478,24 @@ export default function Trabajadores() {
         toast.success('Incidencia registrada')
       }
       setEditingIncident(null)
+      if (!isCurrentMonth) loadPastMonth(selMonth, selYear, workers)
     } catch (err) {
       toast.error('Error: ' + err.message)
     }
   }
 
   async function handleDeleteIncident(id) {
+    // Optimistic: remove immediately from local view
+    if (!isCurrentMonth) {
+      setPastMonthData(prev => prev ? { ...prev, incidents: prev.incidents.filter(i => i.id !== id) } : prev)
+    }
     try {
       await deleteIncident(id)
       toast.success('Incidencia eliminada')
+      if (!isCurrentMonth) loadPastMonth(selMonth, selYear, workers)
     } catch (err) {
       toast.error('Error al eliminar')
+      if (!isCurrentMonth) loadPastMonth(selMonth, selYear, workers) // revert
     }
   }
 
@@ -499,7 +515,7 @@ export default function Trabajadores() {
         const finalPay = realSalary - totalDiscounts + totalOvertime
         return { ...w, realSalary, workerIncidents, totalDiscounts, totalOvertime, finalPay }
       })
-  }, [workers, incidents, month, year])
+  }, [workers, activeIncidents, month, year])
 
   const totalPayroll   = payrollData.reduce((s, w) => s + w.finalPay, 0)
   const totalNominaDisc = payrollData.reduce((s, w) => s + w.totalDiscounts, 0)
@@ -525,22 +541,175 @@ export default function Trabajadores() {
   }
 
   function exportPDF() {
-    import('jspdf').then(({ jsPDF }) => {
-      const doc = new jsPDF()
-      doc.setFontSize(16)
-      doc.text(`Nómina Apex Pro — ${monthName(month)} ${year}`, 14, 20)
-      doc.setFontSize(10)
-      let y = 35
-      payrollData.forEach(w => {
-        doc.text(`${w.name}: S/${w.realSalary.toFixed(2)} - S/${w.totalDiscounts.toFixed(2)} + S/${w.totalOvertime.toFixed(2)} = S/${w.finalPay.toFixed(2)}`, 14, y)
-        y += 8
-      })
-      y += 4
-      doc.setFontSize(12)
-      doc.text(`TOTAL PLANILLA: S/${totalPayroll.toFixed(2)}`, 14, y)
-      doc.save(`nomina-apexpro-${year}-${String(month).padStart(2,'0')}.pdf`)
-      toast.success('PDF exportado')
-    }).catch(() => toast.error('Error al exportar'))
+    // Carga logo con proporción real
+    const loadLogo = () => new Promise(resolve => {
+      fetch('/logo.jpg').then(r => r.blob()).then(blob => {
+        const reader = new FileReader()
+        reader.onload = e => {
+          const img = new Image()
+          img.onload = () => resolve({ data: e.target.result, w: img.naturalWidth, h: img.naturalHeight })
+          img.onerror = () => resolve(null)
+          img.src = e.target.result
+        }
+        reader.readAsDataURL(blob)
+      }).catch(() => resolve(null))
+    })
+
+    Promise.all([import('jspdf'), loadLogo()]).then(([{ jsPDF }, logoData]) => {
+      const doc = new jsPDF({ unit: 'mm', format: 'a4' })
+      const PW = 210
+      const mL = 14, mR = 14
+      const W = PW - mL - mR
+      const MONTHS_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
+      const lastDay = new Date(year, month, 0).getDate()
+      const periodoFrom = `01/${String(month).padStart(2,'0')}/${year}`
+      const periodoTo   = `${lastDay}/${String(month).padStart(2,'0')}/${year}`
+
+      const drawBoleta = (w, isFirst) => {
+        if (!isFirst) doc.addPage()
+        let y = 12
+
+        // ── Logo (proporción real, altura fija 16mm) ──────
+        if (logoData) {
+          const logoH = 16
+          const logoW = logoH * (logoData.w / logoData.h)
+          doc.addImage(logoData.data, 'JPEG', mL, y, logoW, logoH)
+        }
+
+        // ── Título centrado ───────────────────────────────
+        doc.setFont('helvetica', 'bold')
+        doc.setFontSize(14)
+        doc.text('BOLETA DE PAGO', PW / 2, y + 7, { align: 'center' })
+        doc.setFont('helvetica', 'normal')
+        doc.setFontSize(9)
+        doc.text(`Del   ${periodoFrom}   Al   ${periodoTo}`, PW / 2, y + 13, { align: 'center' })
+        y += 22
+
+        // ── Empresa ───────────────────────────────────────
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(10)
+        doc.text('APEX PRO DETAILING', mL, y)
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5)
+        doc.text('Dirección: Calle Idelfonzo Lopez N 700 Zamacola, Arequipa', mL, y + 5)
+        doc.text('RUC: —', mL, y + 9.5)
+        y += 16
+
+        doc.setDrawColor(0); doc.setLineWidth(0.4)
+        doc.line(mL, y, PW - mR, y)
+        y += 5
+
+        // ── Datos del trabajador ──────────────────────────
+        const col2 = mL + W / 2
+        doc.setFontSize(8.5); doc.setFont('helvetica', 'normal')
+
+        // Conteos de incidencias (unificados)
+        const faltas  = w.workerIncidents.filter(i => ['falta','permiso_justificado'].includes(i.type)).length
+        const tardanz = w.workerIncidents.filter(i => ['tardanza','permiso_horas'].includes(i.type)).length
+        const hrsExt  = w.workerIncidents.filter(i => i.type === 'hora_extra').reduce((s,i) => s + (i.hours_late || 0), 0)
+
+        const infoRows = [
+          [`CÓDIGO:  ${String(w.id).slice(0,8).toUpperCase()}`,   `NOMBRE:  ${w.name.toUpperCase()}`],
+          [`HABER BÁSICO:  S/ ${Number(w.base_salary||0).toFixed(2)}`, `CARGO:  Técnico`],
+          [`FALTAS:  ${faltas}`,                                   `TARDANZAS:  ${tardanz}`],
+          [`HRS. EXTRA:  ${hrsExt.toFixed(1)}`,                   `PERÍODO:  ${MONTHS_ES[month-1]} ${year}`],
+        ]
+        infoRows.forEach(([left, right]) => {
+          doc.text(left, mL, y); doc.text(right, col2, y); y += 5
+        })
+
+        y += 3
+        doc.line(mL, y, PW - mR, y)
+        y += 6
+
+        // ── Tablas REMUNERACIONES | DESCUENTOS ────────────
+        const cW = (W - 4) / 2
+        const cDx = mL + cW + 4
+
+        doc.setFillColor(220, 220, 220)
+        doc.rect(mL, y - 4, cW, 6, 'F')
+        doc.rect(cDx, y - 4, cW, 6, 'F')
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(9)
+        doc.text('REMUNERACIONES', mL + cW / 2, y, { align: 'center' })
+        doc.text('DESCUENTOS', cDx + cW / 2, y, { align: 'center' })
+        y += 6
+
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5)
+
+        // Remuneraciones: haber base + salario real + horas extra
+        const remRows = [['Haber básico', w.base_salary], ['Salario real (mes)', w.realSalary]]
+        if (w.totalOvertime > 0) remRows.push([`Hrs. extra (${hrsExt.toFixed(1)}h)`, w.totalOvertime])
+
+        // Descuentos: agrupados en categorías simplificadas
+        const discMap = {}
+        w.workerIncidents.forEach(i => {
+          if (!i.apply_discount || i.is_addition) return
+          const amt = i.discount_amount || 0
+          let lbl
+          if (['falta','permiso_justificado'].includes(i.type)) lbl = 'Falta'
+          else if (['tardanza','permiso_horas'].includes(i.type))  lbl = 'Tardanza'
+          else if (i.type === 'multa')        lbl = 'Multa'
+          else if (i.type === 'adelanto')     lbl = 'Adelanto'
+          else if (i.type === 'no_marcacion') lbl = 'No marcación'
+          else lbl = i.type
+          discMap[lbl] = (discMap[lbl] || 0) + amt
+        })
+        const discRows = Object.entries(discMap)
+
+        const rowH = 5.5
+        const maxRows = Math.max(remRows.length, discRows.length, 1)
+
+        remRows.forEach(([lbl, val], idx) => {
+          doc.text(lbl, mL + 2, y + idx * rowH)
+          doc.text(`S/ ${Number(val).toFixed(2)}`, mL + cW - 2, y + idx * rowH, { align: 'right' })
+        })
+        if (discRows.length === 0) {
+          doc.setTextColor(160, 160, 160)
+          doc.text('Sin descuentos', cDx + cW / 2, y, { align: 'center' })
+          doc.setTextColor(0, 0, 0)
+        } else {
+          discRows.forEach(([lbl, val], idx) => {
+            doc.text(lbl, cDx + 2, y + idx * rowH)
+            doc.text(`-S/ ${Number(val).toFixed(2)}`, cDx + cW - 2, y + idx * rowH, { align: 'right' })
+          })
+        }
+        y += maxRows * rowH + 4
+
+        // ── Línea totales ─────────────────────────────────
+        doc.setLineWidth(0.5)
+        doc.line(mL, y, PW - mR, y); y += 5
+
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(9)
+        const totalRem = w.realSalary + w.totalOvertime
+        doc.text('TOTAL REMUNERACIÓN', mL + 2, y)
+        doc.text(`S/ ${totalRem.toFixed(2)}`, mL + cW - 2, y, { align: 'right' })
+        doc.text('TOTAL DESCUENTOS', cDx + 2, y)
+        doc.text(`S/ ${w.totalDiscounts.toFixed(2)}`, cDx + cW - 2, y, { align: 'right' })
+
+        y += 4; doc.line(mL, y, PW - mR, y); y += 8
+
+        // ── Neto a pagar ──────────────────────────────────
+        doc.setFillColor(245, 245, 245)
+        doc.rect(mL, y - 5, W, 9, 'F')
+        doc.setFontSize(10); doc.setFont('helvetica', 'bold')
+        doc.text('NETO A PAGAR:', mL + 4, y + 1)
+        doc.setFontSize(12)
+        doc.text(`S/ ${w.finalPay.toFixed(2)}`, PW - mR - 4, y + 1, { align: 'right' })
+
+        y += 20
+        // ── Fecha y firma ─────────────────────────────────
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5)
+        doc.text(`Arequipa, ${lastDay} de ${MONTHS_ES[month-1]} de ${year}`, mL, y)
+
+        y += 20
+        doc.line(PW / 2 - 30, y, PW / 2 + 30, y)
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(8)
+        doc.text('EMPLEADOR', PW / 2, y + 4, { align: 'center' })
+      }
+
+      const toExport = pdfWorkerId === 'all' ? payrollData : payrollData.filter(w => w.id === pdfWorkerId)
+      toExport.forEach((w, i) => drawBoleta(w, i === 0))
+      doc.save(`boletas-apexpro-${year}-${String(month).padStart(2,'0')}.pdf`)
+      toast.success('Boletas exportadas')
+    }).catch(e => { console.error(e); toast.error('Error al exportar') })
   }
 
   return (
@@ -565,6 +734,13 @@ export default function Trabajadores() {
               <Plus className="w-4 h-4" /> Trabajador
             </button>
           </>) : (<>
+            <select
+              value={pdfWorkerId}
+              onChange={e => setPdfWorkerId(e.target.value)}
+              className="text-sm border border-gray-200 dark:border-gray-700 rounded-xl px-2 py-1.5 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200">
+              <option value="all">Todos los trabajadores</option>
+              {payrollData.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+            </select>
             <button className="btn-secondary text-sm flex items-center gap-1" onClick={exportPDF}>
               <Download className="w-4 h-4" /> PDF
             </button>
@@ -773,7 +949,7 @@ export default function Trabajadores() {
             </select>
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-2 pb-20 lg:pb-0">
             {[...incidents]
               .filter(i => (!incFilter.worker || i.worker_id === incFilter.worker) && (!incFilter.type || i.type === incFilter.type))
               .sort((a, b) => {
@@ -913,13 +1089,21 @@ export default function Trabajadores() {
           {activeIncidents.length > 0 && (
             <div className="card">
               <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">Desglose de descuentos por incidencia</p>
-              <div className="space-y-4">
+              <div className="space-y-4 pb-20 lg:pb-0">
                 {payrollData.filter(w => w.workerIncidents.length > 0).map(w => (
                   <div key={w.id}>
                     <p className="text-sm font-medium text-gray-800 dark:text-gray-200 mb-2">{w.name}</p>
                     <div className="space-y-1 pl-3">
                       {[...w.workerIncidents].sort((a, b) => b.date.localeCompare(a.date)).map(i => (
                         <div key={i.id} className="flex items-center gap-2 text-xs group py-0.5">
+                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                            <button onClick={() => openEditIncident(i)} className="p-1 rounded hover:bg-blue-50 dark:hover:bg-blue-900/20 text-blue-500">
+                              <Pencil className="w-3 h-3" />
+                            </button>
+                            <button onClick={() => setConfirmDelete(i)} className="p-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 text-red-500">
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          </div>
                           <span className="text-gray-500 shrink-0">{formatDate(i.date)}</span>
                           <span className="text-gray-600 dark:text-gray-400 shrink-0">{INCIDENT_LABELS[i.type]}</span>
                           {(i.type === 'tardanza' || i.type === 'permiso_horas' || i.type === 'hora_extra') && i.hours_late > 0 && (
@@ -935,14 +1119,6 @@ export default function Trabajadores() {
                             : <Badge variant="gray">Sin descuento</Badge>
                           }
                           {i.observation && <span className="text-gray-400 italic truncate max-w-[200px]">{i.observation}</span>}
-                          <div className="ml-auto flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-                            <button onClick={() => openEditIncident(i)} className="p-1 rounded hover:bg-blue-50 dark:hover:bg-blue-900/20 text-blue-500">
-                              <Pencil className="w-3 h-3" />
-                            </button>
-                            <button onClick={() => setConfirmDelete(i)} className="p-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 text-red-500">
-                              <Trash2 className="w-3 h-3" />
-                            </button>
-                          </div>
                         </div>
                       ))}
                     </div>

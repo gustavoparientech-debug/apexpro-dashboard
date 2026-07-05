@@ -529,10 +529,13 @@ export default function Dashboard() {
   useEffect(() => {
     if (isCurrentMonth || IS_DEMO) { setPastTickets([]); setPastSummaries([]); setPastExpenses([]); return }
     const p = `${selYear}-${String(selMonth).padStart(2,'0')}`
+    const nextM = selMonth === 12 ? 1 : selMonth + 1
+    const nextY = selMonth === 12 ? selYear + 1 : selYear
+    const endP  = `${nextY}-${String(nextM).padStart(2,'0')}-01`
     Promise.all([
-      supabase.from('tickets').select('*').gte('date', `${p}-01`).lte('date', `${p}-31`).neq('status', 'abierto'),
-      supabase.from('daily_summary').select('*').gte('date', `${p}-01`).lte('date', `${p}-31`),
-      supabase.from('worker_expenses').select('*').gte('date', `${p}-01`).lte('date', `${p}-31`),
+      supabase.from('tickets').select('*').gte('date', `${p}-01`).lt('date', endP).neq('status', 'abierto'),
+      supabase.from('daily_summary').select('*').gte('date', `${p}-01`).lt('date', endP),
+      supabase.from('worker_expenses').select('*').gte('date', `${p}-01`).lt('date', endP),
     ]).then(([t, s, e]) => { setPastTickets(t.data || []); setPastSummaries(s.data || []); setPastExpenses(e.data || []) })
   }, [selMonth, selYear, isCurrentMonth])
   const prefix = `${selYear}-${String(selMonth).padStart(2, '0')}`

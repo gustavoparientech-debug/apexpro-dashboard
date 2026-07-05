@@ -365,11 +365,21 @@ export default function Trabajadores() {
   }
 
   async function saveNominaIncident() {
+    if (!isCurrentMonth) {
+      setPastMonthData(prev => prev ? {
+        ...prev,
+        incidents: prev.incidents.map(i => i.id === editingNominaIncident.id ? { ...i, ...incDraft } : i)
+      } : prev)
+    }
     try {
       await updateIncident(editingNominaIncident.id, incDraft)
       toast.success('Incidencia actualizada')
       setEditingNominaIncident(null)
-    } catch { toast.error('Error al guardar') }
+      if (!isCurrentMonth) loadPastMonth(selMonth, selYear, workers)
+    } catch {
+      toast.error('Error al guardar')
+      if (!isCurrentMonth) loadPastMonth(selMonth, selYear, workers)
+    }
   }
 
   async function handleSaveNominaWorker() {
@@ -390,11 +400,18 @@ export default function Trabajadores() {
   }
 
   async function doDeleteIncident(id) {
+    if (!isCurrentMonth) {
+      setPastMonthData(prev => prev ? { ...prev, incidents: prev.incidents.filter(i => i.id !== id) } : prev)
+    }
     try {
       await deleteIncident(id)
       toast.success('Incidencia eliminada')
       setConfirmDelete(null)
-    } catch { toast.error('Error al eliminar') }
+      if (!isCurrentMonth) loadPastMonth(selMonth, selYear, workers)
+    } catch {
+      toast.error('Error al eliminar')
+      if (!isCurrentMonth) loadPastMonth(selMonth, selYear, workers)
+    }
   }
 
   const monthStart = monthRangeStr(year, month)
@@ -571,7 +588,7 @@ export default function Trabajadores() {
 
         // ── Logo (proporción real, altura fija 16mm) ──────
         if (logoData) {
-          const logoH = 16
+          const logoH = 24
           const logoW = logoH * (logoData.w / logoData.h)
           doc.addImage(logoData.data, 'JPEG', mL, y, logoW, logoH)
         }
@@ -590,7 +607,7 @@ export default function Trabajadores() {
         doc.text('APEX PRO DETAILING', mL, y)
         doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5)
         doc.text('Dirección: Calle Idelfonzo Lopez N 700 Zamacola, Arequipa', mL, y + 5)
-        doc.text('RUC: —', mL, y + 9.5)
+        doc.text('RUC: 20614041669', mL, y + 9.5)
         y += 16
 
         doc.setDrawColor(0); doc.setLineWidth(0.4)
@@ -602,12 +619,12 @@ export default function Trabajadores() {
         doc.setFontSize(8.5); doc.setFont('helvetica', 'normal')
 
         // Conteos de incidencias (unificados)
-        const faltas  = w.workerIncidents.filter(i => ['falta','permiso_justificado'].includes(i.type)).length
+        const faltas  = w.workerIncidents.filter(i => ['falta','permiso_justificado','permiso'].includes(i.type)).length
         const tardanz = w.workerIncidents.filter(i => ['tardanza','permiso_horas'].includes(i.type)).length
         const hrsExt  = w.workerIncidents.filter(i => i.type === 'hora_extra').reduce((s,i) => s + (i.hours_late || 0), 0)
 
         const infoRows = [
-          [`CÓDIGO:  ${String(w.id).slice(0,8).toUpperCase()}`,   `NOMBRE:  ${w.name.toUpperCase()}`],
+          [`CÓDIGO:  ${String(w.id).slice(0,8).toUpperCase()}`,   `NOMBRE:  ${w.name.toUpperCase().trim()}`],
           [`HABER BÁSICO:  S/ ${Number(w.base_salary||0).toFixed(2)}`, `CARGO:  Técnico`],
           [`FALTAS:  ${faltas}`,                                   `TARDANZAS:  ${tardanz}`],
           [`HRS. EXTRA:  ${hrsExt.toFixed(1)}`,                   `PERÍODO:  ${MONTHS_ES[month-1]} ${year}`],
@@ -644,7 +661,7 @@ export default function Trabajadores() {
           if (!i.apply_discount || i.is_addition) return
           const amt = i.discount_amount || 0
           let lbl
-          if (['falta','permiso_justificado'].includes(i.type)) lbl = 'Falta'
+          if (['falta','permiso_justificado','permiso'].includes(i.type)) lbl = 'Falta'
           else if (['tardanza','permiso_horas'].includes(i.type))  lbl = 'Tardanza'
           else if (i.type === 'multa')        lbl = 'Multa'
           else if (i.type === 'adelanto')     lbl = 'Adelanto'

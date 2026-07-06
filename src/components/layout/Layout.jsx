@@ -282,6 +282,10 @@ const ADMIN_NAV = [
 ]
 
 const WORKER_NAV = [
+  { to: '/',              label: 'Inicio',      icon: LayoutDashboard },
+  { to: '/registro',      label: 'Registro',    icon: ClipboardList },
+  { to: '/citas',         label: 'Citas',       icon: CalendarDays },
+  { to: '/presupuesto',   label: 'Presupuesto', icon: Calculator },
   { to: '/asistencia',    label: 'Asistencia',  icon: Fingerprint },
 ]
 

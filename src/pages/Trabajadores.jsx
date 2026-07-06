@@ -15,6 +15,10 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 const INCIDENT_ICONS = { falta: '🔴', permiso: '🟡', permiso_horas: '🟡', tardanza: '🟠', hora_extra: '🟢', no_marcacion: '🔵', multa: '🚫', adelanto: '💵' }
 const INCIDENT_LABELS = { falta: 'Falta injustificada', permiso: 'Permiso justificado', permiso_horas: 'Permiso por horas', tardanza: 'Tardanza', hora_extra: 'Hora extra', no_marcacion: 'No marcó entrada/salida', multa: 'Multa', adelanto: 'Adelanto de sueldo' }
 
+function monthRangeStr(year, month) {
+  return `${year}-${String(month).padStart(2, '0')}-01`
+}
+
 function WorkerForm({ initial, onSave, onClose }) {
   const [form, setForm] = useState({
     name: initial?.name || '',
@@ -287,10 +291,6 @@ export function IncidentForm({ workers, onSave, onClose, initial, month, year })
       </div>
     </form>
   )
-}
-
-function monthRangeStr(year, month) {
-  return `${year}-${String(month).padStart(2, '0')}-01`
 }
 
 export default function Trabajadores() {

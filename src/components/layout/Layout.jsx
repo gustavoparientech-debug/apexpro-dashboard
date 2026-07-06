@@ -11,6 +11,7 @@ import {
 import { cn, todayISO } from '../../lib/utils'
 import { IncidentForm } from '../../pages/Trabajadores'
 import UpdateBanner from '../UpdateBanner'
+import InstallBanner from '../InstallBanner'
 import toast from 'react-hot-toast'
 import { supabase } from '../../lib/supabase'
 
@@ -471,6 +472,7 @@ export default function Layout({ children }) {
 
         <GlobalFab canAdmin={isAdmin || isDemo} workerWorkerId={profile?.worker_id} />
         <UpdateBanner />
+        <InstallBanner />
 
         {/* Bottom nav móvil */}
         <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-30 bg-[#1e1e1e] border-t border-white/10 flex">

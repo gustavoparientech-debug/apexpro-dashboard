@@ -93,8 +93,7 @@ const Asistencia    = lazy(() => import('./pages/Asistencia'))
 
 function HomeRoute() {
   const { isAdmin, isDemo } = useAuth()
-  if (isAdmin || isDemo) return <Dashboard />
-  return <Navigate to="/asistencia" replace />
+  return (isAdmin || isDemo) ? <Dashboard /> : <DashboardTrabajador />
 }
 
 function AdminOnly({ children }) {

@@ -58,8 +58,9 @@ export default function Asistencia() {
   const { workers } = useApp()
 
   const [selectedWorkerId, setSelectedWorkerId] = useState(profile?.worker_id || '')
-  const [logs, setLogs]     = useState([])
+  const [logs, setLogs]       = useState([])
   const [loading, setLoading] = useState(true)
+  const [schedules, setSchedules] = useState([])
   const [saving, setSaving]   = useState(false)
   const [now, setNow]         = useState(new Date())
 
@@ -89,6 +90,9 @@ export default function Asistencia() {
   const today  = new Date().toISOString().slice(0, 10)
 
   useEffect(() => { const t = setInterval(() => setNow(new Date()), 1000); return () => clearInterval(t) }, [])
+  useEffect(() => {
+    supabase.from('work_schedules').select('*').then(({ data }) => setSchedules(data || []))
+  }, [])
   useEffect(() => { if (!isAdmin && !isDemo && profile?.worker_id) setSelectedWorkerId(profile.worker_id) }, [profile, isAdmin, isDemo])
 
   const loadLogs = useCallback(async () => {
@@ -265,13 +269,18 @@ export default function Asistencia() {
         photo_b64: photo || null,
       })
 
-      // Auto-incidencia por tardanza
+      // Obtener horario del trabajador (por schedule_id o campos directos)
       const worker = workers.find(w => w.id === selectedWorkerId)
-      if (worker?.schedule_start && pendingType === 'entrada') {
-        const [sh, sm] = worker.schedule_start.split(':').map(Number)
+      const sched = worker?.schedule_id
+        ? schedules.find(s => s.id === worker.schedule_id)
+        : (worker?.schedule_start ? { start_time: worker.schedule_start, end_time: worker.schedule_end, tolerance_min: worker.schedule_tolerance_min ?? 5 } : null)
+
+      // Auto-incidencia por tardanza
+      if (sched?.start_time && pendingType === 'entrada') {
+        const [sh, sm] = sched.start_time.split(':').map(Number)
         const scheduled = new Date(loggedAt)
         scheduled.setHours(sh, sm, 0, 0)
-        const toleranceMs = (worker.schedule_tolerance_min ?? 5) * 60000
+        const toleranceMs = (sched.tolerance_min ?? 5) * 60000
         const diffMs = loggedAt - scheduled
         if (diffMs > toleranceMs) {
           const hoursLate = Math.round(diffMs / 60000) / 60
@@ -281,11 +290,11 @@ export default function Asistencia() {
       }
 
       // Auto-incidencia por salida anticipada
-      if (worker?.schedule_end && pendingType === 'salida') {
-        const [eh, em] = worker.schedule_end.split(':').map(Number)
+      if (sched?.end_time && pendingType === 'salida') {
+        const [eh, em] = sched.end_time.split(':').map(Number)
         const scheduled = new Date(loggedAt)
         scheduled.setHours(eh, em, 0, 0)
-        const toleranceMs = (worker.schedule_tolerance_min ?? 5) * 60000
+        const toleranceMs = (sched.tolerance_min ?? 5) * 60000
         const diffMs = scheduled - loggedAt
         if (diffMs > toleranceMs) {
           const hoursEarly = Math.round(diffMs / 60000) / 60

@@ -19,16 +19,14 @@ function monthRangeStr(year, month) {
   return `${year}-${String(month).padStart(2, '0')}-01`
 }
 
-function WorkerForm({ initial, onSave, onClose }) {
+function WorkerForm({ initial, onSave, onClose, schedules = [] }) {
   const [form, setForm] = useState({
     name: initial?.name || '',
     base_salary: initial?.base_salary || '',
     weekly_hours: initial?.weekly_hours || 48,
     hire_date: initial?.hire_date || '',
     role: initial?.role || 'worker',
-    schedule_start: initial?.schedule_start || '08:00',
-    schedule_end: initial?.schedule_end || '17:00',
-    schedule_tolerance_min: initial?.schedule_tolerance_min ?? 5,
+    schedule_id: initial?.schedule_id || '',
   })
 
   const realSalary = form.base_salary && form.weekly_hours
@@ -41,9 +39,7 @@ function WorkerForm({ initial, onSave, onClose }) {
       base_salary: form.base_salary !== '' ? parseFloat(form.base_salary) : 0,
       weekly_hours: parseFloat(form.weekly_hours),
       hire_date: form.hire_date || null,
-      schedule_start: form.schedule_start || null,
-      schedule_end: form.schedule_end || null,
-      schedule_tolerance_min: parseInt(form.schedule_tolerance_min) || 5,
+      schedule_id: form.schedule_id || null,
     })
     onClose()
   }
@@ -87,21 +83,13 @@ function WorkerForm({ initial, onSave, onClose }) {
       </div>
       {/* Horario */}
       <div className="border-t border-gray-100 dark:border-gray-800 pt-4">
-        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Horario laboral</p>
-        <div className="grid grid-cols-3 gap-3">
-          <div>
-            <label className="label">Entrada</label>
-            <input type="time" className="input" value={form.schedule_start} onChange={e => setForm(f => ({ ...f, schedule_start: e.target.value }))} />
-          </div>
-          <div>
-            <label className="label">Salida</label>
-            <input type="time" className="input" value={form.schedule_end} onChange={e => setForm(f => ({ ...f, schedule_end: e.target.value }))} />
-          </div>
-          <div>
-            <label className="label">Tolerancia (min)</label>
-            <input type="number" className="input" min="0" max="60" value={form.schedule_tolerance_min} onChange={e => setForm(f => ({ ...f, schedule_tolerance_min: e.target.value }))} />
-          </div>
-        </div>
+        <label className="label">Horario de trabajo</label>
+        <select className="input" value={form.schedule_id} onChange={e => setForm(f => ({ ...f, schedule_id: e.target.value }))}>
+          <option value="">Sin horario asignado</option>
+          {schedules.map(s => (
+            <option key={s.id} value={s.id}>{s.name}{s.is_default ? ' (predeterminado)' : ''} — {s.start_time?.slice(0,5)} a {s.end_time?.slice(0,5)}</option>
+          ))}
+        </select>
       </div>
 
       <div className="flex gap-3 pt-2">
@@ -364,6 +352,12 @@ export default function Trabajadores() {
 
   const [activeTab, setActiveTab] = useState('equipo')
   const [pdfWorkerId, setPdfWorkerId] = useState('all') // 'all' | worker id
+
+  const [schedules, setSchedules] = useState([])
+  useEffect(() => {
+    supabase.from('work_schedules').select('*').order('is_default', { ascending: false }).order('name')
+      .then(({ data }) => setSchedules(data || []))
+  }, [])
 
   // Equipo state
   const [showWorkerForm, setShowWorkerForm] = useState(false)
@@ -1263,7 +1257,7 @@ export default function Trabajadores() {
 
       {/* Modals equipo */}
       <Modal open={showWorkerForm} onClose={() => { setShowWorkerForm(false); setEditingWorker(null) }} title={editingWorker ? 'Editar trabajador' : 'Nuevo trabajador'} size="md">
-        <WorkerForm initial={editingWorker} onSave={handleSaveWorker} onClose={() => { setShowWorkerForm(false); setEditingWorker(null) }} />
+        <WorkerForm initial={editingWorker} onSave={handleSaveWorker} onClose={() => { setShowWorkerForm(false); setEditingWorker(null) }} schedules={schedules} />
       </Modal>
 
       <Modal open={showIncidentForm} onClose={() => { setShowIncidentForm(false); setEditingIncident(null) }} title={editingIncident ? 'Editar incidencia' : 'Registrar incidencia'}>

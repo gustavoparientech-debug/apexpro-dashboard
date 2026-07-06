@@ -41,7 +41,7 @@ if ('serviceWorker' in navigator) {
 
   // Si la versión del SW cacheado no coincide con la versión actual del build,
   // desregistrar todos los SWs y limpiar caches para forzar la versión nueva.
-  const SW_VERSION = '2026-06-23-v2'
+  const SW_VERSION = '2026-07-05-v1'
   const swVerKey = 'apexpro_sw_version'
   if (localStorage.getItem(swVerKey) !== SW_VERSION) {
     navigator.serviceWorker.getRegistrations().then(regs => {

@@ -9,32 +9,11 @@ import {
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { MapContainer, TileLayer, CircleMarker, Circle, useMap } from 'react-leaflet'
-import 'leaflet/dist/leaflet.css'
-
-function RecenterMap({ lat, lon }) {
-  const map = useMap()
-  useEffect(() => { if (lat && lon) map.setView([lat, lon], map.getZoom()) }, [lat, lon])
-  return null
-}
-
-function LocateButton({ lat, lon }) {
-  const map = useMap()
-  if (!lat || !lon) return null
-  return (
-    <button
-      onClick={() => map.setView([lat, lon], 18)}
-      style={{ position: 'absolute', bottom: 12, left: 12, zIndex: 1000 }}
-      className="bg-white dark:bg-gray-900 rounded-full w-10 h-10 flex items-center justify-center shadow-md text-blue-500 border border-gray-200 dark:border-gray-700">
-      ◎
-    </button>
-  )
-}
 
 // ── Geovalla ──────────────────────────────────────────────────────────────────
-const WORKPLACE_LAT  = -16.3596   // Zamacola, Arequipa — ajusta si es necesario
+const WORKPLACE_LAT  = -16.3596
 const WORKPLACE_LON  = -71.5706
-const GEOFENCE_M     = 999999     // TODO: cambiar a 300 cuando se configure la ubicación real del taller
+const GEOFENCE_M     = 999999
 
 function haversineM(lat1, lon1, lat2, lon2) {
   const R = 6371000
@@ -362,8 +341,7 @@ export default function Asistencia() {
     const { error } = await supabase.from('attendance_logs').update({ logged_at: base.toISOString() }).eq('id', editingLog.id)
     if (error) { toast.error(error.message); return }
     toast.success('Hora actualizada')
-    setEditingLog(null); loadAdminLogs()
-    if (adminWorker === selectedWorkerId && adminDate === today) loadLogs()
+    setEditingLog(null); loadAdminLogs(); loadLogs()
 
     // Recalcular incidencia automática si es entrada o salida
     if (editingLog.type === 'entrada' || editingLog.type === 'salida') {
@@ -432,7 +410,7 @@ export default function Asistencia() {
     await supabase.from('attendance_logs').delete().eq('id', id)
     toast.success('Registro eliminado')
     loadAdminLogs()
-    if (adminWorker === selectedWorkerId && adminDate === today) loadLogs()
+    loadLogs()
   }
 
   const ACTION = {
@@ -442,78 +420,31 @@ export default function Asistencia() {
     salida:          { label: 'Registrar Salida',   icon: LogOut, color: 'bg-red-500 hover:bg-red-600' },
   }
 
-  const mapCenter = location ? [location.lat, location.lon] : [WORKPLACE_LAT, WORKPLACE_LON]
-  const lastLog = logs.length > 0 ? logs[logs.length - 1] : null
-  const lastLogTime = lastLog ? new Date(lastLog.logged_at).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit', hour12: true }) : null
-  const locationOk = geoStatus === 'ok' || geoStatus === 'denied' || geoStatus === 'settings'
   const isAuthorized = geoStatus !== 'outside'
 
   return (
-    <div className="flex flex-col" style={{ height: 'calc(100dvh - 56px)' }}>
+    <div className="p-4 max-w-lg mx-auto space-y-4 pb-8">
 
-      {/* ── MAP SECTION ─────────────────────────────────────────────────── */}
-      <div className="relative flex-1 min-h-0">
-        <MapContainer center={mapCenter} zoom={16} style={{ height: '100%', width: '100%' }} zoomControl={false} attributionControl={false}>
-          <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-          {/* Marcador del taller — siempre visible */}
-          <CircleMarker center={[WORKPLACE_LAT, WORKPLACE_LON]} radius={7} pathOptions={{ color: '#fff', weight: 3, fillColor: '#ef4444', fillOpacity: 1 }} />
-          {GEOFENCE_M < 5000 && (
-            <Circle center={[WORKPLACE_LAT, WORKPLACE_LON]} radius={GEOFENCE_M} pathOptions={{ color: '#ef4444', weight: 1.5, fillColor: '#ef4444', fillOpacity: 0.1 }} />
-          )}
-          {location && (
-            <>
-              <RecenterMap lat={location.lat} lon={location.lon} />
-              {/* Punto de ubicación actual — borde blanco grueso + relleno azul */}
-              <CircleMarker center={[location.lat, location.lon]} radius={10} pathOptions={{ color: '#fff', weight: 4, fillColor: '#3b82f6', fillOpacity: 1 }} />
-              {/* Halo exterior */}
-              <CircleMarker center={[location.lat, location.lon]} radius={20} pathOptions={{ color: '#3b82f6', weight: 1, fillColor: '#3b82f6', fillOpacity: 0.15 }} />
-              {/* Botón centrar */}
-              <LocateButton lat={location.lat} lon={location.lon} />
-            </>
-          )}
-        </MapContainer>
-
-        {/* Top overlays */}
-        <div className="absolute top-3 left-3 right-3 z-[1000] space-y-2 pointer-events-none">
-          {/* Last log */}
-          {lastLog && (
-            <div className="bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm rounded-2xl px-4 py-2.5 flex items-center gap-2 shadow-sm">
-              <Clock className="w-4 h-4 text-gray-400 shrink-0" />
-              <span className="text-sm text-gray-700 dark:text-gray-200">
-                Último registro: <strong>{TYPE_LABEL[lastLog.type]}</strong> a las {lastLogTime}
-              </span>
-            </div>
-          )}
-          {/* Location status */}
-          <div className={`rounded-2xl px-4 py-2.5 flex items-center gap-2 shadow-sm ${isAuthorized ? 'bg-white/90 dark:bg-gray-900/90' : 'bg-red-50/95 dark:bg-red-950/90'} backdrop-blur-sm`}>
-            <MapPin className={`w-4 h-4 shrink-0 ${isAuthorized ? 'text-green-500' : 'text-red-500'}`} />
-            <div>
-              {!isAuthorized && <p className="text-xs font-bold uppercase tracking-wide text-red-600">Localización no autorizada</p>}
-              <p className={`text-sm font-medium ${isAuthorized ? 'text-gray-700 dark:text-gray-200' : 'text-red-600'}`}>Apex Pro Detailing AQP</p>
-            </div>
-          </div>
-          {/* Clock */}
-          <div className="bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm rounded-2xl px-4 py-2 flex items-center justify-between shadow-sm">
-            <span className="text-2xl font-black tabular-nums text-gray-900 dark:text-white">
-              {now.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit', hour12: false })}
-            </span>
-            <span className="text-xs text-gray-500 capitalize text-right">
-              {now.toLocaleDateString('es-PE', { weekday: 'long', day: 'numeric', month: 'short' })}
-            </span>
-          </div>
+      {/* ── Header: reloj + fecha ─────────────────────────────────────── */}
+      <div className="card flex items-center justify-between">
+        <div>
+          <span className="text-3xl font-black tabular-nums text-gray-900 dark:text-white">
+            {now.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit', hour12: false })}
+          </span>
+          <p className="text-xs text-gray-400 capitalize mt-0.5">
+            {now.toLocaleDateString('es-PE', { weekday: 'long', day: 'numeric', month: 'long' })}
+          </p>
         </div>
-
-        {/* Admin: reporte button */}
         {(isAdmin || isDemo) && (
           <button onClick={() => navigate('/asistencia/reporte')}
-            className="absolute bottom-3 right-3 z-[1000] bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm rounded-full p-2.5 shadow-md">
+            className="p-2.5 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
             <BarChart2 className="w-5 h-5 text-red-500" />
           </button>
         )}
       </div>
 
-      {/* ── BOTTOM SECTION ──────────────────────────────────────────────── */}
-      <div className="bg-white dark:bg-gray-950 border-t border-gray-100 dark:border-gray-800 p-4 space-y-3 overflow-y-auto" style={{ maxHeight: '45vh' }}>
+      {/* ── MAIN SECTION ─────────────────────────────────────────────── */}
+      <div className="space-y-3">
         {/* Worker selector (admin) */}
         {(isAdmin || isDemo) ? (
           <div className="relative">
@@ -694,7 +625,7 @@ export default function Asistencia() {
         </div>
       )}
 
-      </div>{/* end bottom section */}
+      </div>{/* end main section */}
 
       {/* ── Camera Modal ─────────────────────────────────────────────── */}
       {camOpen && (

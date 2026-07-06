@@ -465,6 +465,24 @@ export function AppProvider({ children }) {
   }, [])
 
 
+  // ── Realtime: sincronizar incidencias entre dispositivos ───────────────────
+  useEffect(() => {
+    if (IS_DEMO) return
+    const channel = supabase
+      .channel('incidents-realtime')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'attendance_incidents' }, ({ new: i }) => {
+        dispatch({ type: 'ADD_INCIDENT', payload: enrichIncident(i, state.workers) })
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'attendance_incidents' }, ({ new: i }) => {
+        dispatch({ type: 'UPDATE_INCIDENT', payload: enrichIncident(i, state.workers) })
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'attendance_incidents' }, ({ old: i }) => {
+        dispatch({ type: 'DELETE_INCIDENT', payload: i.id })
+      })
+      .subscribe()
+    return () => supabase.removeChannel(channel)
+  }, [state.workers])
+
   // ─── CRUD Workers ───────────────────────────────────────────────────────────
   const addWorker = async (data) => {
     if (IS_DEMO) {

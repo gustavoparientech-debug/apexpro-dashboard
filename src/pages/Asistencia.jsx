@@ -325,6 +325,51 @@ export default function Asistencia() {
     toast.success('Hora actualizada')
     setEditingLog(null); loadAdminLogs()
     if (adminWorker === selectedWorkerId && adminDate === today) loadLogs()
+
+    // Recalcular incidencia automática si es entrada o salida
+    if (editingLog.type === 'entrada' || editingLog.type === 'salida') {
+      const incType = editingLog.type === 'entrada' ? 'tardanza' : 'permiso_horas'
+      // Eliminar incidencia automática previa del mismo día/tipo
+      await supabase.from('attendance_incidents')
+        .delete()
+        .eq('worker_id', editingLog.worker_id)
+        .eq('date', adminDate)
+        .eq('type', incType)
+        .like('observation', '%automática%')
+
+      // Fetch horario del trabajador
+      const { data: fw } = await supabase.from('workers').select('*').eq('id', editingLog.worker_id).single()
+      let sched = null
+      if (fw?.schedule_id) {
+        const { data: fs } = await supabase.from('work_schedules').select('*').eq('id', fw.schedule_id).single()
+        sched = fs
+      } else if (fw?.schedule_start) {
+        sched = { start_time: fw.schedule_start, end_time: fw.schedule_end, tolerance_min: fw.schedule_tolerance_min ?? 5 }
+      }
+      if (!sched) return
+
+      function timeToMin(t) {
+        const [hh, mm] = (t || '').split(':').map(Number)
+        return hh * 60 + (mm || 0)
+      }
+      const editedMin = h * 60 + m
+      const tolerance = sched.tolerance_min ?? 5
+
+      if (editingLog.type === 'entrada' && sched.start_time) {
+        const diffMin = editedMin - timeToMin(sched.start_time)
+        if (diffMin > tolerance && diffMin <= 240) {
+          await autoCreateIncident('tardanza', Math.round(diffMin) / 60, adminDate, editingLog.worker_id)
+          toast(`Tardanza recalculada: ${Math.round(diffMin)} min`, { icon: '⚠️' })
+        }
+      }
+      if (editingLog.type === 'salida' && sched.end_time) {
+        const diffMin = timeToMin(sched.end_time) - editedMin
+        if (diffMin > tolerance && diffMin <= 240) {
+          await autoCreateIncident('permiso_horas', Math.round(diffMin) / 60, adminDate, editingLog.worker_id)
+          toast(`Salida anticipada recalculada: ${Math.round(diffMin)} min`, { icon: '⚠️' })
+        }
+      }
+    }
   }
   async function deleteAdminLog(id) {
     await supabase.from('attendance_logs').delete().eq('id', id)

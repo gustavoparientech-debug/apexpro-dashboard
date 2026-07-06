@@ -286,9 +286,6 @@ export default function Asistencia() {
       const nowMin = loggedAt.getHours() * 60 + loggedAt.getMinutes()
       const tolerance = sched?.tolerance_min ?? 5
 
-      // DEBUG temporal — muestra los valores para diagnóstico
-      toast(`🔍 sched=${sched?.start_time ?? 'null'} now=${loggedAt.getHours()}:${String(loggedAt.getMinutes()).padStart(2,'0')} type=${pendingType}`, { duration: 8000 })
-
       // Auto-incidencia por tardanza (máx 4h para evitar falsos en pruebas fuera de horario)
       if (sched?.start_time && pendingType === 'entrada') {
         const schedMin = timeToMin(sched.start_time)

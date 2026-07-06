@@ -9,6 +9,14 @@ import {
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
+import { MapContainer, TileLayer, CircleMarker, Circle, useMap } from 'react-leaflet'
+import 'leaflet/dist/leaflet.css'
+
+function RecenterMap({ lat, lon }) {
+  const map = useMap()
+  useEffect(() => { if (lat && lon) map.setView([lat, lon], map.getZoom()) }, [lat, lon])
+  return null
+}
 
 // ── Geovalla ──────────────────────────────────────────────────────────────────
 const WORKPLACE_LAT  = -16.3596   // Zamacola, Arequipa — ajusta si es necesario
@@ -421,49 +429,115 @@ export default function Asistencia() {
     salida:          { label: 'Registrar Salida',   icon: LogOut, color: 'bg-red-500 hover:bg-red-600' },
   }
 
-  return (
-    <div className="max-w-lg mx-auto p-4 space-y-4">
-      {/* Reporte shortcut for admin */}
-      {(isAdmin || isDemo) && (
-        <button onClick={() => navigate('/asistencia/reporte')}
-          className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 text-sm font-semibold text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
-          <BarChart2 className="w-4 h-4 text-red-500" />
-          Ver reporte de horas
-        </button>
-      )}
+  const mapCenter = location ? [location.lat, location.lon] : [WORKPLACE_LAT, WORKPLACE_LON]
+  const lastLog = logs.length > 0 ? logs[logs.length - 1] : null
+  const lastLogTime = lastLog ? new Date(lastLog.logged_at).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit', hour12: true }) : null
+  const locationOk = geoStatus === 'ok' || geoStatus === 'denied' || geoStatus === 'settings'
+  const isAuthorized = geoStatus !== 'outside'
 
-      {/* Clock */}
-      <div className="card text-center py-6">
-        <p className="text-6xl font-black text-gray-900 dark:text-white tracking-tight leading-none" style={{ fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.02em' }}>
-          {now.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}
-        </p>
-        <p className="text-sm text-gray-500 mt-2 capitalize">{now.toLocaleDateString('es-PE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
+  return (
+    <div className="flex flex-col" style={{ height: 'calc(100dvh - 56px)' }}>
+
+      {/* ── MAP SECTION ─────────────────────────────────────────────────── */}
+      <div className="relative flex-1 min-h-0">
+        <MapContainer center={mapCenter} zoom={16} style={{ height: '100%', width: '100%' }} zoomControl={false} attributionControl={false}>
+          <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+          {location && (
+            <>
+              <RecenterMap lat={location.lat} lon={location.lon} />
+              <CircleMarker center={[location.lat, location.lon]} radius={8} pathOptions={{ color: '#fff', weight: 3, fillColor: '#3b82f6', fillOpacity: 1 }} />
+              {GEOFENCE_M < 2000 && <Circle center={[WORKPLACE_LAT, WORKPLACE_LON]} radius={GEOFENCE_M} pathOptions={{ color: '#ef4444', weight: 1.5, fillColor: '#ef4444', fillOpacity: 0.08 }} />}
+            </>
+          )}
+        </MapContainer>
+
+        {/* Top overlays */}
+        <div className="absolute top-3 left-3 right-3 z-[1000] space-y-2 pointer-events-none">
+          {/* Last log */}
+          {lastLog && (
+            <div className="bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm rounded-2xl px-4 py-2.5 flex items-center gap-2 shadow-sm">
+              <Clock className="w-4 h-4 text-gray-400 shrink-0" />
+              <span className="text-sm text-gray-700 dark:text-gray-200">
+                Último registro: <strong>{TYPE_LABEL[lastLog.type]}</strong> a las {lastLogTime}
+              </span>
+            </div>
+          )}
+          {/* Location status */}
+          <div className={`rounded-2xl px-4 py-2.5 flex items-center gap-2 shadow-sm ${isAuthorized ? 'bg-white/90 dark:bg-gray-900/90' : 'bg-red-50/95 dark:bg-red-950/90'} backdrop-blur-sm`}>
+            <MapPin className={`w-4 h-4 shrink-0 ${isAuthorized ? 'text-green-500' : 'text-red-500'}`} />
+            <div>
+              {!isAuthorized && <p className="text-xs font-bold uppercase tracking-wide text-red-600">Localización no autorizada</p>}
+              <p className={`text-sm font-medium ${isAuthorized ? 'text-gray-700 dark:text-gray-200' : 'text-red-600'}`}>Apex Pro Detailing AQP</p>
+            </div>
+          </div>
+          {/* Clock */}
+          <div className="bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm rounded-2xl px-4 py-2 flex items-center justify-between shadow-sm">
+            <span className="text-2xl font-black tabular-nums text-gray-900 dark:text-white">
+              {now.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit', hour12: false })}
+            </span>
+            <span className="text-xs text-gray-500 capitalize text-right">
+              {now.toLocaleDateString('es-PE', { weekday: 'long', day: 'numeric', month: 'short' })}
+            </span>
+          </div>
+        </div>
+
+        {/* Admin: reporte button */}
+        {(isAdmin || isDemo) && (
+          <button onClick={() => navigate('/asistencia/reporte')}
+            className="absolute bottom-3 right-3 z-[1000] bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm rounded-full p-2.5 shadow-md">
+            <BarChart2 className="w-5 h-5 text-red-500" />
+          </button>
+        )}
       </div>
 
-      {/* Worker selector (admin only) */}
-      {(isAdmin || isDemo) ? (
-        <div className="card">
-          <label className="label">Trabajador</label>
+      {/* ── BOTTOM SECTION ──────────────────────────────────────────────── */}
+      <div className="bg-white dark:bg-gray-950 border-t border-gray-100 dark:border-gray-800 p-4 space-y-3 overflow-y-auto" style={{ maxHeight: '45vh' }}>
+        {/* Worker selector (admin) */}
+        {(isAdmin || isDemo) ? (
           <div className="relative">
-            <select value={selectedWorkerId} onChange={e => setSelectedWorkerId(e.target.value)} className="input appearance-none pr-8">
-              <option value="">Seleccionar...</option>
+            <select value={selectedWorkerId} onChange={e => setSelectedWorkerId(e.target.value)} className="input appearance-none pr-8 w-full">
+              <option value="">Seleccionar trabajador...</option>
               {workers.filter(w => w.active).map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
             </select>
             <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
           </div>
-        </div>
-      ) : worker ? (
-        <div className="card flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center text-red-600 font-bold">{worker.name[0]}</div>
-          <div><p className="font-semibold text-gray-900 dark:text-white">{worker.name}</p><p className="text-xs text-gray-500">Técnico</p></div>
-        </div>
-      ) : (
-        <div className="card text-center text-sm text-gray-400">Cuenta no vinculada a un trabajador.</div>
-      )}
+        ) : !worker && (
+          <p className="text-sm text-gray-400 text-center">Cuenta no vinculada a un trabajador.</p>
+        )}
+
+        {/* Action button */}
+        {selectedWorkerId && !loading && !hasSalida && nextType && (() => {
+          const a = ACTION[nextType]; const Icon = a.icon
+          return (
+            <div className="space-y-2">
+              <button onClick={() => openAction(nextType)}
+                className={`w-full py-4 rounded-2xl text-white font-bold text-lg flex items-center justify-center gap-3 shadow-md transition-all ${a.color}`}>
+                <Icon className="w-6 h-6" />{a.label}
+              </button>
+              {hasEntrada && !hasAlmuerzo && (
+                <button onClick={() => openAction('salida')}
+                  className="w-full py-3 rounded-2xl border-2 border-red-400 text-red-500 font-semibold text-base flex items-center justify-center gap-2 hover:bg-red-50 dark:hover:bg-red-900/10 transition-all">
+                  <LogOut className="w-5 h-5" /> Salida sin almuerzo
+                </button>
+              )}
+            </div>
+          )
+        })()}
+
+        {selectedWorkerId && hasSalida && (
+          <div className="flex items-center justify-center gap-3 py-3">
+            <CheckCircle className="w-8 h-8 text-green-500" />
+            <div>
+              <p className="font-semibold text-gray-700 dark:text-gray-300">Jornada completada</p>
+              {trabajado && <p className="text-sm text-gray-400">Tiempo: <strong>{trabajado}</strong></p>}
+            </div>
+          </div>
+        )}
+        {loading && <div className="flex justify-center py-4"><Loader2 className="w-5 h-5 animate-spin text-gray-400" /></div>}
 
       {/* Status & Timeline */}
       {selectedWorkerId && !loading && (
-        <div className="card">
+        <div className="space-y-2">
           <div className="flex items-center justify-between mb-2">
             <p className={`font-semibold ${hasSalida ? 'text-gray-400' : hasAlmuerzo && !hasAlmuerzoFin ? 'text-orange-500' : hasEntrada ? 'text-green-500' : 'text-gray-400'}`}>
               {hasSalida ? 'Jornada completa' : hasAlmuerzoFin ? 'Trabajando' : hasAlmuerzo ? 'En almuerzo' : hasEntrada ? 'Trabajando' : 'Sin fichar hoy'}
@@ -503,35 +577,6 @@ export default function Asistencia() {
           ) : <p className="text-sm text-gray-400 text-center py-2">Sin registros hoy</p>}
         </div>
       )}
-
-      {/* Action button */}
-      {selectedWorkerId && !loading && !hasSalida && nextType && (() => {
-        const a = ACTION[nextType]; const Icon = a.icon
-        return (
-          <div className="space-y-2">
-            <button onClick={() => openAction(nextType)}
-              className={`w-full py-4 rounded-2xl text-white font-bold text-lg flex items-center justify-center gap-3 shadow-lg transition-all ${a.color}`}>
-              <Icon className="w-6 h-6" />{a.label}
-            </button>
-            {/* Salida directa: solo si ya fichó entrada y aún no tiene almuerzo ni salida */}
-            {hasEntrada && !hasAlmuerzo && (
-              <button onClick={() => openAction('salida')}
-                className="w-full py-3 rounded-2xl border-2 border-red-400 text-red-500 font-semibold text-base flex items-center justify-center gap-2 hover:bg-red-50 dark:hover:bg-red-900/10 transition-all">
-                <LogOut className="w-5 h-5" /> Salida sin almuerzo
-              </button>
-            )}
-          </div>
-        )
-      })()}
-
-      {selectedWorkerId && hasSalida && (
-        <div className="card text-center py-6">
-          <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-2" />
-          <p className="font-semibold text-gray-700 dark:text-gray-300">Jornada completada</p>
-          {trabajado && <p className="text-sm text-gray-400 mt-1">Tiempo: <strong>{trabajado}</strong></p>}
-        </div>
-      )}
-      {loading && <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div>}
 
       {/* ── Admin edit panel ──────────────────────────────────────────── */}
       {(isAdmin || isDemo) && (
@@ -626,6 +671,8 @@ export default function Asistencia() {
           )}
         </div>
       )}
+
+      </div>{/* end bottom section */}
 
       {/* ── Camera Modal ─────────────────────────────────────────────── */}
       {camOpen && (

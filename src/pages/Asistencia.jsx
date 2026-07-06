@@ -59,11 +59,13 @@ export default function Asistencia() {
   const [photo, setPhoto]         = useState(null)
   const [location, setLocation]   = useState(null)
   const [geoStatus, setGeoStatus] = useState('idle') // idle | loading | ok | outside | denied | settings
-  const cachedLocRef = useRef(null) // cache última ubicación
-  const videoRef = useRef(null)
+  const [countdown, setCountdown] = useState(null) // 3,2,1,null
+  const cachedLocRef   = useRef(null)
+  const countdownRef   = useRef(null)
+  const videoRef  = useRef(null)
   const canvasRef = useRef(null)
   const streamRef = useRef(null)
-  const fileRef = useRef(null)
+  const fileRef   = useRef(null)
 
   const worker = workers.find(w => w.id === selectedWorkerId)
   const today  = new Date().toISOString().slice(0, 10)
@@ -132,10 +134,35 @@ export default function Asistencia() {
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false })
       streamRef.current = stream
       if (videoRef.current) { videoRef.current.srcObject = stream; videoRef.current.play() }
-    } catch { /* fallback to file input */ }
+      // Auto-captura después de 3 segundos
+      startCountdown()
+    } catch { /* fallback a input file — sin countdown */ }
   }
-  function stopCamera() { streamRef.current?.getTracks().forEach(t => t.stop()); streamRef.current = null }
-  function capturePhoto() {
+
+  function startCountdown() {
+    clearInterval(countdownRef.current)
+    setCountdown(3)
+    let c = 3
+    countdownRef.current = setInterval(() => {
+      c -= 1
+      if (c <= 0) {
+        clearInterval(countdownRef.current)
+        setCountdown(null)
+        capturePhotoNow()
+      } else {
+        setCountdown(c)
+      }
+    }, 1000)
+  }
+
+  function stopCamera() {
+    clearInterval(countdownRef.current)
+    setCountdown(null)
+    streamRef.current?.getTracks().forEach(t => t.stop())
+    streamRef.current = null
+  }
+
+  function capturePhotoNow() {
     if (videoRef.current && canvasRef.current) {
       canvasRef.current.width = 320; canvasRef.current.height = 240
       canvasRef.current.getContext('2d').drawImage(videoRef.current, 0, 0, 320, 240)
@@ -143,6 +170,8 @@ export default function Asistencia() {
       stopCamera()
     }
   }
+  // mantener capturePhoto como alias para el botón manual
+  const capturePhoto = capturePhotoNow
   function handleFileCapture(e) {
     const file = e.target.files?.[0]; if (!file) return
     const reader = new FileReader()
@@ -412,8 +441,15 @@ export default function Asistencia() {
               {!photo ? (
                 <div className="relative bg-black rounded-xl overflow-hidden" style={{ height: 210 }}>
                   <video ref={videoRef} className="w-full h-full object-cover" autoPlay playsInline muted />
+                  {/* Countdown */}
+                  {countdown !== null && (
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <span className="text-white font-bold drop-shadow-lg" style={{ fontSize: 80, lineHeight: 1 }}>{countdown}</span>
+                    </div>
+                  )}
                   <div className="absolute inset-0 flex flex-col items-center justify-end pb-3 gap-2">
-                    <button onClick={capturePhoto} className="w-14 h-14 rounded-full bg-white shadow-lg flex items-center justify-center">
+                    <button onClick={() => { clearInterval(countdownRef.current); setCountdown(null); capturePhoto() }}
+                      className="w-14 h-14 rounded-full bg-white shadow-lg flex items-center justify-center">
                       <Camera className="w-7 h-7 text-gray-800" />
                     </button>
                     <button onClick={() => fileRef.current?.click()} className="text-xs text-white bg-black/40 px-3 py-1 rounded-full">Usar galería</button>
@@ -422,7 +458,7 @@ export default function Asistencia() {
               ) : (
                 <div className="relative rounded-xl overflow-hidden" style={{ height: 210 }}>
                   <img src={photo} alt="foto" className="w-full h-full object-cover" />
-                  <button onClick={() => { setPhoto(null); startCamera() }}
+                  <button onClick={() => { setPhoto(null); setTimeout(startCamera, 200) }}
                     className="absolute top-2 right-2 text-xs bg-black/60 text-white px-2 py-1 rounded-full">Repetir</button>
                 </div>
               )}

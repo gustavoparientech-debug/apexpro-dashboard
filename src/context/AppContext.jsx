@@ -164,7 +164,8 @@ function enrichIncident(incident, workers) {
       discount = calcAbsenceDiscount(worker.base_salary, worker.weekly_hours)
     }
   }
-  return { ...incident, discount_amount: discount }
+  const is_addition = incident.type === 'hora_extra'
+  return { ...incident, discount_amount: discount, is_addition }
 }
 
 async function refreshInBackground({ m, y, prefix, startDate, endDate, staticCached, supabase, dispatch, enrichIncident }) {

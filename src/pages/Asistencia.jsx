@@ -72,6 +72,7 @@ export default function Asistencia() {
   const [editTime, setEditTime]         = useState('')
   const [viewPhoto, setViewPhoto]       = useState(null)
   const [adminLoading, setAdminLoading] = useState(false)
+  const [addingEntry, setAddingEntry]   = useState(null) // { type } — formulario inline para nuevo registro
 
   // Camera
   const [camOpen, setCamOpen]     = useState(false)
@@ -572,7 +573,45 @@ export default function Asistencia() {
           {adminLoading && <div className="flex justify-center py-2"><Loader2 className="w-4 h-4 animate-spin text-gray-400" /></div>}
           {!adminLoading && adminWorker && (
             adminLogs.length === 0
-              ? <p className="text-sm text-gray-400 text-center py-2">Sin registros ese día</p>
+              ? <div className="space-y-2">
+                  <p className="text-sm text-gray-400 text-center py-2">Sin registros ese día</p>
+                  {!addingEntry && (
+                    <div className="flex gap-2 flex-wrap">
+                      {ALL_TYPES.map(t => (
+                        <button key={t} onClick={() => {
+                          const defaultH = { entrada: '09:00:00', almuerzo_inicio: '13:00:00', almuerzo_fin: '14:00:00', salida: '18:00:00' }
+                          setAddingEntry({ type: t, time: defaultH[t] || '09:00:00' })
+                        }}
+                          className="text-xs bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300 px-2 py-1 rounded-lg">
+                          + {TYPE_LABEL[t]}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {addingEntry && (
+                    <div className="border-t border-gray-200 dark:border-gray-700 pt-3 flex items-center gap-2 flex-wrap">
+                      <span className="text-sm text-gray-600 dark:text-gray-400 shrink-0">
+                        Añadir <strong>{TYPE_LABEL[addingEntry.type]}</strong>:
+                      </span>
+                      <input type="time" step="1" value={addingEntry.time}
+                        onChange={e => setAddingEntry(a => ({ ...a, time: e.target.value }))}
+                        className="input text-sm py-1" style={{ minWidth: 0, flex: 1 }} />
+                      <button onClick={async () => {
+                          const [h, m, s] = addingEntry.time.split(':').map(Number)
+                          const dt = new Date(`${adminDate}T00:00:00`)
+                          dt.setHours(h, m, s || 0, 0)
+                          await supabase.from('attendance_logs').insert({
+                            worker_id: adminWorker, type: addingEntry.type, date: adminDate,
+                            logged_at: dt.toISOString(),
+                          })
+                          toast.success(`${TYPE_LABEL[addingEntry.type]} añadida`)
+                          setAddingEntry(null); loadAdminLogs(); loadLogs()
+                        }}
+                        className="btn-primary text-xs py-1.5 px-3 shrink-0">Guardar</button>
+                      <button onClick={() => setAddingEntry(null)} className="btn-secondary text-xs py-1.5 px-3 shrink-0">Cancelar</button>
+                    </div>
+                  )}
+                </div>
               : <div className="space-y-2">
                   {adminLogs.map(log => {
                     const worker = workers.find(w => w.id === log.worker_id)
@@ -615,19 +654,42 @@ export default function Asistencia() {
                     )
                   })}
                   {/* Add missing entry */}
-                  {adminLogs.length < 4 && (
+                  {adminLogs.length < 4 && !addingEntry && (
                     <div className="flex gap-2 mt-2 flex-wrap">
                       {ALL_TYPES.filter(t => !adminLogs.some(l => l.type === t)).map(t => (
-                        <button key={t} onClick={async () => {
-                          const wid = adminWorker
-                          await supabase.from('attendance_logs').insert({ worker_id: wid, type: t, date: adminDate })
-                          toast.success(`${TYPE_LABEL[t]} añadida`); loadAdminLogs()
-                          if (wid === selectedWorkerId && adminDate === today) loadLogs()
+                        <button key={t} onClick={() => {
+                          const defaultH = { entrada: '09:00:00', almuerzo_inicio: '13:00:00', almuerzo_fin: '14:00:00', salida: '18:00:00' }
+                          setAddingEntry({ type: t, time: defaultH[t] || '09:00:00' })
+                          setEditingLog(null)
                         }}
                           className="text-xs bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300 px-2 py-1 rounded-lg">
                           + {TYPE_LABEL[t]}
                         </button>
                       ))}
+                    </div>
+                  )}
+                  {/* Inline form for new entry */}
+                  {addingEntry && (
+                    <div className="mt-2 border-t border-gray-200 dark:border-gray-700 pt-3 flex items-center gap-2 flex-wrap">
+                      <span className="text-sm text-gray-600 dark:text-gray-400 shrink-0">
+                        Añadir <strong>{TYPE_LABEL[addingEntry.type]}</strong>:
+                      </span>
+                      <input type="time" step="1" value={addingEntry.time}
+                        onChange={e => setAddingEntry(a => ({ ...a, time: e.target.value }))}
+                        className="input text-sm py-1" style={{ minWidth: 0, flex: 1 }} />
+                      <button onClick={async () => {
+                          const [h, m, s] = addingEntry.time.split(':').map(Number)
+                          const dt = new Date(`${adminDate}T00:00:00`)
+                          dt.setHours(h, m, s || 0, 0)
+                          await supabase.from('attendance_logs').insert({
+                            worker_id: adminWorker, type: addingEntry.type, date: adminDate,
+                            logged_at: dt.toISOString(),
+                          })
+                          toast.success(`${TYPE_LABEL[addingEntry.type]} añadida`)
+                          setAddingEntry(null); loadAdminLogs(); loadLogs()
+                        }}
+                        className="btn-primary text-xs py-1.5 px-3 shrink-0">Guardar</button>
+                      <button onClick={() => setAddingEntry(null)} className="btn-secondary text-xs py-1.5 px-3 shrink-0">Cancelar</button>
                     </div>
                   )}
                 </div>

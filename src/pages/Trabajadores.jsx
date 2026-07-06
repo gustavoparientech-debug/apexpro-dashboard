@@ -384,6 +384,7 @@ export default function Trabajadores() {
       no_marcacion_count: inc.no_marcacion_count ?? 1,
       multa_amount: inc.multa_amount ?? inc.discount_amount ?? 0,
       observation: inc.observation ?? '', apply_discount: inc.apply_discount ?? true,
+      is_addition: inc.is_addition ?? (inc.type === 'hora_extra'),
       worker_id: inc.worker_id,
     })
     setEditingNominaIncident(inc)

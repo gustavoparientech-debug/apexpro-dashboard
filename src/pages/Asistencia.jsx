@@ -255,7 +255,7 @@ export default function Asistencia() {
     const pay = worker ? calcOvertimePay(worker.base_salary, worker.weekly_hours, hoursExtra) : 0
     const { error } = await supabase.from('attendance_incidents').insert({
       worker_id: workerId, date: dateStr, type: 'hora_extra',
-      hours_late: hoursExtra, apply_discount: false, discount_amount: pay,
+      hours_late: hoursExtra, apply_discount: false, discount_amount: pay, is_addition: true,
       observation: `Hora extra automática — ${Math.round(hoursExtra * 60)} min extra (pendiente aprobación)`,
     })
     if (error) toast.error(`Error hora extra auto: ${error.message}`)

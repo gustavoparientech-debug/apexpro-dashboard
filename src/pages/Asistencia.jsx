@@ -404,10 +404,19 @@ export default function Asistencia() {
       {selectedWorkerId && !loading && !hasSalida && nextType && (() => {
         const a = ACTION[nextType]; const Icon = a.icon
         return (
-          <button onClick={() => openAction(nextType)}
-            className={`w-full py-4 rounded-2xl text-white font-bold text-lg flex items-center justify-center gap-3 shadow-lg transition-all ${a.color}`}>
-            <Icon className="w-6 h-6" />{a.label}
-          </button>
+          <div className="space-y-2">
+            <button onClick={() => openAction(nextType)}
+              className={`w-full py-4 rounded-2xl text-white font-bold text-lg flex items-center justify-center gap-3 shadow-lg transition-all ${a.color}`}>
+              <Icon className="w-6 h-6" />{a.label}
+            </button>
+            {/* Salida directa: solo si ya fichó entrada y aún no tiene almuerzo ni salida */}
+            {hasEntrada && !hasAlmuerzo && (
+              <button onClick={() => openAction('salida')}
+                className="w-full py-3 rounded-2xl border-2 border-red-400 text-red-500 font-semibold text-base flex items-center justify-center gap-2 hover:bg-red-50 dark:hover:bg-red-900/10 transition-all">
+                <LogOut className="w-5 h-5" /> Salida sin almuerzo
+              </button>
+            )}
+          </div>
         )
       })()}
 

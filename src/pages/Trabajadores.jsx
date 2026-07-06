@@ -108,8 +108,14 @@ function WorkerForm({ initial, onSave, onClose }) {
   )
 }
 
-export function IncidentForm({ workers, onSave, onClose, initial }) {
-  const activeWorkers = workers.filter(w => w.active)
+export function IncidentForm({ workers, onSave, onClose, initial, month, year }) {
+  // Incluir activos + cesados activos en el mes seleccionado
+  const monthStart = (month != null && year != null) ? monthRangeStr(year, month) : null
+  const activeWorkers = workers.filter(w => {
+    if (w.active) return true
+    if (!monthStart) return false
+    return w.terminated_at && w.terminated_at >= monthStart
+  })
 
   function splitHours(decimal) {
     const h = Math.floor(parseFloat(decimal) || 0)
@@ -170,7 +176,7 @@ export function IncidentForm({ workers, onSave, onClose, initial }) {
         <label className="label">Trabajador</label>
         <select className="input" value={form.worker_id} onChange={e => setForm(f => ({ ...f, worker_id: e.target.value }))} required>
           <option value="">Seleccionar...</option>
-          {activeWorkers.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+          {activeWorkers.map(w => <option key={w.id} value={w.id}>{w.name}{!w.active ? ' (cesado)' : ''}</option>)}
         </select>
       </div>
       <div className="grid grid-cols-2 gap-4">
@@ -476,11 +482,18 @@ export default function Trabajadores() {
       if (editingWorker) {
         await updateWorker(editingWorker.id, data)
         toast.success('Trabajador actualizado')
+        setEditingWorker(null)
       } else {
-        await addWorker(data)
+        const newWorker = await addWorker(data)
         toast.success('Trabajador agregado')
+        setEditingWorker(null)
+        setShowWorkerForm(false)
+        // Ofrecer agregar incidencia al nuevo trabajador
+        if (newWorker?.id) {
+          setEditingIncident({ worker_id: newWorker.id })
+          setShowIncidentForm(true)
+        }
       }
-      setEditingWorker(null)
     } catch (err) {
       toast.error('Error: ' + err.message)
     }
@@ -1249,12 +1262,12 @@ export default function Trabajadores() {
       )}
 
       {/* Modals equipo */}
-      <Modal open={showWorkerForm} onClose={() => { setShowWorkerForm(false); setEditingWorker(null) }} title={editingWorker ? 'Editar trabajador' : 'Nuevo trabajador'}>
+      <Modal open={showWorkerForm} onClose={() => { setShowWorkerForm(false); setEditingWorker(null) }} title={editingWorker ? 'Editar trabajador' : 'Nuevo trabajador'} size="md">
         <WorkerForm initial={editingWorker} onSave={handleSaveWorker} onClose={() => { setShowWorkerForm(false); setEditingWorker(null) }} />
       </Modal>
 
       <Modal open={showIncidentForm} onClose={() => { setShowIncidentForm(false); setEditingIncident(null) }} title={editingIncident ? 'Editar incidencia' : 'Registrar incidencia'}>
-        <IncidentForm workers={workers} onSave={handleSaveIncident} onClose={() => { setShowIncidentForm(false); setEditingIncident(null) }} initial={editingIncident} />
+        <IncidentForm workers={workers} onSave={handleSaveIncident} onClose={() => { setShowIncidentForm(false); setEditingIncident(null) }} initial={editingIncident} month={month} year={year} />
       </Modal>
 
       {deactivateTarget?.active ? (

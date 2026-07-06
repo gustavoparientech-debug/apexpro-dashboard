@@ -156,21 +156,16 @@ export default function Asistencia() {
     setCamOpen(true)
     setTimeout(startCamera, 300)
 
-    // Usar ubicación cacheada si es reciente (< 2 min), sino re-solicitar
+    // Usar ubicación cacheada si es reciente (< 90 seg)
     const cached = cachedLocRef.current
-    if (cached && (Date.now() - cached.timestamp) < 120000) {
+    if (cached && (Date.now() - cached.timestamp) < 90000) {
       const dist = haversineM(cached.coords.latitude, cached.coords.longitude, WORKPLACE_LAT, WORKPLACE_LON)
       setLocation({ lat: cached.coords.latitude, lon: cached.coords.longitude, dist: Math.round(dist) })
       setGeoStatus(dist <= GEOFENCE_M ? 'ok' : 'outside')
       return
     }
 
-    // Verificar estado del permiso antes de solicitar
-    try {
-      const perm = await navigator.permissions?.query({ name: 'geolocation' })
-      if (perm?.state === 'denied') { setGeoStatus('settings'); return }
-    } catch {}
-
+    // Solicitar GPS directamente — Chrome pedirá permiso si no fue dado antes
     navigator.geolocation?.getCurrentPosition(
       pos => {
         cachedLocRef.current = pos
@@ -178,8 +173,13 @@ export default function Asistencia() {
         setLocation({ lat: pos.coords.latitude, lon: pos.coords.longitude, dist: Math.round(dist) })
         setGeoStatus(dist <= GEOFENCE_M ? 'ok' : 'outside')
       },
-      err => setGeoStatus(err.code === 1 ? 'settings' : 'denied'),
-      { timeout: 30000, maximumAge: 30000 }
+      err => {
+        // code 1 = bloqueado en ajustes del navegador/OS
+        // code 2 = GPS apagado o señal no disponible
+        // code 3 = timeout
+        setGeoStatus(err.code === 1 ? 'settings' : 'denied')
+      },
+      { timeout: 30000, maximumAge: 60000, enableHighAccuracy: false }
     )
   }
 

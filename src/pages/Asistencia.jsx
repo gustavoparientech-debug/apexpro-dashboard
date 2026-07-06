@@ -11,7 +11,7 @@ import toast from 'react-hot-toast'
 // ── Geovalla ──────────────────────────────────────────────────────────────────
 const WORKPLACE_LAT  = -16.3596   // Zamacola, Arequipa — ajusta si es necesario
 const WORKPLACE_LON  = -71.5706
-const GEOFENCE_M     = 300        // metros de radio permitido
+const GEOFENCE_M     = 999999     // TODO: cambiar a 300 cuando se configure la ubicación real del taller
 
 function haversineM(lat1, lon1, lat2, lon2) {
   const R = 6371000

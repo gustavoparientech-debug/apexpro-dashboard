@@ -18,6 +18,19 @@ function RecenterMap({ lat, lon }) {
   return null
 }
 
+function LocateButton({ lat, lon }) {
+  const map = useMap()
+  if (!lat || !lon) return null
+  return (
+    <button
+      onClick={() => map.setView([lat, lon], 18)}
+      style={{ position: 'absolute', bottom: 12, left: 12, zIndex: 1000 }}
+      className="bg-white dark:bg-gray-900 rounded-full w-10 h-10 flex items-center justify-center shadow-md text-blue-500 border border-gray-200 dark:border-gray-700">
+      ◎
+    </button>
+  )
+}
+
 // ── Geovalla ──────────────────────────────────────────────────────────────────
 const WORKPLACE_LAT  = -16.3596   // Zamacola, Arequipa — ajusta si es necesario
 const WORKPLACE_LON  = -71.5706
@@ -442,11 +455,20 @@ export default function Asistencia() {
       <div className="relative flex-1 min-h-0">
         <MapContainer center={mapCenter} zoom={16} style={{ height: '100%', width: '100%' }} zoomControl={false} attributionControl={false}>
           <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+          {/* Marcador del taller — siempre visible */}
+          <CircleMarker center={[WORKPLACE_LAT, WORKPLACE_LON]} radius={7} pathOptions={{ color: '#fff', weight: 3, fillColor: '#ef4444', fillOpacity: 1 }} />
+          {GEOFENCE_M < 5000 && (
+            <Circle center={[WORKPLACE_LAT, WORKPLACE_LON]} radius={GEOFENCE_M} pathOptions={{ color: '#ef4444', weight: 1.5, fillColor: '#ef4444', fillOpacity: 0.1 }} />
+          )}
           {location && (
             <>
               <RecenterMap lat={location.lat} lon={location.lon} />
-              <CircleMarker center={[location.lat, location.lon]} radius={8} pathOptions={{ color: '#fff', weight: 3, fillColor: '#3b82f6', fillOpacity: 1 }} />
-              {GEOFENCE_M < 2000 && <Circle center={[WORKPLACE_LAT, WORKPLACE_LON]} radius={GEOFENCE_M} pathOptions={{ color: '#ef4444', weight: 1.5, fillColor: '#ef4444', fillOpacity: 0.08 }} />}
+              {/* Punto de ubicación actual — borde blanco grueso + relleno azul */}
+              <CircleMarker center={[location.lat, location.lon]} radius={10} pathOptions={{ color: '#fff', weight: 4, fillColor: '#3b82f6', fillOpacity: 1 }} />
+              {/* Halo exterior */}
+              <CircleMarker center={[location.lat, location.lon]} radius={20} pathOptions={{ color: '#3b82f6', weight: 1, fillColor: '#3b82f6', fillOpacity: 0.15 }} />
+              {/* Botón centrar */}
+              <LocateButton lat={location.lat} lon={location.lon} />
             </>
           )}
         </MapContainer>

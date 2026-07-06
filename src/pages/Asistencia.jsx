@@ -65,7 +65,7 @@ export default function Asistencia() {
   const [now, setNow]         = useState(new Date())
 
   // Admin panel
-  const [adminDate, setAdminDate]       = useState(new Date().toISOString().slice(0, 10))
+  const [adminDate, setAdminDate]       = useState(new Date().toLocaleDateString('en-CA'))
   const [adminWorker, setAdminWorker]   = useState('')
   const [adminLogs, setAdminLogs]       = useState([])
   const [editingLog, setEditingLog]     = useState(null)
@@ -87,7 +87,7 @@ export default function Asistencia() {
   const fileRef   = useRef(null)
 
   const worker = workers.find(w => w.id === selectedWorkerId)
-  const today  = new Date().toISOString().slice(0, 10)
+  const today  = new Date().toLocaleDateString('en-CA')
 
   useEffect(() => { const t = setInterval(() => setNow(new Date()), 1000); return () => clearInterval(t) }, [])
   useEffect(() => {

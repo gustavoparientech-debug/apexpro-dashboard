@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { useApp } from '../context/AppContext'
 import { supabase } from '../lib/supabase'
+import { calcLatenessDiscount } from '../lib/utils'
 import {
   Camera, MapPin, Clock, LogIn, Coffee, LogOut, CheckCircle,
   Loader2, ChevronDown, AlertTriangle, Pencil, Trash2, ShieldAlert, BarChart2,
@@ -232,17 +233,67 @@ export default function Asistencia() {
 
   function closeCamera() { stopCamera(); setCamOpen(false); setPendingType(null); setPhoto(null); setGeoStatus('idle') }
 
+  async function autoCreateIncident(type, hoursLate, dateStr, workerId) {
+    const worker = workers.find(w => w.id === workerId)
+    if (!worker) return
+    const discount = type === 'tardanza'
+      ? calcLatenessDiscount(worker.base_salary, worker.weekly_hours, hoursLate)
+      : calcLatenessDiscount(worker.base_salary, worker.weekly_hours, hoursLate)
+    await supabase.from('incidents').insert({
+      worker_id: workerId,
+      date: dateStr,
+      type,
+      hours_late: hoursLate,
+      apply_discount: true,
+      discount_amount: discount,
+      observation: type === 'tardanza'
+        ? `Tardanza automática — ${Math.round(hoursLate * 60)} min tarde`
+        : `Salida anticipada automática — ${Math.round(hoursLate * 60)} min faltantes`,
+    })
+  }
+
   async function confirmLog() {
     if (geoStatus === 'outside') { toast.error('Estás fuera del área del taller'); return }
     // 'denied' y 'settings' se permiten — no se guardará coordenadas pero la foto verifica la presencia
     setSaving(true)
     try {
+      const loggedAt = new Date()
       await supabase.from('attendance_logs').insert({
         worker_id: selectedWorkerId, type: pendingType, date: today,
-        logged_at: new Date().toISOString(),
+        logged_at: loggedAt.toISOString(),
         latitude: location?.lat ?? null, longitude: location?.lon ?? null,
         photo_b64: photo || null,
       })
+
+      // Auto-incidencia por tardanza
+      const worker = workers.find(w => w.id === selectedWorkerId)
+      if (worker?.schedule_start && pendingType === 'entrada') {
+        const [sh, sm] = worker.schedule_start.split(':').map(Number)
+        const scheduled = new Date(loggedAt)
+        scheduled.setHours(sh, sm, 0, 0)
+        const toleranceMs = (worker.schedule_tolerance_min ?? 5) * 60000
+        const diffMs = loggedAt - scheduled
+        if (diffMs > toleranceMs) {
+          const hoursLate = Math.round(diffMs / 60000) / 60
+          await autoCreateIncident('tardanza', hoursLate, today, selectedWorkerId)
+          toast(`Tardanza registrada: ${Math.round(diffMs / 60000)} min`, { icon: '⚠️' })
+        }
+      }
+
+      // Auto-incidencia por salida anticipada
+      if (worker?.schedule_end && pendingType === 'salida') {
+        const [eh, em] = worker.schedule_end.split(':').map(Number)
+        const scheduled = new Date(loggedAt)
+        scheduled.setHours(eh, em, 0, 0)
+        const toleranceMs = (worker.schedule_tolerance_min ?? 5) * 60000
+        const diffMs = scheduled - loggedAt
+        if (diffMs > toleranceMs) {
+          const hoursEarly = Math.round(diffMs / 60000) / 60
+          await autoCreateIncident('permiso_horas', hoursEarly, today, selectedWorkerId)
+          toast(`Salida anticipada: ${Math.round(diffMs / 60000)} min antes`, { icon: '⚠️' })
+        }
+      }
+
       toast.success(`${TYPE_LABEL[pendingType]} registrada`)
       closeCamera(); await loadLogs()
     } catch (err) { toast.error('Error: ' + err.message) }

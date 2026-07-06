@@ -22,6 +22,9 @@ function WorkerForm({ initial, onSave, onClose }) {
     weekly_hours: initial?.weekly_hours || 48,
     hire_date: initial?.hire_date || '',
     role: initial?.role || 'worker',
+    schedule_start: initial?.schedule_start || '08:00',
+    schedule_end: initial?.schedule_end || '17:00',
+    schedule_tolerance_min: initial?.schedule_tolerance_min ?? 5,
   })
 
   const realSalary = form.base_salary && form.weekly_hours
@@ -34,6 +37,9 @@ function WorkerForm({ initial, onSave, onClose }) {
       base_salary: form.base_salary !== '' ? parseFloat(form.base_salary) : 0,
       weekly_hours: parseFloat(form.weekly_hours),
       hire_date: form.hire_date || null,
+      schedule_start: form.schedule_start || null,
+      schedule_end: form.schedule_end || null,
+      schedule_tolerance_min: parseInt(form.schedule_tolerance_min) || 5,
     })
     onClose()
   }
@@ -75,6 +81,25 @@ function WorkerForm({ initial, onSave, onClose }) {
           </select>
         </div>
       </div>
+      {/* Horario */}
+      <div className="border-t border-gray-100 dark:border-gray-800 pt-4">
+        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Horario laboral</p>
+        <div className="grid grid-cols-3 gap-3">
+          <div>
+            <label className="label">Entrada</label>
+            <input type="time" className="input" value={form.schedule_start} onChange={e => setForm(f => ({ ...f, schedule_start: e.target.value }))} />
+          </div>
+          <div>
+            <label className="label">Salida</label>
+            <input type="time" className="input" value={form.schedule_end} onChange={e => setForm(f => ({ ...f, schedule_end: e.target.value }))} />
+          </div>
+          <div>
+            <label className="label">Tolerancia (min)</label>
+            <input type="number" className="input" min="0" max="60" value={form.schedule_tolerance_min} onChange={e => setForm(f => ({ ...f, schedule_tolerance_min: e.target.value }))} />
+          </div>
+        </div>
+      </div>
+
       <div className="flex gap-3 pt-2">
         <button type="button" className="btn-secondary flex-1" onClick={onClose}>Cancelar</button>
         <button type="submit" className="btn-primary flex-1">{initial ? 'Guardar cambios' : 'Agregar trabajador'}</button>

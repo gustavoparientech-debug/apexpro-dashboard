@@ -64,10 +64,11 @@ export default function AsistenciaReporte() {
     const ai = dayLogs.find(l => l.type === 'almuerzo_inicio')
     const af = dayLogs.find(l => l.type === 'almuerzo_fin')
     const s  = dayLogs.find(l => l.type === 'salida')
-    // Solo contar días completos (con salida) o en curso (hoy sin salida)
-    const today = new Date().toISOString().slice(0, 10)
+    // Solo contar si hay salida; si es hoy y está en curso, calcular hasta ahora
+    const today = new Date().toLocaleDateString('en-CA')
     if (!e) return 0
-    if (!s && date !== today) return calcWorkMs(e, ai, af, null, new Date(`${date}T23:59:59`))
+    if (!s && date !== today) return 0  // día pasado sin salida → no contar
+    if (!s && date === today) return calcWorkMs(e, ai, af, null, new Date())
     return calcWorkMs(e, ai, af, s)
   }
 

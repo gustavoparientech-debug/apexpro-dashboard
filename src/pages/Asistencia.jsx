@@ -286,22 +286,22 @@ export default function Asistencia() {
       const nowMin = loggedAt.getHours() * 60 + loggedAt.getMinutes()
       const tolerance = sched?.tolerance_min ?? 5
 
-      // Auto-incidencia por tardanza
+      // Auto-incidencia por tardanza (máx 4h para evitar falsos en pruebas fuera de horario)
       if (sched?.start_time && pendingType === 'entrada') {
         const schedMin = timeToMin(sched.start_time)
         const diffMin = nowMin - schedMin
-        if (diffMin > tolerance) {
+        if (diffMin > tolerance && diffMin <= 240) {
           const hoursLate = Math.round(diffMin) / 60
           await autoCreateIncident('tardanza', hoursLate, today, selectedWorkerId)
           toast(`Tardanza registrada: ${Math.round(diffMin)} min`, { icon: '⚠️' })
         }
       }
 
-      // Auto-incidencia por salida anticipada
+      // Auto-incidencia por salida anticipada (máx 4h para evitar falsos en pruebas fuera de horario)
       if (sched?.end_time && pendingType === 'salida') {
         const schedMin = timeToMin(sched.end_time)
         const diffMin = schedMin - nowMin
-        if (diffMin > tolerance) {
+        if (diffMin > tolerance && diffMin <= 240) {
           const hoursEarly = Math.round(diffMin) / 60
           await autoCreateIncident('permiso_horas', hoursEarly, today, selectedWorkerId)
           toast(`Salida anticipada: ${Math.round(diffMin)} min antes`, { icon: '⚠️' })

@@ -2,28 +2,36 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { useApp } from '../context/AppContext'
 import { supabase } from '../lib/supabase'
-import { Camera, MapPin, Clock, LogIn, Coffee, LogOut, CheckCircle, Loader2, ChevronDown } from 'lucide-react'
+import {
+  Camera, MapPin, Clock, LogIn, Coffee, LogOut, CheckCircle,
+  Loader2, ChevronDown, AlertTriangle, Pencil, Trash2, ShieldAlert,
+} from 'lucide-react'
 import toast from 'react-hot-toast'
 
-const TYPE_LABEL = {
-  entrada: 'Entrada', almuerzo_inicio: 'Inicio almuerzo',
-  almuerzo_fin: 'Fin almuerzo', salida: 'Salida',
-}
-const TYPE_COLOR = {
-  entrada: 'text-green-600', almuerzo_inicio: 'text-orange-500',
-  almuerzo_fin: 'text-blue-500', salida: 'text-red-500',
-}
-const TYPE_BG = {
-  entrada: 'bg-green-500', almuerzo_inicio: 'bg-orange-500',
-  almuerzo_fin: 'bg-blue-500', salida: 'bg-red-500',
+// ── Geovalla ──────────────────────────────────────────────────────────────────
+const WORKPLACE_LAT  = -16.3596   // Zamacola, Arequipa — ajusta si es necesario
+const WORKPLACE_LON  = -71.5706
+const GEOFENCE_M     = 300        // metros de radio permitido
+
+function haversineM(lat1, lon1, lat2, lon2) {
+  const R = 6371000
+  const dLat = (lat2 - lat1) * Math.PI / 180
+  const dLon = (lon2 - lon1) * Math.PI / 180
+  const a = Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
 }
 
-function fmtTime(ts) {
-  return new Date(ts).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-}
+// ── Helpers ───────────────────────────────────────────────────────────────────
+const TYPE_LABEL = { entrada: 'Entrada', almuerzo_inicio: 'Inicio almuerzo', almuerzo_fin: 'Fin almuerzo', salida: 'Salida' }
+const TYPE_COLOR = { entrada: 'text-green-600', almuerzo_inicio: 'text-orange-500', almuerzo_fin: 'text-blue-500', salida: 'text-red-500' }
+const TYPE_BG    = { entrada: 'bg-green-500',  almuerzo_inicio: 'bg-orange-500',  almuerzo_fin: 'bg-blue-500',  salida: 'bg-red-500' }
+const ALL_TYPES  = ['entrada', 'almuerzo_inicio', 'almuerzo_fin', 'salida']
+
+function fmtTime(ts) { return new Date(ts).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) }
 function fmtDuration(ms) {
-  const h = Math.floor(ms / 3600000)
-  const m = Math.floor((ms % 3600000) / 60000)
+  if (ms <= 0) return '0m'
+  const h = Math.floor(ms / 3600000), m = Math.floor((ms % 3600000) / 60000)
   return h > 0 ? `${h}h ${m}m` : `${m}m`
 }
 
@@ -32,35 +40,35 @@ export default function Asistencia() {
   const { workers } = useApp()
 
   const [selectedWorkerId, setSelectedWorkerId] = useState(profile?.worker_id || '')
-  const [logs, setLogs] = useState([])
+  const [logs, setLogs]     = useState([])
   const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
-  const [now, setNow] = useState(new Date())
+  const [saving, setSaving]   = useState(false)
+  const [now, setNow]         = useState(new Date())
 
-  // Camera state
-  const [camOpen, setCamOpen] = useState(false)
+  // Admin panel
+  const [adminDate, setAdminDate]       = useState(new Date().toISOString().slice(0, 10))
+  const [adminWorker, setAdminWorker]   = useState('')
+  const [adminLogs, setAdminLogs]       = useState([])
+  const [editingLog, setEditingLog]     = useState(null)
+  const [editTime, setEditTime]         = useState('')
+  const [adminLoading, setAdminLoading] = useState(false)
+
+  // Camera
+  const [camOpen, setCamOpen]     = useState(false)
   const [pendingType, setPendingType] = useState(null)
-  const [photo, setPhoto] = useState(null)
-  const [location, setLocation] = useState(null)
-  const [locError, setLocError] = useState(false)
+  const [photo, setPhoto]         = useState(null)
+  const [location, setLocation]   = useState(null)
+  const [geoStatus, setGeoStatus] = useState('idle') // idle | loading | ok | outside | denied
   const videoRef = useRef(null)
   const canvasRef = useRef(null)
   const streamRef = useRef(null)
   const fileRef = useRef(null)
 
   const worker = workers.find(w => w.id === selectedWorkerId)
-  const today = new Date().toISOString().slice(0, 10)
+  const today  = new Date().toISOString().slice(0, 10)
 
-  // Live clock
-  useEffect(() => {
-    const t = setInterval(() => setNow(new Date()), 1000)
-    return () => clearInterval(t)
-  }, [])
-
-  // Auto-select worker for non-admin
-  useEffect(() => {
-    if (!isAdmin && !isDemo && profile?.worker_id) setSelectedWorkerId(profile.worker_id)
-  }, [profile, isAdmin, isDemo])
+  useEffect(() => { const t = setInterval(() => setNow(new Date()), 1000); return () => clearInterval(t) }, [])
+  useEffect(() => { if (!isAdmin && !isDemo && profile?.worker_id) setSelectedWorkerId(profile.worker_id) }, [profile, isAdmin, isDemo])
 
   const loadLogs = useCallback(async () => {
     if (!selectedWorkerId) { setLogs([]); setLoading(false); return }
@@ -74,11 +82,24 @@ export default function Asistencia() {
 
   useEffect(() => { loadLogs() }, [loadLogs])
 
+  // Admin: load logs for any worker+date
+  const loadAdminLogs = useCallback(async () => {
+    if (!adminWorker) { setAdminLogs([]); return }
+    setAdminLoading(true)
+    const { data } = await supabase.from('attendance_logs')
+      .select('*').eq('worker_id', adminWorker).eq('date', adminDate)
+      .order('logged_at', { ascending: true })
+    setAdminLogs(data || [])
+    setAdminLoading(false)
+  }, [adminWorker, adminDate])
+
+  useEffect(() => { if (isAdmin || isDemo) loadAdminLogs() }, [loadAdminLogs, isAdmin, isDemo])
+
   // Derive status
-  const hasEntrada      = logs.some(l => l.type === 'entrada')
-  const hasAlmuerzo     = logs.some(l => l.type === 'almuerzo_inicio')
-  const hasAlmuerzoFin  = logs.some(l => l.type === 'almuerzo_fin')
-  const hasSalida       = logs.some(l => l.type === 'salida')
+  const hasEntrada     = logs.some(l => l.type === 'entrada')
+  const hasAlmuerzo    = logs.some(l => l.type === 'almuerzo_inicio')
+  const hasAlmuerzoFin = logs.some(l => l.type === 'almuerzo_fin')
+  const hasSalida      = logs.some(l => l.type === 'salida')
 
   const nextType = hasSalida ? null
     : !hasEntrada ? 'entrada'
@@ -86,55 +107,31 @@ export default function Asistencia() {
     : !hasAlmuerzo ? 'almuerzo_inicio'
     : 'salida'
 
-  const statusLabel = hasSalida ? 'Jornada completada'
-    : hasAlmuerzoFin ? 'Trabajando (post almuerzo)'
-    : hasAlmuerzo ? 'En almuerzo'
-    : hasEntrada ? 'Trabajando'
-    : 'Sin fichar hoy'
-
-  const statusColor = hasSalida ? 'text-gray-400'
-    : hasAlmuerzo && !hasAlmuerzoFin ? 'text-orange-500'
-    : hasEntrada ? 'text-green-500'
-    : 'text-gray-400'
-
-  // Working duration
   const entradaLog = logs.find(l => l.type === 'entrada')
   const salidaLog  = logs.find(l => l.type === 'salida')
   const trabajado  = entradaLog
     ? fmtDuration((salidaLog ? new Date(salidaLog.logged_at) : now) - new Date(entradaLog.logged_at))
     : null
 
-  // ── Camera ────────────────────────────────────────────────────────────
+  // ── Camera & Geo ──────────────────────────────────────────────────────────
   async function startCamera() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false })
       streamRef.current = stream
       if (videoRef.current) { videoRef.current.srcObject = stream; videoRef.current.play() }
-    } catch {
-      // fallback to file input
-    }
+    } catch { /* fallback to file input */ }
   }
-
-  function stopCamera() {
-    streamRef.current?.getTracks().forEach(t => t.stop())
-    streamRef.current = null
-  }
-
+  function stopCamera() { streamRef.current?.getTracks().forEach(t => t.stop()); streamRef.current = null }
   function capturePhoto() {
     if (videoRef.current && canvasRef.current) {
-      const v = videoRef.current
-      canvasRef.current.width  = 320
-      canvasRef.current.height = 240
-      canvasRef.current.getContext('2d').drawImage(v, 0, 0, 320, 240)
-      const b64 = canvasRef.current.toDataURL('image/jpeg', 0.65)
-      setPhoto(b64)
+      canvasRef.current.width = 320; canvasRef.current.height = 240
+      canvasRef.current.getContext('2d').drawImage(videoRef.current, 0, 0, 320, 240)
+      setPhoto(canvasRef.current.toDataURL('image/jpeg', 0.65))
       stopCamera()
     }
   }
-
   function handleFileCapture(e) {
-    const file = e.target.files?.[0]
-    if (!file) return
+    const file = e.target.files?.[0]; if (!file) return
     const reader = new FileReader()
     reader.onload = ev => setPhoto(ev.target.result)
     reader.readAsDataURL(file)
@@ -142,82 +139,81 @@ export default function Asistencia() {
 
   async function openAction(type) {
     if (!selectedWorkerId) { toast.error('Selecciona un trabajador'); return }
-    setPendingType(type)
-    setPhoto(null)
-    setLocation(null)
-    setLocError(false)
+    setPendingType(type); setPhoto(null); setLocation(null); setGeoStatus('loading')
     setCamOpen(true)
-    // Geolocation
+
     navigator.geolocation?.getCurrentPosition(
-      pos => setLocation({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
-      ()  => setLocError(true),
-      { timeout: 8000 }
+      pos => {
+        const dist = haversineM(pos.coords.latitude, pos.coords.longitude, WORKPLACE_LAT, WORKPLACE_LON)
+        setLocation({ lat: pos.coords.latitude, lon: pos.coords.longitude, dist: Math.round(dist) })
+        setGeoStatus(dist <= GEOFENCE_M ? 'ok' : 'outside')
+      },
+      () => setGeoStatus('denied'),
+      { timeout: 10000, enableHighAccuracy: true }
     )
-    // Start camera after short delay
     setTimeout(startCamera, 300)
   }
 
-  function closeCamera() {
-    stopCamera()
-    setCamOpen(false)
-    setPendingType(null)
-    setPhoto(null)
-  }
+  function closeCamera() { stopCamera(); setCamOpen(false); setPendingType(null); setPhoto(null); setGeoStatus('idle') }
 
   async function confirmLog() {
+    if (geoStatus === 'outside') { toast.error('Estás fuera del área del taller'); return }
+    if (geoStatus === 'denied')  { toast.error('Se requiere acceso a la ubicación'); return }
     setSaving(true)
     try {
-      const payload = {
-        worker_id: selectedWorkerId,
-        type: pendingType,
-        date: today,
+      await supabase.from('attendance_logs').insert({
+        worker_id: selectedWorkerId, type: pendingType, date: today,
         logged_at: new Date().toISOString(),
-        latitude: location?.lat ?? null,
-        longitude: location?.lon ?? null,
+        latitude: location?.lat ?? null, longitude: location?.lon ?? null,
         photo_b64: photo || null,
-      }
-      const { error } = await supabase.from('attendance_logs').insert(payload)
-      if (error) throw error
+      })
       toast.success(`${TYPE_LABEL[pendingType]} registrada`)
-      closeCamera()
-      await loadLogs()
-    } catch (err) {
-      toast.error('Error al guardar: ' + err.message)
-    } finally {
-      setSaving(false)
-    }
+      closeCamera(); await loadLogs()
+    } catch (err) { toast.error('Error: ' + err.message) }
+    finally { setSaving(false) }
   }
 
-  // ── Action button config ──────────────────────────────────────────────
+  // ── Admin edit ────────────────────────────────────────────────────────────
+  async function saveEditLog() {
+    if (!editingLog || !editTime) return
+    const [h, m, s] = editTime.split(':').map(Number)
+    const base = new Date(editingLog.logged_at)
+    base.setHours(h, m, s || 0, 0)
+    const { error } = await supabase.from('attendance_logs').update({ logged_at: base.toISOString() }).eq('id', editingLog.id)
+    if (error) { toast.error(error.message); return }
+    toast.success('Hora actualizada')
+    setEditingLog(null); loadAdminLogs()
+    if (adminWorker === selectedWorkerId && adminDate === today) loadLogs()
+  }
+  async function deleteAdminLog(id) {
+    await supabase.from('attendance_logs').delete().eq('id', id)
+    toast.success('Registro eliminado')
+    loadAdminLogs()
+    if (adminWorker === selectedWorkerId && adminDate === today) loadLogs()
+  }
+
   const ACTION = {
-    entrada:        { label: 'Registrar Entrada',   icon: LogIn,   color: 'bg-green-500 hover:bg-green-600' },
-    almuerzo_inicio:{ label: 'Iniciar Almuerzo',    icon: Coffee,  color: 'bg-orange-500 hover:bg-orange-600' },
-    almuerzo_fin:   { label: 'Terminar Almuerzo',   icon: Coffee,  color: 'bg-blue-500 hover:bg-blue-600' },
-    salida:         { label: 'Registrar Salida',    icon: LogOut,  color: 'bg-red-500 hover:bg-red-600' },
+    entrada:         { label: 'Registrar Entrada',  icon: LogIn,  color: 'bg-green-500 hover:bg-green-600' },
+    almuerzo_inicio: { label: 'Iniciar Almuerzo',   icon: Coffee, color: 'bg-orange-500 hover:bg-orange-600' },
+    almuerzo_fin:    { label: 'Terminar Almuerzo',  icon: Coffee, color: 'bg-blue-500 hover:bg-blue-600' },
+    salida:          { label: 'Registrar Salida',   icon: LogOut, color: 'bg-red-500 hover:bg-red-600' },
   }
-
-  const canTakeAction = !hasSalida && !!nextType
 
   return (
     <div className="max-w-lg mx-auto p-4 space-y-4">
-      {/* Header clock */}
+      {/* Clock */}
       <div className="card text-center py-6">
-        <p className="text-4xl font-bold font-mono text-gray-900 dark:text-white tracking-widest">
-          {now.toLocaleTimeString('es-PE')}
-        </p>
-        <p className="text-sm text-gray-500 mt-1 capitalize">
-          {now.toLocaleDateString('es-PE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
-        </p>
+        <p className="text-4xl font-bold font-mono text-gray-900 dark:text-white tracking-widest">{now.toLocaleTimeString('es-PE')}</p>
+        <p className="text-sm text-gray-500 mt-1 capitalize">{now.toLocaleDateString('es-PE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
       </div>
 
-      {/* Worker selector */}
+      {/* Worker selector (admin only) */}
       {(isAdmin || isDemo) ? (
         <div className="card">
           <label className="label">Trabajador</label>
           <div className="relative">
-            <select value={selectedWorkerId} onChange={e => setSelectedWorkerId(e.target.value)}
-              className="input appearance-none pr-8">
-              <option value="">Seleccionar trabajador...</option>
+            <select value={selectedWorkerId} onChange={e => setSelectedWorkerId(e.target.value)} className="input appearance-none pr-8">
+              <option value="">Seleccionar...</option>
               {workers.filter(w => w.active).map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
             </select>
             <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
@@ -225,57 +221,47 @@ export default function Asistencia() {
         </div>
       ) : worker ? (
         <div className="card flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center text-red-600 font-bold">
-            {worker.name[0]}
-          </div>
-          <div>
-            <p className="font-semibold text-gray-900 dark:text-white">{worker.name}</p>
-            <p className="text-xs text-gray-500">Cargo: Técnico</p>
-          </div>
+          <div className="w-10 h-10 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center text-red-600 font-bold">{worker.name[0]}</div>
+          <div><p className="font-semibold text-gray-900 dark:text-white">{worker.name}</p><p className="text-xs text-gray-500">Técnico</p></div>
         </div>
       ) : (
-        <div className="card text-center text-sm text-gray-400">Tu cuenta no está vinculada a un trabajador.</div>
+        <div className="card text-center text-sm text-gray-400">Cuenta no vinculada a un trabajador.</div>
       )}
 
-      {/* Status */}
+      {/* Status & Timeline */}
       {selectedWorkerId && !loading && (
         <div className="card">
-          <div className="flex items-center justify-between mb-3">
-            <p className={`font-semibold ${statusColor}`}>{statusLabel}</p>
+          <div className="flex items-center justify-between mb-2">
+            <p className={`font-semibold ${hasSalida ? 'text-gray-400' : hasAlmuerzo && !hasAlmuerzoFin ? 'text-orange-500' : hasEntrada ? 'text-green-500' : 'text-gray-400'}`}>
+              {hasSalida ? 'Jornada completa' : hasAlmuerzoFin ? 'Trabajando' : hasAlmuerzo ? 'En almuerzo' : hasEntrada ? 'Trabajando' : 'Sin fichar hoy'}
+            </p>
             {trabajado && <span className="text-xs text-gray-500">Tiempo: <strong>{trabajado}</strong></span>}
           </div>
-
-          {/* Timeline */}
-          {logs.length > 0 && (
-            <div className="space-y-2 mt-3 border-t border-gray-100 dark:border-gray-700 pt-3">
+          {logs.length > 0 ? (
+            <div className="space-y-2 border-t border-gray-100 dark:border-gray-700 pt-3">
               {logs.map(log => (
                 <div key={log.id} className="flex items-center gap-3">
                   <div className={`w-2 h-2 rounded-full shrink-0 ${TYPE_BG[log.type]}`} />
                   <span className={`text-sm font-medium ${TYPE_COLOR[log.type]}`}>{TYPE_LABEL[log.type]}</span>
                   <span className="text-xs text-gray-400 ml-auto flex items-center gap-1">
-                    <Clock className="w-3 h-3" /> {fmtTime(log.logged_at)}
+                    <Clock className="w-3 h-3" />{fmtTime(log.logged_at)}
                     {log.latitude && <MapPin className="w-3 h-3 ml-1 text-blue-400" />}
                     {log.photo_b64 && <Camera className="w-3 h-3 ml-1 text-purple-400" />}
                   </span>
                 </div>
               ))}
             </div>
-          )}
-
-          {logs.length === 0 && (
-            <p className="text-sm text-gray-400 text-center py-2">Sin registros hoy</p>
-          )}
+          ) : <p className="text-sm text-gray-400 text-center py-2">Sin registros hoy</p>}
         </div>
       )}
 
       {/* Action button */}
-      {selectedWorkerId && !loading && canTakeAction && (() => {
-        const a = ACTION[nextType]
-        const Icon = a.icon
+      {selectedWorkerId && !loading && !hasSalida && nextType && (() => {
+        const a = ACTION[nextType]; const Icon = a.icon
         return (
           <button onClick={() => openAction(nextType)}
             className={`w-full py-4 rounded-2xl text-white font-bold text-lg flex items-center justify-center gap-3 shadow-lg transition-all ${a.color}`}>
-            <Icon className="w-6 h-6" /> {a.label}
+            <Icon className="w-6 h-6" />{a.label}
           </button>
         )
       })()}
@@ -284,73 +270,135 @@ export default function Asistencia() {
         <div className="card text-center py-6">
           <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-2" />
           <p className="font-semibold text-gray-700 dark:text-gray-300">Jornada completada</p>
-          <p className="text-sm text-gray-400 mt-1">Tiempo trabajado: <strong>{trabajado}</strong></p>
+          {trabajado && <p className="text-sm text-gray-400 mt-1">Tiempo: <strong>{trabajado}</strong></p>}
         </div>
       )}
-
       {loading && <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div>}
+
+      {/* ── Admin edit panel ──────────────────────────────────────────── */}
+      {(isAdmin || isDemo) && (
+        <div className="card border-2 border-amber-200 dark:border-amber-800/40">
+          <p className="text-sm font-bold text-amber-700 dark:text-amber-400 mb-3 flex items-center gap-2">
+            <ShieldAlert className="w-4 h-4" /> Panel de administrador — Editar registros
+          </p>
+          <div className="grid grid-cols-2 gap-2 mb-3">
+            <div>
+              <label className="label text-xs">Trabajador</label>
+              <select value={adminWorker} onChange={e => setAdminWorker(e.target.value)} className="input text-sm">
+                <option value="">Seleccionar...</option>
+                {workers.filter(w => w.active).map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="label text-xs">Fecha</label>
+              <input type="date" value={adminDate} onChange={e => setAdminDate(e.target.value)} className="input text-sm" />
+            </div>
+          </div>
+          {adminLoading && <div className="flex justify-center py-2"><Loader2 className="w-4 h-4 animate-spin text-gray-400" /></div>}
+          {!adminLoading && adminWorker && (
+            adminLogs.length === 0
+              ? <p className="text-sm text-gray-400 text-center py-2">Sin registros ese día</p>
+              : <div className="space-y-2">
+                  {adminLogs.map(log => (
+                    <div key={log.id} className="flex items-center gap-2 bg-gray-50 dark:bg-gray-800/50 rounded-lg px-3 py-2">
+                      <div className={`w-2 h-2 rounded-full shrink-0 ${TYPE_BG[log.type]}`} />
+                      <span className={`text-sm font-medium ${TYPE_COLOR[log.type]}`}>{TYPE_LABEL[log.type]}</span>
+                      <span className="text-xs text-gray-400 ml-auto">{fmtTime(log.logged_at)}</span>
+                      <button onClick={() => { setEditingLog(log); setEditTime(new Date(log.logged_at).toTimeString().slice(0,8)) }}
+                        className="p-1 rounded hover:bg-blue-50 dark:hover:bg-blue-900/20 text-blue-500"><Pencil className="w-3.5 h-3.5" /></button>
+                      <button onClick={() => deleteAdminLog(log.id)}
+                        className="p-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 text-red-500"><Trash2 className="w-3.5 h-3.5" /></button>
+                    </div>
+                  ))}
+                  {/* Add missing entry */}
+                  {adminLogs.length < 4 && (
+                    <div className="flex gap-2 mt-2 flex-wrap">
+                      {ALL_TYPES.filter(t => !adminLogs.some(l => l.type === t)).map(t => (
+                        <button key={t} onClick={async () => {
+                          const wid = adminWorker
+                          await supabase.from('attendance_logs').insert({ worker_id: wid, type: t, date: adminDate })
+                          toast.success(`${TYPE_LABEL[t]} añadida`); loadAdminLogs()
+                          if (wid === selectedWorkerId && adminDate === today) loadLogs()
+                        }}
+                          className="text-xs bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300 px-2 py-1 rounded-lg">
+                          + {TYPE_LABEL[t]}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+          )}
+          {/* Edit time modal */}
+          {editingLog && (
+            <div className="mt-3 border-t border-gray-200 dark:border-gray-700 pt-3 flex items-center gap-2">
+              <span className="text-sm text-gray-600 dark:text-gray-400">Editar hora de <strong>{TYPE_LABEL[editingLog.type]}</strong>:</span>
+              <input type="time" step="1" value={editTime} onChange={e => setEditTime(e.target.value)} className="input text-sm py-1 w-32" />
+              <button onClick={saveEditLog} className="btn-primary text-xs py-1.5 px-3">Guardar</button>
+              <button onClick={() => setEditingLog(null)} className="btn-secondary text-xs py-1.5 px-3">Cancelar</button>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── Camera Modal ─────────────────────────────────────────────── */}
       {camOpen && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 px-4 pb-4">
           <div className="bg-white dark:bg-gray-900 rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl">
             <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-800">
-              <p className="font-bold text-gray-900 dark:text-white text-lg">
-                Confirmar {TYPE_LABEL[pendingType]}
-              </p>
+              <p className="font-bold text-gray-900 dark:text-white text-lg">Confirmar {TYPE_LABEL[pendingType]}</p>
               <p className="text-sm text-gray-500">{now.toLocaleTimeString('es-PE')}</p>
             </div>
-
             <div className="p-4 space-y-3">
-              {/* Photo area */}
-              {!photo ? (
-                <div className="relative bg-black rounded-xl overflow-hidden" style={{ height: 220 }}>
-                  <video ref={videoRef} className="w-full h-full object-cover" autoPlay playsInline muted />
-                  <div className="absolute inset-0 flex flex-col items-center justify-end pb-4 gap-2">
-                    <button onClick={capturePhoto}
-                      className="w-14 h-14 rounded-full bg-white shadow-lg flex items-center justify-center">
-                      <Camera className="w-7 h-7 text-gray-800" />
-                    </button>
-                    <button onClick={() => fileRef.current?.click()}
-                      className="text-xs text-white bg-black/40 px-3 py-1 rounded-full">
-                      Usar galería
-                    </button>
-                  </div>
+              {/* Geo status */}
+              {geoStatus === 'loading' && (
+                <div className="flex items-center gap-2 text-xs bg-gray-50 dark:bg-gray-800 text-gray-400 px-3 py-2 rounded-lg">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" /> Verificando ubicación...
                 </div>
-              ) : (
-                <div className="relative rounded-xl overflow-hidden" style={{ height: 220 }}>
-                  <img src={photo} alt="foto" className="w-full h-full object-cover" />
-                  <button onClick={() => { setPhoto(null); startCamera() }}
-                    className="absolute top-2 right-2 text-xs bg-black/60 text-white px-2 py-1 rounded-full">
-                    Repetir
-                  </button>
+              )}
+              {geoStatus === 'ok' && (
+                <div className="flex items-center gap-2 text-xs bg-green-50 dark:bg-green-900/20 text-green-600 px-3 py-2 rounded-lg">
+                  <MapPin className="w-3.5 h-3.5" /> Ubicación verificada · {location?.dist}m del taller ✓
+                </div>
+              )}
+              {geoStatus === 'outside' && (
+                <div className="flex items-center gap-2 text-xs bg-red-50 dark:bg-red-900/20 text-red-600 px-3 py-2 rounded-lg">
+                  <AlertTriangle className="w-3.5 h-3.5" /> Fuera del área · {location?.dist}m del taller (máx {GEOFENCE_M}m)
+                </div>
+              )}
+              {geoStatus === 'denied' && (
+                <div className="flex items-center gap-2 text-xs bg-red-50 dark:bg-red-900/20 text-red-600 px-3 py-2 rounded-lg">
+                  <AlertTriangle className="w-3.5 h-3.5" /> Activa el GPS para poder fichar
                 </div>
               )}
 
+              {/* Camera */}
+              {!photo ? (
+                <div className="relative bg-black rounded-xl overflow-hidden" style={{ height: 210 }}>
+                  <video ref={videoRef} className="w-full h-full object-cover" autoPlay playsInline muted />
+                  <div className="absolute inset-0 flex flex-col items-center justify-end pb-3 gap-2">
+                    <button onClick={capturePhoto} className="w-14 h-14 rounded-full bg-white shadow-lg flex items-center justify-center">
+                      <Camera className="w-7 h-7 text-gray-800" />
+                    </button>
+                    <button onClick={() => fileRef.current?.click()} className="text-xs text-white bg-black/40 px-3 py-1 rounded-full">Usar galería</button>
+                  </div>
+                </div>
+              ) : (
+                <div className="relative rounded-xl overflow-hidden" style={{ height: 210 }}>
+                  <img src={photo} alt="foto" className="w-full h-full object-cover" />
+                  <button onClick={() => { setPhoto(null); startCamera() }}
+                    className="absolute top-2 right-2 text-xs bg-black/60 text-white px-2 py-1 rounded-full">Repetir</button>
+                </div>
+              )}
               <canvas ref={canvasRef} className="hidden" />
               <input ref={fileRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleFileCapture} />
-
-              {/* Location */}
-              <div className={`flex items-center gap-2 text-xs px-3 py-2 rounded-lg ${
-                location ? 'bg-green-50 dark:bg-green-900/20 text-green-600'
-                : locError ? 'bg-red-50 dark:bg-red-900/20 text-red-500'
-                : 'bg-gray-50 dark:bg-gray-800 text-gray-400'}`}>
-                <MapPin className="w-3.5 h-3.5 shrink-0" />
-                {location ? `GPS: ${location.lat.toFixed(5)}, ${location.lon.toFixed(5)}`
-                  : locError ? 'Sin acceso a ubicación'
-                  : 'Obteniendo ubicación...'}
-              </div>
             </div>
 
             <div className="flex gap-3 px-4 pb-4">
-              <button onClick={closeCamera}
-                className="flex-1 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 text-sm font-semibold text-gray-600 dark:text-gray-300">
-                Cancelar
-              </button>
-              <button onClick={confirmLog} disabled={saving || !photo}
-                className="flex-1 py-2.5 rounded-xl bg-red-600 text-white text-sm font-bold disabled:opacity-50 flex items-center justify-center gap-2">
-                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-                Guardar
+              <button onClick={closeCamera} className="flex-1 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 text-sm font-semibold text-gray-600 dark:text-gray-300">Cancelar</button>
+              <button onClick={confirmLog}
+                disabled={saving || !photo || geoStatus === 'outside' || geoStatus === 'denied' || geoStatus === 'loading'}
+                className="flex-1 py-2.5 rounded-xl bg-red-600 text-white text-sm font-bold disabled:opacity-40 flex items-center justify-center gap-2">
+                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : null} Guardar
               </button>
             </div>
           </div>

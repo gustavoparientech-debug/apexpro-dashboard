@@ -70,6 +70,7 @@ export default function Asistencia() {
   const [adminLogs, setAdminLogs]       = useState([])
   const [editingLog, setEditingLog]     = useState(null)
   const [editTime, setEditTime]         = useState('')
+  const [viewPhoto, setViewPhoto]       = useState(null)
   const [adminLoading, setAdminLoading] = useState(false)
 
   // Camera
@@ -187,9 +188,14 @@ export default function Asistencia() {
 
   function capturePhotoNow() {
     if (videoRef.current && canvasRef.current) {
-      canvasRef.current.width = 320; canvasRef.current.height = 240
-      canvasRef.current.getContext('2d').drawImage(videoRef.current, 0, 0, 320, 240)
-      setPhoto(canvasRef.current.toDataURL('image/jpeg', 0.65))
+      const vw = videoRef.current.videoWidth  || 640
+      const vh = videoRef.current.videoHeight || 480
+      // Escalar manteniendo relación de aspecto con máx 640px de ancho
+      const scale = Math.min(1, 640 / Math.max(vw, vh))
+      canvasRef.current.width  = Math.round(vw * scale)
+      canvasRef.current.height = Math.round(vh * scale)
+      canvasRef.current.getContext('2d').drawImage(videoRef.current, 0, 0, canvasRef.current.width, canvasRef.current.height)
+      setPhoto(canvasRef.current.toDataURL('image/jpeg', 0.70))
       stopCamera()
     }
   }
@@ -473,7 +479,7 @@ export default function Asistencia() {
                   <span className="text-xs text-gray-400 ml-auto flex items-center gap-1">
                     <Clock className="w-3 h-3" />{fmtTime(log.logged_at)}
                     {log.latitude && <MapPin className="w-3 h-3 ml-1 text-blue-400" />}
-                    {log.photo_b64 && <Camera className="w-3 h-3 ml-1 text-purple-400" />}
+                    {log.photo_b64 && <button onClick={() => setViewPhoto(log.photo_b64)} className="ml-1"><Camera className="w-3 h-3 text-purple-400" /></button>}
                   </span>
                 </div>
               ))}
@@ -540,6 +546,11 @@ export default function Asistencia() {
                       <div className={`w-2 h-2 rounded-full shrink-0 ${TYPE_BG[log.type]}`} />
                       <span className={`text-sm font-medium ${TYPE_COLOR[log.type]}`}>{TYPE_LABEL[log.type]}</span>
                       <span className="text-xs text-gray-400 ml-auto">{fmtTime(log.logged_at)}</span>
+                      {log.photo_b64 && (
+                        <button onClick={() => setViewPhoto(log.photo_b64)} className="p-1 rounded hover:bg-purple-50 dark:hover:bg-purple-900/20 text-purple-500">
+                          <Camera className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                       <button onClick={() => { setEditingLog(log); setEditTime(new Date(log.logged_at).toTimeString().slice(0,8)) }}
                         className="p-1 rounded hover:bg-blue-50 dark:hover:bg-blue-900/20 text-blue-500"><Pencil className="w-3.5 h-3.5" /></button>
                       <button onClick={() => deleteAdminLog(log.id)}
@@ -652,6 +663,17 @@ export default function Asistencia() {
                 {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : null} Guardar
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Lightbox foto */}
+      {viewPhoto && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4" onClick={() => setViewPhoto(null)}>
+          <div className="relative max-w-sm w-full" onClick={e => e.stopPropagation()}>
+            <img src={viewPhoto} alt="foto verificación" className="w-full rounded-2xl object-contain max-h-[80vh]" />
+            <button onClick={() => setViewPhoto(null)}
+              className="absolute top-2 right-2 bg-black/60 text-white rounded-full w-8 h-8 flex items-center justify-center text-lg font-bold">×</button>
           </div>
         </div>
       )}

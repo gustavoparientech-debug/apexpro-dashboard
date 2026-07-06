@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useApp } from '../context/AppContext'
 import { supabase } from '../lib/supabase'
 import { calcWorkMs } from './Asistencia'
@@ -36,6 +36,8 @@ export default function AsistenciaReporte() {
   const [logs, setLogs]         = useState([])
   const [loading, setLoading]   = useState(false)
   const [expanded, setExpanded] = useState({}) // workerId → bool
+  const [popover, setPopover]   = useState(null) // { workerId, date, rect }
+  const tableRef = useRef(null)
 
   const weekDates = getWeekDates(weekRef)
   const weekStart = weekDates[0]
@@ -88,8 +90,19 @@ export default function AsistenciaReporte() {
   const d1 = new Date(weekEnd   + 'T12:00:00')
   const periodLabel = `${d0.getDate()} ${MONTHS_ES[d0.getMonth()].slice(0,3)} – ${d1.getDate()} ${MONTHS_ES[d1.getMonth()].slice(0,3)} ${d1.getFullYear()}`
 
+  // Popover data
+  const popData = popover ? (() => {
+    const dayLogs = getDayLogs(popover.workerId, popover.date)
+    const e  = dayLogs.find(l => l.type === 'entrada')
+    const ai = dayLogs.find(l => l.type === 'almuerzo_inicio')
+    const af = dayLogs.find(l => l.type === 'almuerzo_fin')
+    const s  = dayLogs.find(l => l.type === 'salida')
+    const fmt = t => new Date(t).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' })
+    return { e, ai, af, s, fmt, ms: getDayMs(popover.workerId, popover.date) }
+  })() : null
+
   return (
-    <div className="p-4 max-w-5xl mx-auto space-y-4">
+    <div className="p-4 max-w-5xl mx-auto space-y-4" onClick={() => setPopover(null)}>
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
@@ -134,20 +147,26 @@ export default function AsistenciaReporte() {
             )}
             {!loading && workerTotals.map(w => (
               <>
-                <tr key={w.id}
-                  className="border-b border-gray-50 dark:border-gray-800/50 hover:bg-gray-50 dark:hover:bg-gray-800/30 cursor-pointer"
-                  onClick={() => setExpanded(e => ({ ...e, [w.id]: !e[w.id] }))}>
-                  <td className="px-4 py-3">
+                <tr key={w.id} className="border-b border-gray-50 dark:border-gray-800/50">
+                  <td className="px-4 py-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/30"
+                    onClick={() => setExpanded(e => ({ ...e, [w.id]: !e[w.id] }))}>
                     <div className="flex items-center gap-2">
                       <div className="w-7 h-7 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center text-red-600 font-bold text-xs shrink-0">{w.name[0]}</div>
                       <span className="font-medium text-gray-900 dark:text-white text-xs leading-tight">{w.name}</span>
                     </div>
                   </td>
                   {w.days.map(({ date, ms }) => (
-                    <td key={date} className="px-2 py-3 text-center">
-                      {ms > 0
-                        ? <span className="text-xs font-medium text-gray-700 dark:text-gray-300">{fmtHm(ms)}</span>
-                        : <span className="text-gray-300 dark:text-gray-600 text-xs">—</span>}
+                    <td key={date} className="px-2 py-3 text-center relative">
+                      <button
+                        onClick={e => {
+                          e.stopPropagation()
+                          if (ms <= 0) return
+                          const rect = e.currentTarget.getBoundingClientRect()
+                          setPopover(p => (p?.workerId === w.id && p?.date === date) ? null : { workerId: w.id, date, rect })
+                        }}
+                        className={`text-xs font-medium px-1 py-0.5 rounded transition-colors ${ms > 0 ? 'text-gray-700 dark:text-gray-300 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 cursor-pointer' : 'text-gray-300 dark:text-gray-600 cursor-default'}`}>
+                        {ms > 0 ? fmtHm(ms) : '—'}
+                      </button>
                     </td>
                   ))}
                   <td className="px-4 py-3 text-center">
@@ -209,6 +228,28 @@ export default function AsistenciaReporte() {
           )}
         </table>
       </div>
+
+      {/* Popover flotante */}
+      {popover && popData && (() => {
+        const { e, ai, af, s, fmt, ms } = popData
+        const top  = popover.rect.bottom + window.scrollY + 8
+        const left = Math.min(popover.rect.left + window.scrollX - 20, window.innerWidth - 230)
+        return (
+          <div
+            onClick={ev => ev.stopPropagation()}
+            style={{ position: 'fixed', top: popover.rect.bottom + 8, left: Math.max(8, Math.min(popover.rect.left - 20, window.innerWidth - 230)), zIndex: 50 }}
+            className="bg-gray-800 dark:bg-gray-900 text-white rounded-2xl shadow-2xl p-4 w-52 text-xs space-y-2">
+            {e  && <div className="flex justify-between"><span className="text-gray-400">Llegada</span><span className="font-semibold text-green-400">{fmt(e.logged_at)}</span></div>}
+            {ai && <div className="flex justify-between"><span className="text-gray-400">Almuerzo ↓</span><span className="font-semibold text-orange-400">{fmt(ai.logged_at)}</span></div>}
+            {af && <div className="flex justify-between"><span className="text-gray-400">Almuerzo ↑</span><span className="font-semibold text-blue-400">{fmt(af.logged_at)}</span></div>}
+            {s  && <div className="flex justify-between"><span className="text-gray-400">Salida</span><span className="font-semibold text-red-400">{fmt(s.logged_at)}</span></div>}
+            <div className="border-t border-white/10 pt-2 flex justify-between">
+              <span className="text-gray-400">Total</span>
+              <span className="font-bold text-white">{fmtHm(ms)}</span>
+            </div>
+          </div>
+        )
+      })()}
 
       {/* Resumen tarjetas */}
       {!loading && (

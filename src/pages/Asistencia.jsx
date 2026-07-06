@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { useApp } from '../context/AppContext'
 import { supabase } from '../lib/supabase'
+import { calcLatenessDiscount } from '../lib/utils'
 import {
   Camera, MapPin, Clock, LogIn, Coffee, LogOut, CheckCircle,
   Loader2, ChevronDown, AlertTriangle, Pencil, Trash2, ShieldAlert, BarChart2,
@@ -54,7 +55,7 @@ function fmtDuration(ms) {
 export default function Asistencia() {
   const { profile, isAdmin, isDemo } = useAuth()
   const navigate = useNavigate()
-  const { workers, addIncident } = useApp()
+  const { workers } = useApp()
 
   const [selectedWorkerId, setSelectedWorkerId] = useState(profile?.worker_id || '')
   const [logs, setLogs]       = useState([])
@@ -237,20 +238,20 @@ export default function Asistencia() {
   function closeCamera() { stopCamera(); setCamOpen(false); setPendingType(null); setPhoto(null); setGeoStatus('idle') }
 
   async function autoCreateIncident(type, hoursLate, dateStr, workerId) {
-    try {
-      await addIncident({
-        worker_id: workerId,
-        date: dateStr,
-        type,
-        hours_late: hoursLate,
-        apply_discount: true,
-        observation: type === 'tardanza'
-          ? `Tardanza automática — ${Math.round(hoursLate * 60)} min tarde`
-          : `Salida anticipada automática — ${Math.round(hoursLate * 60)} min faltantes`,
-      })
-    } catch (err) {
-      console.error('autoCreateIncident error:', err)
-    }
+    const worker = workers.find(w => w.id === workerId)
+    const discount = worker ? calcLatenessDiscount(worker.base_salary, worker.weekly_hours, hoursLate) : 0
+    const { error } = await supabase.from('attendance_incidents').insert({
+      worker_id: workerId,
+      date: dateStr,
+      type,
+      hours_late: hoursLate,
+      apply_discount: true,
+      discount_amount: discount,
+      observation: type === 'tardanza'
+        ? `Tardanza automática — ${Math.round(hoursLate * 60)} min tarde`
+        : `Salida anticipada automática — ${Math.round(hoursLate * 60)} min faltantes`,
+    })
+    if (error) toast.error(`Error incidencia auto: ${error.message}`)
   }
 
   async function confirmLog() {
@@ -266,10 +267,13 @@ export default function Asistencia() {
         photo_b64: photo || null,
       })
 
-      // Fetch fresco del worker y su horario desde DB (evita caché stale)
-      const { data: freshWorker } = await supabase.from('workers').select('*, work_schedules(*)').eq('id', selectedWorkerId).single()
-      let sched = freshWorker?.work_schedules || null
-      if (!sched && freshWorker?.schedule_start) {
+      // Fetch fresco del worker para evitar caché stale
+      const { data: freshWorker } = await supabase.from('workers').select('*').eq('id', selectedWorkerId).single()
+      let sched = null
+      if (freshWorker?.schedule_id) {
+        const { data: freshSched } = await supabase.from('work_schedules').select('*').eq('id', freshWorker.schedule_id).single()
+        sched = freshSched
+      } else if (freshWorker?.schedule_start) {
         sched = { start_time: freshWorker.schedule_start, end_time: freshWorker.schedule_end, tolerance_min: freshWorker.schedule_tolerance_min ?? 5 }
       }
 

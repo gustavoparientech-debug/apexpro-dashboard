@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { useApp } from '../context/AppContext'
 import { supabase } from '../lib/supabase'
-import { calcLatenessDiscount } from '../lib/utils'
+import { calcLatenessDiscount, calcOvertimePay } from '../lib/utils'
 import {
   Camera, MapPin, Clock, LogIn, Coffee, LogOut, CheckCircle,
   Loader2, ChevronDown, AlertTriangle, Pencil, Trash2, ShieldAlert, BarChart2,
@@ -241,17 +241,24 @@ export default function Asistencia() {
     const worker = workers.find(w => w.id === workerId)
     const discount = worker ? calcLatenessDiscount(worker.base_salary, worker.weekly_hours, hoursLate) : 0
     const { error } = await supabase.from('attendance_incidents').insert({
-      worker_id: workerId,
-      date: dateStr,
-      type,
-      hours_late: hoursLate,
-      apply_discount: true,
-      discount_amount: discount,
+      worker_id: workerId, date: dateStr, type,
+      hours_late: hoursLate, apply_discount: true, discount_amount: discount,
       observation: type === 'tardanza'
         ? `Tardanza automática — ${Math.round(hoursLate * 60)} min tarde`
         : `Salida anticipada automática — ${Math.round(hoursLate * 60)} min faltantes`,
     })
     if (error) toast.error(`Error incidencia auto: ${error.message}`)
+  }
+
+  async function autoCreateOvertime(hoursExtra, dateStr, workerId) {
+    const worker = workers.find(w => w.id === workerId)
+    const pay = worker ? calcOvertimePay(worker.base_salary, worker.weekly_hours, hoursExtra) : 0
+    const { error } = await supabase.from('attendance_incidents').insert({
+      worker_id: workerId, date: dateStr, type: 'hora_extra',
+      hours_late: hoursExtra, apply_discount: false, discount_amount: pay,
+      observation: `Hora extra automática — ${Math.round(hoursExtra * 60)} min extra (pendiente aprobación)`,
+    })
+    if (error) toast.error(`Error hora extra auto: ${error.message}`)
   }
 
   async function confirmLog() {
@@ -300,11 +307,16 @@ export default function Asistencia() {
       // Auto-incidencia por salida anticipada (máx 4h para evitar falsos en pruebas fuera de horario)
       if (sched?.end_time && pendingType === 'salida') {
         const schedMin = timeToMin(sched.end_time)
-        const diffMin = schedMin - nowMin
-        if (diffMin > tolerance && diffMin <= 240) {
-          const hoursEarly = Math.round(diffMin) / 60
+        const earlyMin = schedMin - nowMin
+        const lateMin  = nowMin - schedMin
+        if (earlyMin > tolerance && earlyMin <= 240) {
+          const hoursEarly = Math.round(earlyMin) / 60
           await autoCreateIncident('permiso_horas', hoursEarly, today, selectedWorkerId)
-          toast(`Salida anticipada: ${Math.round(diffMin)} min antes`, { icon: '⚠️' })
+          toast(`Salida anticipada: ${Math.round(earlyMin)} min antes`, { icon: '⚠️' })
+        } else if (lateMin > tolerance) {
+          const hoursExtra = Math.round(lateMin) / 60
+          await autoCreateOvertime(hoursExtra, today, selectedWorkerId)
+          toast(`Hora extra pendiente: ${Math.round(lateMin)} min`, { icon: '🟢' })
         }
       }
 
@@ -367,10 +379,24 @@ export default function Asistencia() {
         }
       }
       if (editingLog.type === 'salida' && sched.end_time) {
-        const diffMin = timeToMin(sched.end_time) - editedMin
-        if (diffMin > tolerance && diffMin <= 240) {
-          await autoCreateIncident('permiso_horas', Math.round(diffMin) / 60, adminDate, editingLog.worker_id)
-          toast(`Salida anticipada recalculada: ${Math.round(diffMin)} min`, { icon: '⚠️' })
+        const schedEndMin = timeToMin(sched.end_time)
+        const earlyMin = schedEndMin - editedMin
+        const lateMin  = editedMin - schedEndMin
+        if (earlyMin > tolerance && earlyMin <= 240) {
+          await autoCreateIncident('permiso_horas', Math.round(earlyMin) / 60, adminDate, editingLog.worker_id)
+          toast(`Salida anticipada recalculada: ${Math.round(earlyMin)} min`, { icon: '⚠️' })
+        } else if (lateMin > tolerance) {
+          // Borrar hora_extra automática previa antes de crear la nueva
+          const { data: prevOT } = await supabase.from('attendance_incidents')
+            .select('id, observation').eq('worker_id', editingLog.worker_id)
+            .eq('date', adminDate).eq('type', 'hora_extra')
+          for (const row of (prevOT || [])) {
+            if (row.observation?.includes('automática') || row.observation?.includes('automatica')) {
+              await supabase.from('attendance_incidents').delete().eq('id', row.id)
+            }
+          }
+          await autoCreateOvertime(Math.round(lateMin) / 60, adminDate, editingLog.worker_id)
+          toast(`Hora extra recalculada: ${Math.round(lateMin)} min`, { icon: '🟢' })
         }
       }
     }

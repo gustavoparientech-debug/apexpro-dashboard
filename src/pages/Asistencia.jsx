@@ -2,7 +2,6 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { useApp } from '../context/AppContext'
 import { supabase } from '../lib/supabase'
-import { calcLatenessDiscount } from '../lib/utils'
 import {
   Camera, MapPin, Clock, LogIn, Coffee, LogOut, CheckCircle,
   Loader2, ChevronDown, AlertTriangle, Pencil, Trash2, ShieldAlert, BarChart2,
@@ -55,7 +54,7 @@ function fmtDuration(ms) {
 export default function Asistencia() {
   const { profile, isAdmin, isDemo } = useAuth()
   const navigate = useNavigate()
-  const { workers } = useApp()
+  const { workers, addIncident } = useApp()
 
   const [selectedWorkerId, setSelectedWorkerId] = useState(profile?.worker_id || '')
   const [logs, setLogs]       = useState([])
@@ -238,22 +237,20 @@ export default function Asistencia() {
   function closeCamera() { stopCamera(); setCamOpen(false); setPendingType(null); setPhoto(null); setGeoStatus('idle') }
 
   async function autoCreateIncident(type, hoursLate, dateStr, workerId) {
-    const worker = workers.find(w => w.id === workerId)
-    if (!worker) return
-    const discount = type === 'tardanza'
-      ? calcLatenessDiscount(worker.base_salary, worker.weekly_hours, hoursLate)
-      : calcLatenessDiscount(worker.base_salary, worker.weekly_hours, hoursLate)
-    await supabase.from('incidents').insert({
-      worker_id: workerId,
-      date: dateStr,
-      type,
-      hours_late: hoursLate,
-      apply_discount: true,
-      discount_amount: discount,
-      observation: type === 'tardanza'
-        ? `Tardanza automática — ${Math.round(hoursLate * 60)} min tarde`
-        : `Salida anticipada automática — ${Math.round(hoursLate * 60)} min faltantes`,
-    })
+    try {
+      await addIncident({
+        worker_id: workerId,
+        date: dateStr,
+        type,
+        hours_late: hoursLate,
+        apply_discount: true,
+        observation: type === 'tardanza'
+          ? `Tardanza automática — ${Math.round(hoursLate * 60)} min tarde`
+          : `Salida anticipada automática — ${Math.round(hoursLate * 60)} min faltantes`,
+      })
+    } catch (err) {
+      console.error('autoCreateIncident error:', err)
+    }
   }
 
   async function confirmLog() {

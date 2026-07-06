@@ -541,22 +541,46 @@ export default function Asistencia() {
             adminLogs.length === 0
               ? <p className="text-sm text-gray-400 text-center py-2">Sin registros ese día</p>
               : <div className="space-y-2">
-                  {adminLogs.map(log => (
-                    <div key={log.id} className="flex items-center gap-2 bg-gray-50 dark:bg-gray-800/50 rounded-lg px-3 py-2">
-                      <div className={`w-2 h-2 rounded-full shrink-0 ${TYPE_BG[log.type]}`} />
-                      <span className={`text-sm font-medium ${TYPE_COLOR[log.type]}`}>{TYPE_LABEL[log.type]}</span>
-                      <span className="text-xs text-gray-400 ml-auto">{fmtTime(log.logged_at)}</span>
-                      {log.photo_b64 && (
-                        <button onClick={() => setViewPhoto(log.photo_b64)} className="p-1 rounded hover:bg-purple-50 dark:hover:bg-purple-900/20 text-purple-500">
-                          <Camera className="w-3.5 h-3.5" />
-                        </button>
-                      )}
-                      <button onClick={() => { setEditingLog(log); setEditTime(new Date(log.logged_at).toTimeString().slice(0,8)) }}
-                        className="p-1 rounded hover:bg-blue-50 dark:hover:bg-blue-900/20 text-blue-500"><Pencil className="w-3.5 h-3.5" /></button>
-                      <button onClick={() => deleteAdminLog(log.id)}
-                        className="p-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 text-red-500"><Trash2 className="w-3.5 h-3.5" /></button>
-                    </div>
-                  ))}
+                  {adminLogs.map(log => {
+                    const worker = workers.find(w => w.id === log.worker_id)
+                    const typePillColor = {
+                      entrada: 'border-green-500 text-green-600 bg-green-50 dark:bg-green-900/10',
+                      almuerzo_inicio: 'border-orange-400 text-orange-500 bg-orange-50 dark:bg-orange-900/10',
+                      almuerzo_fin: 'border-blue-400 text-blue-500 bg-blue-50 dark:bg-blue-900/10',
+                      salida: 'border-red-400 text-red-500 bg-red-50 dark:bg-red-900/10',
+                    }[log.type] || 'border-gray-300 text-gray-500'
+                    const typeIcon = { entrada: '→', almuerzo_inicio: '☕', almuerzo_fin: '↩', salida: '←' }[log.type] || '•'
+                    const t = new Date(log.logged_at)
+                    const timeStr = t.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit', hour12: true })
+                    return (
+                      <div key={log.id} className="flex items-center gap-3 bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-xl px-3 py-2.5 hover:shadow-sm transition-shadow">
+                        {/* Avatar */}
+                        <div className="w-8 h-8 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center text-red-600 font-bold text-sm shrink-0 overflow-hidden">
+                          {log.photo_b64
+                            ? <img src={log.photo_b64} alt="" className="w-full h-full object-cover cursor-pointer" onClick={() => setViewPhoto(log.photo_b64)} />
+                            : (worker?.name?.[0] ?? '?')}
+                        </div>
+                        {/* Time */}
+                        <span className="text-sm font-semibold text-gray-800 dark:text-gray-100 whitespace-nowrap">{timeStr}</span>
+                        {/* Type badge */}
+                        <span className={`text-xs font-semibold border rounded-full px-2 py-0.5 whitespace-nowrap ${typePillColor}`}>
+                          {typeIcon} {TYPE_LABEL[log.type]}
+                        </span>
+                        {/* Icons */}
+                        <div className="flex items-center gap-1.5 text-gray-300 dark:text-gray-600">
+                          {log.latitude && <MapPin className="w-3.5 h-3.5 text-blue-400" />}
+                          {log.photo_b64 && <button onClick={() => setViewPhoto(log.photo_b64)}><Camera className="w-3.5 h-3.5 text-purple-400" /></button>}
+                        </div>
+                        {/* Actions */}
+                        <div className="flex items-center gap-1 ml-auto">
+                          <button onClick={() => { setEditingLog(log); setEditTime(new Date(log.logged_at).toTimeString().slice(0,8)) }}
+                            className="p-1.5 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 text-gray-400 hover:text-blue-500 transition-colors"><Pencil className="w-3.5 h-3.5" /></button>
+                          <button onClick={() => deleteAdminLog(log.id)}
+                            className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-gray-400 hover:text-red-500 transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
+                        </div>
+                      </div>
+                    )
+                  })}
                   {/* Add missing entry */}
                   {adminLogs.length < 4 && (
                     <div className="flex gap-2 mt-2 flex-wrap">

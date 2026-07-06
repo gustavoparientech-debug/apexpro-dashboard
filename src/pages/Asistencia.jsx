@@ -4,8 +4,9 @@ import { useApp } from '../context/AppContext'
 import { supabase } from '../lib/supabase'
 import {
   Camera, MapPin, Clock, LogIn, Coffee, LogOut, CheckCircle,
-  Loader2, ChevronDown, AlertTriangle, Pencil, Trash2, ShieldAlert,
+  Loader2, ChevronDown, AlertTriangle, Pencil, Trash2, ShieldAlert, BarChart2,
 } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 
 // ── Geovalla ──────────────────────────────────────────────────────────────────
@@ -28,6 +29,21 @@ const TYPE_COLOR = { entrada: 'text-green-600', almuerzo_inicio: 'text-orange-50
 const TYPE_BG    = { entrada: 'bg-green-500',  almuerzo_inicio: 'bg-orange-500',  almuerzo_fin: 'bg-blue-500',  salida: 'bg-red-500' }
 const ALL_TYPES  = ['entrada', 'almuerzo_inicio', 'almuerzo_fin', 'salida']
 
+// Calcula ms trabajados: (almuerzo_inicio - entrada) + (salida - almuerzo_fin)
+// Si no hay almuerzo: entrada → salida/now. Durante almuerzo: solo primer tramo.
+export function calcWorkMs(entradaLog, almuerzoIniLog, almuerzoFinLog, salidaLog, now = new Date()) {
+  if (!entradaLog) return 0
+  const start = new Date(entradaLog.logged_at)
+  const end   = salidaLog ? new Date(salidaLog.logged_at) : now
+  if (!almuerzoIniLog) return Math.max(0, end - start)
+  const lunchStart = new Date(almuerzoIniLog.logged_at)
+  const part1 = Math.max(0, lunchStart - start)
+  if (!almuerzoFinLog) return part1
+  const lunchEnd = new Date(almuerzoFinLog.logged_at)
+  const part2 = Math.max(0, end - lunchEnd)
+  return part1 + part2
+}
+
 function fmtTime(ts) { return new Date(ts).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) }
 function fmtDuration(ms) {
   if (ms <= 0) return '0m'
@@ -37,6 +53,7 @@ function fmtDuration(ms) {
 
 export default function Asistencia() {
   const { profile, isAdmin, isDemo } = useAuth()
+  const navigate = useNavigate()
   const { workers } = useApp()
 
   const [selectedWorkerId, setSelectedWorkerId] = useState(profile?.worker_id || '')
@@ -122,11 +139,12 @@ export default function Asistencia() {
     : !hasAlmuerzo ? 'almuerzo_inicio'
     : 'salida'
 
-  const entradaLog = logs.find(l => l.type === 'entrada')
-  const salidaLog  = logs.find(l => l.type === 'salida')
-  const trabajado  = entradaLog
-    ? fmtDuration((salidaLog ? new Date(salidaLog.logged_at) : now) - new Date(entradaLog.logged_at))
-    : null
+  const entradaLog      = logs.find(l => l.type === 'entrada')
+  const almuerzoIniLog  = logs.find(l => l.type === 'almuerzo_inicio')
+  const almuerzoFinLog  = logs.find(l => l.type === 'almuerzo_fin')
+  const salidaLog       = logs.find(l => l.type === 'salida')
+  const trabajadoMs     = calcWorkMs(entradaLog, almuerzoIniLog, almuerzoFinLog, salidaLog, now)
+  const trabajado       = entradaLog ? fmtDuration(trabajadoMs) : null
 
   // ── Camera & Geo ──────────────────────────────────────────────────────────
   async function startCamera() {
@@ -259,6 +277,15 @@ export default function Asistencia() {
 
   return (
     <div className="max-w-lg mx-auto p-4 space-y-4">
+      {/* Reporte shortcut for admin */}
+      {(isAdmin || isDemo) && (
+        <button onClick={() => navigate('/asistencia/reporte')}
+          className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 text-sm font-semibold text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+          <BarChart2 className="w-4 h-4 text-red-500" />
+          Ver reporte de horas
+        </button>
+      )}
+
       {/* Clock */}
       <div className="card text-center py-6">
         <p className="text-4xl font-bold font-mono text-gray-900 dark:text-white tracking-widest">{now.toLocaleTimeString('es-PE')}</p>

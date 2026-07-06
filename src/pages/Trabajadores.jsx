@@ -1224,6 +1224,16 @@ export default function Trabajadores() {
                   <input type="text" className="input w-full text-sm" placeholder="Opcional..."
                     value={incDraft.observation} onChange={e => setIncDraft(d => ({ ...d, observation: e.target.value }))} />
                 </div>
+                {incDraft.type !== 'multa' && incDraft.type !== 'adelanto' && (
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" className="w-4 h-4 accent-red-600"
+                      checked={incDraft.apply_discount ?? true}
+                      onChange={e => setIncDraft(d => ({ ...d, apply_discount: e.target.checked }))} />
+                    <span className="text-sm text-gray-700 dark:text-gray-300">
+                      {incDraft.type === 'hora_extra' ? '✅ Autorizar — pagar en planilla' : 'Aplicar descuento'}
+                    </span>
+                  </label>
+                )}
                 <div className="grid grid-cols-2 gap-2 pt-1">
                   <button onClick={() => setEditingNominaIncident(null)} className="btn-secondary py-2.5 text-sm rounded-xl">Cancelar</button>
                   <button onClick={saveNominaIncident} className="btn-primary py-2.5 text-sm rounded-xl">Guardar</button>

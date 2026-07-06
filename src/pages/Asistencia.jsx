@@ -266,11 +266,12 @@ export default function Asistencia() {
         photo_b64: photo || null,
       })
 
-      // Obtener horario del trabajador (por schedule_id o campos directos)
-      const worker = workers.find(w => w.id === selectedWorkerId)
-      const sched = worker?.schedule_id
-        ? schedules.find(s => s.id === worker.schedule_id)
-        : (worker?.schedule_start ? { start_time: worker.schedule_start, end_time: worker.schedule_end, tolerance_min: worker.schedule_tolerance_min ?? 5 } : null)
+      // Fetch fresco del worker y su horario desde DB (evita caché stale)
+      const { data: freshWorker } = await supabase.from('workers').select('*, work_schedules(*)').eq('id', selectedWorkerId).single()
+      let sched = freshWorker?.work_schedules || null
+      if (!sched && freshWorker?.schedule_start) {
+        sched = { start_time: freshWorker.schedule_start, end_time: freshWorker.schedule_end, tolerance_min: freshWorker.schedule_tolerance_min ?? 5 }
+      }
 
       // Auto-incidencia por tardanza
       if (sched?.start_time && pendingType === 'entrada') {

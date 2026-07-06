@@ -579,7 +579,7 @@ export default function Asistencia() {
           {editingLog && (
             <div className="mt-3 border-t border-gray-200 dark:border-gray-700 pt-3 flex items-center gap-2">
               <span className="text-sm text-gray-600 dark:text-gray-400">Editar hora de <strong>{TYPE_LABEL[editingLog.type]}</strong>:</span>
-              <input type="time" step="1" value={editTime} onChange={e => setEditTime(e.target.value)} className="input text-sm py-1 w-32" />
+              <input type="time" step="1" value={editTime} onChange={e => setEditTime(e.target.value)} className="input text-sm py-1" style={{ minWidth: 0, flex: 1 }} />
               <button onClick={saveEditLog} className="btn-primary text-xs py-1.5 px-3">Guardar</button>
               <button onClick={() => setEditingLog(null)} className="btn-secondary text-xs py-1.5 px-3">Cancelar</button>
             </div>

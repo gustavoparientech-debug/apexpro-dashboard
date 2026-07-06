@@ -58,7 +58,8 @@ export default function Asistencia() {
   const [pendingType, setPendingType] = useState(null)
   const [photo, setPhoto]         = useState(null)
   const [location, setLocation]   = useState(null)
-  const [geoStatus, setGeoStatus] = useState('idle') // idle | loading | ok | outside | denied
+  const [geoStatus, setGeoStatus] = useState('idle') // idle | loading | ok | outside | denied | settings
+  const cachedLocRef = useRef(null) // cache última ubicación
   const videoRef = useRef(null)
   const canvasRef = useRef(null)
   const streamRef = useRef(null)
@@ -81,6 +82,18 @@ export default function Asistencia() {
   }, [selectedWorkerId, today])
 
   useEffect(() => { loadLogs() }, [loadLogs])
+
+  // Pedir permisos de GPS y cámara al cargar la página (para que el navegador los recuerde)
+  useEffect(() => {
+    // Solicitar GPS proactivamente — el navegador mostrará el diálogo la primera vez
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        pos => { cachedLocRef.current = pos },
+        () => {}, // silencioso si ya fue denegado
+        { timeout: 30000, maximumAge: 60000 }
+      )
+    }
+  }, [])
 
   // Admin: load logs for any worker+date
   const loadAdminLogs = useCallback(async () => {
@@ -139,19 +152,35 @@ export default function Asistencia() {
 
   async function openAction(type) {
     if (!selectedWorkerId) { toast.error('Selecciona un trabajador'); return }
-    setPendingType(type); setPhoto(null); setLocation(null); setGeoStatus('loading')
+    setPendingType(type); setPhoto(null); setGeoStatus('loading')
     setCamOpen(true)
+    setTimeout(startCamera, 300)
+
+    // Usar ubicación cacheada si es reciente (< 2 min), sino re-solicitar
+    const cached = cachedLocRef.current
+    if (cached && (Date.now() - cached.timestamp) < 120000) {
+      const dist = haversineM(cached.coords.latitude, cached.coords.longitude, WORKPLACE_LAT, WORKPLACE_LON)
+      setLocation({ lat: cached.coords.latitude, lon: cached.coords.longitude, dist: Math.round(dist) })
+      setGeoStatus(dist <= GEOFENCE_M ? 'ok' : 'outside')
+      return
+    }
+
+    // Verificar estado del permiso antes de solicitar
+    try {
+      const perm = await navigator.permissions?.query({ name: 'geolocation' })
+      if (perm?.state === 'denied') { setGeoStatus('settings'); return }
+    } catch {}
 
     navigator.geolocation?.getCurrentPosition(
       pos => {
+        cachedLocRef.current = pos
         const dist = haversineM(pos.coords.latitude, pos.coords.longitude, WORKPLACE_LAT, WORKPLACE_LON)
         setLocation({ lat: pos.coords.latitude, lon: pos.coords.longitude, dist: Math.round(dist) })
         setGeoStatus(dist <= GEOFENCE_M ? 'ok' : 'outside')
       },
-      () => setGeoStatus('denied'),
-      { timeout: 10000, enableHighAccuracy: true }
+      err => setGeoStatus(err.code === 1 ? 'settings' : 'denied'),
+      { timeout: 30000, maximumAge: 30000 }
     )
-    setTimeout(startCamera, 300)
   }
 
   function closeCamera() { stopCamera(); setCamOpen(false); setPendingType(null); setPhoto(null); setGeoStatus('idle') }
@@ -367,7 +396,15 @@ export default function Asistencia() {
               )}
               {geoStatus === 'denied' && (
                 <div className="flex items-center gap-2 text-xs bg-red-50 dark:bg-red-900/20 text-red-600 px-3 py-2 rounded-lg">
-                  <AlertTriangle className="w-3.5 h-3.5" /> Activa el GPS para poder fichar
+                  <AlertTriangle className="w-3.5 h-3.5" /> No se pudo obtener la ubicación. Activa el GPS del teléfono.
+                </div>
+              )}
+              {geoStatus === 'settings' && (
+                <div className="flex flex-col gap-1 text-xs bg-red-50 dark:bg-red-900/20 text-red-600 px-3 py-2 rounded-lg">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                    <span>Permiso de ubicación bloqueado. Ve a <strong>Ajustes → Permisos → Ubicación</strong> y actívalo para esta app.</span>
+                  </div>
                 </div>
               )}
 
@@ -396,7 +433,7 @@ export default function Asistencia() {
             <div className="flex gap-3 px-4 pb-4">
               <button onClick={closeCamera} className="flex-1 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 text-sm font-semibold text-gray-600 dark:text-gray-300">Cancelar</button>
               <button onClick={confirmLog}
-                disabled={saving || !photo || geoStatus === 'outside' || geoStatus === 'denied' || geoStatus === 'loading'}
+                disabled={saving || !photo || geoStatus === 'outside' || geoStatus === 'denied' || geoStatus === 'loading' || geoStatus === 'settings'}
                 className="flex-1 py-2.5 rounded-xl bg-red-600 text-white text-sm font-bold disabled:opacity-40 flex items-center justify-center gap-2">
                 {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : null} Guardar
               </button>

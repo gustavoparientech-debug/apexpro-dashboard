@@ -277,31 +277,34 @@ export default function Asistencia() {
         sched = { start_time: freshWorker.schedule_start, end_time: freshWorker.schedule_end, tolerance_min: freshWorker.schedule_tolerance_min ?? 5 }
       }
 
+      // Convierte "HH:MM:SS" a minutos del día (sin depender de timezone)
+      function timeToMin(t) {
+        const [h, m] = (t || '').split(':').map(Number)
+        return h * 60 + (m || 0)
+      }
+      // Minutos locales actuales del dispositivo
+      const nowMin = loggedAt.getHours() * 60 + loggedAt.getMinutes()
+      const tolerance = sched?.tolerance_min ?? 5
+
       // Auto-incidencia por tardanza
       if (sched?.start_time && pendingType === 'entrada') {
-        const [sh, sm] = sched.start_time.split(':').map(Number)
-        const scheduled = new Date(loggedAt)
-        scheduled.setHours(sh, sm, 0, 0)
-        const toleranceMs = (sched.tolerance_min ?? 5) * 60000
-        const diffMs = loggedAt - scheduled
-        if (diffMs > toleranceMs) {
-          const hoursLate = Math.round(diffMs / 60000) / 60
+        const schedMin = timeToMin(sched.start_time)
+        const diffMin = nowMin - schedMin
+        if (diffMin > tolerance) {
+          const hoursLate = Math.round(diffMin) / 60
           await autoCreateIncident('tardanza', hoursLate, today, selectedWorkerId)
-          toast(`Tardanza registrada: ${Math.round(diffMs / 60000)} min`, { icon: '⚠️' })
+          toast(`Tardanza registrada: ${Math.round(diffMin)} min`, { icon: '⚠️' })
         }
       }
 
       // Auto-incidencia por salida anticipada
       if (sched?.end_time && pendingType === 'salida') {
-        const [eh, em] = sched.end_time.split(':').map(Number)
-        const scheduled = new Date(loggedAt)
-        scheduled.setHours(eh, em, 0, 0)
-        const toleranceMs = (sched.tolerance_min ?? 5) * 60000
-        const diffMs = scheduled - loggedAt
-        if (diffMs > toleranceMs) {
-          const hoursEarly = Math.round(diffMs / 60000) / 60
+        const schedMin = timeToMin(sched.end_time)
+        const diffMin = schedMin - nowMin
+        if (diffMin > tolerance) {
+          const hoursEarly = Math.round(diffMin) / 60
           await autoCreateIncident('permiso_horas', hoursEarly, today, selectedWorkerId)
-          toast(`Salida anticipada: ${Math.round(diffMs / 60000)} min antes`, { icon: '⚠️' })
+          toast(`Salida anticipada: ${Math.round(diffMin)} min antes`, { icon: '⚠️' })
         }
       }
 

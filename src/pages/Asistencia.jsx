@@ -329,13 +329,17 @@ export default function Asistencia() {
     // Recalcular incidencia automática si es entrada o salida
     if (editingLog.type === 'entrada' || editingLog.type === 'salida') {
       const incType = editingLog.type === 'entrada' ? 'tardanza' : 'permiso_horas'
-      // Eliminar incidencia automática previa del mismo día/tipo
-      await supabase.from('attendance_incidents')
-        .delete()
+      // Buscar y eliminar solo la incidencia automática previa (por id para evitar borrar otras)
+      const { data: prevAuto } = await supabase.from('attendance_incidents')
+        .select('id, observation')
         .eq('worker_id', editingLog.worker_id)
         .eq('date', adminDate)
         .eq('type', incType)
-        .like('observation', '%automática%')
+      for (const row of (prevAuto || [])) {
+        if (row.observation?.includes('automática') || row.observation?.includes('automatica')) {
+          await supabase.from('attendance_incidents').delete().eq('id', row.id)
+        }
+      }
 
       // Fetch horario del trabajador
       const { data: fw } = await supabase.from('workers').select('*').eq('id', editingLog.worker_id).single()

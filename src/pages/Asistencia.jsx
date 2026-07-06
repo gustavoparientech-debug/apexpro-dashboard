@@ -11,9 +11,9 @@ import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 
 // ── Geovalla ──────────────────────────────────────────────────────────────────
-const WORKPLACE_LAT  = -16.3596
-const WORKPLACE_LON  = -71.5706
-const GEOFENCE_M     = 999999
+const WORKPLACE_LAT  = -16.3550567
+const WORKPLACE_LON  = -71.5607376
+const GEOFENCE_M     = 300
 
 function haversineM(lat1, lon1, lat2, lon2) {
   const R = 6371000

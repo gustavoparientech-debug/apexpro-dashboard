@@ -421,26 +421,45 @@ export default function Asistencia() {
   }
 
   const isAuthorized = geoStatus !== 'outside'
+  const lastLog = logs.length > 0 ? logs[logs.length - 1] : null
+  const lastLogTime = lastLog ? new Date(lastLog.logged_at).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit', hour12: true }) : null
 
   return (
     <div className="p-4 max-w-lg mx-auto space-y-4 pb-8">
 
-      {/* ── Header: reloj + fecha ─────────────────────────────────────── */}
-      <div className="card flex items-center justify-between">
-        <div>
-          <span className="text-3xl font-black tabular-nums text-gray-900 dark:text-white">
-            {now.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit', hour12: false })}
-          </span>
-          <p className="text-xs text-gray-400 capitalize mt-0.5">
-            {now.toLocaleDateString('es-PE', { weekday: 'long', day: 'numeric', month: 'long' })}
-          </p>
+      {/* ── Header: reloj + fecha + info cards ───────────────────────── */}
+      <div className="card space-y-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <span className="text-3xl font-black tabular-nums text-gray-900 dark:text-white">
+              {now.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit', hour12: false })}
+            </span>
+            <p className="text-xs text-gray-400 capitalize mt-0.5">
+              {now.toLocaleDateString('es-PE', { weekday: 'long', day: 'numeric', month: 'long' })}
+            </p>
+          </div>
+          {(isAdmin || isDemo) && (
+            <button onClick={() => navigate('/asistencia/reporte')}
+              className="p-2.5 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+              <BarChart2 className="w-5 h-5 text-red-500" />
+            </button>
+          )}
         </div>
-        {(isAdmin || isDemo) && (
-          <button onClick={() => navigate('/asistencia/reporte')}
-            className="p-2.5 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
-            <BarChart2 className="w-5 h-5 text-red-500" />
-          </button>
+        {/* Último registro */}
+        {lastLog && (
+          <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 rounded-xl px-3 py-2">
+            <Clock className="w-4 h-4 text-gray-400 shrink-0" />
+            Último registro: <strong>{TYPE_LABEL[lastLog.type]}</strong> a las {lastLogTime}
+          </div>
         )}
+        {/* Ubicación */}
+        <div className={`flex items-center gap-2 rounded-xl px-3 py-2 ${isAuthorized ? 'bg-gray-50 dark:bg-gray-800' : 'bg-red-50 dark:bg-red-900/20'}`}>
+          <MapPin className={`w-4 h-4 shrink-0 ${isAuthorized ? 'text-green-500' : 'text-red-500'}`} />
+          <div>
+            {!isAuthorized && <p className="text-xs font-bold uppercase tracking-wide text-red-600">Localización no autorizada</p>}
+            <p className={`text-sm font-medium ${isAuthorized ? 'text-gray-700 dark:text-gray-200' : 'text-red-600'}`}>Apex Pro Detailing AQP</p>
+          </div>
+        </div>
       </div>
 
       {/* ── MAIN SECTION ─────────────────────────────────────────────── */}

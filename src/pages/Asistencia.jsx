@@ -288,8 +288,10 @@ export default function Asistencia() {
 
       {/* Clock */}
       <div className="card text-center py-6">
-        <p className="text-4xl font-bold font-mono text-gray-900 dark:text-white tracking-widest">{now.toLocaleTimeString('es-PE')}</p>
-        <p className="text-sm text-gray-500 mt-1 capitalize">{now.toLocaleDateString('es-PE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
+        <p className="text-6xl font-black text-gray-900 dark:text-white tracking-tight leading-none" style={{ fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.02em' }}>
+          {now.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}
+        </p>
+        <p className="text-sm text-gray-500 mt-2 capitalize">{now.toLocaleDateString('es-PE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
       </div>
 
       {/* Worker selector (admin only) */}

@@ -16,7 +16,8 @@ function ScheduleForm({ initial, onSave, onClose }) {
 
   async function handleSubmit(e) {
     e.preventDefault()
-    await onSave({ ...form, tolerance_min: parseInt(form.tolerance_min) || 5 })
+    const tol = parseInt(form.tolerance_min)
+    await onSave({ ...form, tolerance_min: isNaN(tol) ? 0 : tol })
     onClose()
   }
 

@@ -728,6 +728,57 @@ export default function Presupuesto() {
     setShowManualForm(false)
   }
 
+  const [searchQuery, setSearchQuery] = useState('')
+
+  // Catálogo global para búsqueda
+  const searchCatalog = useMemo(() => {
+    const items = []
+    // Paneles de planchado
+    config.panels.forEach(p => items.push({ id: p.id, label: p.label, cat: 'planchado', catLabel: 'Planchado' }))
+    // Cerámico + PPF
+    applyMeta(CERAMICO_DATA, 'ceramico').forEach(s => items.push({ id: s.id, label: s.name, cat: 'ceramico', catLabel: 'Cerám/PPF', price: s.price, prices: s.prices }))
+    applyMeta(PPF_DATA, 'ppf').forEach(s => items.push({ id: s.id, label: s.name, cat: 'ceramico', catLabel: 'PPF', price: s.price, prices: s.prices }))
+    // Polarizados
+    applyMeta(POLARIZADOS_DATA, 'polarizados').forEach(s => items.push({ id: s.id, label: `${s.brand} — ${s.cobertura}`, cat: 'polarizados', catLabel: 'Polarizados', price: s.price }))
+    // Lavados
+    applyMeta(LAVADOS_DATA, 'lavados').forEach(s => items.push({ id: s.id, label: s.name, cat: 'lavados', catLabel: 'Lavados', prices: s.prices }))
+    // Servicios
+    applyMeta(SERVICIOS_DATA, 'servicios').forEach(s => items.push({ id: s.id, label: s.name, cat: 'servicios', catLabel: 'Servicios', price: s.price, prices: s.prices }))
+    return items
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [config.panels, catMeta])
+
+  const searchResults = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase()
+    if (q.length < 2) return []
+    return searchCatalog.filter(i => i.label.toLowerCase().includes(q)).slice(0, 10)
+  }, [searchQuery, searchCatalog])
+
+  function addFromSearch(item) {
+    if (item.cat === 'planchado') {
+      setSelected(s => ({ ...s, [item.id]: true }))
+      setDamage(d => ({ ...d, [item.id]: d[item.id] || 'none' }))
+      setCategory('planchado')
+    } else if (item.cat === 'ceramico' || item.cat === 'polarizados') {
+      setCatSelected(s => ({ ...s, [item.id]: true }))
+      setCategory(item.cat === 'polarizados' ? 'polarizados' : 'ceramico')
+    } else if (item.cat === 'lavados') {
+      const price = item.prices ? (item.prices['auto'] ?? 0) : (item.price ?? 0)
+      setLavItems(prev => prev.some(i => i.id === item.id) ? prev : [...prev, { id: item.id, label: item.label, price, vtValue: 'auto' }])
+      setCategory('lavados')
+    } else if (item.cat === 'servicios') {
+      if (item.prices) {
+        const key = `${item.id}_auto`
+        setServiciosSelected(s => ({ ...s, [key]: true }))
+      } else {
+        setServiciosSelected(s => ({ ...s, [item.id]: true }))
+      }
+      setCategory('servicios')
+    }
+    setSearchQuery('')
+    toast.success(`${item.label} añadido`)
+  }
+
   const [exportModal, setExportModal] = useState(false)
   const [exportTarget, setExportTarget] = useState(null)
   const [ticketModal, setTicketModal] = useState(false)
@@ -1188,6 +1239,42 @@ export default function Presupuesto() {
             </button>
           )
         })}
+      </div>
+
+      {/* ── Buscador global ─────────────────────────────────────── */}
+      <div className="relative">
+        <div className="flex items-center gap-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-2xl px-4 py-2.5 shadow-sm">
+          <svg className="w-4 h-4 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" /></svg>
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            placeholder="Buscar servicio y agregar rápido…"
+            className="flex-1 text-sm bg-transparent outline-none text-gray-800 dark:text-gray-100 placeholder-gray-400"
+          />
+          {searchQuery && (
+            <button onClick={() => setSearchQuery('')} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+          )}
+        </div>
+        {searchResults.length > 0 && (
+          <div className="absolute left-0 right-0 top-full mt-1 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-2xl shadow-xl z-30 overflow-hidden">
+            {searchResults.map(item => {
+              const price = item.prices ? (item.prices['auto'] ?? Object.values(item.prices)[0] ?? 0) : (item.price ?? 0)
+              return (
+                <button key={item.id} onClick={() => addFromSearch(item)}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors text-left border-b border-gray-100 dark:border-gray-800 last:border-0">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-gray-800 dark:text-gray-100 truncate">{item.label}</p>
+                    <p className="text-xs text-gray-400">{item.catLabel}{price > 0 ? ` · desde S/ ${price}` : ''}</p>
+                  </div>
+                  <span className="text-xs font-bold text-red-500 shrink-0">+ Añadir</span>
+                </button>
+              )
+            })}
+          </div>
+        )}
       </div>
 
       {loading && (

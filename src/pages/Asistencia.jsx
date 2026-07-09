@@ -289,7 +289,7 @@ export default function Asistencia() {
         const { data: freshSched } = await supabase.from('work_schedules').select('*').eq('id', freshWorker.schedule_id).single()
         sched = freshSched
       } else if (freshWorker?.schedule_start) {
-        sched = { start_time: freshWorker.schedule_start, end_time: freshWorker.schedule_end, tolerance_min: freshWorker.schedule_tolerance_min ?? 5 }
+        sched = { start_time: freshWorker.schedule_start, end_time: freshWorker.schedule_end, tolerance_min: freshWorker.schedule_tolerance_min ?? 0 }
       }
 
       // Convierte "HH:MM:SS" a minutos del día (sin depender de timezone)
@@ -299,7 +299,7 @@ export default function Asistencia() {
       }
       // Minutos locales actuales del dispositivo
       const nowMin = loggedAt.getHours() * 60 + loggedAt.getMinutes()
-      const tolerance = sched?.tolerance_min ?? 5
+      const tolerance = sched?.tolerance_min ?? 0
 
       // Auto-incidencia por tardanza (máx 4h para evitar falsos en pruebas fuera de horario)
       if (sched?.start_time && pendingType === 'entrada') {
@@ -367,7 +367,7 @@ export default function Asistencia() {
         const { data: fs } = await supabase.from('work_schedules').select('*').eq('id', fw.schedule_id).single()
         sched = fs
       } else if (fw?.schedule_start) {
-        sched = { start_time: fw.schedule_start, end_time: fw.schedule_end, tolerance_min: fw.schedule_tolerance_min ?? 5 }
+        sched = { start_time: fw.schedule_start, end_time: fw.schedule_end, tolerance_min: fw.schedule_tolerance_min ?? 0 }
       }
       if (!sched) return
 
@@ -376,7 +376,7 @@ export default function Asistencia() {
         return hh * 60 + (mm || 0)
       }
       const editedMin = h * 60 + m
-      const tolerance = sched.tolerance_min ?? 5
+      const tolerance = sched.tolerance_min ?? 0
 
       if (editingLog.type === 'entrada' && sched.start_time) {
         const diffMin = editedMin - timeToMin(sched.start_time)

@@ -13,7 +13,7 @@ import toast from 'react-hot-toast'
 // ── Geovalla ──────────────────────────────────────────────────────────────────
 const WORKPLACE_LAT  = -16.3550567
 const WORKPLACE_LON  = -71.5607376
-const GEOFENCE_M     = 300
+const GEOFENCE_M     = 500  // 500m para tolerar imprecisión GPS (~2-3 manzanas)
 
 function haversineM(lat1, lon1, lat2, lon2) {
   const R = 6371000
@@ -238,7 +238,7 @@ export default function Asistencia() {
         // code 3 = timeout
         setGeoStatus(err.code === 1 ? 'settings' : 'denied')
       },
-      { timeout: 30000, maximumAge: 60000, enableHighAccuracy: false }
+      { timeout: 30000, maximumAge: 30000, enableHighAccuracy: true }
     )
   }
 
@@ -270,7 +270,8 @@ export default function Asistencia() {
 
   async function confirmLog() {
     if (geoStatus === 'outside') { toast.error('Estás fuera del área del taller'); return }
-    // 'denied' y 'settings' se permiten — no se guardará coordenadas pero la foto verifica la presencia
+    if (geoStatus === 'denied') { toast.error('Activa el GPS para poder marcar'); return }
+    if (geoStatus === 'settings') { toast.error('Permite el acceso a ubicación en Ajustes para poder marcar'); return }
     setSaving(true)
     try {
       const loggedAt = new Date()
@@ -421,7 +422,7 @@ export default function Asistencia() {
     salida:          { label: 'Registrar Salida',   icon: LogOut, color: 'bg-red-500 hover:bg-red-600' },
   }
 
-  const isAuthorized = geoStatus !== 'outside'
+  const isAuthorized = geoStatus === 'ok'
   const lastLog = logs.length > 0 ? logs[logs.length - 1] : null
   const lastLogTime = lastLog ? new Date(lastLog.logged_at).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit', hour12: true }) : null
 
@@ -779,7 +780,7 @@ export default function Asistencia() {
             <div className="flex gap-3 px-4 pb-4">
               <button onClick={closeCamera} className="flex-1 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 text-sm font-semibold text-gray-600 dark:text-gray-300">Cancelar</button>
               <button onClick={confirmLog}
-                disabled={saving || !photo || geoStatus === 'outside' || geoStatus === 'loading'}
+                disabled={saving || !photo || geoStatus === 'outside' || geoStatus === 'loading' || geoStatus === 'denied' || geoStatus === 'settings'}
                 className="flex-1 py-2.5 rounded-xl bg-red-600 text-white text-sm font-bold disabled:opacity-40 flex items-center justify-center gap-2">
                 {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : null} Guardar
               </button>

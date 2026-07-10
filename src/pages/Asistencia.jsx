@@ -269,9 +269,11 @@ export default function Asistencia() {
   }
 
   async function confirmLog() {
-    if (geoStatus === 'outside') { toast.error('Estás fuera del área del taller'); return }
-    if (geoStatus === 'denied') { toast.error('Activa el GPS para poder marcar'); return }
-    if (geoStatus === 'settings') { toast.error('Permite el acceso a ubicación en Ajustes para poder marcar'); return }
+    if (!isAdmin && !isDemo) {
+      if (geoStatus === 'outside') { toast.error('Estás fuera del área del taller'); return }
+      if (geoStatus === 'denied') { toast.error('Activa el GPS para poder marcar'); return }
+      if (geoStatus === 'settings') { toast.error('Permite el acceso a ubicación en Ajustes para poder marcar'); return }
+    }
     setSaving(true)
     try {
       const loggedAt = new Date()
@@ -780,7 +782,7 @@ export default function Asistencia() {
             <div className="flex gap-3 px-4 pb-4">
               <button onClick={closeCamera} className="flex-1 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 text-sm font-semibold text-gray-600 dark:text-gray-300">Cancelar</button>
               <button onClick={confirmLog}
-                disabled={saving || !photo || geoStatus === 'outside' || geoStatus === 'loading' || geoStatus === 'denied' || geoStatus === 'settings'}
+                disabled={saving || !photo || geoStatus === 'loading' || (!isAdmin && !isDemo && (geoStatus === 'outside' || geoStatus === 'denied' || geoStatus === 'settings'))}
                 className="flex-1 py-2.5 rounded-xl bg-red-600 text-white text-sm font-bold disabled:opacity-40 flex items-center justify-center gap-2">
                 {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : null} Guardar
               </button>

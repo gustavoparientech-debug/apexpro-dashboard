@@ -764,17 +764,59 @@ export default function Dashboard() {
       </div>
 
       {/* Alerta ritmo */}
-      {!hasRange && isCurrentMonth && !data.onTrack && data.workingDaysElapsed > 0 && (
-        <div className="flex items-start gap-3 p-4 rounded-xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/10">
-          <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
-          <div>
-            <p className="font-medium text-red-700 dark:text-red-400 text-sm">Ritmo insuficiente para alcanzar la meta</p>
-            <p className="text-xs text-red-600 dark:text-red-500 mt-0.5">
-              Proyección: {formatMoney(data.projectedIncome)} — meta: {formatMoney(data.incomeGoal)}
-            </p>
+      {!hasRange && isCurrentMonth && data.workingDaysElapsed > 0 && data.incomeGoal > 0 && (() => {
+        const pct       = Math.min(100, Math.round((data.totalIncome / data.incomeGoal) * 100))
+        const projPct   = Math.min(100, Math.round((data.projectedIncome / data.incomeGoal) * 100))
+        const gap       = data.incomeGoal - data.totalIncome
+        const dailyNeed = data.workingDaysRemaining > 0 ? gap / data.workingDaysRemaining : 0
+        const ok        = data.onTrack
+        return (
+        <div className={`rounded-2xl border overflow-hidden ${ok ? 'border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/10' : 'border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/10'}`}>
+          {/* Header */}
+          <div className={`px-4 pt-4 pb-2 flex items-center gap-2`}>
+            <span className="text-lg">{ok ? '🟢' : '⚠️'}</span>
+            <div className="flex-1">
+              <p className={`text-sm font-bold ${ok ? 'text-emerald-700 dark:text-emerald-300' : 'text-red-700 dark:text-red-300'}`}>
+                {ok ? 'En buen ritmo — vas a alcanzar la meta' : 'Ritmo insuficiente para alcanzar la meta'}
+              </p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">{data.workingDaysRemaining} días hábiles restantes</p>
+            </div>
+            <div className={`text-xl font-black tabular-nums ${ok ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>{pct}%</div>
+          </div>
+
+          {/* Barra de progreso doble */}
+          <div className="px-4 pb-2">
+            <div className="relative h-3 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+              {/* Proyección (fondo) */}
+              <div className="absolute inset-y-0 left-0 rounded-full bg-gray-300 dark:bg-gray-600 transition-all duration-700" style={{ width: `${projPct}%` }} />
+              {/* Real (frente) */}
+              <div className={`absolute inset-y-0 left-0 rounded-full transition-all duration-700 ${ok ? 'bg-emerald-500' : 'bg-red-500'}`} style={{ width: `${pct}%` }} />
+            </div>
+            <div className="flex justify-between text-[10px] text-gray-400 mt-1">
+              <span>S/ 0</span>
+              <span className={`font-semibold ${ok ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500'}`}>proyección {formatMoney(data.projectedIncome)}</span>
+              <span>meta {formatMoney(data.incomeGoal)}</span>
+            </div>
+          </div>
+
+          {/* Stats row */}
+          <div className={`grid grid-cols-3 divide-x border-t ${ok ? 'border-emerald-100 dark:border-emerald-800/40 divide-emerald-100 dark:divide-emerald-800/40' : 'border-red-100 dark:border-red-800/40 divide-red-100 dark:divide-red-800/40'}`}>
+            <div className="px-3 py-2.5 text-center">
+              <p className="text-[10px] text-gray-400 uppercase tracking-wide">Real hoy</p>
+              <p className={`text-sm font-bold tabular-nums ${ok ? 'text-emerald-700 dark:text-emerald-300' : 'text-red-700 dark:text-red-300'}`}>{formatMoney(data.totalIncome)}</p>
+            </div>
+            <div className="px-3 py-2.5 text-center">
+              <p className="text-[10px] text-gray-400 uppercase tracking-wide">Diario actual</p>
+              <p className="text-sm font-bold text-gray-700 dark:text-gray-200 tabular-nums">{formatMoney(data.avgDailyActual)}</p>
+            </div>
+            <div className="px-3 py-2.5 text-center">
+              <p className="text-[10px] text-gray-400 uppercase tracking-wide">{ok ? 'Diario necesario' : 'Necesitas/día'}</p>
+              <p className={`text-sm font-bold tabular-nums ${dailyNeed > data.avgDailyActual ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`}>{dailyNeed > 0 ? formatMoney(dailyNeed) : '—'}</p>
+            </div>
           </div>
         </div>
-      )}
+        )
+      })()}
 
       {/* Editar layout */}
       <div className="flex justify-end">

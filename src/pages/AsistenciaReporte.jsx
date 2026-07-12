@@ -136,7 +136,7 @@ export default function AsistenciaReporte() {
                 const d = new Date(date + 'T12:00:00')
                 const isToday = date === new Date().toISOString().slice(0, 10)
                 return (
-                  <th key={date} className={`px-2 py-3 text-center font-semibold w-16 ${isToday ? 'text-red-500' : 'text-gray-500 dark:text-gray-400'}`}>
+                  <th key={date} className={`px-1 py-3 text-center font-semibold w-20 ${isToday ? 'text-red-500' : 'text-gray-500 dark:text-gray-400'}`}>
                     <div className="text-xs">{DAY_SHORT[d.getDay()]}</div>
                     <div className={`text-sm ${isToday ? 'font-bold' : ''}`}>{d.getDate()}</div>
                   </th>
@@ -161,7 +161,7 @@ export default function AsistenciaReporte() {
                     </div>
                   </td>
                   {w.days.map(({ date, ms }) => (
-                    <td key={date} className="px-2 py-3 text-center relative">
+                    <td key={date} className="px-1 py-3 text-center relative">
                       <button
                         onClick={e => {
                           e.stopPropagation()
@@ -169,7 +169,7 @@ export default function AsistenciaReporte() {
                           const rect = e.currentTarget.getBoundingClientRect()
                           setPopover(p => (p?.workerId === w.id && p?.date === date) ? null : { workerId: w.id, date, rect })
                         }}
-                        className={`text-xs font-medium px-1 py-0.5 rounded transition-colors ${ms > 0 ? 'text-gray-700 dark:text-gray-300 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 cursor-pointer' : 'text-gray-300 dark:text-gray-600 cursor-default'}`}>
+                        className={`text-xs font-medium px-1 py-0.5 rounded transition-colors whitespace-nowrap ${ms > 0 ? 'text-gray-700 dark:text-gray-300 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 cursor-pointer' : 'text-gray-300 dark:text-gray-600 cursor-default'}`}>
                         {ms > 0 ? fmtHm(ms) : '—'}
                       </button>
                     </td>
@@ -229,11 +229,11 @@ export default function AsistenciaReporte() {
                     return s + (ms / 3600000) * w.hourlyRate
                   }, 0)
                   return (
-                    <td key={date} className="px-2 py-3 text-center text-xs font-bold text-gray-600 dark:text-gray-400">
+                    <td key={date} className="px-1 py-3 text-center text-xs font-bold text-gray-600 dark:text-gray-400">
                       {dayTotal > 0 ? (
                         <>
-                          <div>{fmtHm(dayTotal)}</div>
-                          <div className="text-green-600 dark:text-green-400 font-semibold">S/ {dayCost.toFixed(2)}</div>
+                          <div className="whitespace-nowrap">{fmtHm(dayTotal)}</div>
+                          <div className="text-green-600 dark:text-green-400 whitespace-nowrap mt-0.5">S/{dayCost.toFixed(0)}</div>
                         </>
                       ) : '—'}
                     </td>

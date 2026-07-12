@@ -224,9 +224,18 @@ export default function AsistenciaReporte() {
                 <td className="px-4 py-3 font-bold text-xs text-gray-600 dark:text-gray-400">TOTAL</td>
                 {weekDates.map(date => {
                   const dayTotal = activeWorkers.reduce((s, w) => s + getDayMs(w.id, date), 0)
+                  const dayCost  = workerTotals.reduce((s, w) => {
+                    const ms = w.days.find(d => d.date === date)?.ms || 0
+                    return s + (ms / 3600000) * w.hourlyRate
+                  }, 0)
                   return (
                     <td key={date} className="px-2 py-3 text-center text-xs font-bold text-gray-600 dark:text-gray-400">
-                      {dayTotal > 0 ? fmtHm(dayTotal) : '—'}
+                      {dayTotal > 0 ? (
+                        <>
+                          <div>{fmtHm(dayTotal)}</div>
+                          <div className="text-green-600 dark:text-green-400 font-semibold">S/ {dayCost.toFixed(2)}</div>
+                        </>
+                      ) : '—'}
                     </td>
                   )
                 })}

@@ -270,6 +270,59 @@ export default function Asistencia() {
     if (error) toast.error(`Error hora extra auto: ${error.message}`)
   }
 
+  // Recalcula incidencias de entrada/salida para un día dado (usado por admin al añadir entradas pasadas)
+  async function recalcIncidents(workerId, dateStr, logType, loggedAt) {
+    function timeToMin(t) { const [h, m] = (t || '').split(':').map(Number); return h * 60 + (m || 0) }
+
+    const { data: fw } = await supabase.from('workers').select('*').eq('id', workerId).single()
+    let sched = null
+    if (fw?.schedule_id) {
+      const { data: fs } = await supabase.from('work_schedules').select('*').eq('id', fw.schedule_id).single()
+      sched = fs
+    } else if (fw?.schedule_start) {
+      sched = { start_time: fw.schedule_start, end_time: fw.schedule_end, tolerance_min: fw.schedule_tolerance_min ?? 0 }
+    }
+    if (!sched) return
+
+    const tolerance = sched.tolerance_min ?? 0
+    const nowMin = loggedAt.getHours() * 60 + loggedAt.getMinutes()
+
+    if (logType === 'entrada' && sched.start_time) {
+      // Borrar tardanza automática previa
+      const { data: prev } = await supabase.from('attendance_incidents').select('id, observation')
+        .eq('worker_id', workerId).eq('date', dateStr).eq('type', 'tardanza')
+      for (const r of prev || []) {
+        if (r.observation?.includes('automática') || r.observation?.includes('automatica'))
+          await supabase.from('attendance_incidents').delete().eq('id', r.id)
+      }
+      const diffMin = nowMin - timeToMin(sched.start_time)
+      if (diffMin > tolerance && diffMin <= 240)
+        await autoCreateIncident('tardanza', Math.round(diffMin) / 60, dateStr, workerId)
+    }
+
+    if (logType === 'salida' && sched.end_time) {
+      const { data: dayLogs } = await supabase.from('attendance_logs')
+        .select('type').eq('worker_id', workerId).eq('date', dateStr)
+      const hadLunch = (dayLogs || []).some(l => l.type === 'almuerzo_inicio')
+      const effectiveEndMin = hadLunch ? timeToMin(sched.end_time) : timeToMin(sched.end_time) - 60
+      const earlyMin = effectiveEndMin - nowMin
+      const lateMin  = nowMin - effectiveEndMin
+      // Borrar incidencias automáticas previas de salida
+      for (const incType of ['permiso_horas', 'hora_extra']) {
+        const { data: prev } = await supabase.from('attendance_incidents').select('id, observation')
+          .eq('worker_id', workerId).eq('date', dateStr).eq('type', incType)
+        for (const r of prev || []) {
+          if (r.observation?.includes('automática') || r.observation?.includes('automatica'))
+            await supabase.from('attendance_incidents').delete().eq('id', r.id)
+        }
+      }
+      if (earlyMin > tolerance && earlyMin <= 240)
+        await autoCreateIncident('permiso_horas', Math.round(earlyMin) / 60, dateStr, workerId)
+      else if (lateMin > tolerance)
+        await autoCreateOvertime(Math.round(lateMin) / 60, dateStr, workerId)
+    }
+  }
+
   async function confirmLog() {
     if (!isAdmin && !isDemo) {
       if (geoStatus === 'outside') { toast.error('Estás fuera del área del taller'); return }
@@ -610,6 +663,7 @@ export default function Asistencia() {
                             worker_id: adminWorker, type: addingEntry.type, date: adminDate,
                             logged_at: dt.toISOString(),
                           })
+                          await recalcIncidents(adminWorker, adminDate, addingEntry.type, dt)
                           toast.success(`${TYPE_LABEL[addingEntry.type]} añadida`)
                           setAddingEntry(null); loadAdminLogs(); loadLogs()
                         }}
@@ -691,6 +745,7 @@ export default function Asistencia() {
                             worker_id: adminWorker, type: addingEntry.type, date: adminDate,
                             logged_at: dt.toISOString(),
                           })
+                          await recalcIncidents(adminWorker, adminDate, addingEntry.type, dt)
                           toast.success(`${TYPE_LABEL[addingEntry.type]} añadida`)
                           setAddingEntry(null); loadAdminLogs(); loadLogs()
                         }}

@@ -96,6 +96,8 @@ export default function Asistencia() {
     supabase.from('work_schedules').select('*').then(({ data }) => setSchedules(data || []))
   }, [])
   useEffect(() => { if (!isAdmin && !isDemo && profile?.worker_id) setSelectedWorkerId(profile.worker_id) }, [profile, isAdmin, isDemo])
+  // Para admins: sincronizar trabajador seleccionado con el panel de edición
+  useEffect(() => { if (isAdmin || isDemo) setAdminWorker(selectedWorkerId) }, [selectedWorkerId, isAdmin, isDemo])
 
   const loadLogs = useCallback(async () => {
     if (!selectedWorkerId) { setLogs([]); setLoading(false); return }
@@ -316,9 +318,13 @@ export default function Asistencia() {
 
       // Auto-incidencia por salida anticipada (máx 4h para evitar falsos en pruebas fuera de horario)
       if (sched?.end_time && pendingType === 'salida') {
+        const hadLunch = logs.some(l => l.type === 'almuerzo_inicio')
+        const lunchMin = 60 // 1 hora estándar de almuerzo
         const schedMin = timeToMin(sched.end_time)
-        const earlyMin = schedMin - nowMin
-        const lateMin  = nowMin - schedMin
+        // Si no almorzó, la salida esperada se adelanta 1h (ya cumplió 8h trabajando el almuerzo)
+        const effectiveEndMin = hadLunch ? schedMin : schedMin - lunchMin
+        const earlyMin = effectiveEndMin - nowMin
+        const lateMin  = nowMin - effectiveEndMin
         if (earlyMin > tolerance && earlyMin <= 240) {
           const hoursEarly = Math.round(earlyMin) / 60
           await autoCreateIncident('permiso_horas', hoursEarly, today, selectedWorkerId)
@@ -326,7 +332,7 @@ export default function Asistencia() {
         } else if (lateMin > tolerance) {
           const hoursExtra = Math.round(lateMin) / 60
           await autoCreateOvertime(hoursExtra, today, selectedWorkerId)
-          toast(`Hora extra pendiente: ${Math.round(lateMin)} min`, { icon: '🟢' })
+          toast(hadLunch ? `Hora extra pendiente: ${Math.round(lateMin)} min` : `Hora extra por no almorzar: ${Math.round(lateMin)} min`, { icon: '🟢' })
         }
       }
 
@@ -388,9 +394,15 @@ export default function Asistencia() {
         }
       }
       if (editingLog.type === 'salida' && sched.end_time) {
+        // Verificar si almorzó ese día
+        const { data: dayLogs } = await supabase.from('attendance_logs')
+          .select('type').eq('worker_id', editingLog.worker_id).eq('date', adminDate)
+        const hadLunch = (dayLogs || []).some(l => l.type === 'almuerzo_inicio')
+        const lunchMin = 60
         const schedEndMin = timeToMin(sched.end_time)
-        const earlyMin = schedEndMin - editedMin
-        const lateMin  = editedMin - schedEndMin
+        const effectiveEndMin = hadLunch ? schedEndMin : schedEndMin - lunchMin
+        const earlyMin = effectiveEndMin - editedMin
+        const lateMin  = editedMin - effectiveEndMin
         if (earlyMin > tolerance && earlyMin <= 240) {
           await autoCreateIncident('permiso_horas', Math.round(earlyMin) / 60, adminDate, editingLog.worker_id)
           toast(`Salida anticipada recalculada: ${Math.round(earlyMin)} min`, { icon: '⚠️' })
@@ -405,7 +417,7 @@ export default function Asistencia() {
             }
           }
           await autoCreateOvertime(Math.round(lateMin) / 60, adminDate, editingLog.worker_id)
-          toast(`Hora extra recalculada: ${Math.round(lateMin)} min`, { icon: '🟢' })
+          toast(hadLunch ? `Hora extra recalculada: ${Math.round(lateMin)} min` : `Hora extra por no almorzar: ${Math.round(lateMin)} min`, { icon: '🟢' })
         }
       }
     }
@@ -560,18 +572,9 @@ export default function Asistencia() {
           <p className="text-sm font-bold text-amber-700 dark:text-amber-400 mb-3 flex items-center gap-2">
             <ShieldAlert className="w-4 h-4" /> Panel de administrador — Editar registros
           </p>
-          <div className="grid grid-cols-2 gap-2 mb-3">
-            <div>
-              <label className="label text-xs">Trabajador</label>
-              <select value={adminWorker} onChange={e => setAdminWorker(e.target.value)} className="input text-sm">
-                <option value="">Seleccionar...</option>
-                {workers.filter(w => w.active).map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="label text-xs">Fecha</label>
-              <input type="date" value={adminDate} onChange={e => setAdminDate(e.target.value)} className="input text-sm" />
-            </div>
+          <div className="mb-3">
+            <label className="label text-xs">Fecha</label>
+            <input type="date" value={adminDate} onChange={e => setAdminDate(e.target.value)} className="input text-sm" />
           </div>
           {adminLoading && <div className="flex justify-center py-2"><Loader2 className="w-4 h-4 animate-spin text-gray-400" /></div>}
           {!adminLoading && adminWorker && (

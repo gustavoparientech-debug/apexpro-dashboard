@@ -814,7 +814,7 @@ export default function Dashboard() {
               ? [...avgTimeOrder.map(t => filteredEntries.find(e => e.type === t)).filter(Boolean),
                  ...filteredEntries.filter(e => !avgTimeOrder.includes(e.type))]
               : [...filteredEntries].sort((a, b) => b.count - a.count)
-            const visibleEntries = ordered.filter(e => !avgTimeHidden.includes(e.type))
+            const visibleEntries = ordered.filter(e => !avgTimeHidden.includes(e.type) && e.count > 5)
             const maxAvg = Math.max(...ordered.map(e => e.avg))
             const moveEntry = (idx, dir) => {
               const newOrder = ordered.map(e => e.type)

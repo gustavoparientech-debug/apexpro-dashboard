@@ -946,19 +946,7 @@ export default function Dashboard() {
               </div>
             )
           })() : null
-          if (sectionId === 'progreso') return !hasRange ? (
-            <div key="progreso" className={`card border-2 ${semaforoClass[data.semaforo]}`}>
-              <div className="flex items-center justify-between mb-3">
-                <div>
-                  <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Progreso hacia la meta mensual</p>
-                  <p className="text-xs text-gray-500 mt-0.5">Meta: {formatMoney(data.incomeGoal)}</p>
-                </div>
-                <p className={`text-2xl font-bold ${semaforoText[data.semaforo]}`}>{data.progressPct.toFixed(1)}%</p>
-              </div>
-              <ProgressBar percent={data.progressPct} color={data.semaforo} />
-              <p className="text-xs text-gray-400 mt-2">Faltan {formatMoney(Math.max(0, data.incomeGoal - data.totalIncome))}</p>
-            </div>
-          ) : null
+          if (sectionId === 'progreso') return null
           if (sectionId === 'estadisticas') return (
             <div key="estadisticas" className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <div className="card">

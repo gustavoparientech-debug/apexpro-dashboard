@@ -620,29 +620,48 @@ export default function Asistencia() {
       )}
 
       {/* ── Admin edit panel ──────────────────────────────────────────── */}
-      {(isAdmin || isDemo) && (
-        <div className="card border-2 border-amber-200 dark:border-amber-800/40">
-          <p className="text-sm font-bold text-amber-700 dark:text-amber-400 mb-3 flex items-center gap-2">
-            <ShieldAlert className="w-4 h-4" /> Panel de administrador — Editar registros
-          </p>
-          <div className="mb-3">
-            <label className="label text-xs">Fecha</label>
-            <div className="flex items-center gap-2">
-              <button onClick={() => {
-                const d = new Date(adminDate + 'T12:00:00'); d.setDate(d.getDate() - 1)
-                setAdminDate(d.toLocaleDateString('en-CA'))
-              }} className="p-2 rounded-xl border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800">
-                <ChevronLeft className="w-4 h-4 text-gray-500" />
-              </button>
-              <input type="date" value={adminDate} onChange={e => setAdminDate(e.target.value)} className="input text-sm flex-1" />
-              <button onClick={() => {
-                const d = new Date(adminDate + 'T12:00:00'); d.setDate(d.getDate() + 1)
-                setAdminDate(d.toLocaleDateString('en-CA'))
-              }} className="p-2 rounded-xl border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800">
-                <ChevronRight className="w-4 h-4 text-gray-500" />
-              </button>
-            </div>
+      {(isAdmin || isDemo) && (() => {
+        const adminDateObj = new Date(adminDate + 'T12:00:00')
+        const isToday = adminDate === today
+        const dayName = adminDateObj.toLocaleDateString('es-PE', { weekday: 'long' })
+        const dayFmt  = adminDateObj.toLocaleDateString('es-PE', { day: 'numeric', month: 'long', year: 'numeric' })
+        return (
+        <div className="rounded-2xl border-2 border-amber-200 dark:border-amber-800/40 overflow-hidden">
+          {/* Header strip */}
+          <div className="bg-amber-50 dark:bg-amber-900/10 px-4 py-3 flex items-center gap-2 border-b border-amber-100 dark:border-amber-800/30">
+            <ShieldAlert className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+            <span className="text-sm font-bold text-amber-700 dark:text-amber-400">Panel de administrador</span>
           </div>
+
+          {/* Date navigator */}
+          <div className="bg-white dark:bg-gray-900 px-4 py-3 flex items-center gap-3">
+            <button onClick={() => {
+              const d = new Date(adminDate + 'T12:00:00'); d.setDate(d.getDate() - 1)
+              setAdminDate(d.toLocaleDateString('en-CA'))
+            }} className="w-9 h-9 rounded-xl border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 flex items-center justify-center shrink-0 transition-colors">
+              <ChevronLeft className="w-4 h-4 text-gray-500" />
+            </button>
+            <div className="flex-1 text-center">
+              <p className="text-xs font-semibold text-amber-600 dark:text-amber-400 uppercase tracking-wide capitalize">{dayName}</p>
+              <div className="flex items-center justify-center gap-2 mt-0.5">
+                <p className="text-sm font-bold text-gray-900 dark:text-white capitalize">{dayFmt}</p>
+                {isToday && <span className="text-[10px] font-bold bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 px-1.5 py-0.5 rounded-full">HOY</span>}
+              </div>
+            </div>
+            <button onClick={() => {
+              const d = new Date(adminDate + 'T12:00:00'); d.setDate(d.getDate() + 1)
+              setAdminDate(d.toLocaleDateString('en-CA'))
+            }} className="w-9 h-9 rounded-xl border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 flex items-center justify-center shrink-0 transition-colors">
+              <ChevronRight className="w-4 h-4 text-gray-500" />
+            </button>
+            <input type="date" value={adminDate} onChange={e => setAdminDate(e.target.value)}
+              className="sr-only" id="admin-date-picker" />
+            <label htmlFor="admin-date-picker" className="w-9 h-9 rounded-xl border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 flex items-center justify-center cursor-pointer shrink-0 transition-colors">
+              <svg className="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+            </label>
+          </div>
+
+          <div className="px-4 pb-4 pt-2 bg-white dark:bg-gray-900 space-y-2">
           {adminLoading && <div className="flex justify-center py-2"><Loader2 className="w-4 h-4 animate-spin text-gray-400" /></div>}
           {!adminLoading && adminWorker && (
             adminLogs.length === 0
@@ -771,15 +790,17 @@ export default function Asistencia() {
           )}
           {/* Edit time modal */}
           {editingLog && (
-            <div className="mt-3 border-t border-gray-200 dark:border-gray-700 pt-3 flex items-center gap-2">
-              <span className="text-sm text-gray-600 dark:text-gray-400">Editar hora de <strong>{TYPE_LABEL[editingLog.type]}</strong>:</span>
-              <input type="time" step="1" value={editTime} onChange={e => setEditTime(e.target.value)} className="input text-sm py-1" style={{ minWidth: 0, flex: 1 }} />
-              <button onClick={saveEditLog} className="btn-primary text-xs py-1.5 px-3">Guardar</button>
-              <button onClick={() => setEditingLog(null)} className="btn-secondary text-xs py-1.5 px-3">Cancelar</button>
+            <div className="mt-2 p-3 rounded-xl bg-blue-50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800/40 flex items-center gap-2 flex-wrap">
+              <span className="text-sm text-blue-700 dark:text-blue-300 shrink-0">✏️ Editar <strong>{TYPE_LABEL[editingLog.type]}</strong></span>
+              <input type="time" step="1" value={editTime} onChange={e => setEditTime(e.target.value)} className="input text-sm py-1 flex-1" style={{ minWidth: 0 }} />
+              <button onClick={saveEditLog} className="btn-primary text-xs py-1.5 px-3 shrink-0">Guardar</button>
+              <button onClick={() => setEditingLog(null)} className="btn-secondary text-xs py-1.5 px-3 shrink-0">Cancelar</button>
             </div>
           )}
         </div>
-      )}
+        </div>
+        )
+      })()}
 
       </div>{/* end main section */}
 

@@ -661,101 +661,104 @@ export default function Asistencia() {
             </label>
           </div>
 
-          <div className="px-4 pb-4 pt-2 bg-white dark:bg-gray-900 space-y-2">
-          {adminLoading && <div className="flex justify-center py-2"><Loader2 className="w-4 h-4 animate-spin text-gray-400" /></div>}
+          {/* type colors helper */}
+          {(() => {
+            const TYPE_STYLE = {
+              entrada:         { pill: 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700', dot: 'bg-emerald-500', btn: 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 border border-emerald-200 dark:border-emerald-800', icon: '→' },
+              almuerzo_inicio: { pill: 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 border-orange-300 dark:border-orange-700', dot: 'bg-orange-400', btn: 'bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300 hover:bg-orange-100 dark:hover:bg-orange-900/40 border border-orange-200 dark:border-orange-800', icon: '☕' },
+              almuerzo_fin:    { pill: 'bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300 border-sky-300 dark:border-sky-700', dot: 'bg-sky-400', btn: 'bg-sky-50 dark:bg-sky-900/20 text-sky-700 dark:text-sky-300 hover:bg-sky-100 dark:hover:bg-sky-900/40 border border-sky-200 dark:border-sky-800', icon: '↩' },
+              salida:          { pill: 'bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300 border-rose-300 dark:border-rose-700', dot: 'bg-rose-500', btn: 'bg-rose-50 dark:bg-rose-900/20 text-rose-700 dark:text-rose-300 hover:bg-rose-100 dark:hover:bg-rose-900/40 border border-rose-200 dark:border-rose-800', icon: '←' },
+            }
+            const saveEntry = async () => {
+              const [h, m, s] = addingEntry.time.split(':').map(Number)
+              const dt = new Date(`${adminDate}T00:00:00`)
+              dt.setHours(h, m, s || 0, 0)
+              await supabase.from('attendance_logs').insert({ worker_id: adminWorker, type: addingEntry.type, date: adminDate, logged_at: dt.toISOString() })
+              await recalcIncidents(adminWorker, adminDate, addingEntry.type, dt)
+              toast.success(`${TYPE_LABEL[addingEntry.type]} añadida`)
+              setAddingEntry(null); loadAdminLogs(); loadLogs()
+            }
+            return (
+          <div className="px-4 pb-4 pt-3 bg-white dark:bg-gray-900 space-y-2">
+          {adminLoading && <div className="flex justify-center py-4"><Loader2 className="w-5 h-5 animate-spin text-amber-400" /></div>}
           {!adminLoading && adminWorker && (
             adminLogs.length === 0
-              ? <div className="space-y-2">
-                  <p className="text-sm text-gray-400 text-center py-2">Sin registros ese día</p>
+              ? <div className="space-y-3">
+                  <div className="flex flex-col items-center py-3 gap-1 text-gray-400">
+                    <Clock className="w-8 h-8 opacity-20" />
+                    <p className="text-sm">Sin registros ese día</p>
+                  </div>
                   {!addingEntry && (
-                    <div className="flex gap-2 flex-wrap">
+                    <div className="grid grid-cols-2 gap-2">
                       {ALL_TYPES.map(t => (
                         <button key={t} onClick={() => {
                           const defaultH = { entrada: '09:00:00', almuerzo_inicio: '13:00:00', almuerzo_fin: '14:00:00', salida: '18:00:00' }
                           setAddingEntry({ type: t, time: defaultH[t] || '09:00:00' })
-                        }}
-                          className="text-xs bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300 px-2 py-1 rounded-lg">
-                          + {TYPE_LABEL[t]}
+                        }} className={`text-xs font-semibold px-3 py-2 rounded-xl transition-colors ${TYPE_STYLE[t].btn}`}>
+                          {TYPE_STYLE[t].icon} + {TYPE_LABEL[t]}
                         </button>
                       ))}
                     </div>
                   )}
                   {addingEntry && (
-                    <div className="border-t border-gray-200 dark:border-gray-700 pt-3 flex items-center gap-2 flex-wrap">
-                      <span className="text-sm text-gray-600 dark:text-gray-400 shrink-0">
-                        Añadir <strong>{TYPE_LABEL[addingEntry.type]}</strong>:
-                      </span>
-                      <input type="time" step="1" value={addingEntry.time}
-                        onChange={e => setAddingEntry(a => ({ ...a, time: e.target.value }))}
-                        className="input text-sm py-1" style={{ minWidth: 0, flex: 1 }} />
-                      <button onClick={async () => {
-                          const [h, m, s] = addingEntry.time.split(':').map(Number)
-                          const dt = new Date(`${adminDate}T00:00:00`)
-                          dt.setHours(h, m, s || 0, 0)
-                          await supabase.from('attendance_logs').insert({
-                            worker_id: adminWorker, type: addingEntry.type, date: adminDate,
-                            logged_at: dt.toISOString(),
-                          })
-                          await recalcIncidents(adminWorker, adminDate, addingEntry.type, dt)
-                          toast.success(`${TYPE_LABEL[addingEntry.type]} añadida`)
-                          setAddingEntry(null); loadAdminLogs(); loadLogs()
-                        }}
-                        className="btn-primary text-xs py-1.5 px-3 shrink-0">Guardar</button>
-                      <button onClick={() => setAddingEntry(null)} className="btn-secondary text-xs py-1.5 px-3 shrink-0">Cancelar</button>
+                    <div className={`rounded-xl border p-3 space-y-2 ${TYPE_STYLE[addingEntry.type]?.pill}`}>
+                      <p className="text-xs font-bold">{TYPE_STYLE[addingEntry.type]?.icon} Añadir {TYPE_LABEL[addingEntry.type]}</p>
+                      <div className="flex gap-2">
+                        <input type="time" step="1" value={addingEntry.time}
+                          onChange={e => setAddingEntry(a => ({ ...a, time: e.target.value }))}
+                          className="input text-sm py-1 flex-1 bg-white dark:bg-gray-900" style={{ minWidth: 0 }} />
+                        <button onClick={saveEntry} className="btn-primary text-xs py-1.5 px-3 shrink-0">Guardar</button>
+                        <button onClick={() => setAddingEntry(null)} className="btn-secondary text-xs py-1.5 px-3 shrink-0">✕</button>
+                      </div>
                     </div>
                   )}
                 </div>
               : <div className="space-y-2">
                   {adminLogs.map(log => {
                     const worker = workers.find(w => w.id === log.worker_id)
-                    const typePillColor = {
-                      entrada: 'border-green-500 text-green-600 bg-green-50 dark:bg-green-900/10',
-                      almuerzo_inicio: 'border-orange-400 text-orange-500 bg-orange-50 dark:bg-orange-900/10',
-                      almuerzo_fin: 'border-blue-400 text-blue-500 bg-blue-50 dark:bg-blue-900/10',
-                      salida: 'border-red-400 text-red-500 bg-red-50 dark:bg-red-900/10',
-                    }[log.type] || 'border-gray-300 text-gray-500'
-                    const typeIcon = { entrada: '→', almuerzo_inicio: '☕', almuerzo_fin: '↩', salida: '←' }[log.type] || '•'
+                    const ts = TYPE_STYLE[log.type] || { pill: 'bg-gray-100 text-gray-600 border-gray-200', dot: 'bg-gray-400', icon: '•' }
                     const t = new Date(log.logged_at)
                     const timeStr = t.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit', hour12: true })
+                    const secStr  = `:${String(t.getSeconds()).padStart(2,'0')}`
                     return (
-                      <div key={log.id} className="flex items-center gap-3 bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-xl px-3 py-2.5 hover:shadow-sm transition-shadow">
+                      <div key={log.id} className={`flex items-center gap-3 rounded-xl px-3 py-2.5 border transition-all hover:shadow-sm ${ts.pill}`}>
+                        {/* Color dot */}
+                        <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${ts.dot}`} />
                         {/* Avatar */}
-                        <div className="w-8 h-8 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center text-red-600 font-bold text-sm shrink-0 overflow-hidden">
+                        <div className="w-8 h-8 rounded-full bg-white/60 dark:bg-gray-800/60 border border-white/40 flex items-center justify-center font-bold text-xs shrink-0 overflow-hidden shadow-sm">
                           {log.photo_b64
                             ? <img src={log.photo_b64} alt="" className="w-full h-full object-cover cursor-pointer" onClick={() => setViewPhoto(log.photo_b64)} />
                             : (worker?.name?.[0] ?? '?')}
                         </div>
-                        {/* Time */}
-                        <span className="text-sm font-semibold text-gray-800 dark:text-gray-100 whitespace-nowrap">{timeStr}</span>
                         {/* Type badge */}
-                        <span className={`text-xs font-semibold border rounded-full px-2 py-0.5 whitespace-nowrap ${typePillColor}`}>
-                          {typeIcon} {TYPE_LABEL[log.type]}
-                        </span>
-                        {/* Icons */}
-                        <div className="flex items-center gap-1.5 text-gray-300 dark:text-gray-600">
-                          {log.latitude && <MapPin className="w-3.5 h-3.5 text-blue-400" />}
-                          {log.photo_b64 && <button onClick={() => setViewPhoto(log.photo_b64)}><Camera className="w-3.5 h-3.5 text-purple-400" /></button>}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-bold leading-tight">{ts.icon} {TYPE_LABEL[log.type]}</p>
+                          <p className="text-sm font-semibold tabular-nums">{timeStr}<span className="text-xs opacity-60">{secStr}</span></p>
+                        </div>
+                        {/* Extra icons */}
+                        <div className="flex items-center gap-1">
+                          {log.latitude && <MapPin className="w-3.5 h-3.5 opacity-60" />}
+                          {log.photo_b64 && <button onClick={() => setViewPhoto(log.photo_b64)}><Camera className="w-3.5 h-3.5 opacity-60" /></button>}
                         </div>
                         {/* Actions */}
-                        <div className="flex items-center gap-1 ml-auto">
+                        <div className="flex items-center gap-1 shrink-0">
                           <button onClick={() => { setEditingLog(log); setEditTime(new Date(log.logged_at).toTimeString().slice(0,8)) }}
-                            className="p-1.5 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 text-gray-400 hover:text-blue-500 transition-colors"><Pencil className="w-3.5 h-3.5" /></button>
+                            className="p-1.5 rounded-lg bg-white/40 dark:bg-black/20 hover:bg-white/70 dark:hover:bg-black/40 transition-colors"><Pencil className="w-3.5 h-3.5" /></button>
                           <button onClick={() => deleteAdminLog(log.id)}
-                            className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-gray-400 hover:text-red-500 transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
+                            className="p-1.5 rounded-lg bg-white/40 dark:bg-black/20 hover:bg-rose-100 dark:hover:bg-rose-900/30 transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
                         </div>
                       </div>
                     )
                   })}
                   {/* Add missing entry */}
                   {adminLogs.length < 4 && !addingEntry && (
-                    <div className="flex gap-2 mt-2 flex-wrap">
+                    <div className="flex gap-2 mt-1 flex-wrap">
                       {ALL_TYPES.filter(t => !adminLogs.some(l => l.type === t)).map(t => (
                         <button key={t} onClick={() => {
                           const defaultH = { entrada: '09:00:00', almuerzo_inicio: '13:00:00', almuerzo_fin: '14:00:00', salida: '18:00:00' }
                           setAddingEntry({ type: t, time: defaultH[t] || '09:00:00' })
                           setEditingLog(null)
-                        }}
-                          className="text-xs bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300 px-2 py-1 rounded-lg">
+                        }} className={`text-xs font-semibold px-3 py-1.5 rounded-xl transition-colors ${TYPE_STYLE[t].btn}`}>
                           + {TYPE_LABEL[t]}
                         </button>
                       ))}
@@ -763,41 +766,32 @@ export default function Asistencia() {
                   )}
                   {/* Inline form for new entry */}
                   {addingEntry && (
-                    <div className="mt-2 border-t border-gray-200 dark:border-gray-700 pt-3 flex items-center gap-2 flex-wrap">
-                      <span className="text-sm text-gray-600 dark:text-gray-400 shrink-0">
-                        Añadir <strong>{TYPE_LABEL[addingEntry.type]}</strong>:
-                      </span>
-                      <input type="time" step="1" value={addingEntry.time}
-                        onChange={e => setAddingEntry(a => ({ ...a, time: e.target.value }))}
-                        className="input text-sm py-1" style={{ minWidth: 0, flex: 1 }} />
-                      <button onClick={async () => {
-                          const [h, m, s] = addingEntry.time.split(':').map(Number)
-                          const dt = new Date(`${adminDate}T00:00:00`)
-                          dt.setHours(h, m, s || 0, 0)
-                          await supabase.from('attendance_logs').insert({
-                            worker_id: adminWorker, type: addingEntry.type, date: adminDate,
-                            logged_at: dt.toISOString(),
-                          })
-                          await recalcIncidents(adminWorker, adminDate, addingEntry.type, dt)
-                          toast.success(`${TYPE_LABEL[addingEntry.type]} añadida`)
-                          setAddingEntry(null); loadAdminLogs(); loadLogs()
-                        }}
-                        className="btn-primary text-xs py-1.5 px-3 shrink-0">Guardar</button>
-                      <button onClick={() => setAddingEntry(null)} className="btn-secondary text-xs py-1.5 px-3 shrink-0">Cancelar</button>
+                    <div className={`rounded-xl border p-3 space-y-2 ${TYPE_STYLE[addingEntry.type]?.pill}`}>
+                      <p className="text-xs font-bold">{TYPE_STYLE[addingEntry.type]?.icon} Añadir {TYPE_LABEL[addingEntry.type]}</p>
+                      <div className="flex gap-2">
+                          <input type="time" step="1" value={addingEntry.time}
+                          onChange={e => setAddingEntry(a => ({ ...a, time: e.target.value }))}
+                          className="input text-sm py-1 flex-1 bg-white dark:bg-gray-900" style={{ minWidth: 0 }} />
+                        <button onClick={saveEntry} className="btn-primary text-xs py-1.5 px-3 shrink-0">Guardar</button>
+                        <button onClick={() => setAddingEntry(null)} className="btn-secondary text-xs py-1.5 px-3 shrink-0">✕</button>
+                      </div>
                     </div>
                   )}
                 </div>
           )}
-          {/* Edit time modal */}
+          {/* Edit time */}
           {editingLog && (
-            <div className="mt-2 p-3 rounded-xl bg-blue-50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800/40 flex items-center gap-2 flex-wrap">
-              <span className="text-sm text-blue-700 dark:text-blue-300 shrink-0">✏️ Editar <strong>{TYPE_LABEL[editingLog.type]}</strong></span>
-              <input type="time" step="1" value={editTime} onChange={e => setEditTime(e.target.value)} className="input text-sm py-1 flex-1" style={{ minWidth: 0 }} />
-              <button onClick={saveEditLog} className="btn-primary text-xs py-1.5 px-3 shrink-0">Guardar</button>
-              <button onClick={() => setEditingLog(null)} className="btn-secondary text-xs py-1.5 px-3 shrink-0">Cancelar</button>
+            <div className={`mt-1 rounded-xl border p-3 space-y-2 ${TYPE_STYLE[editingLog.type]?.pill || 'bg-blue-50 dark:bg-blue-900/10 border-blue-200 dark:border-blue-800'}`}>
+              <p className="text-xs font-bold">✏️ Editar {TYPE_LABEL[editingLog.type]}</p>
+              <div className="flex gap-2">
+                <input type="time" step="1" value={editTime} onChange={e => setEditTime(e.target.value)} className="input text-sm py-1 flex-1 bg-white dark:bg-gray-900" style={{ minWidth: 0 }} />
+                <button onClick={saveEditLog} className="btn-primary text-xs py-1.5 px-3 shrink-0">Guardar</button>
+                <button onClick={() => setEditingLog(null)} className="btn-secondary text-xs py-1.5 px-3 shrink-0">✕</button>
+              </div>
             </div>
           )}
-        </div>
+          </div>
+          )})()}
         </div>
         )
       })()}

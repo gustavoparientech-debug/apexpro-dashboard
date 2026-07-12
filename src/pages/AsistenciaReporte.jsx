@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useApp } from '../context/AppContext'
 import { supabase } from '../lib/supabase'
 import { calcWorkMs } from './Asistencia'
+import { calcHourlyRate } from '../lib/utils'
 import { ChevronLeft, ChevronRight, Download, Clock, Calendar } from 'lucide-react'
 
 const DAY_SHORT = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb']
@@ -80,11 +81,13 @@ export default function AsistenciaReporte() {
   const activeWorkers = workers.filter(w => w.active)
 
   // Totales por worker
-  const workerTotals = activeWorkers.map(w => ({
-    ...w,
-    days: weekDates.map(d => ({ date: d, ms: getDayMs(w.id, d) })),
-    totalMs: weekDates.reduce((s, d) => s + getDayMs(w.id, d), 0),
-  }))
+  const workerTotals = activeWorkers.map(w => {
+    const hourlyRate = calcHourlyRate(w.base_salary, w.weekly_hours) || 0
+    const days = weekDates.map(d => ({ date: d, ms: getDayMs(w.id, d) }))
+    const totalMs = days.reduce((s, d) => s + d.ms, 0)
+    const totalCost = (totalMs / 3600000) * hourlyRate
+    return { ...w, days, totalMs, totalCost, hourlyRate }
+  })
 
   // Formato del período
   const d0 = new Date(weekStart + 'T12:00:00')
@@ -140,6 +143,7 @@ export default function AsistenciaReporte() {
                 )
               })}
               <th className="px-4 py-3 text-center font-bold text-gray-700 dark:text-gray-300">Total</th>
+              <th className="px-4 py-3 text-center font-bold text-gray-700 dark:text-gray-300">Costo</th>
             </tr>
           </thead>
           <tbody>
@@ -173,6 +177,11 @@ export default function AsistenciaReporte() {
                   <td className="px-4 py-3 text-center">
                     <span className={`font-bold text-sm ${w.totalMs > 0 ? 'text-gray-900 dark:text-white' : 'text-gray-300 dark:text-gray-600'}`}>
                       {fmtHm(w.totalMs)}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-center">
+                    <span className={`font-bold text-sm ${w.totalCost > 0 ? 'text-green-600 dark:text-green-400' : 'text-gray-300 dark:text-gray-600'}`}>
+                      {w.totalCost > 0 ? `S/ ${w.totalCost.toFixed(2)}` : '—'}
                     </span>
                   </td>
                 </tr>
@@ -224,6 +233,9 @@ export default function AsistenciaReporte() {
                 <td className="px-4 py-3 text-center font-bold text-red-600">
                   {fmtHm(workerTotals.reduce((s, w) => s + w.totalMs, 0))}
                 </td>
+                <td className="px-4 py-3 text-center font-bold text-green-600 dark:text-green-400">
+                  S/ {workerTotals.reduce((s, w) => s + w.totalCost, 0).toFixed(2)}
+                </td>
               </tr>
             </tfoot>
           )}
@@ -263,6 +275,7 @@ export default function AsistenciaReporte() {
               </div>
               <p className="text-xl font-bold text-gray-900 dark:text-white">{fmtHm(w.totalMs)}</p>
               <p className="text-xs text-gray-400">{fmtHmDecimal(w.totalMs)}h · {w.days.filter(d => d.ms > 0).length} días</p>
+              {w.totalCost > 0 && <p className="text-sm font-semibold text-green-600 dark:text-green-400 mt-1">S/ {w.totalCost.toFixed(2)}</p>}
             </div>
           ))}
         </div>

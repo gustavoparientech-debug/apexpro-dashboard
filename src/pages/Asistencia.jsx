@@ -5,7 +5,7 @@ import { supabase } from '../lib/supabase'
 import { calcLatenessDiscount, calcOvertimePay } from '../lib/utils'
 import {
   Camera, MapPin, Clock, LogIn, Coffee, LogOut, CheckCircle,
-  Loader2, ChevronDown, AlertTriangle, Pencil, Trash2, ShieldAlert, BarChart2,
+  Loader2, ChevronDown, ChevronLeft, ChevronRight, AlertTriangle, Pencil, Trash2, ShieldAlert, BarChart2,
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
@@ -627,7 +627,21 @@ export default function Asistencia() {
           </p>
           <div className="mb-3">
             <label className="label text-xs">Fecha</label>
-            <input type="date" value={adminDate} onChange={e => setAdminDate(e.target.value)} className="input text-sm" />
+            <div className="flex items-center gap-2">
+              <button onClick={() => {
+                const d = new Date(adminDate + 'T12:00:00'); d.setDate(d.getDate() - 1)
+                setAdminDate(d.toLocaleDateString('en-CA'))
+              }} className="p-2 rounded-xl border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800">
+                <ChevronLeft className="w-4 h-4 text-gray-500" />
+              </button>
+              <input type="date" value={adminDate} onChange={e => setAdminDate(e.target.value)} className="input text-sm flex-1" />
+              <button onClick={() => {
+                const d = new Date(adminDate + 'T12:00:00'); d.setDate(d.getDate() + 1)
+                setAdminDate(d.toLocaleDateString('en-CA'))
+              }} className="p-2 rounded-xl border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800">
+                <ChevronRight className="w-4 h-4 text-gray-500" />
+              </button>
+            </div>
           </div>
           {adminLoading && <div className="flex justify-center py-2"><Loader2 className="w-4 h-4 animate-spin text-gray-400" /></div>}
           {!adminLoading && adminWorker && (

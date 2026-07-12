@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useApp } from '../context/AppContext'
 import { supabase } from '../lib/supabase'
 import { calcWorkMs } from './Asistencia'
-import { calcHourlyRate } from '../lib/utils'
+import { calcDailySalary } from '../lib/utils'
 import { ChevronLeft, ChevronRight, Download, Clock, Calendar } from 'lucide-react'
 
 const DAY_SHORT = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb']
@@ -82,11 +82,12 @@ export default function AsistenciaReporte() {
 
   // Totales por worker
   const workerTotals = activeWorkers.map(w => {
-    const hourlyRate = calcHourlyRate(w.base_salary, w.weekly_hours) || 0
+    const dailySalary = calcDailySalary(w.base_salary, w.weekly_hours) || 0
     const days = weekDates.map(d => ({ date: d, ms: getDayMs(w.id, d) }))
     const totalMs = days.reduce((s, d) => s + d.ms, 0)
-    const totalCost = (totalMs / 3600000) * hourlyRate
-    return { ...w, days, totalMs, totalCost, hourlyRate }
+    const daysWorked = days.filter(d => d.ms > 0).length
+    const totalCost = dailySalary * daysWorked
+    return { ...w, days, totalMs, totalCost, dailySalary }
   })
 
   // Formato del período
@@ -226,7 +227,7 @@ export default function AsistenciaReporte() {
                   const dayTotal = activeWorkers.reduce((s, w) => s + getDayMs(w.id, date), 0)
                   const dayCost  = workerTotals.reduce((s, w) => {
                     const ms = w.days.find(d => d.date === date)?.ms || 0
-                    return s + (ms / 3600000) * w.hourlyRate
+                    return s + (ms > 0 ? w.dailySalary : 0)
                   }, 0)
                   return (
                     <td key={date} className="px-1 py-3 text-center text-xs font-bold text-gray-600 dark:text-gray-400">

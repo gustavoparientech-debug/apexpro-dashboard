@@ -68,8 +68,8 @@ function estimateDays(selectedRows) {
   const workers = total >= 3 ? 2 : 1
   // Días efectivos de preparación (redondeado a 0.5 días)
   const prepDays = Math.max(1, Math.ceil((prepWork / workers) * 2) / 2)
-  // Pintado: 2 días para trabajos grandes (15+ paños), 1 día para el resto
-  const paintDays = total >= 15 ? 2 : 1
+  // Pintado: severo con 3+ paños necesita 2 días (más capas base/fondo); grande=2d; resto=1d
+  const paintDays = total >= 15 ? 2 : (sev > 0 && total >= 3) ? 2 : 1
   const totalMin = prepDays + paintDays
 
   // Margen de buffer según gravedad

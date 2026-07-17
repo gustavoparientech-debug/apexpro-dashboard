@@ -51,7 +51,7 @@ const DAMAGE_LEVELS = [
 ]
 
 // Estimación de tiempo de entrega basada en nivel de daño y cantidad de paños
-function estimateDays(selectedRows, teamSize = 2) {
+function estimateDays(selectedRows, teamSize = 2, withPulido = true) {
   if (!selectedRows.length) return null
   const sev  = selectedRows.filter(r => r.damageId === 'severo').length
   const mod  = selectedRows.filter(r => r.damageId === 'moderado').length
@@ -75,7 +75,7 @@ function estimateDays(selectedRows, teamSize = 2) {
   const activePerWorker = activeH / workers
   const dryH = total > 0 ? 5 : 0
   const paintH  = total * 1    // pintura + barniz (maestro solo)
-  const pulidoH = total * 1.5  // pulido final (maestro solo)
+  const pulidoH = withPulido ? total * 1.5 : 0  // pulido final opcional (maestro solo)
   const totalH = activePerWorker + dryH + paintH + pulidoH
   const totalDays = Math.ceil(totalH / WORK_H)
   const totalMin = totalDays
@@ -317,6 +317,7 @@ export default function Presupuesto() {
   const [selected, setSelected] = useState({})
   const [damage, setDamage] = useState({})
   const [teamSize, setTeamSize] = useState(2) // 1=solo maestro, 2=maestro+ayudante, 3=maestro+2ayudantes
+  const [withPulido, setWithPulido] = useState(true)
   const [editingPrices, setEditingPrices] = useState(false)
   const [pricesDraft, setPricesDraft] = useState(config.basePrices)
   const [showBrands, setShowBrands] = useState(false)
@@ -924,7 +925,7 @@ export default function Presupuesto() {
     msg += `Forma de pago: 50% de adelanto y 50% contra entrega.\n`
     if (vigenciaDias) msg += `Vigencia: ${vigenciaDias} dias calendario.\n`
     const planchadoSel = rows.filter(r => selected[r.id])
-    const estWA = planchadoSel.length > 0 ? estimateDays(planchadoSel, teamSize) : null
+    const estWA = planchadoSel.length > 0 ? estimateDays(planchadoSel, teamSize, withPulido) : null
     const tiempoTexto = estWA ? estWA.text : (tiempoEntregaDias ? `${tiempoEntregaDias} dias habiles` : null)
     if (tiempoTexto) msg += `Tiempo de entrega: maximo ${tiempoTexto} tras recibir el vehiculo.\n`
     msg += `Precios incluyen IGV.\n\n`
@@ -1162,7 +1163,7 @@ export default function Presupuesto() {
     // Condiciones
     {
       const planchadoSelPDF = rows.filter(r => selected[r.id])
-      const estPDF = planchadoSelPDF.length > 0 ? estimateDays(planchadoSelPDF, teamSize) : null
+      const estPDF = planchadoSelPDF.length > 0 ? estimateDays(planchadoSelPDF, teamSize, withPulido) : null
       const tiempoTextoPDF = estPDF ? estPDF.text : (tiempoEntregaDias ? `${tiempoEntregaDias} dias habiles` : null)
       const condText = [
         'Forma de pago: 50% de adelanto y 50% contra entrega.',
@@ -1955,26 +1956,41 @@ export default function Presupuesto() {
                 <p className="text-xs text-green-600 font-semibold mt-0.5">🎁 Descuento {discountPct}% {manualDiscountPct !== null ? 'manual' : 'automático'}</p>
               )}
               {selectedCount > 0 && (
-                <div className="mt-2 flex items-center gap-1">
-                  <span className="text-[10px] text-gray-400 mr-1">👷 Equipo:</span>
-                  {[
-                    { v: 1, label: 'Solo maestro' },
-                    { v: 2, label: 'Maestro + ayudante' },
-                    { v: 3, label: 'Maestro + 2' },
-                  ].map(({ v, label }) => (
-                    <button key={v} onClick={() => setTeamSize(v)}
-                      className={`text-[10px] px-2 py-0.5 rounded-full border transition-colors ${
-                        teamSize === v
-                          ? 'bg-amber-500 text-white border-amber-500 font-semibold'
-                          : 'bg-white dark:bg-gray-800 text-gray-500 border-gray-300 dark:border-gray-600 hover:border-amber-400'
-                      }`}>
-                      {label}
-                    </button>
-                  ))}
+                <div className="mt-2 space-y-1">
+                  <div className="flex items-center gap-1 flex-wrap">
+                    <span className="text-[10px] text-gray-400 mr-1">👷 Equipo:</span>
+                    {[
+                      { v: 1, label: 'Solo maestro' },
+                      { v: 2, label: '+ayudante' },
+                      { v: 3, label: '+2 ayudantes' },
+                    ].map(({ v, label }) => (
+                      <button key={v} onClick={() => setTeamSize(v)}
+                        className={`text-[10px] px-2 py-0.5 rounded-full border transition-colors ${
+                          teamSize === v
+                            ? 'bg-amber-500 text-white border-amber-500 font-semibold'
+                            : 'bg-white dark:bg-gray-800 text-gray-500 border-gray-300 dark:border-gray-600 hover:border-amber-400'
+                        }`}>
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="text-[10px] text-gray-400 mr-1">✨ Pulido:</span>
+                    {[{ v: true, label: 'Con pulido' }, { v: false, label: 'Sin pulido' }].map(({ v, label }) => (
+                      <button key={String(v)} onClick={() => setWithPulido(v)}
+                        className={`text-[10px] px-2 py-0.5 rounded-full border transition-colors ${
+                          withPulido === v
+                            ? 'bg-blue-500 text-white border-blue-500 font-semibold'
+                            : 'bg-white dark:bg-gray-800 text-gray-500 border-gray-300 dark:border-gray-600 hover:border-blue-400'
+                        }`}>
+                        {label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               )}
               {(() => {
-                const est = estimateDays(rows.filter(r => selected[r.id]), teamSize)
+                const est = estimateDays(rows.filter(r => selected[r.id]), teamSize, withPulido)
                 if (!est) return null
                 const cls = est.color === 'red' ? 'text-red-600 bg-red-100 dark:bg-red-900/30 dark:text-red-400'
                   : est.color === 'orange' ? 'text-orange-600 bg-orange-100 dark:bg-orange-900/30 dark:text-orange-400'

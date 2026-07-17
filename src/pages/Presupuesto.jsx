@@ -69,8 +69,9 @@ function estimateDays(selectedRows, teamSize = 2) {
   // Pulido final: 1.5h por paño (basuritas al final, solo maestro)
   const WORK_H = 8
   const activeH = none * 1.5 + lev * 4.5 + mod * 9 + sev * 17
-  // Equipo elegido por usuario: 1=solo maestro, 2=maestro+ayudante, 3=maestro+2ayudantes
-  const workers = teamSize
+  // Productividad efectiva: maestro=1.0, cada ayudante aporta ~0.3
+  // teamSize: 1=solo maestro(1.0), 2=+1ayudante(1.3), 3=+2ayudantes(1.6)
+  const workers = teamSize === 1 ? 1.0 : teamSize === 2 ? 1.3 : 1.6
   const activePerWorker = activeH / workers
   const dryH = total > 0 ? 5 : 0
   const paintH  = total * 1    // pintura + barniz (maestro solo)

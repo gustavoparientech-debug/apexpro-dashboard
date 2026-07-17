@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, Fragment } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { useApp } from '../context/AppContext'
 import { supabase } from '../lib/supabase'
@@ -1509,7 +1509,7 @@ export default function Presupuesto() {
                       <p className="text-xs font-bold text-gray-700 dark:text-gray-300">{brand}</p>
                     </div>
                     {items.map(s => (
-                      <React.Fragment key={s.id}>
+                      <Fragment key={s.id}>
                       <button onClick={() => setCatSelected(p => ({ ...p, [s.id]: !p[s.id] }))}
                         className={`w-full flex items-center gap-3 px-3 py-2.5 border-t border-gray-100 dark:border-gray-700 text-left transition-all ${
                           catSelected[s.id] ? 'bg-red-50 dark:bg-red-900/10' : 'bg-white dark:bg-gray-900'
@@ -1548,7 +1548,7 @@ export default function Presupuesto() {
                           <span className="text-[10px] text-gray-400">m</span>
                         </div>
                       )}
-                      </React.Fragment>
+                      </Fragment>
                     ))}
                   </div>
                 ))

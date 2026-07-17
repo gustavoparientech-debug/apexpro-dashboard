@@ -77,16 +77,17 @@ function estimateDays(selectedRows, teamSize = 2, withPulido = true) {
   const BASE_PLANCH = { none: 0,   leve: 1.3, moderado: 2.7, severo: 5.3 }
   const BASE_PREP   = { none: 1.0, leve: 1.7, moderado: 3.3, severo: 5.7 }
 
+  // Productividad efectiva: maestro=1.0, cada ayudante aporta ~0.3
+  // teamSize: 1=solo maestro(1.0), 2=+1ayudante(1.3), 3=+2ayudantes(1.6)
+  const workers = teamSize === 1 ? 1.0 : teamSize === 2 ? 1.3 : 1.6
+
   const getDmg = r => (r.damageId && r.damageId !== 'none') ? r.damageId : 'none'
   // Planchado: solo maestro → no divide por workers
   const planchadoH = selectedRows.reduce((s, r) => s + (BASE_PLANCH[getDmg(r)] ?? 0) * (r.mult || 1), 0)
   // Preparado: maestro + ayudante(s) → divide por workers
   const prepH      = selectedRows.reduce((s, r) => s + (BASE_PREP[getDmg(r)]   ?? 1) * (r.mult || 1), 0)
-  const activeH    = planchadoH + prepH / workers  // tiempo efectivo combinando ambas fases
-  // Productividad efectiva: maestro=1.0, cada ayudante aporta ~0.3
-  // teamSize: 1=solo maestro(1.0), 2=+1ayudante(1.3), 3=+2ayudantes(1.6)
-  const workers = teamSize === 1 ? 1.0 : teamSize === 2 ? 1.3 : 1.6
-  const activePerWorker = activeH / workers
+  const activeH    = planchadoH + prepH / workers
+  const activePerWorker = activeH
   const dryH = total > 0 ? 5 : 0
   // Pintura + barniz: 1h por unidad de mult (capot=2.5h, guardafango=1h)
   const paintH  = selectedRows.reduce((s, r) => s + (r.mult || 1) * 1, 0)

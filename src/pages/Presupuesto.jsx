@@ -59,9 +59,11 @@ function estimateDays(selectedRows) {
   const none = selectedRows.filter(r => !r.damageId || r.damageId === 'none').length
   const total = selectedRows.length
 
-  // Pesos calibrados con caso real: 1mod+1lev+1none = 4 días (maestro+técnico)
-  // none=1.0 (pintura sola), leve=1.5, moderado=2.5, severo=5.0
-  const prepWork = none * 1.0 + lev * 1.5 + mod * 2.5 + sev * 5.0
+  // Pesos calibrados con casos reales:
+  //   1 severo solo       = 2 días (1 trabajador)
+  //   1mod+1lev+1none     = 4 días (maestro+técnico, 2 trabajadores)
+  // none=1.0, leve=1.5, moderado=2.5, severo=1.0 (paño difícil pero 1 persona lo hace en 1 día de prep)
+  const prepWork = none * 1.0 + lev * 1.5 + mod * 2.5 + sev * 1.0
   // Con 3+ paños se asumen 2 técnicos en paralelo
   const workers = total >= 3 ? 2 : 1
   // Días efectivos de preparación (redondeado a 0.5 días)
@@ -71,7 +73,7 @@ function estimateDays(selectedRows) {
   const totalMin = prepDays + paintDays
 
   // Margen de buffer según gravedad
-  const buffer = sev > 0 ? 1 : (mod > 0 || lev > 0) ? 0.5 : 0
+  const buffer = (mod > 0 || lev > 0) ? 0.5 : 0
   const totalMax = totalMin + buffer
 
   // Texto: si min < max mostrar rango; si son decimales usar piso/techo

@@ -68,7 +68,9 @@ function estimateDays(selectedRows, teamSize = 2, withPulido = true) {
   // Pintura: 0.5h pintura + 0.5h barniz por unidad de mult
   // Pulido: 0.8h por unidad de mult
   const WORK_H = 8
-  const BASE_H = { none: 1.5, leve: 4.5, moderado: 9, severo: 17 }
+  // Horas base para mult=1 (calibradas: usuario confirmó planchado severo mult=1.5 → 8h)
+  // none=1, leve=3, mod=6, sev=11 (todos ÷1.5 respecto a datos originales para mult=1.5)
+  const BASE_H = { none: 1, leve: 3, moderado: 6, severo: 11 }
   const activeH = selectedRows.reduce((s, r) => {
     const dmg = r.damageId && r.damageId !== 'none' ? r.damageId : 'none'
     return s + (BASE_H[dmg] ?? 1.5) * (r.mult || 1)

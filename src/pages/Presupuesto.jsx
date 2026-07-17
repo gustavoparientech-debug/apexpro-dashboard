@@ -68,13 +68,21 @@ function estimateDays(selectedRows, teamSize = 2, withPulido = true) {
   // Pintura: 0.5h pintura + 0.5h barniz por unidad de mult
   // Pulido: 0.8h por unidad de mult
   const WORK_H = 8
-  // Horas base para mult=1 (calibradas: usuario confirmó planchado severo mult=1.5 → 8h)
-  // none=1, leve=3, mod=6, sev=11 (todos ÷1.5 respecto a datos originales para mult=1.5)
-  const BASE_H = { none: 1, leve: 3, moderado: 6, severo: 11 }
-  const activeH = selectedRows.reduce((s, r) => {
-    const dmg = r.damageId && r.damageId !== 'none' ? r.damageId : 'none'
-    return s + (BASE_H[dmg] ?? 1.5) * (r.mult || 1)
-  }, 0)
+  // Fases separadas por quién trabaja:
+  //   Planchado → SOLO maestro (no ayuda el ayudante)
+  //   Preparado → maestro + ayudante(s)
+  //   Pintura   → maestro + ayudante(s)
+  //   Pulido    → solo maestro
+  // Horas base por fase para mult=1 (calibrado: sev mult=1.5 → 8h planch, 9h prep)
+  const BASE_PLANCH = { none: 0,   leve: 1.3, moderado: 2.7, severo: 5.3 }
+  const BASE_PREP   = { none: 1.0, leve: 1.7, moderado: 3.3, severo: 5.7 }
+
+  const getDmg = r => (r.damageId && r.damageId !== 'none') ? r.damageId : 'none'
+  // Planchado: solo maestro → no divide por workers
+  const planchadoH = selectedRows.reduce((s, r) => s + (BASE_PLANCH[getDmg(r)] ?? 0) * (r.mult || 1), 0)
+  // Preparado: maestro + ayudante(s) → divide por workers
+  const prepH      = selectedRows.reduce((s, r) => s + (BASE_PREP[getDmg(r)]   ?? 1) * (r.mult || 1), 0)
+  const activeH    = planchadoH + prepH / workers  // tiempo efectivo combinando ambas fases
   // Productividad efectiva: maestro=1.0, cada ayudante aporta ~0.3
   // teamSize: 1=solo maestro(1.0), 2=+1ayudante(1.3), 3=+2ayudantes(1.6)
   const workers = teamSize === 1 ? 1.0 : teamSize === 2 ? 1.3 : 1.6

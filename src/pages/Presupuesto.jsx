@@ -59,22 +59,27 @@ function estimateDays(selectedRows, teamSize = 2, withPulido = true) {
   const none = selectedRows.filter(r => !r.damageId || r.damageId === 'none').length
   const total = selectedRows.length
 
-  // Horas activas de trabajo por paño (planchado + preparado):
-  //   none  = 1.5h (masking + raspones/abolladuras menores)
-  //   leve  = 2h planchado + 2.5h prep = 4.5h
-  //   mod   = 4h planchado + 5h prep   = 9h
-  //   sev   = 8h planchado + 9h prep   = 17h
-  // Base seca en 5h (tiempo muerto que empuja al siguiente día)
-  // Pintura: 30min + barniz 30min por paño = 1h/paño
-  // Pulido final: 1.5h por paño (basuritas al final, solo maestro)
+  // Horas base por tipo de daño (referencia para mult=1, ej. guardafango):
+  //   none = 1.5h (masking + raspones/abolladuras menores)
+  //   leve = 4.5h (2h planchado + 2.5h prep)
+  //   mod  = 9h   (4h planchado + 5h prep)
+  //   sev  = 17h  (8h planchado + 9h prep)
+  // Cada paño escala sus horas × su mult (capot mult=2.5 tarda 2.5x más que guardafango mult=1)
+  // Pintura: 0.5h pintura + 0.5h barniz por unidad de mult
+  // Pulido: 0.8h por unidad de mult
   const WORK_H = 8
-  const activeH = none * 1.5 + lev * 4.5 + mod * 9 + sev * 17
+  const BASE_H = { none: 1.5, leve: 4.5, moderado: 9, severo: 17 }
+  const activeH = selectedRows.reduce((s, r) => {
+    const dmg = r.damageId && r.damageId !== 'none' ? r.damageId : 'none'
+    return s + (BASE_H[dmg] ?? 1.5) * (r.mult || 1)
+  }, 0)
   // Productividad efectiva: maestro=1.0, cada ayudante aporta ~0.3
   // teamSize: 1=solo maestro(1.0), 2=+1ayudante(1.3), 3=+2ayudantes(1.6)
   const workers = teamSize === 1 ? 1.0 : teamSize === 2 ? 1.3 : 1.6
   const activePerWorker = activeH / workers
   const dryH = total > 0 ? 5 : 0
-  const paintH  = total * 1    // pintura + barniz (maestro solo)
+  // Pintura + barniz: 1h por unidad de mult (capot=2.5h, guardafango=1h)
+  const paintH  = selectedRows.reduce((s, r) => s + (r.mult || 1) * 1, 0)
   // Pulido: escala con el multiplicador de cada paño (capot mult=2.5 tarda más que guardafango mult=1)
   // Base: 0.8h por unidad de mult → guardafango≈0.8h, capot≈2h, techo≈2h
   const pulidoH = withPulido

@@ -75,9 +75,14 @@ function estimateDays(selectedRows, teamSize = 2, withPulido = true) {
   const activePerWorker = activeH / workers
   const dryH = total > 0 ? 5 : 0
   const paintH  = total * 1    // pintura + barniz (maestro solo)
-  const pulidoH = withPulido ? total * 1.5 : 0  // pulido final opcional (maestro solo)
+  // Pulido: escala con el multiplicador de cada paño (capot mult=2.5 tarda más que guardafango mult=1)
+  // Base: 0.8h por unidad de mult → guardafango≈0.8h, capot≈2h, techo≈2h
+  const pulidoH = withPulido
+    ? selectedRows.reduce((s, r) => s + (r.mult || 1) * 0.8, 0)
+    : 0
   const totalH = activePerWorker + dryH + paintH + pulidoH
-  const totalDays = Math.ceil(totalH / WORK_H)
+  // Redondeo a 0.5 días para evitar saltos bruscos de días enteros
+  const totalDays = Math.ceil(totalH / WORK_H * 2) / 2
   const totalMin = totalDays
   const buffer = 0
   const totalMax = totalDays

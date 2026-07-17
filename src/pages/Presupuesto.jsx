@@ -59,22 +59,25 @@ function estimateDays(selectedRows) {
   const none = selectedRows.filter(r => !r.damageId || r.damageId === 'none').length
   const total = selectedRows.length
 
-  // Pesos calibrados con casos reales:
-  //   1 severo solo       = 2 días (1 trabajador)
-  //   1mod+1lev+1none     = 4 días (maestro+técnico, 2 trabajadores)
-  // none=1.0, leve=1.5, moderado=2.5, severo=1.0 (paño difícil pero 1 persona lo hace en 1 día de prep)
-  const prepWork = none * 1.0 + lev * 1.5 + mod * 2.5 + sev * 1.0
-  // Con 3+ paños se asumen 2 técnicos en paralelo
+  // Pesos de preparación por paño (días-persona):
+  //   none=0.5 (solo masking+prep), leve=0.75, moderado=1.0, severo=1.0
+  //   Orden lógico: none < leve ≤ mod = sev para 1 paño solo
+  //   Casos reales confirmados:
+  //     1 sev solo     → 2 días ✓
+  //     1sev+2none     → 3 días ✓
+  //     1mod+1lev+1none → 3-4 días ✓
+  const prepWork = none * 0.5 + lev * 0.75 + mod * 1.0 + sev * 1.0
+  // Con 3+ paños se trabaja en paralelo (2 técnicos)
   const workers = total >= 3 ? 2 : 1
-  // Días efectivos de preparación (redondeado a 0.5 días)
-  const prepDays = Math.max(1, Math.ceil((prepWork / workers) * 2) / 2)
-  // Pintado: severo con 3+ paños necesita 2 días (más capas base/fondo); grande=2d; resto=1d
-  const paintDays = total >= 15 ? 2 : (sev > 0 && total >= 3) ? 2 : 1
+  // Prep redondeado a 0.5 días; 0 si no hay trabajo de planchado
+  const prepDays = prepWork > 0 ? Math.ceil((prepWork / workers) * 2) / 2 : 0
+  // 3+ paños siempre requieren 2 días de pintado/secado (múltiples colores/capas)
+  const paintDays = total >= 3 ? 2 : 1
   const totalMin = prepDays + paintDays
 
-  // Margen de buffer según gravedad
-  const buffer = (mod > 0 || lev > 0) ? 0.5 : 0
-  const totalMax = totalMin + buffer
+  // Sin buffer adicional — el ceil ya agrega margen natural
+  const buffer = 0
+  const totalMax = totalMin
 
   // Texto: si min < max mostrar rango; si son decimales usar piso/techo
   const lo = Number.isInteger(totalMin) ? totalMin : Math.floor(totalMin)

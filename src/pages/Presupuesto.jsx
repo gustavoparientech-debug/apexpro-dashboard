@@ -127,7 +127,26 @@ function estimateDays(selectedRows, teamSize = 2, withPulido = true) {
   const paintLabel = `Base seca (5h) + pintura + barniz + pulido: ${paintDays} día${paintDays !== 1 ? 's' : ''}`
   const bufferLabel = null
 
-  return { text, color, panoLines, prepLabel, paintLabel, bufferLabel }
+  return { text, color, panoLines, prepLabel, paintLabel, bufferLabel, totalDays }
+}
+
+function parseTimeMin(str) {
+  if (!str) return 0
+  if (/día/i.test(str)) return (parseFloat(str) || 1) * 480
+  const h = str.match(/(\d+\.?\d*)\s*h/i)
+  const m = str.match(/(\d+)\s*min/i)
+  return (h ? parseFloat(h[1]) * 60 : 0) + (m ? parseInt(m[1]) : 0)
+}
+function formatMinutes(min) {
+  if (!min) return null
+  const days = Math.floor(min / 480)
+  const rem = min % 480
+  const h = Math.floor(rem / 60)
+  const m = rem % 60
+  if (days > 0) return h > 0 ? `${days}d ${h}h` : `${days}d`
+  if (h > 0 && m > 0) return `${h}h ${m}m`
+  if (h > 0) return `${h}h`
+  return `${m}m`
 }
 
 const LS_KEY = 'apexpro_presupuesto_config'
@@ -174,36 +193,36 @@ const VT_LAVADOS_FILTER = {
 
 const SERVICIOS_DATA = [
   // ── Precio fijo (no varía por vehículo) ──────────────────────────────────
-  { id: 'sv_techo_g1',     name: 'Lavado de Techo G1',              price: 80  },
-  { id: 'sv_techo_g2',     name: 'Lavado de Techo G2',              price: 90  },
-  { id: 'sv_techo_g3',     name: 'Lavado de Techo G3',              price: 100 },
-  { id: 'sv_ret_asientos', name: 'Retirada de asientos',            price: 60  },
-  { id: 'sv_asientos_1f',  name: 'Lavado de asientos 1 Fila',       price: 40  },
-  { id: 'sv_asientos_2f',  name: 'Lavado de asientos 2 Filas',      price: 80  },
-  { id: 'sv_asientos_3f',  name: 'Lavado de asientos 3 Filas',      price: 110 },
-  { id: 'sv_ext_cam',      name: 'Lavado Exterior Camioneta',       price: 25  },
-  { id: 'sv_chasis',       name: 'Lavado Chasis V-Mol',             price: 50  },
-  { id: 'sv_alumax',       name: 'Alumax y Removex',                price: 30  },
-  { id: 'sv_ret_llantas',  name: 'Retirado de llantas',             price: 80  },
-  { id: 'sv_det_interior', name: 'Detallado interior',              price: 90  },
-  { id: 'sv_elixir',       name: 'Elixir CarPro',                   price: 20  },
-  { id: 'sv_encerado',     name: 'Encerado Bleend 3 meses',         price: 20  },
-  { id: 'sv_cer_g3',       name: 'Tratamiento Cerámico G3',         price: 100 },
-  { id: 'sv_gliss',        name: 'Aplicación de Gliss Car Pro',     price: 100 },
-  { id: 'sv_lav_piso',     name: 'Lavado de Piso',                  price: 80  },
-  { id: 'sv_ret_alfombra', name: 'Retirado de Alfombra',            price: 40  },
-  { id: 'sv_motor_basico', name: 'Lavado de Motor (Básico)',        price: 20  },
-  { id: 'sv_motor_det',    name: 'Lavado de Motor (Detallado)',     price: 40  },
-  { id: 'sv_berniz',       name: 'Berniz de Motor',                 price: 15  },
-  { id: 'sv_cera_vonixx',  name: 'Cera en pasta Vonixx',           price: 20  },
+  { id: 'sv_techo_g1',     name: 'Lavado de Techo G1',              timeMin: 60,  price: 80  },
+  { id: 'sv_techo_g2',     name: 'Lavado de Techo G2',              timeMin: 60,  price: 90  },
+  { id: 'sv_techo_g3',     name: 'Lavado de Techo G3',              timeMin: 60,  price: 100 },
+  { id: 'sv_ret_asientos', name: 'Retirada de asientos',            timeMin: 30,  price: 60  },
+  { id: 'sv_asientos_1f',  name: 'Lavado de asientos 1 Fila',       timeMin: 60,  price: 40  },
+  { id: 'sv_asientos_2f',  name: 'Lavado de asientos 2 Filas',      timeMin: 90,  price: 80  },
+  { id: 'sv_asientos_3f',  name: 'Lavado de asientos 3 Filas',      timeMin: 120, price: 110 },
+  { id: 'sv_ext_cam',      name: 'Lavado Exterior Camioneta',       timeMin: 30,  price: 25  },
+  { id: 'sv_chasis',       name: 'Lavado Chasis V-Mol',             timeMin: 30,  price: 50  },
+  { id: 'sv_alumax',       name: 'Alumax y Removex',                timeMin: 30,  price: 30  },
+  { id: 'sv_ret_llantas',  name: 'Retirado de llantas',             timeMin: 45,  price: 80  },
+  { id: 'sv_det_interior', name: 'Detallado interior',              timeMin: 120, price: 90  },
+  { id: 'sv_elixir',       name: 'Elixir CarPro',                   timeMin: 15,  price: 20  },
+  { id: 'sv_encerado',     name: 'Encerado Bleend 3 meses',         timeMin: 15,  price: 20  },
+  { id: 'sv_cer_g3',       name: 'Tratamiento Cerámico G3',         timeMin: 120, price: 100 },
+  { id: 'sv_gliss',        name: 'Aplicación de Gliss Car Pro',     timeMin: 60,  price: 100 },
+  { id: 'sv_lav_piso',     name: 'Lavado de Piso',                  timeMin: 60,  price: 80  },
+  { id: 'sv_ret_alfombra', name: 'Retirado de Alfombra',            timeMin: 30,  price: 40  },
+  { id: 'sv_motor_basico', name: 'Lavado de Motor (Básico)',        timeMin: 20,  price: 20  },
+  { id: 'sv_motor_det',    name: 'Lavado de Motor (Detallado)',     timeMin: 40,  price: 40  },
+  { id: 'sv_berniz',       name: 'Berniz de Motor',                 timeMin: 15,  price: 15  },
+  { id: 'sv_cera_vonixx',  name: 'Cera en pasta Vonixx',           timeMin: 15,  price: 20  },
   // ── Precio según vehículo ─────────────────────────────────────────────────
-  { id: 'sv_ext_basico',   name: 'Lavado Exterior (Básico)',        prices: { auto: 25, suv: 30, pickup: 35, xl: 40 } },
-  { id: 'sv_offroad',      name: 'Lavado OffRoad',                  prices: { auto: 55, suv: 60, pickup: 65, xl: 70 } },
-  { id: 'sv_pul1',         name: 'Pulido 1 Paso',                   prices: { auto: 130, suv: 150, pickup: 170, xl: 170 } },
-  { id: 'sv_pul3',         name: 'Pulido 3 Pasos',                  prices: { auto: 260, suv: 280, pickup: 300, xl: 300 } },
-  { id: 'sv_desc',         name: 'Descontaminación',                prices: { auto: 120, suv: 140, pickup: 160, xl: 160 } },
-  { id: 'sv_cer_cp2',      name: 'Cerámico CarPro 2 Años',          prices: { auto: 799, suv: 899, pickup: 999, xl: 999 } },
-  { id: 'sv_cer_ap3',      name: 'Cerámico AutoPremium 3 Años',     prices: { auto: 499, suv: 599, pickup: 699, xl: 699 } },
+  { id: 'sv_ext_basico',   name: 'Lavado Exterior (Básico)',        timeMin: 30,  prices: { auto: 25, suv: 30, pickup: 35, xl: 40 } },
+  { id: 'sv_offroad',      name: 'Lavado OffRoad',                  timeMin: 45,  prices: { auto: 55, suv: 60, pickup: 65, xl: 70 } },
+  { id: 'sv_pul1',         name: 'Pulido 1 Paso',                   timeMin: 120, prices: { auto: 130, suv: 150, pickup: 170, xl: 170 } },
+  { id: 'sv_pul3',         name: 'Pulido 3 Pasos',                  timeMin: 240, prices: { auto: 260, suv: 280, pickup: 300, xl: 300 } },
+  { id: 'sv_desc',         name: 'Descontaminación',                timeMin: 90,  prices: { auto: 120, suv: 140, pickup: 160, xl: 160 } },
+  { id: 'sv_cer_cp2',      name: 'Cerámico CarPro 2 Años',          timeMin: 480, prices: { auto: 799, suv: 899, pickup: 999, xl: 999 } },
+  { id: 'sv_cer_ap3',      name: 'Cerámico AutoPremium 3 Años',     timeMin: 480, prices: { auto: 499, suv: 599, pickup: 699, xl: 699 } },
 ]
 
 const LAVADOS_DATA = [
@@ -215,33 +234,33 @@ const LAVADOS_DATA = [
 ]
 
 const CERAMICO_DATA = [
-  { id: 'desc_quimica',     name: 'Descontaminación Química',   tag: 'Prep', desc: 'Elimina impurezas invisibles adheridas a la pintura',           prices: { auto: 60,  suv: 70,  pickup: 80  } },
-  { id: 'desc_mecanica',    name: 'Descontaminación Mecánica',  tag: 'Prep', desc: 'Pintura completamente lisa al tacto, mejora brillo y acabado',  prices: { auto: 120, suv: 140, pickup: 160 } },
-  { id: 'abrillantado',     name: 'Abrillantado Apex Pro',      tag: 'Prep', desc: 'Aumenta brillo, reduce micro-rayones, elimina opacidad',        prices: { auto: 130, suv: 150, pickup: 170 } },
-  { id: 'correccion',       name: 'Corrección Apex Pro',        tag: 'Prep', desc: 'Elimina 90-95% de imperfecciones, acabado tipo espejo',         prices: { auto: 260, suv: 280, pickup: 300 } },
-  { id: 'cer_miyavi_1a',    name: 'Cerámico Miyavi 1 Año',      tag: 'Paq',  desc: 'Descontam. + pulido 3 pasos + cerámico + aspirado interior',    prices: { auto: 350, suv: 400, pickup: 450 } },
-  { id: 'cer_miyavi_1b',    name: 'Cerámico Miyavi 1 Año Plus', tag: 'Paq',  desc: 'Versión premium — pulido avanzado + cerámico 1 año',           prices: { auto: 400, suv: 450, pickup: 500 } },
-  { id: 'cer_3a',           name: 'Cerámico 3 Años',            tag: 'Paq',  desc: 'Paquete completo con cerámico de larga duración 3 años',       prices: { auto: 599, suv: 699, pickup: 799 } },
-  { id: 'cer_2a_premium',   name: 'Cerámico 2 Años Premium',    tag: 'Paq',  desc: 'Paquete premium con cerámico de 2 años',                       prices: { auto: 899, suv: 999, pickup: 1099} },
-  { id: 'cer_carpro_3a',    name: 'Cerámico Carpro 3 Años',     tag: 'Paq',  desc: 'Cerámico Carpro alta gama, 3 años de garantía del producto',   prices: { auto: 999, suv: 1099,pickup: 1199} },
+  { id: 'desc_quimica',     name: 'Descontaminación Química',   tag: 'Prep', timeMin: 120,  desc: 'Elimina impurezas invisibles adheridas a la pintura',           prices: { auto: 60,  suv: 70,  pickup: 80  } },
+  { id: 'desc_mecanica',    name: 'Descontaminación Mecánica',  tag: 'Prep', timeMin: 180,  desc: 'Pintura completamente lisa al tacto, mejora brillo y acabado',  prices: { auto: 120, suv: 140, pickup: 160 } },
+  { id: 'abrillantado',     name: 'Abrillantado Apex Pro',      tag: 'Prep', timeMin: 180,  desc: 'Aumenta brillo, reduce micro-rayones, elimina opacidad',        prices: { auto: 130, suv: 150, pickup: 170 } },
+  { id: 'correccion',       name: 'Corrección Apex Pro',        tag: 'Prep', timeMin: 240,  desc: 'Elimina 90-95% de imperfecciones, acabado tipo espejo',         prices: { auto: 260, suv: 280, pickup: 300 } },
+  { id: 'cer_miyavi_1a',    name: 'Cerámico Miyavi 1 Año',      tag: 'Paq',  timeMin: 480,  desc: 'Descontam. + pulido 3 pasos + cerámico + aspirado interior',    prices: { auto: 350, suv: 400, pickup: 450 } },
+  { id: 'cer_miyavi_1b',    name: 'Cerámico Miyavi 1 Año Plus', tag: 'Paq',  timeMin: 480,  desc: 'Versión premium — pulido avanzado + cerámico 1 año',           prices: { auto: 400, suv: 450, pickup: 500 } },
+  { id: 'cer_3a',           name: 'Cerámico 3 Años',            tag: 'Paq',  timeMin: 960,  desc: 'Paquete completo con cerámico de larga duración 3 años',       prices: { auto: 599, suv: 699, pickup: 799 } },
+  { id: 'cer_2a_premium',   name: 'Cerámico 2 Años Premium',    tag: 'Paq',  timeMin: 960,  desc: 'Paquete premium con cerámico de 2 años',                       prices: { auto: 899, suv: 999, pickup: 1099} },
+  { id: 'cer_carpro_3a',    name: 'Cerámico Carpro 3 Años',     tag: 'Paq',  timeMin: 960,  desc: 'Cerámico Carpro alta gama, 3 años de garantía del producto',   prices: { auto: 999, suv: 1099,pickup: 1199} },
 ]
 
 const PPF_DATA = [
-  { id: 'ppf_full',     name: 'PPF Full Body',           desc: 'Todo el vehículo. Lavado premium + descontam. + pulido 3 pasos + PPF autoregenerativo. Regalo: PPF en radio o faros. Tiempo: 4 días', prices: { auto: 4700, suv: 5400, pickup: 5900 } },
-  { id: 'ppf_zonas',    name: 'PPF Zonas de Impacto',    desc: 'Capot, parachoque delantero, guardabarros y faros. Regalo: PPF en manijas. Tiempo: 2 días',                                            prices: { auto: 2700, suv: 3100, pickup: 3400 } },
-  { id: 'ppf_ceramico', name: 'PPF Zonas + Cerámico',    desc: 'PPF en zonas de impacto + cerámico Carpro 2 años en las demás zonas. Tiempo: 3 días',                                                  prices: { auto: 3200, suv: 3700, pickup: 3900 } },
+  { id: 'ppf_full',     name: 'PPF Full Body',           timeMin: 1920, desc: 'Todo el vehículo. Lavado premium + descontam. + pulido 3 pasos + PPF autoregenerativo. Regalo: PPF en radio o faros. Tiempo: 4 días', prices: { auto: 4700, suv: 5400, pickup: 5900 } },
+  { id: 'ppf_zonas',    name: 'PPF Zonas de Impacto',    timeMin: 960,  desc: 'Capot, parachoque delantero, guardabarros y faros. Regalo: PPF en manijas. Tiempo: 2 días',                                            prices: { auto: 2700, suv: 3100, pickup: 3400 } },
+  { id: 'ppf_ceramico', name: 'PPF Zonas + Cerámico',    timeMin: 1440, desc: 'PPF en zonas de impacto + cerámico Carpro 2 años en las demás zonas. Tiempo: 3 días',                                                  prices: { auto: 3200, suv: 3700, pickup: 3900 } },
 ]
 
 const POLARIZADOS_DATA = [
-  { id: 'appfilm_v',  brand: 'APPfilm Basic',          cobertura: 'Ventanas + Posterior', desc: 'Instalación profesional. Niveles: 5%, 20%, 35%, 50%, 70%',              price: 299  },
-  { id: 'appfilm_f',  brand: 'APPfilm Basic',          cobertura: '+ Parabrisas',         desc: 'Instalación profesional. Niveles: 5%, 20%, 35%, 50%, 70%',              price: 350  },
-  { id: 'lexen_v',    brand: 'Nanocerámico Lexen',     cobertura: 'Ventanas + Posterior', desc: 'Bloqueo UV, reducción de calor, garantía. Niveles: 5%–70%',            price: 440  },
-  { id: 'lexen_f',    brand: 'Nanocerámico Lexen',     cobertura: '+ Parabrisas',         desc: 'Bloqueo UV, reducción de calor, garantía. Niveles: 5%–70%',            price: 640  },
-  { id: 'protec_v',   brand: 'Nanocerámico Protec',    cobertura: 'Ventanas + Posterior', desc: 'UV, calor, garantía del producto premium. Niveles: 5%–70%',            price: 480  },
-  { id: 'protec_f',   brand: 'Nanocerámico Protec',    cobertura: '+ Parabrisas',         desc: 'UV, calor, garantía del producto premium. Niveles: 5%–70%',            price: 680  },
-  { id: '3m_v',       brand: '3M Coreano',             cobertura: 'Ventanas + Posterior', desc: 'Alta gama. Niveles: 5%–70%',                                           price: 700  },
-  { id: '3m_f',       brand: '3M Coreano',             cobertura: '+ Parabrisas',         desc: 'Alta gama. Niveles: 5%–70%',                                           price: 900  },
-  { id: '3m_usa_v',   brand: '3M Americano',           cobertura: 'Ventanas + Posterior', desc: 'Máxima calidad importado USA. Niveles: 5%–70%',                        price: 1400 },
+  { id: 'appfilm_v',  brand: 'APPfilm Basic',          cobertura: 'Ventanas + Posterior', timeMin: 120, desc: 'Instalación profesional. Niveles: 5%, 20%, 35%, 50%, 70%',              price: 299  },
+  { id: 'appfilm_f',  brand: 'APPfilm Basic',          cobertura: '+ Parabrisas',         timeMin: 150, desc: 'Instalación profesional. Niveles: 5%, 20%, 35%, 50%, 70%',              price: 350  },
+  { id: 'lexen_v',    brand: 'Nanocerámico Lexen',     cobertura: 'Ventanas + Posterior', timeMin: 120, desc: 'Bloqueo UV, reducción de calor, garantía. Niveles: 5%–70%',            price: 440  },
+  { id: 'lexen_f',    brand: 'Nanocerámico Lexen',     cobertura: '+ Parabrisas',         timeMin: 150, desc: 'Bloqueo UV, reducción de calor, garantía. Niveles: 5%–70%',            price: 640  },
+  { id: 'protec_v',   brand: 'Nanocerámico Protec',    cobertura: 'Ventanas + Posterior', timeMin: 120, desc: 'UV, calor, garantía del producto premium. Niveles: 5%–70%',            price: 480  },
+  { id: 'protec_f',   brand: 'Nanocerámico Protec',    cobertura: '+ Parabrisas',         timeMin: 150, desc: 'UV, calor, garantía del producto premium. Niveles: 5%–70%',            price: 680  },
+  { id: '3m_v',       brand: '3M Coreano',             cobertura: 'Ventanas + Posterior', timeMin: 120, desc: 'Alta gama. Niveles: 5%–70%',                                           price: 700  },
+  { id: '3m_f',       brand: '3M Coreano',             cobertura: '+ Parabrisas',         timeMin: 150, desc: 'Alta gama. Niveles: 5%–70%',                                           price: 900  },
+  { id: '3m_usa_v',   brand: '3M Americano',           cobertura: 'Ventanas + Posterior', timeMin: 120, desc: 'Máxima calidad importado USA. Niveles: 5%–70%',                        price: 1400 },
 ]
 
 function mergeConfig(saved) {
@@ -755,12 +774,14 @@ export default function Presupuesto() {
 
   const [manualItems, setManualItems] = useState([])
   const [showManualForm, setShowManualForm] = useState(false)
-  const [manualDraft, setManualDraft] = useState({ titulo: '', descripcion: '', monto: '' })
+  const [manualDraft, setManualDraft] = useState({ titulo: '', descripcion: '', monto: '', timeH: '', timeM: '' })
+  const [timeOverrides, setTimeOverrides] = useState({})
 
   function addManualItem() {
     if (!manualDraft.titulo || !manualDraft.monto) { toast.error('Título y monto requeridos'); return }
-    setManualItems(items => [...items, { id: Date.now(), ...manualDraft, monto: parseFloat(manualDraft.monto) || 0 }])
-    setManualDraft({ titulo: '', descripcion: '', monto: '' })
+    const timeMin = (parseInt(manualDraft.timeH) || 0) * 60 + (parseInt(manualDraft.timeM) || 0)
+    setManualItems(items => [...items, { id: Date.now(), ...manualDraft, monto: parseFloat(manualDraft.monto) || 0, timeMin }])
+    setManualDraft({ titulo: '', descripcion: '', monto: '', timeH: '', timeM: '' })
     setShowManualForm(false)
   }
 
@@ -822,7 +843,7 @@ export default function Presupuesto() {
   const [saveQuoteModal, setSaveQuoteModal] = useState(false)
   const [loadedQuoteId, setLoadedQuoteId] = useState(null)
   const [saveQuoteForm, setSaveQuoteForm] = useState({ nombre: '', placa: '', worker_id: '' })
-  const [exportForm, setExportForm] = useState({ nombre: '', celular: '', ruc: '', marca: '', modelo: '', placa: '', anio: '', color: '', observaciones: '', vigenciaDias: '15', tiempoEntregaDias: '3' })
+  const [exportForm, setExportForm] = useState({ nombre: '', celular: '', ruc: '', marca: '', modelo: '', placa: '', anio: '', color: '', observaciones: '' })
   const [cotizacionNum, setCotizacionNum] = useState(150)
 
   useEffect(() => {
@@ -842,6 +863,31 @@ export default function Presupuesto() {
 
   const manualTotal = manualItems.reduce((s, i) => s + i.monto, 0)
   const totalItemsSelected = selectedCount + catRows.length + serviciosRows.length + manualItems.length + lavItems.length
+
+  const ALL_DATA_FLAT = [...CERAMICO_DATA, ...PPF_DATA, ...POLARIZADOS_DATA, ...SERVICIOS_DATA]
+
+  function getItemDefaultTimeMin(id) {
+    const item = ALL_DATA_FLAT.find(x => id === x.id || id.startsWith(x.id + '_'))
+    return item?.timeMin || 0
+  }
+
+  function getItemTimeMin(id) {
+    const ov = timeOverrides[id]
+    if (ov !== undefined) return (parseInt(ov.h) || 0) * 60 + (parseInt(ov.m) || 0)
+    return getItemDefaultTimeMin(id)
+  }
+
+  const totalTimeMin = (() => {
+    const est = estimateDays(rows.filter(r => selected[r.id]), teamSize, withPulido)
+    const planchadoMin = est ? Math.round(est.totalDays * 480) : 0
+    const catMin = catRows.reduce((s, r) => s + getItemTimeMin(r.id), 0)
+    const svcMin = serviciosRows.reduce((s, r) => s + getItemTimeMin(r.id), 0)
+    const lavMin = lavItems.reduce((s, i) => s + getItemTimeMin(i.id), 0)
+    const manualMin = manualItems.reduce((s, i) => s + (i.timeMin || 0), 0)
+    return planchadoMin + catMin + svcMin + lavMin + manualMin
+  })()
+
+  const autoTiempoDias = totalTimeMin > 0 ? Math.ceil(totalTimeMin / 480) : null
 
   function openExportModal(target) {
     if (totalItemsSelected === 0) { toast.error('Selecciona al menos un servicio'); return }
@@ -899,7 +945,8 @@ export default function Presupuesto() {
   }
 
   function buildWhatsApp() {
-    const { nombre, celular, marca, modelo, placa, anio, color, observaciones, vigenciaDias, tiempoEntregaDias } = exportForm
+    const { nombre, celular, marca, modelo, placa, anio, color, observaciones } = exportForm
+    const vigenciaDias = 7
     const today = new Date().toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric' })
     const catVehicleLabel = CAT_VEHICLES[category]?.find(v => v.id === catVehicle)?.label || ''
     const { sections, subtotalBruto, grandTotalExport } = buildExportSections()
@@ -945,9 +992,7 @@ export default function Presupuesto() {
     if (observaciones) msg += `📝 *Nota:* ${observaciones}\n\n`
     msg += `Forma de pago: 50% de adelanto y 50% contra entrega.\n`
     if (vigenciaDias) msg += `Vigencia: ${vigenciaDias} dias calendario.\n`
-    const planchadoSel = rows.filter(r => selected[r.id])
-    const estWA = planchadoSel.length > 0 ? estimateDays(planchadoSel, teamSize, withPulido) : null
-    const tiempoTexto = estWA ? estWA.text : (tiempoEntregaDias ? `${tiempoEntregaDias} dias habiles` : null)
+    const tiempoTexto = autoTiempoDias ? `${autoTiempoDias} dias habiles` : null
     if (tiempoTexto) msg += `Tiempo de entrega: maximo ${tiempoTexto} tras recibir el vehiculo.\n`
     msg += `Precios incluyen IGV.\n\n`
     msg += `📍 Calle Idelfonzo Lopez N 700 Zamacola, Arequipa\n`
@@ -957,7 +1002,8 @@ export default function Presupuesto() {
   }
 
   function buildPDF(numCotizacion) {
-    const { nombre, celular, ruc, marca, modelo, placa, anio, color, observaciones, vigenciaDias, tiempoEntregaDias } = exportForm
+    const { nombre, celular, ruc, marca, modelo, placa, anio, color, observaciones } = exportForm
+    const vigenciaDias = 7
     const doc = new jsPDF({ unit: 'mm', format: 'a4' })
     const W = 210
     const mL = 14, mR = 14
@@ -1183,9 +1229,7 @@ export default function Presupuesto() {
 
     // Condiciones
     {
-      const planchadoSelPDF = rows.filter(r => selected[r.id])
-      const estPDF = planchadoSelPDF.length > 0 ? estimateDays(planchadoSelPDF, teamSize, withPulido) : null
-      const tiempoTextoPDF = estPDF ? estPDF.text : (tiempoEntregaDias ? `${tiempoEntregaDias} dias habiles` : null)
+      const tiempoTextoPDF = autoTiempoDias ? `${autoTiempoDias} dias habiles` : null
       const condText = [
         'Forma de pago: 50% de adelanto y 50% contra entrega.',
         vigenciaDias ? `Vigencia: ${vigenciaDias} dias calendario.` : '',
@@ -1417,6 +1461,30 @@ export default function Presupuesto() {
               </div>
             )}
 
+            {/* Lavados — tiempo por item seleccionado */}
+            {isLav && lavItems.length > 0 && (
+              <div className="card space-y-1.5">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">⏱ Tiempo por servicio</p>
+                {lavItems.map(item => (
+                  <div key={item.id} className="flex items-center gap-2">
+                    <p className="text-xs text-gray-700 dark:text-gray-300 flex-1 truncate">{item.label}</p>
+                    <input type="number" min="0"
+                      className="w-12 text-xs border border-gray-200 dark:border-gray-600 rounded-lg px-1.5 py-0.5 text-center dark:bg-gray-800 dark:text-white"
+                      placeholder="0"
+                      value={timeOverrides[item.id]?.h ?? 0}
+                      onChange={e => setTimeOverrides(o => ({ ...o, [item.id]: { h: e.target.value, m: o[item.id]?.m ?? 0 } }))} />
+                    <span className="text-[10px] text-gray-400">h</span>
+                    <input type="number" min="0" max="59"
+                      className="w-12 text-xs border border-gray-200 dark:border-gray-600 rounded-lg px-1.5 py-0.5 text-center dark:bg-gray-800 dark:text-white"
+                      placeholder="0"
+                      value={timeOverrides[item.id]?.m ?? 0}
+                      onChange={e => setTimeOverrides(o => ({ ...o, [item.id]: { h: o[item.id]?.h ?? 0, m: e.target.value } }))} />
+                    <span className="text-[10px] text-gray-400">m</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
             {/* Servicios — oculto para lavados (se agregan desde los chips de VT) */}
             {!isLav && <div className="card space-y-2">
               <div className="flex items-center justify-between mb-1">
@@ -1441,7 +1509,8 @@ export default function Presupuesto() {
                       <p className="text-xs font-bold text-gray-700 dark:text-gray-300">{brand}</p>
                     </div>
                     {items.map(s => (
-                      <button key={s.id} onClick={() => setCatSelected(p => ({ ...p, [s.id]: !p[s.id] }))}
+                      <React.Fragment key={s.id}>
+                      <button onClick={() => setCatSelected(p => ({ ...p, [s.id]: !p[s.id] }))}
                         className={`w-full flex items-center gap-3 px-3 py-2.5 border-t border-gray-100 dark:border-gray-700 text-left transition-all ${
                           catSelected[s.id] ? 'bg-red-50 dark:bg-red-900/10' : 'bg-white dark:bg-gray-900'
                         }`}>
@@ -1462,6 +1531,24 @@ export default function Presupuesto() {
                           )}
                         </div>
                       </button>
+                      {catSelected[s.id] && (
+                        <div className="border-t border-gray-100 dark:border-gray-700 px-3 py-1.5 flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
+                          <span className="text-[10px] text-gray-400 mr-0.5">⏱ Tiempo:</span>
+                          <input type="number" min="0"
+                            className="w-12 text-xs border border-gray-200 dark:border-gray-600 rounded-lg px-1.5 py-0.5 text-center dark:bg-gray-800 dark:text-white"
+                            placeholder="0"
+                            value={timeOverrides[s.id]?.h ?? Math.floor((s.timeMin || 0) / 60)}
+                            onChange={e => setTimeOverrides(o => ({ ...o, [s.id]: { h: e.target.value, m: o[s.id]?.m ?? (s.timeMin || 0) % 60 } }))} />
+                          <span className="text-[10px] text-gray-400">h</span>
+                          <input type="number" min="0" max="59"
+                            className="w-12 text-xs border border-gray-200 dark:border-gray-600 rounded-lg px-1.5 py-0.5 text-center dark:bg-gray-800 dark:text-white"
+                            placeholder="0"
+                            value={timeOverrides[s.id]?.m ?? (s.timeMin || 0) % 60}
+                            onChange={e => setTimeOverrides(o => ({ ...o, [s.id]: { h: o[s.id]?.h ?? Math.floor((s.timeMin || 0) / 60), m: e.target.value } }))} />
+                          <span className="text-[10px] text-gray-400">m</span>
+                        </div>
+                      )}
+                      </React.Fragment>
                     ))}
                   </div>
                 ))
@@ -1553,6 +1640,23 @@ export default function Presupuesto() {
                             )}
                           </div>
                         </button>
+                      )}
+                      {isSelected && (
+                        <div className="border-t border-gray-100 dark:border-gray-700 px-3 py-1.5 flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
+                          <span className="text-[10px] text-gray-400 mr-0.5">⏱ Tiempo:</span>
+                          <input type="number" min="0"
+                            className="w-12 text-xs border border-gray-200 dark:border-gray-600 rounded-lg px-1.5 py-0.5 text-center dark:bg-gray-800 dark:text-white"
+                            placeholder="0"
+                            value={timeOverrides[s.id]?.h ?? Math.floor((s.timeMin || 0) / 60)}
+                            onChange={e => setTimeOverrides(o => ({ ...o, [s.id]: { h: e.target.value, m: o[s.id]?.m ?? (s.timeMin || 0) % 60 } }))} />
+                          <span className="text-[10px] text-gray-400">h</span>
+                          <input type="number" min="0" max="59"
+                            className="w-12 text-xs border border-gray-200 dark:border-gray-600 rounded-lg px-1.5 py-0.5 text-center dark:bg-gray-800 dark:text-white"
+                            placeholder="0"
+                            value={timeOverrides[s.id]?.m ?? (s.timeMin || 0) % 60}
+                            onChange={e => setTimeOverrides(o => ({ ...o, [s.id]: { h: o[s.id]?.h ?? Math.floor((s.timeMin || 0) / 60), m: e.target.value } }))} />
+                          <span className="text-[10px] text-gray-400">m</span>
+                        </div>
                       )}
                       {canAdmin && (
                         <div className="border-t border-gray-100 dark:border-gray-700" onClick={e => e.stopPropagation()}>
@@ -1713,8 +1817,19 @@ export default function Presupuesto() {
                       <input type="number" className="input text-sm py-1.5 flex-1" placeholder="0.00"
                         value={manualDraft.monto} onChange={e => setManualDraft(d => ({ ...d, monto: e.target.value }))} />
                     </div>
-                    <button onClick={addManualItem} className="px-4 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold">Agregar</button>
-                    <button onClick={() => { setShowManualForm(false); setManualDraft({ titulo: '', descripcion: '', monto: '' }) }}
+                    <div className="flex items-center gap-1">
+                      <span className="text-xs text-gray-400">⏱</span>
+                      <input type="number" min="0" className="input text-sm py-1.5 w-12 text-center" placeholder="0"
+                        value={manualDraft.timeH} onChange={e => setManualDraft(d => ({ ...d, timeH: e.target.value }))} />
+                      <span className="text-[10px] text-gray-400">h</span>
+                      <input type="number" min="0" max="59" className="input text-sm py-1.5 w-12 text-center" placeholder="0"
+                        value={manualDraft.timeM} onChange={e => setManualDraft(d => ({ ...d, timeM: e.target.value }))} />
+                      <span className="text-[10px] text-gray-400">m</span>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={addManualItem} className="flex-1 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold">Agregar</button>
+                    <button onClick={() => { setShowManualForm(false); setManualDraft({ titulo: '', descripcion: '', monto: '', timeH: '', timeM: '' }) }}
                       className="px-3 py-1.5 rounded-xl border border-gray-200 dark:border-gray-700 text-gray-400 text-sm">✕</button>
                   </div>
                 </div>
@@ -1736,6 +1851,7 @@ export default function Presupuesto() {
                         <p className="text-xs font-medium text-gray-700 dark:text-gray-300">{item.titulo}</p>
                         {item.descripcion && <p className="text-[10px] text-gray-400 truncate">{item.descripcion}</p>}
                       </div>
+                      {item.timeMin > 0 && <span className="text-[10px] text-blue-400">⏱ {formatMinutes(item.timeMin)}</span>}
                       <p className="text-xs font-bold text-blue-600">{formatMoney(item.monto)}</p>
                     </div>
                   ))}
@@ -2203,7 +2319,18 @@ export default function Presupuesto() {
                       <input type="number" className="input text-sm py-1.5 flex-1" placeholder="0.00"
                         value={manualDraft.monto} onChange={e => setManualDraft(d => ({ ...d, monto: e.target.value }))} />
                     </div>
-                    <button onClick={addManualItem} className="px-4 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold">+ Agregar</button>
+                    <div className="flex items-center gap-1">
+                      <span className="text-xs text-gray-400">⏱</span>
+                      <input type="number" min="0" className="input text-sm py-1.5 w-10 text-center" placeholder="0"
+                        value={manualDraft.timeH} onChange={e => setManualDraft(d => ({ ...d, timeH: e.target.value }))} />
+                      <span className="text-[10px] text-gray-400">h</span>
+                      <input type="number" min="0" max="59" className="input text-sm py-1.5 w-10 text-center" placeholder="0"
+                        value={manualDraft.timeM} onChange={e => setManualDraft(d => ({ ...d, timeM: e.target.value }))} />
+                      <span className="text-[10px] text-gray-400">m</span>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={addManualItem} className="flex-1 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold">+ Agregar</button>
                     <button onClick={() => setShowManualForm(false)} className="px-3 py-1.5 rounded-xl border border-gray-200 dark:border-gray-700 text-gray-400 text-sm hover:bg-gray-100 dark:hover:bg-gray-800">✕</button>
                   </div>
                 </div>
@@ -2218,7 +2345,7 @@ export default function Presupuesto() {
               <div className="pt-2 border-t border-gray-100 dark:border-gray-800 mt-2 space-y-2">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-[10px] text-gray-400">{totalItemsSelected} servicio{totalItemsSelected !== 1 ? 's' : ''}</p>
+                    <p className="text-[10px] text-gray-400">{totalItemsSelected} servicio{totalItemsSelected !== 1 ? 's' : ''}{totalTimeMin > 0 ? ` · 🕐 ${autoTiempoDias} día${autoTiempoDias !== 1 ? 's' : ''} hábiles (${formatMinutes(totalTimeMin)})` : ''}</p>
                     <p className="text-lg font-black text-red-600 dark:text-red-400">{formatMoney(grandTotal)}</p>
                   </div>
                   <button
@@ -2573,24 +2700,18 @@ export default function Presupuesto() {
                   value={exportForm.observaciones} onChange={e => setExportForm(f => ({ ...f, observaciones: e.target.value }))} />
               </div>
 
-              {/* Condiciones */}
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="text-xs text-gray-500 mb-0.5 block">Vigencia</label>
-                  <div className="flex items-center gap-1.5">
-                    <input type="number" min="1" className="input w-16 text-sm text-center" placeholder="15"
-                      value={exportForm.vigenciaDias} onChange={e => setExportForm(f => ({ ...f, vigenciaDias: e.target.value }))} />
-                    <span className="text-xs text-gray-400">días calendario</span>
-                  </div>
+              {/* Condiciones — auto-calculadas */}
+              <div className="bg-gray-50 dark:bg-gray-800 rounded-xl px-3 py-2 space-y-1">
+                <div className="flex justify-between text-xs text-gray-500">
+                  <span>Vigencia:</span>
+                  <span className="font-semibold text-gray-700 dark:text-gray-300">7 días calendario</span>
                 </div>
-                <div>
-                  <label className="text-xs text-gray-500 mb-0.5 block">Tiempo de entrega</label>
-                  <div className="flex items-center gap-1.5">
-                    <input type="number" min="1" className="input w-16 text-sm text-center" placeholder="3"
-                      value={exportForm.tiempoEntregaDias} onChange={e => setExportForm(f => ({ ...f, tiempoEntregaDias: e.target.value }))} />
-                    <span className="text-xs text-gray-400">días hábiles</span>
+                {autoTiempoDias && (
+                  <div className="flex justify-between text-xs text-gray-500">
+                    <span>Tiempo de entrega:</span>
+                    <span className="font-semibold text-gray-700 dark:text-gray-300">{autoTiempoDias} días hábiles</span>
                   </div>
-                </div>
+                )}
               </div>
             </div>
 

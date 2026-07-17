@@ -59,8 +59,9 @@ function estimateDays(selectedRows) {
   const none = selectedRows.filter(r => !r.damageId || r.damageId === 'none').length
   const total = selectedRows.length
 
-  // Días de trabajo por tipo: none=0.5 (2 paños/día), leve=0.75, moderado=1.25, severo=2.5
-  const prepWork = none * 0.5 + lev * 0.75 + mod * 1.25 + sev * 2.5
+  // Pesos calibrados con caso real: 1mod+1lev+1none = 4 días (maestro+técnico)
+  // none=1.0 (pintura sola), leve=1.5, moderado=2.5, severo=5.0
+  const prepWork = none * 1.0 + lev * 1.5 + mod * 2.5 + sev * 5.0
   // Con 3+ paños se asumen 2 técnicos en paralelo
   const workers = total >= 3 ? 2 : 1
   // Días efectivos de preparación (redondeado a 0.5 días)

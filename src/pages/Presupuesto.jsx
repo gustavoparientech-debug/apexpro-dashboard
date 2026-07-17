@@ -51,7 +51,7 @@ const DAMAGE_LEVELS = [
 ]
 
 // Estimación de tiempo de entrega basada en nivel de daño y cantidad de paños
-function estimateDays(selectedRows) {
+function estimateDays(selectedRows, teamSize = 2) {
   if (!selectedRows.length) return null
   const sev  = selectedRows.filter(r => r.damageId === 'severo').length
   const mod  = selectedRows.filter(r => r.damageId === 'moderado').length
@@ -60,28 +60,28 @@ function estimateDays(selectedRows) {
   const total = selectedRows.length
 
   // Horas activas de trabajo por paño (planchado + preparado):
-  //   none  = ~1h (solo masking/limpieza)
+  //   none  = 1.5h (masking + raspones/abolladuras menores)
   //   leve  = 2h planchado + 2.5h prep = 4.5h
   //   mod   = 4h planchado + 5h prep   = 9h
   //   sev   = 8h planchado + 9h prep   = 17h
   // Base seca en 5h (tiempo muerto que empuja al siguiente día)
   // Pintura: 30min + barniz 30min por paño = 1h/paño
-  const WORK_H = 8  // horas/día del maestro
-  const activeH = none * 1 + lev * 4.5 + mod * 9 + sev * 17
-  // 3+ paños: 2 técnicos trabajan en paralelo
-  const workers = total >= 3 ? 2 : 1
+  // Pulido final: 1.5h por paño (basuritas al final, solo maestro)
+  const WORK_H = 8
+  const activeH = none * 1.5 + lev * 4.5 + mod * 9 + sev * 17
+  // Equipo elegido por usuario: 1=solo maestro, 2=maestro+ayudante, 3=maestro+2ayudantes
+  const workers = teamSize
   const activePerWorker = activeH / workers
-  // Secado de base: 5h muertos (cuenta como día si desborda la jornada)
   const dryH = total > 0 ? 5 : 0
-  // Pintura + barniz: 1h por paño (pintar y barnizar juntos al final)
-  const paintH = total * 1
-  const totalH = activePerWorker + dryH + paintH
+  const paintH  = total * 1    // pintura + barniz (maestro solo)
+  const pulidoH = total * 1.5  // pulido final (maestro solo)
+  const totalH = activePerWorker + dryH + paintH + pulidoH
   const totalDays = Math.ceil(totalH / WORK_H)
   const totalMin = totalDays
   const buffer = 0
   const totalMax = totalDays
 
-  // Desglose para UI: trabajo activo vs secado+pintura (deben sumar totalDays)
+  // Desglose para UI
   const workDays  = Math.ceil(activePerWorker / WORK_H * 2) / 2
   const prepDays  = workDays
   const paintDays = Math.max(0.5, totalDays - workDays)
@@ -100,11 +100,10 @@ function estimateDays(selectedRows) {
   if (lev > 0)  panoLines.push(`${lev} paño${lev > 1 ? 's' : ''} leve${lev > 1 ? 's' : ''}`)
   if (none > 0) panoLines.push(`${none} paño${none > 1 ? 's' : ''} solo pintura`)
 
-  const prepLabel = workers > 1
-    ? `Planchado + prep (${workers} técnicos): ${prepDays} día${prepDays !== 1 ? 's' : ''}`
-    : `Planchado + prep: ${prepDays} día${prepDays !== 1 ? 's' : ''}`
-  const paintLabel = `Base seca (5h) + pintura + barniz: ${paintDays} día${paintDays !== 1 ? 's' : ''}`
-  const bufferLabel = buffer > 0 ? `Margen: +${buffer} día${buffer !== 1 ? 's' : ''}` : null
+  const teamLabel = workers === 1 ? 'solo maestro' : workers === 2 ? 'maestro + ayudante' : 'maestro + 2 ayudantes'
+  const prepLabel = `Planchado + prep (${teamLabel}): ${prepDays} día${prepDays !== 1 ? 's' : ''}`
+  const paintLabel = `Base seca (5h) + pintura + barniz + pulido: ${paintDays} día${paintDays !== 1 ? 's' : ''}`
+  const bufferLabel = null
 
   return { text, color, panoLines, prepLabel, paintLabel, bufferLabel }
 }
@@ -316,6 +315,7 @@ export default function Presupuesto() {
   const [selectedBrand, setSelectedBrand] = useState('')
   const [selected, setSelected] = useState({})
   const [damage, setDamage] = useState({})
+  const [teamSize, setTeamSize] = useState(2) // 1=solo maestro, 2=maestro+ayudante, 3=maestro+2ayudantes
   const [editingPrices, setEditingPrices] = useState(false)
   const [pricesDraft, setPricesDraft] = useState(config.basePrices)
   const [showBrands, setShowBrands] = useState(false)
@@ -923,7 +923,7 @@ export default function Presupuesto() {
     msg += `Forma de pago: 50% de adelanto y 50% contra entrega.\n`
     if (vigenciaDias) msg += `Vigencia: ${vigenciaDias} dias calendario.\n`
     const planchadoSel = rows.filter(r => selected[r.id])
-    const estWA = planchadoSel.length > 0 ? estimateDays(planchadoSel) : null
+    const estWA = planchadoSel.length > 0 ? estimateDays(planchadoSel, teamSize) : null
     const tiempoTexto = estWA ? estWA.text : (tiempoEntregaDias ? `${tiempoEntregaDias} dias habiles` : null)
     if (tiempoTexto) msg += `Tiempo de entrega: maximo ${tiempoTexto} tras recibir el vehiculo.\n`
     msg += `Precios incluyen IGV.\n\n`
@@ -1161,7 +1161,7 @@ export default function Presupuesto() {
     // Condiciones
     {
       const planchadoSelPDF = rows.filter(r => selected[r.id])
-      const estPDF = planchadoSelPDF.length > 0 ? estimateDays(planchadoSelPDF) : null
+      const estPDF = planchadoSelPDF.length > 0 ? estimateDays(planchadoSelPDF, teamSize) : null
       const tiempoTextoPDF = estPDF ? estPDF.text : (tiempoEntregaDias ? `${tiempoEntregaDias} dias habiles` : null)
       const condText = [
         'Forma de pago: 50% de adelanto y 50% contra entrega.',
@@ -1953,8 +1953,27 @@ export default function Presupuesto() {
               {discountPct > 0 && (
                 <p className="text-xs text-green-600 font-semibold mt-0.5">🎁 Descuento {discountPct}% {manualDiscountPct !== null ? 'manual' : 'automático'}</p>
               )}
+              {selectedCount > 0 && (
+                <div className="mt-2 flex items-center gap-1">
+                  <span className="text-[10px] text-gray-400 mr-1">👷 Equipo:</span>
+                  {[
+                    { v: 1, label: 'Solo maestro' },
+                    { v: 2, label: 'Maestro + ayudante' },
+                    { v: 3, label: 'Maestro + 2' },
+                  ].map(({ v, label }) => (
+                    <button key={v} onClick={() => setTeamSize(v)}
+                      className={`text-[10px] px-2 py-0.5 rounded-full border transition-colors ${
+                        teamSize === v
+                          ? 'bg-amber-500 text-white border-amber-500 font-semibold'
+                          : 'bg-white dark:bg-gray-800 text-gray-500 border-gray-300 dark:border-gray-600 hover:border-amber-400'
+                      }`}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              )}
               {(() => {
-                const est = estimateDays(rows.filter(r => selected[r.id]))
+                const est = estimateDays(rows.filter(r => selected[r.id]), teamSize)
                 if (!est) return null
                 const cls = est.color === 'red' ? 'text-red-600 bg-red-100 dark:bg-red-900/30 dark:text-red-400'
                   : est.color === 'orange' ? 'text-orange-600 bg-orange-100 dark:bg-orange-900/30 dark:text-orange-400'

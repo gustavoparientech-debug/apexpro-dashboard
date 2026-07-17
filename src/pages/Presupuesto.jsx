@@ -59,25 +59,32 @@ function estimateDays(selectedRows) {
   const none = selectedRows.filter(r => !r.damageId || r.damageId === 'none').length
   const total = selectedRows.length
 
-  // Pesos de preparación por paño (días-persona):
-  //   none=0.5 (solo masking+prep), leve=0.75, moderado=1.0, severo=1.0
-  //   Orden lógico: none < leve ≤ mod = sev para 1 paño solo
-  //   Casos reales confirmados:
-  //     1 sev solo     → 2 días ✓
-  //     1sev+2none     → 3 días ✓
-  //     1mod+1lev+1none → 3-4 días ✓
-  const prepWork = none * 0.5 + lev * 0.75 + mod * 1.0 + sev * 1.0
-  // Con 3+ paños se trabaja en paralelo (2 técnicos)
+  // Horas activas de trabajo por paño (planchado + preparado):
+  //   none  = ~1h (solo masking/limpieza)
+  //   leve  = 2h planchado + 2.5h prep = 4.5h
+  //   mod   = 4h planchado + 5h prep   = 9h
+  //   sev   = 8h planchado + 9h prep   = 17h
+  // Base seca en 5h (tiempo muerto que empuja al siguiente día)
+  // Pintura: 30min + barniz 30min por paño = 1h/paño
+  const WORK_H = 8  // horas/día del maestro
+  const activeH = none * 1 + lev * 4.5 + mod * 9 + sev * 17
+  // 3+ paños: 2 técnicos trabajan en paralelo
   const workers = total >= 3 ? 2 : 1
-  // Prep redondeado a 0.5 días; 0 si no hay trabajo de planchado
-  const prepDays = prepWork > 0 ? Math.ceil((prepWork / workers) * 2) / 2 : 0
-  // 3+ paños siempre requieren 2 días de pintado/secado (múltiples colores/capas)
-  const paintDays = total >= 3 ? 2 : 1
-  const totalMin = prepDays + paintDays
-
-  // Sin buffer adicional — el ceil ya agrega margen natural
+  const activePerWorker = activeH / workers
+  // Secado de base: 5h muertos (cuenta como día si desborda la jornada)
+  const dryH = total > 0 ? 5 : 0
+  // Pintura + barniz: 1h por paño (pintar y barnizar juntos al final)
+  const paintH = total * 1
+  const totalH = activePerWorker + dryH + paintH
+  const totalDays = Math.ceil(totalH / WORK_H)
+  const totalMin = totalDays
   const buffer = 0
-  const totalMax = totalMin
+  const totalMax = totalDays
+
+  // Desglose para UI: trabajo activo vs secado+pintura (deben sumar totalDays)
+  const workDays  = Math.ceil(activePerWorker / WORK_H * 2) / 2
+  const prepDays  = workDays
+  const paintDays = Math.max(0.5, totalDays - workDays)
 
   // Texto: si min < max mostrar rango; si son decimales usar piso/techo
   const lo = Number.isInteger(totalMin) ? totalMin : Math.floor(totalMin)
@@ -96,7 +103,7 @@ function estimateDays(selectedRows) {
   const prepLabel = workers > 1
     ? `Planchado + prep (${workers} técnicos): ${prepDays} día${prepDays !== 1 ? 's' : ''}`
     : `Planchado + prep: ${prepDays} día${prepDays !== 1 ? 's' : ''}`
-  const paintLabel = `Pintado + secado: ${paintDays} día${paintDays !== 1 ? 's' : ''}`
+  const paintLabel = `Base seca (5h) + pintura + barniz: ${paintDays} día${paintDays !== 1 ? 's' : ''}`
   const bufferLabel = buffer > 0 ? `Margen: +${buffer} día${buffer !== 1 ? 's' : ''}` : null
 
   return { text, color, panoLines, prepLabel, paintLabel, bufferLabel }

@@ -15,6 +15,25 @@ const WORKPLACE_LAT  = -16.3550567
 const WORKPLACE_LON  = -71.5607376
 const GEOFENCE_M     = 500  // 500m para tolerar imprecisión GPS (~2-3 manzanas)
 
+// Excepciones por trabajador — radio ampliado cuando su dispositivo tiene GPS impreciso.
+// La clave se compara sin acentos/mayúsculas contra el nombre del trabajador.
+const GEOFENCE_OVERRIDES_M = {
+  gabriela: 850,
+}
+
+function normalizeName(s) {
+  return (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+}
+
+function geofenceFor(worker) {
+  const name = normalizeName(worker?.name)
+  if (!name) return GEOFENCE_M
+  for (const [key, meters] of Object.entries(GEOFENCE_OVERRIDES_M)) {
+    if (name.includes(key)) return meters
+  }
+  return GEOFENCE_M
+}
+
 function haversineM(lat1, lon1, lat2, lon2) {
   const R = 6371000
   const dLat = (lat2 - lat1) * Math.PI / 180
@@ -90,6 +109,7 @@ export default function Asistencia() {
 
   const worker = workers.find(w => w.id === selectedWorkerId)
   const today  = new Date().toLocaleDateString('en-CA')
+  const geofenceM = geofenceFor(worker)
 
   useEffect(() => { const t = setInterval(() => setNow(new Date()), 1000); return () => clearInterval(t) }, [])
   useEffect(() => {
@@ -222,7 +242,7 @@ export default function Asistencia() {
     if (cached && (Date.now() - cached.timestamp) < 90000) {
       const dist = haversineM(cached.coords.latitude, cached.coords.longitude, WORKPLACE_LAT, WORKPLACE_LON)
       setLocation({ lat: cached.coords.latitude, lon: cached.coords.longitude, dist: Math.round(dist) })
-      setGeoStatus(dist <= GEOFENCE_M ? 'ok' : 'outside')
+      setGeoStatus(dist <= geofenceM ? 'ok' : 'outside')
       return
     }
 
@@ -232,7 +252,7 @@ export default function Asistencia() {
         cachedLocRef.current = pos
         const dist = haversineM(pos.coords.latitude, pos.coords.longitude, WORKPLACE_LAT, WORKPLACE_LON)
         setLocation({ lat: pos.coords.latitude, lon: pos.coords.longitude, dist: Math.round(dist) })
-        setGeoStatus(dist <= GEOFENCE_M ? 'ok' : 'outside')
+        setGeoStatus(dist <= geofenceM ? 'ok' : 'outside')
       },
       err => {
         // code 1 = bloqueado en ajustes del navegador/OS
@@ -820,7 +840,7 @@ export default function Asistencia() {
               )}
               {geoStatus === 'outside' && (
                 <div className="flex items-center gap-2 text-xs bg-red-50 dark:bg-red-900/20 text-red-600 px-3 py-2 rounded-lg">
-                  <AlertTriangle className="w-3.5 h-3.5" /> Fuera del área · {location?.dist}m del taller (máx {GEOFENCE_M}m)
+                  <AlertTriangle className="w-3.5 h-3.5" /> Fuera del área · {location?.dist}m del taller (máx {geofenceM}m)
                 </div>
               )}
               {geoStatus === 'denied' && (

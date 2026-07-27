@@ -34,6 +34,11 @@ function geofenceFor(worker) {
   return GEOFENCE_M
 }
 
+// Un fix satelital real reporta accuracy de ~5-50m. Una posición de red
+// (torres celulares / wifi) reporta cientos o miles de metros y puede
+// desviarse kilómetros — por eso no sirve para validar la geovalla.
+const GPS_GOOD_ACCURACY_M = 150
+
 function haversineM(lat1, lon1, lat2, lon2) {
   const R = 6371000
   const dLat = (lat2 - lat1) * Math.PI / 180
@@ -41,6 +46,23 @@ function haversineM(lat1, lon1, lat2, lon2) {
   const a = Math.sin(dLat / 2) ** 2 +
     Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+}
+
+// Evalúa una posición contra la geovalla teniendo en cuenta el margen de error
+// del GPS: la posición real está dentro de `accuracy` metros de la reportada,
+// así que si ese margen alcanza el taller la marcación se considera válida.
+function evalGeo(pos, geofenceM) {
+  const lat = pos.coords.latitude
+  const lon = pos.coords.longitude
+  const acc = Math.round(pos.coords.accuracy ?? 0)
+  const dist = haversineM(lat, lon, WORKPLACE_LAT, WORKPLACE_LON)
+  const inside = (dist - acc) <= geofenceM
+  return {
+    lat, lon, acc,
+    dist: Math.round(dist),
+    precise: acc <= GPS_GOOD_ACCURACY_M,
+    status: inside ? 'ok' : 'outside',
+  }
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -138,7 +160,10 @@ export default function Asistencia() {
       navigator.geolocation.getCurrentPosition(
         pos => { cachedLocRef.current = pos },
         () => {}, // silencioso si ya fue denegado
-        { timeout: 30000, maximumAge: 60000 }
+        // enableHighAccuracy fuerza el GPS satelital: sin esto el navegador
+        // devuelve una posición de red que se desvía kilómetros y que luego
+        // openAction reutilizaría como si fuera válida.
+        { timeout: 30000, maximumAge: 60000, enableHighAccuracy: true }
       )
     }
   }, [])
@@ -237,22 +262,28 @@ export default function Asistencia() {
     setCamOpen(true)
     setTimeout(startCamera, 300)
 
-    // Usar ubicación cacheada si es reciente (< 90 seg)
+    // Reutilizar la ubicación cacheada solo si es reciente Y viene de un fix
+    // satelital. Una posición de red cacheada daría "fuera del área" a alguien
+    // parado en el taller, así que en ese caso pedimos GPS de nuevo.
     const cached = cachedLocRef.current
-    if (cached && (Date.now() - cached.timestamp) < 90000) {
-      const dist = haversineM(cached.coords.latitude, cached.coords.longitude, WORKPLACE_LAT, WORKPLACE_LON)
-      setLocation({ lat: cached.coords.latitude, lon: cached.coords.longitude, dist: Math.round(dist) })
-      setGeoStatus(dist <= geofenceM ? 'ok' : 'outside')
+    const fresh   = cached && (Date.now() - cached.timestamp) < 90000
+    const precise = cached && (cached.coords.accuracy ?? Infinity) <= GPS_GOOD_ACCURACY_M
+    if (fresh && precise) {
+      const g = evalGeo(cached, geofenceM)
+      setLocation(g)
+      setGeoStatus(g.status)
       return
     }
 
-    // Solicitar GPS directamente — Chrome pedirá permiso si no fue dado antes
+    // Solicitar GPS directamente — Chrome pedirá permiso si no fue dado antes.
+    // maximumAge: 0 evita que devuelva la misma posición de red que acabamos
+    // de descartar por imprecisa.
     navigator.geolocation?.getCurrentPosition(
       pos => {
         cachedLocRef.current = pos
-        const dist = haversineM(pos.coords.latitude, pos.coords.longitude, WORKPLACE_LAT, WORKPLACE_LON)
-        setLocation({ lat: pos.coords.latitude, lon: pos.coords.longitude, dist: Math.round(dist) })
-        setGeoStatus(dist <= geofenceM ? 'ok' : 'outside')
+        const g = evalGeo(pos, geofenceM)
+        setLocation(g)
+        setGeoStatus(g.status)
       },
       err => {
         // code 1 = bloqueado en ajustes del navegador/OS
@@ -260,7 +291,24 @@ export default function Asistencia() {
         // code 3 = timeout
         setGeoStatus(err.code === 1 ? 'settings' : 'denied')
       },
-      { timeout: 30000, maximumAge: 30000, enableHighAccuracy: true }
+      { timeout: 30000, maximumAge: 0, enableHighAccuracy: true }
+    )
+  }
+
+  // Pide una posición nueva descartando la cacheada — para cuando el primer
+  // intento devolvió una posición de red imprecisa.
+  function retryLocation() {
+    setGeoStatus('loading')
+    cachedLocRef.current = null
+    navigator.geolocation?.getCurrentPosition(
+      pos => {
+        cachedLocRef.current = pos
+        const g = evalGeo(pos, geofenceM)
+        setLocation(g)
+        setGeoStatus(g.status)
+      },
+      err => setGeoStatus(err.code === 1 ? 'settings' : 'denied'),
+      { timeout: 30000, maximumAge: 0, enableHighAccuracy: true }
     )
   }
 
@@ -835,12 +883,32 @@ export default function Asistencia() {
               )}
               {geoStatus === 'ok' && (
                 <div className="flex items-center gap-2 text-xs bg-green-50 dark:bg-green-900/20 text-green-600 px-3 py-2 rounded-lg">
-                  <MapPin className="w-3.5 h-3.5" /> Ubicación verificada · {location?.dist}m del taller ✓
+                  <MapPin className="w-3.5 h-3.5 shrink-0" />
+                  <span>
+                    Ubicación verificada · {location?.dist}m del taller ✓
+                    {location && !location.precise && ` (GPS impreciso ±${location.acc}m)`}
+                  </span>
                 </div>
               )}
               {geoStatus === 'outside' && (
-                <div className="flex items-center gap-2 text-xs bg-red-50 dark:bg-red-900/20 text-red-600 px-3 py-2 rounded-lg">
-                  <AlertTriangle className="w-3.5 h-3.5" /> Fuera del área · {location?.dist}m del taller (máx {geofenceM}m)
+                <div className="flex flex-col gap-1.5 text-xs bg-red-50 dark:bg-red-900/20 text-red-600 px-3 py-2 rounded-lg">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                    <span>
+                      Fuera del área · {location?.dist}m del taller (máx {geofenceM}m)
+                      {location ? ` · precisión ±${location.acc}m` : ''}
+                    </span>
+                  </div>
+                  {location && !location.precise && (
+                    <span className="pl-6 opacity-80">
+                      El GPS está dando una posición de red. Sal al patio, espera unos
+                      segundos y toca «Reintentar ubicación».
+                    </span>
+                  )}
+                  <button onClick={() => retryLocation()}
+                    className="self-start ml-6 px-2.5 py-1 rounded-lg bg-white dark:bg-gray-800 border border-red-200 dark:border-red-800 font-semibold hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors">
+                    Reintentar ubicación
+                  </button>
                 </div>
               )}
               {geoStatus === 'denied' && (

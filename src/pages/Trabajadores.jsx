@@ -531,7 +531,9 @@ export default function Trabajadores() {
         const avgDaily = income / daysInMonth
         const avgPerCar = cars > 0 ? income / cars : 0
 
-        return { ...w, realSalary, income, cars, workerIncidents, totalDiscounts, totalOvertime, finalPay, ratio, avgDaily, avgPerCar }
+        // base_salary/weekly_hours después del spread: el sueldo mostrado debe ser
+        // el del mes seleccionado, no el vigente en la tabla `workers`.
+        return { ...w, base_salary, weekly_hours, realSalary, income, cars, workerIncidents, totalDiscounts, totalOvertime, finalPay, ratio, avgDaily, avgPerCar }
       })
   }, [workers, activeTickets, activeIncidents, month, year, workerMonthlyConfigs])
 
@@ -621,16 +623,21 @@ export default function Trabajadores() {
     return workers
       .filter(w => w.active || leftThisMonth(w))
       .map(w => {
+        // Sueldo del mes seleccionado, no el vigente en la tabla `workers`: si no,
+        // la nómina de un mes cerrado cambiaría al ajustar un salario.
+        const { base_salary, weekly_hours } = getWorkerSalary(w)
         const realSalary = leftThisMonth(w)
-          ? calcProratedSalary(w.base_salary, w.weekly_hours, year, month, w.terminated_at, w.hire_date)
-          : calcRealSalary(w.base_salary, w.weekly_hours)
+          ? calcProratedSalary(base_salary, weekly_hours, year, month, w.terminated_at, w.hire_date)
+          : calcRealSalary(base_salary, weekly_hours)
         const workerIncidents = activeIncidents.filter(i => i.worker_id === w.id)
         const totalDiscounts = workerIncidents.filter(i => i.apply_discount && !i.is_addition).reduce((s, i) => s + (i.discount_amount || 0), 0)
         const totalOvertime  = workerIncidents.filter(i => i.apply_discount && i.is_addition).reduce((s, i) => s + (i.discount_amount || 0), 0)
         const finalPay = realSalary - totalDiscounts + totalOvertime
-        return { ...w, realSalary, workerIncidents, totalDiscounts, totalOvertime, finalPay }
+        // base_salary/weekly_hours van después del spread para que la fila y el
+        // editor muestren el sueldo del mes y no el global.
+        return { ...w, base_salary, weekly_hours, realSalary, workerIncidents, totalDiscounts, totalOvertime, finalPay }
       })
-  }, [workers, activeIncidents, month, year])
+  }, [workers, activeIncidents, month, year, workerMonthlyConfigs])
 
   const totalPayroll   = payrollData.reduce((s, w) => s + w.finalPay, 0)
   const totalNominaDisc = payrollData.reduce((s, w) => s + w.totalDiscounts, 0)

@@ -504,6 +504,19 @@ export function AppProvider({ children }) {
       dispatch({ type: 'UPDATE_WORKER', payload: updated })
       return updated
     }
+    // Antes de cambiar el sueldo se congela el vigente en los meses que aún no
+    // tienen uno propio: si no, esos meses heredarían el nuevo importe y la
+    // nómina ya cerrada cambiaría sola.
+    const cambiaSueldo = data.base_salary !== undefined || data.weekly_hours !== undefined
+    if (cambiaSueldo) {
+      const anterior = state.workers.find(x => x.id === id)
+      if (anterior) {
+        await supabase.from('worker_monthly_config')
+          .update({ base_salary: anterior.base_salary, weekly_hours: anterior.weekly_hours })
+          .eq('worker_id', id).is('base_salary', null)
+      }
+    }
+
     const { data: w, error } = await supabase.from('workers').update(data).eq('id', id).select().single()
     if (error) throw error
     localStorage.removeItem(STATIC_CACHE_KEY)
@@ -791,7 +804,25 @@ export function AppProvider({ children }) {
 
   const saveWorkerMonthlyConfig = async ({ worker_id, year, month, base_salary, weekly_hours, daily_goal }) => {
     if (IS_DEMO) return
-    const payload = { worker_id, year, month, base_salary, weekly_hours, daily_goal, updated_at: new Date().toISOString() }
+    const payload = { worker_id, year, month, updated_at: new Date().toISOString() }
+    if (daily_goal   !== undefined) payload.daily_goal   = daily_goal
+    if (base_salary  !== undefined) payload.base_salary  = base_salary
+    if (weekly_hours !== undefined) payload.weekly_hours = weekly_hours
+
+    // Una fila sin sueldo propio hereda el de la tabla `workers`, así que cada
+    // aumento reescribiría en retroactivo todos los meses ya cerrados. Al crear
+    // la fila se congela el sueldo vigente para que el mes quede autocontenido.
+    if (payload.base_salary === undefined || payload.weekly_hours === undefined) {
+      const { data: prev } = await supabase.from('worker_monthly_config')
+        .select('base_salary, weekly_hours')
+        .eq('worker_id', worker_id).eq('year', year).eq('month', month).maybeSingle()
+      const w = state.workers.find(x => x.id === worker_id)
+      if (payload.base_salary === undefined)
+        payload.base_salary = prev?.base_salary ?? w?.base_salary ?? null
+      if (payload.weekly_hours === undefined)
+        payload.weekly_hours = prev?.weekly_hours ?? w?.weekly_hours ?? null
+    }
+
     const { error } = await supabase.from('worker_monthly_config').upsert(payload, { onConflict: 'worker_id,year,month' })
     if (error) throw error
   }

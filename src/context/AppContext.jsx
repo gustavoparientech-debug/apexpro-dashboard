@@ -858,6 +858,11 @@ export function AppProvider({ children }) {
         .reduce((s, p) => s + Number(p.amount || 0), 0)
       const ingresos = delMes.reduce((s, t) => s + Number(t.price_charged || 0), 0)
 
+      // Un mes sin tickets y sin costos registrados es un mes en el que la
+      // empresa no operó (o del que no hay datos). Incluirlo pintaría una
+      // planilla y una pérdida que nunca existieron, así que se omite.
+      if (!delMes.length && !costs) continue
+
       // Planilla del mes con el sueldo congelado de ese mes; si el mes no lo
       // tiene, se usa el vigente. Sin esto la utilidad saldría inflada.
       const planilla = state.workers.filter(w => w.active).reduce((s, w) => {

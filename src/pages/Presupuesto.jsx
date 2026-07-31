@@ -439,6 +439,36 @@ export default function Presupuesto() {
     saveCatMeta(next)
   }
 
+  // ── Stock ────────────────────────────────────────────────────────────────
+  // Se guarda como override en `cat_meta` (app_settings), que es global: al
+  // marcarlo el admin, el aviso lo ve cualquiera que abra Presupuesto,
+  // incluidos los trabajadores. Sin dato = disponible.
+  function StockBadge({ item }) {
+    if (item.inStock !== false) return null
+    return (
+      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+        SIN STOCK
+      </span>
+    )
+  }
+
+  function StockToggle({ item }) {
+    const disponible = item.inStock !== false
+    return (
+      <div className="flex items-center gap-1.5 pt-0.5">
+        <span className="text-[10px] text-gray-400 mr-0.5">📦 Stock:</span>
+        {[{ v: true, label: 'Disponible' }, { v: false, label: 'Sin stock' }].map(({ v, label }) => (
+          <button key={String(v)} onClick={() => updateServiceField(item.id, 'inStock', v)}
+            className={`text-[10px] px-2 py-0.5 rounded-full border font-semibold transition-colors ${
+              disponible === v
+                ? (v ? 'bg-green-500 border-green-500 text-white' : 'bg-amber-500 border-amber-500 text-white')
+                : 'bg-white dark:bg-gray-800 text-gray-500 border-gray-300 dark:border-gray-600 hover:border-gray-400'
+            }`}>{label}</button>
+        ))}
+      </div>
+    )
+  }
+
   async function persistSavedQuotes(list) {
     setSavedQuotes(list)
     await supabase.from('app_settings').upsert(
@@ -1498,7 +1528,9 @@ export default function Presupuesto() {
               {isPol ? (
                 // Polarizados: agrupados por marca
                 Object.entries(
-                  POLARIZADOS_DATA.reduce((acc, s) => {
+                  // `data` ya trae los overrides aplicados (nombre, stock, precio);
+                  // agrupar desde POLARIZADOS_DATA los ignoraría.
+                  data.reduce((acc, s) => {
                     if (!acc[s.brand]) acc[s.brand] = []
                     acc[s.brand].push(s)
                     return acc
@@ -1520,7 +1552,10 @@ export default function Presupuesto() {
                           {catSelected[s.id] && <Check className="w-2.5 h-2.5 text-white" />}
                         </div>
                         <div className="flex-1">
-                          <p className="text-sm font-medium text-gray-800 dark:text-gray-200">{s.cobertura}</p>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <p className="text-sm font-medium text-gray-800 dark:text-gray-200">{s.cobertura}</p>
+                            <StockBadge item={s} />
+                          </div>
                           <p className="text-xs text-gray-500 dark:text-gray-400">{s.desc}</p>
                         </div>
                         <div className="flex-shrink-0 flex flex-col items-end gap-0.5" onClick={e => e.stopPropagation()}>
@@ -1531,6 +1566,14 @@ export default function Presupuesto() {
                           )}
                         </div>
                       </button>
+                      {canAdmin && (
+                        <div className="border-t border-gray-100 dark:border-gray-700 px-3 py-2 space-y-1 bg-gray-50 dark:bg-gray-800/40" onClick={e => e.stopPropagation()}>
+                          <EditableTextCell label="Marca" value={s.brand} onSave={v => updateServiceField(s.id, 'brand', v)} />
+                          <EditableTextCell label="Cobertura" value={s.cobertura} onSave={v => updateServiceField(s.id, 'cobertura', v)} />
+                          <EditableTextCell label="Descripción" value={s.desc} onSave={v => updateServiceField(s.id, 'desc', v)} />
+                          <StockToggle item={s} />
+                        </div>
+                      )}
                       {catSelected[s.id] && (
                         <div className="border-t border-gray-100 dark:border-gray-700 px-3 py-1.5 flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
                           <span className="text-[10px] text-gray-400 mr-0.5">⏱ Tiempo:</span>
@@ -1588,6 +1631,7 @@ export default function Presupuesto() {
                         <div className="p-3">
                           <div className="flex items-center gap-2 mb-2">
                             <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 flex-1">{s.name}</p>
+                            <StockBadge item={s} />
                             {s.subcatGroup && <span className="text-[10px] text-indigo-500 font-semibold">{s.subcatGroup}</span>}
                             {s.desc && <p className="text-xs text-gray-400 truncate">{s.desc}</p>}
                           </div>
@@ -1630,6 +1674,7 @@ export default function Presupuesto() {
                                 }`}>{s.tag}</span>
                               )}
                               {s.time && <span className="text-[10px] text-gray-400">⏱ {s.time}</span>}
+                              <StockBadge item={s} />
                             </div>
                             <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 leading-tight">{s.desc}</p>
                           </div>
@@ -1696,6 +1741,7 @@ export default function Presupuesto() {
                                 <EditableTextCell label="Nombre" value={s.name} onSave={v => updateServiceField(s.id, 'name', v)} />
                                 <EditableTextCell label="Descripción" value={s.desc} onSave={v => updateServiceField(s.id, 'desc', v)} />
                                 <EditableTextCell label="Tiempo (ej: 50 min)" value={s.time} onSave={v => updateServiceField(s.id, 'time', v || null)} />
+                                <StockToggle item={s} />
                                 {isSv && (
                                   <button onClick={() => openSubcatConfig(s)}
                                     className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border transition-all ${

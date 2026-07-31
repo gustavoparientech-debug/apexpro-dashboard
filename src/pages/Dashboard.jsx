@@ -498,7 +498,32 @@ export default function Dashboard() {
 
   const DEFAULT_PANEL_ORDER = ['kpis','tendencia','mix','clientes','tiempos','progreso','estadisticas','cobros','gastos','gastos_personal','ranking','bonos','grafico']
   const [panelOrder, setPanelOrder] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('apexpro_panel_order') || 'null') || DEFAULT_PANEL_ORDER } catch { return DEFAULT_PANEL_ORDER }
+    try {
+      const saved = JSON.parse(localStorage.getItem('apexpro_panel_order') || 'null')
+      if (!Array.isArray(saved) || !saved.length) return DEFAULT_PANEL_ORDER
+
+      // El orden guardado se respeta, pero hay que reconciliarlo: descartar los
+      // paneles que ya no existen y añadir los que se agregaron después de que
+      // el usuario guardó su orden. Sin esto, quien alguna vez reordenó paneles
+      // nunca llega a ver los nuevos.
+      const vigentes  = saved.filter(id => DEFAULT_PANEL_ORDER.includes(id))
+      const faltantes = DEFAULT_PANEL_ORDER.filter(id => !vigentes.includes(id))
+      if (!faltantes.length) return vigentes
+
+      const merged = [...vigentes]
+      faltantes.forEach(id => {
+        // Insertarlo justo detrás del panel que lo precede por defecto, para
+        // que caiga cerca de donde fue diseñado y no siempre al final.
+        const pos = DEFAULT_PANEL_ORDER.indexOf(id)
+        let idx = merged.length
+        for (let i = pos - 1; i >= 0; i--) {
+          const at = merged.indexOf(DEFAULT_PANEL_ORDER[i])
+          if (at !== -1) { idx = at + 1; break }
+        }
+        merged.splice(idx, 0, id)
+      })
+      return merged
+    } catch { return DEFAULT_PANEL_ORDER }
   })
   const [editingLayout, setEditingLayout] = useState(false)
 

@@ -265,12 +265,24 @@ export default function Configuracion() {
   const [costs, setCosts] = useState({ utility_goal: 2000 })
   const [loadingMonthData, setLoadingMonthData] = useState(false)
 
+  // Registro de monthly_costs del mes seleccionado. Devuelve null si ese mes aún
+  // no tiene fila — nunca el registro de otro mes, que es lo que provocaba que
+  // guardar un mes sobreescribiera al anterior.
+  async function loadSelectedMonthCosts() {
+    const mc = isCurrentMonth ? monthlyCosts : await fetchMonthlyCosts(selYear, selMonth)
+    return (mc && mc.month === selMonth && mc.year === selYear) ? mc : null
+  }
+
   // Carga costos y metas/reparto del mes seleccionado
   useEffect(() => {
     async function loadMonthData() {
       setLoadingMonthData(true)
       // Costos del mes seleccionado (desde DB si no es el mes actual)
-      let mc = isCurrentMonth ? monthlyCosts : await fetchMonthlyCosts(selYear, selMonth)
+      const mc = await loadSelectedMonthCosts()
+
+      // Todo el estado del mes se reasigna en cada carga — incluso cuando el mes
+      // no tiene datos guardados. Si alguno se dejara sin asignar, conservaría el
+      // valor del mes anterior y se guardaría en el mes equivocado.
       if (mc) {
         const saved = mc.cost_items
         if (saved && Array.isArray(saved) && saved.length > 0) {
@@ -282,22 +294,17 @@ export default function Configuracion() {
           if (items.length === 0) items.push({ name: 'Alquiler', amount: 2700 }, { name: 'Insumos', amount: 800 })
           setCostItems(items)
         }
-        setCosts(c => ({ ...c, utility_goal: mc.utility_goal || 2000 }))
-        // Cargar reparto guardado en monthly_costs
-        if (mc.reparto) {
-          setRepartoMonto(mc.reparto.monto ?? '')
-          setRepartoPorc(mc.reparto.porcentajes ?? {})
-        }
-        // Cargar metas del mes desde monthly_costs.worker_goals
-        if (mc.worker_goals) {
-          setWorkerGoals(mc.worker_goals)
-        }
+        setCosts({ utility_goal: mc.utility_goal || 2000 })
+        setRepartoMonto(mc.reparto?.monto ?? '')
+        setRepartoPorc(mc.reparto?.porcentajes ?? {})
+        setWorkerGoals(mc.worker_goals ?? {})
       } else {
-        // Mes sin datos: usar defaults / valores del mes actual
+        // Mes sin datos guardados: partir de valores por defecto, en blanco.
         setCostItems([{ name: 'Alquiler', amount: 2700 }, { name: 'Insumos', amount: 800 }])
         setCosts({ utility_goal: 2000 })
         setRepartoMonto('')
         setRepartoPorc({})
+        setWorkerGoals({})
       }
       // Cargar worker_monthly_config del mes seleccionado
       const configs = await fetchWorkerMonthlyConfigs(selYear, selMonth)
@@ -418,8 +425,7 @@ export default function Configuracion() {
       }))
       setWorkerGoals(prev => ({ ...prev, ...newGoals }))
       // Guardar reparto en monthly_costs del mes
-      const mc = isCurrentMonth ? monthlyCosts : await fetchMonthlyCosts(selYear, selMonth)
-      const mcData = mc || {}
+      const mcData = (await loadSelectedMonthCosts()) || {}
       await saveMonthlyCosts({
         ...mcData,
         month: selMonth, year: selYear,
@@ -459,7 +465,7 @@ export default function Configuracion() {
       // Persistir worker_goals en monthly_costs del mes
       const goalMap = {}
       activeWorkers.forEach(w => { goalMap[w.id] = parseFloat(workerGoals[w.id]) || null })
-      const mc = isCurrentMonth ? monthlyCosts : await fetchMonthlyCosts(selYear, selMonth)
+      const mc = await loadSelectedMonthCosts()
       await saveMonthlyCosts({ ...(mc || {}), month: selMonth, year: selYear, worker_goals: goalMap })
       toast.success(`Metas de ${monthName(selMonth)} ${selYear} guardadas`)
     } catch { toast.error('Error al guardar metas') }
@@ -548,7 +554,7 @@ export default function Configuracion() {
     setSavingCosts(true)
     try {
       const items = costItems.map(i => ({ name: i.name.trim(), amount: parseFloat(i.amount) || 0 }))
-      const existingMc = isCurrentMonth ? monthlyCosts : await fetchMonthlyCosts(selYear, selMonth)
+      const existingMc = await loadSelectedMonthCosts()
       await saveMonthlyCosts({
         ...(existingMc || {}),
         month: selMonth,

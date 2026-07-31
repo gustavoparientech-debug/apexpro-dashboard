@@ -798,22 +798,34 @@ export function AppProvider({ children }) {
 
   // ─── Monthly Costs ──────────────────────────────────────────────────────────
   const saveMonthlyCosts = async (data) => {
+    // La fila destino se resuelve por (month, year). Arrastrar `id`/`created_at`
+    // del registro que venía cargado en pantalla haría que se intente reescribir
+    // la clave primaria de otro mes, así que se descartan siempre.
+    const { id: _id, created_at: _createdAt, ...payload } = data
+
     if (IS_DEMO) {
-      dispatch({ type: 'SET_MONTHLY_COSTS', payload: data })
-      return data
+      dispatch({ type: 'SET_MONTHLY_COSTS', payload })
+      return payload
     }
-    const { data: existing } = await supabase.from('monthly_costs').select('id').eq('month', data.month).eq('year', data.year).single()
+    const { data: existing } = await supabase.from('monthly_costs')
+      .select('id').eq('month', payload.month).eq('year', payload.year).maybeSingle()
     let result
     if (existing) {
-      const { data: r, error } = await supabase.from('monthly_costs').update(data).eq('id', existing.id).select().single()
+      const { data: r, error } = await supabase.from('monthly_costs').update(payload).eq('id', existing.id).select().single()
       if (error) throw error
       result = r
     } else {
-      const { data: r, error } = await supabase.from('monthly_costs').insert(data).select().single()
+      const { data: r, error } = await supabase.from('monthly_costs').insert(payload).select().single()
       if (error) throw error
       result = r
     }
-    dispatch({ type: 'SET_MONTHLY_COSTS', payload: result })
+    // `state.monthlyCosts` representa el mes en curso (lo consumen Dashboard,
+    // Nómina, etc.). Guardar otro mes no debe sobreescribirlo: si lo hiciera,
+    // al volver al mes actual se mostrarían los datos del mes editado.
+    const { month: curM, year: curY } = currentMonthYear()
+    if (result.month === curM && result.year === curY) {
+      dispatch({ type: 'SET_MONTHLY_COSTS', payload: result })
+    }
     return result
   }
 

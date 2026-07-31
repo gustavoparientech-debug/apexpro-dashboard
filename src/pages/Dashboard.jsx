@@ -473,7 +473,7 @@ function RankingPanel({ ranking, workingDaysElapsed }) {
 }
 
 export default function Dashboard() {
-  const { tickets, dailySummaries, expenses, workers, services, incidents, monthlyCosts, bonuses, addBonus, deleteBonus, loading, loadData, invalidateAllCache, vehicleTypes, fetchCasualPayments, fetchBusinessTrend, fetchWorkerMonthlyConfigs } = useApp()
+  const { tickets, dailySummaries, expenses, workers, services, incidents, monthlyCosts, bonuses, addBonus, deleteBonus, loading, loadData, invalidateAllCache, vehicleTypes, fetchCasualPayments, fetchBusinessTrend, fetchWorkerMonthlyConfigs, fetchMonthlyCosts } = useApp()
   const { month: cm, year: cy } = currentMonthYear()
   const [selMonth, setSelMonth] = useState(cm)
   const [selYear,  setSelYear]  = useState(cy)
@@ -546,6 +546,15 @@ export default function Dashboard() {
   useEffect(() => {
     fetchCasualPayments(selYear, selMonth).then(setCasualPayments)
   }, [selMonth, selYear])
+
+  // Costos del mes seleccionado. `monthlyCosts` del contexto representa siempre
+  // el mes en curso, así que al navegar a otro mes se mostrarían costos ajenos.
+  const [selectedCosts, setSelectedCosts] = useState(null)
+  useEffect(() => {
+    if (isCurrentMonth) { setSelectedCosts(monthlyCosts); return }
+    fetchMonthlyCosts(selYear, selMonth).then(mc =>
+      setSelectedCosts(mc && mc.month === selMonth && mc.year === selYear ? mc : null))
+  }, [selMonth, selYear, isCurrentMonth, monthlyCosts])
 
   // Sueldos congelados del mes: sin esto la planilla del dashboard usaría el
   // sueldo vigente y no cuadraría con la pestaña Nómina.
@@ -630,11 +639,11 @@ export default function Dashboard() {
     const workerExpTotal  = periodExpenses.reduce((s, e) => s + (e.amount || 0), 0)
     const totalIncome     = ticketIncome + summaryIncome
 
-    const utilityGoal = monthlyCosts?.utility_goal || 2000
-    const costItemsData = monthlyCosts?.cost_items
+    const utilityGoal = selectedCosts?.utility_goal || 2000
+    const costItemsData = selectedCosts?.cost_items
     const fixedItemsTotal = (costItemsData && Array.isArray(costItemsData) && costItemsData.length > 0)
       ? costItemsData.reduce((s, i) => s + (i.amount || 0), 0)
-      : (monthlyCosts?.rent || 0) + (monthlyCosts?.supplies || 0)
+      : (selectedCosts?.rent || 0) + (selectedCosts?.supplies || 0)
     const payrollTotal = workers.filter(w => w.active).reduce((s, w) => {
       // Sueldo del mes seleccionado, no el vigente en `workers`.
       const cfg = workerMonthlyConfigs.find(c => c.worker_id === w.id)
@@ -647,8 +656,8 @@ export default function Dashboard() {
       return s + real - disc + overtime
     }, 0) + casualPayments.reduce((s, p) => s + Number(p.amount || 0), 0)
     const monthBonusAmt = bonuses.filter(b => b.date?.startsWith(prefix)).reduce((s, b) => s + b.amount, 0)
-    const rent = monthlyCosts?.rent || 0
-    const supplies = monthlyCosts?.supplies || 0
+    const rent = selectedCosts?.rent || 0
+    const supplies = selectedCosts?.supplies || 0
     const totalCosts  = fixedItemsTotal + payrollTotal + monthBonusAmt + workerExpTotal
 
     const monthWorkingDaysTotal = getWorkingDaysInMonth(selYear, selMonth)
@@ -722,7 +731,7 @@ export default function Dashboard() {
       workerRanking, monthBonusAmt, workerExpTotal, periodExpenses, costItemsData,
       proportionalFixed, proportionRatio, avgTimeByType,
     }
-  }, [tickets, dailySummaries, expenses, pastTickets, pastSummaries, pastExpenses, workers, services, incidents, monthlyCosts, bonuses, casualPayments, workerMonthlyConfigs, prefix, selMonth, selYear, isCurrentMonth, rangeFrom, rangeTo, hasRange])
+  }, [tickets, dailySummaries, expenses, pastTickets, pastSummaries, pastExpenses, workers, services, incidents, selectedCosts, bonuses, casualPayments, workerMonthlyConfigs, prefix, selMonth, selYear, isCurrentMonth, rangeFrom, rangeTo, hasRange])
 
 
   const semaforoClass = {

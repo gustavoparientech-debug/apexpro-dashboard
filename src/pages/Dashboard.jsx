@@ -473,7 +473,7 @@ function RankingPanel({ ranking, workingDaysElapsed }) {
 }
 
 export default function Dashboard() {
-  const { tickets, dailySummaries, expenses, workers, services, incidents, monthlyCosts, bonuses, addBonus, deleteBonus, loading, loadData, invalidateAllCache, vehicleTypes } = useApp()
+  const { tickets, dailySummaries, expenses, workers, services, incidents, monthlyCosts, bonuses, addBonus, deleteBonus, loading, loadData, invalidateAllCache, vehicleTypes, fetchCasualPayments } = useApp()
   const { month: cm, year: cy } = currentMonthYear()
   const [selMonth, setSelMonth] = useState(cm)
   const [selYear,  setSelYear]  = useState(cy)
@@ -541,6 +541,12 @@ export default function Dashboard() {
   const prefix = `${selYear}-${String(selMonth).padStart(2, '0')}`
   const lastDayOfMonth = new Date(selYear, selMonth, 0).getDate()
 
+  // Pagos a trabajadores eventuales del mes — cuentan como mano de obra.
+  const [casualPayments, setCasualPayments] = useState([])
+  useEffect(() => {
+    fetchCasualPayments(selYear, selMonth).then(setCasualPayments)
+  }, [selMonth, selYear])
+
   const data = useMemo(() => {
     const dateFilter = (date) => {
       if (hasRange) return date >= rangeFrom && date <= rangeTo
@@ -588,7 +594,7 @@ export default function Dashboard() {
       const overtime = incidents.filter(i => i.worker_id === w.id && i.apply_discount && i.is_addition && i.date?.startsWith(prefix))
         .reduce((d, i) => d + (i.discount_amount || 0), 0)
       return s + real - disc + overtime
-    }, 0)
+    }, 0) + casualPayments.reduce((s, p) => s + Number(p.amount || 0), 0)
     const monthBonusAmt = bonuses.filter(b => b.date?.startsWith(prefix)).reduce((s, b) => s + b.amount, 0)
     const rent = monthlyCosts?.rent || 0
     const supplies = monthlyCosts?.supplies || 0
@@ -665,7 +671,7 @@ export default function Dashboard() {
       workerRanking, monthBonusAmt, workerExpTotal, periodExpenses, costItemsData,
       proportionalFixed, proportionRatio, avgTimeByType,
     }
-  }, [tickets, dailySummaries, expenses, pastTickets, pastSummaries, pastExpenses, workers, services, incidents, monthlyCosts, bonuses, prefix, selMonth, selYear, isCurrentMonth, rangeFrom, rangeTo, hasRange])
+  }, [tickets, dailySummaries, expenses, pastTickets, pastSummaries, pastExpenses, workers, services, incidents, monthlyCosts, bonuses, casualPayments, prefix, selMonth, selYear, isCurrentMonth, rangeFrom, rangeTo, hasRange])
 
 
   const semaforoClass = {

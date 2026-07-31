@@ -286,7 +286,9 @@ const MONTHS_AHEAD = 12
 
 export default function Trabajadores() {
   const { workers, tickets, incidents, services, addWorker, updateWorker, addIncident, updateIncident, deleteIncident, addExpense,
-          fetchWorkerMonthlyConfigs, saveWorkerMonthlyConfig } = useApp()
+          fetchWorkerMonthlyConfigs, saveWorkerMonthlyConfig,
+          fetchCasualWorkers, addCasualWorker, fetchCasualPayments,
+          addCasualPayment, deleteCasualPayment } = useApp()
   const { month: curMonth, year: curYear } = currentMonthYear()
   const [selMonth, setSelMonth] = useState(curMonth)
   const [selYear,  setSelYear]  = useState(curYear)
@@ -310,6 +312,62 @@ export default function Trabajadores() {
   }
 
   const [workerMonthlyConfigs, setWorkerMonthlyConfigs] = useState([])
+
+  // ── Trabajadores eventuales (fuera de planilla) ──────────────────────────
+  const [casualWorkers, setCasualWorkers]   = useState([])
+  const [casualPayments, setCasualPayments] = useState([])
+  const [casualForm, setCasualForm] = useState({ worker: '', nuevo: '', date: '', amount: '', concept: '' })
+  const [savingCasual, setSavingCasual] = useState(false)
+
+  useEffect(() => { fetchCasualWorkers().then(setCasualWorkers) }, [])
+  // Los pagos son por mes: se recargan al cambiar de mes para que nunca se
+  // arrastren los del mes anterior.
+  useEffect(() => {
+    fetchCasualPayments(selYear, selMonth).then(setCasualPayments)
+  }, [selMonth, selYear])
+
+  const totalCasual = casualPayments.reduce((s, p) => s + Number(p.amount || 0), 0)
+
+  async function handleAddCasualPayment() {
+    const monto = parseFloat(casualForm.amount)
+    if (!monto || monto <= 0) { toast.error('Indica el monto pagado'); return }
+    const nombreNuevo = casualForm.nuevo.trim()
+    if (!casualForm.worker && !nombreNuevo) { toast.error('Elige o escribe el nombre del eventual'); return }
+    setSavingCasual(true)
+    try {
+      // Si escribió un nombre nuevo, se crea la persona para poder reutilizarla.
+      let workerId = casualForm.worker
+      if (nombreNuevo) {
+        const creado = await addCasualWorker({ name: nombreNuevo })
+        workerId = creado.id
+        setCasualWorkers(ws => [...ws, creado].sort((a, b) => a.name.localeCompare(b.name)))
+      }
+      // Sin fecha explícita se usa el día 1 del mes que se está viendo, para que
+      // el pago caiga en el mes correcto aunque se registre después.
+      const fecha = casualForm.date || `${selYear}-${String(selMonth).padStart(2, '0')}-01`
+      const pago = await addCasualPayment({
+        casual_worker_id: workerId, date: fecha,
+        amount: monto, concept: casualForm.concept,
+      })
+      // Solo se muestra si cae en el mes visible.
+      if (pago.date >= `${selYear}-${String(selMonth).padStart(2, '0')}-01`) {
+        setCasualPayments(ps => [...ps, pago].sort((a, b) => a.date.localeCompare(b.date)))
+      }
+      setCasualForm({ worker: '', nuevo: '', date: '', amount: '', concept: '' })
+      toast.success('Pago registrado')
+    } catch {
+      toast.error('Error al registrar el pago')
+    }
+    setSavingCasual(false)
+  }
+
+  async function handleDeleteCasualPayment(id) {
+    try {
+      await deleteCasualPayment(id)
+      setCasualPayments(ps => ps.filter(p => p.id !== id))
+      toast.success('Pago eliminado')
+    } catch { toast.error('Error al eliminar') }
+  }
   const [pastMonthData, setPastMonthData] = useState(null) // { tickets, incidents } para meses anteriores
 
   useEffect(() => {
@@ -1067,7 +1125,12 @@ export default function Trabajadores() {
             </div>
             <div className="card text-center border-2 border-red-200 dark:border-red-900">
               <p className="text-xs text-red-600 dark:text-red-400 mb-1 font-medium">Total a pagar</p>
-              <p className="text-xl font-bold text-red-600 dark:text-red-400">{formatMoney(totalPayroll)}</p>
+              <p className="text-xl font-bold text-red-600 dark:text-red-400">{formatMoney(totalPayroll + totalCasual)}</p>
+              {totalCasual > 0 && (
+                <p className="text-[10px] text-gray-400 mt-0.5">
+                  incluye {formatMoney(totalCasual)} de eventuales
+                </p>
+              )}
             </div>
           </div>
 
@@ -1144,6 +1207,65 @@ export default function Trabajadores() {
                 </tr>
               </tbody>
             </table>
+          </div>
+
+          {/* ── Trabajadores eventuales ─────────────────────────────────── */}
+          <div className="card">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">Trabajadores eventuales</p>
+                <p className="text-[11px] text-gray-400">Pagos por día o trabajo puntual, fuera de planilla</p>
+              </div>
+              {totalCasual > 0 && (
+                <p className="text-base font-bold text-red-600 dark:text-red-400">{formatMoney(totalCasual)}</p>
+              )}
+            </div>
+
+            {casualPayments.length > 0 && (
+              <div className="space-y-1.5 mb-3">
+                {casualPayments.map(p => (
+                  <div key={p.id} className="flex items-center gap-2 py-1.5 border-b border-gray-50 dark:border-gray-800 last:border-0">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-gray-800 dark:text-gray-200">{p.casual_workers?.name}</p>
+                      <p className="text-[10px] text-gray-400">
+                        {new Date(p.date + 'T00:00:00').toLocaleDateString('es-PE', { day: '2-digit', month: 'short' })}
+                        {p.concept ? ` · ${p.concept}` : ''}
+                      </p>
+                    </div>
+                    <p className="text-sm font-bold text-gray-900 dark:text-white">{formatMoney(p.amount)}</p>
+                    <button onClick={() => handleDeleteCasualPayment(p.id)}
+                      className="text-gray-300 hover:text-red-500 transition-colors" title="Eliminar pago">
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Alta de pago */}
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 pt-2 border-t border-gray-100 dark:border-gray-800">
+              <select value={casualForm.worker}
+                onChange={e => setCasualForm(f => ({ ...f, worker: e.target.value, nuevo: '' }))}
+                className="input text-sm py-1.5 col-span-2 sm:col-span-1">
+                <option value="">— Persona —</option>
+                {casualWorkers.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+              </select>
+              <input className="input text-sm py-1.5 col-span-2 sm:col-span-1" placeholder="o nombre nuevo"
+                value={casualForm.nuevo}
+                onChange={e => setCasualForm(f => ({ ...f, nuevo: e.target.value, worker: '' }))} />
+              <input type="date" className="input text-sm py-1.5" value={casualForm.date}
+                onChange={e => setCasualForm(f => ({ ...f, date: e.target.value }))} />
+              <input type="number" min="0" className="input text-sm py-1.5" placeholder="S/ monto"
+                value={casualForm.amount}
+                onChange={e => setCasualForm(f => ({ ...f, amount: e.target.value }))} />
+              <input className="input text-sm py-1.5 col-span-2 sm:col-span-1" placeholder="Concepto (opcional)"
+                value={casualForm.concept}
+                onChange={e => setCasualForm(f => ({ ...f, concept: e.target.value }))} />
+            </div>
+            <button onClick={handleAddCasualPayment} disabled={savingCasual}
+              className="btn-primary text-sm py-2 mt-2 w-full sm:w-auto sm:px-6">
+              {savingCasual ? 'Guardando...' : '+ Registrar pago'}
+            </button>
           </div>
 
           {/* Desglose incidencias */}

@@ -796,6 +796,55 @@ export function AppProvider({ children }) {
     if (error) throw error
   }
 
+  // ─── Trabajadores eventuales ────────────────────────────────────────────────
+  const fetchCasualWorkers = async () => {
+    if (IS_DEMO) return []
+    const { data } = await supabase.from('casual_workers').select('*').order('name')
+    return data || []
+  }
+
+  const addCasualWorker = async ({ name, phone, notes }) => {
+    if (IS_DEMO) return null
+    const { data, error } = await supabase.from('casual_workers')
+      .insert({ name: name.trim(), phone: phone?.trim() || null, notes: notes?.trim() || null })
+      .select().single()
+    if (error) throw error
+    return data
+  }
+
+  const updateCasualWorker = async (id, patch) => {
+    if (IS_DEMO) return
+    const { error } = await supabase.from('casual_workers').update(patch).eq('id', id)
+    if (error) throw error
+  }
+
+  // Pagos del mes indicado — el rango se arma igual que en el resto de la app.
+  const fetchCasualPayments = async (year, month) => {
+    if (IS_DEMO) return []
+    const start = `${year}-${String(month).padStart(2, '0')}-01`
+    const nextM = month === 12 ? 1 : month + 1
+    const nextY = month === 12 ? year + 1 : year
+    const end   = `${nextY}-${String(nextM).padStart(2, '0')}-01`
+    const { data } = await supabase.from('casual_payments')
+      .select('*, casual_workers(name)').gte('date', start).lt('date', end).order('date')
+    return data || []
+  }
+
+  const addCasualPayment = async ({ casual_worker_id, date, amount, concept, paid = true }) => {
+    if (IS_DEMO) return null
+    const { data, error } = await supabase.from('casual_payments')
+      .insert({ casual_worker_id, date, amount: parseFloat(amount) || 0, concept: concept?.trim() || null, paid })
+      .select('*, casual_workers(name)').single()
+    if (error) throw error
+    return data
+  }
+
+  const deleteCasualPayment = async (id) => {
+    if (IS_DEMO) return
+    const { error } = await supabase.from('casual_payments').delete().eq('id', id)
+    if (error) throw error
+  }
+
   // ─── Monthly Costs ──────────────────────────────────────────────────────────
   const saveMonthlyCosts = async (data) => {
     // La fila destino se resuelve por (month, year). Arrastrar `id`/`created_at`
@@ -926,6 +975,8 @@ export function AppProvider({ children }) {
       addBonus, deleteBonus,
       saveMonthlyCosts,
       fetchMonthlyCosts, saveWorkerMonthlyConfig, fetchWorkerMonthlyConfigs,
+      fetchCasualWorkers, addCasualWorker, updateCasualWorker,
+      fetchCasualPayments, addCasualPayment, deleteCasualPayment,
       resetDemoData,
     }}>
       {children}

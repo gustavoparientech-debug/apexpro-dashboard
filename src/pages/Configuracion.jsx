@@ -235,7 +235,7 @@ function VehicleTypeRow({ vt, onSave, onDelete }) {
 
 export default function Configuracion() {
   const { services, vehicleTypes, monthlyCosts, workers, incidents, extrasCatalog,
-          addService, updateService, saveMonthlyCosts, fetchMonthlyCosts,
+          addService, updateService, saveMonthlyCosts, fetchMonthlyCosts, fetchCasualPayments,
           saveWorkerMonthlyConfig, fetchWorkerMonthlyConfigs, updateWorker,
           addVehicleType, updateVehicleType, deleteVehicleType,
           addExtra, updateExtra, deleteExtra } = useApp()
@@ -264,6 +264,12 @@ export default function Configuracion() {
   const [costItems, setCostItems] = useState([])
   const [costs, setCosts] = useState({ utility_goal: 2000 })
   const [loadingMonthData, setLoadingMonthData] = useState(false)
+
+  // Pagos a eventuales del mes seleccionado — se recargan al cambiar de mes.
+  const [casualPayments, setCasualPayments] = useState([])
+  useEffect(() => {
+    fetchCasualPayments(selYear, selMonth).then(setCasualPayments)
+  }, [selMonth, selYear])
 
   // Registro de monthly_costs del mes seleccionado. Devuelve null si ese mes aún
   // no tiene fila — nunca el registro de otro mes, que es lo que provocaba que
@@ -516,8 +522,12 @@ export default function Configuracion() {
     }, 0)
   }, [workers, incidents])
 
+  // Los pagos a eventuales son mano de obra del mes: cuentan en la planilla y
+  // por tanto en la meta de ingresos.
+  const casualTotal = casualPayments.reduce((s, p) => s + Number(p.amount || 0), 0)
+
   const fixedTotal = costItems.reduce((s, i) => s + (parseFloat(i.amount) || 0), 0)
-  const incomeGoal = fixedTotal + payrollTotal + (parseFloat(costs.utility_goal) || 0)
+  const incomeGoal = fixedTotal + payrollTotal + casualTotal + (parseFloat(costs.utility_goal) || 0)
   const workingDaysTotal = getWorkingDaysInMonth(selYear, selMonth)
   const metaDiariaRef = activeWorkers.length > 0 && workingDaysTotal > 0
     ? Math.round(incomeGoal / workingDaysTotal / activeWorkers.length)
@@ -684,7 +694,12 @@ export default function Configuracion() {
         <div className="flex items-center justify-between p-3 bg-red-50 dark:bg-red-900/10 rounded-lg border border-orange-100 dark:border-red-900/30 mb-4">
           <div className="text-sm">
             <span className="text-gray-500">Planilla real del mes: </span>
-            <span className="font-semibold text-gray-800 dark:text-gray-200">{formatMoney(payrollTotal)}</span>
+            <span className="font-semibold text-gray-800 dark:text-gray-200">{formatMoney(payrollTotal + casualTotal)}</span>
+            {casualTotal > 0 && (
+              <span className="text-[11px] text-gray-400 block">
+                incluye {formatMoney(casualTotal)} de eventuales
+              </span>
+            )}
           </div>
           <div className="text-sm text-right">
             <span className="text-gray-500">Meta de ingresos: </span>

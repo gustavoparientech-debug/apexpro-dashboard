@@ -364,6 +364,10 @@ export default function Presupuesto() {
 
   // ── otras categorías ─────────────────────────────────────────────────────
   const [catVehicle, setCatVehicle] = useState('auto')
+  // Lavados usa los vehicle_types del sistema ('otro', 'camioneta_large'...),
+  // mientras cerámico/PPF/polarizados usan 'auto'/'suv'/'pickup'. Compartir un
+  // solo estado hacía que elegir un lavado dejara los otros precios en S/0.
+  const [lavVehicle, setLavVehicle] = useState('auto')
   const [lavSubtype, setLavSubtype] = useState(null)
   const [lavItems, setLavItems] = useState([]) // lavados seleccionados directamente
   const [serviciosVehicle, setServiciosVehicle] = useState('auto')
@@ -487,7 +491,7 @@ export default function Presupuesto() {
       grand_total: grandTot,
       discount_pct: discPct,
       selected, catSelected, serviciosSelected,
-      catVehicle, serviciosVehicle,
+      catVehicle, lavVehicle, serviciosVehicle,
       manualItems, lavItems,
       catDiscountPct, damage,
       created_at: Date.now(),
@@ -537,6 +541,7 @@ export default function Presupuesto() {
     setCatSelected(q.catSelected || {})
     setServiciosSelected(q.serviciosSelected || {})
     setCatVehicle(q.catVehicle || 'auto')
+    setLavVehicle(q.lavVehicle || 'auto')
     setServiciosVehicle(q.serviciosVehicle || 'auto')
     setManualItems(q.manualItems || [])
     setLavItems(q.lavItems || [])
@@ -1402,8 +1407,8 @@ export default function Presupuesto() {
           : (CAT_VEHICLES[category] || [])
         const isPol = category === 'polarizados'
         const isSv = category === 'servicios'
-        const activeVehicle = isSv ? serviciosVehicle : catVehicle
-        const setActiveVehicle = isSv ? setServiciosVehicle : setCatVehicle
+        const activeVehicle = isSv ? serviciosVehicle : isLav ? lavVehicle : catVehicle
+        const setActiveVehicle = isSv ? setServiciosVehicle : isLav ? setLavVehicle : setCatVehicle
         const allowedIds = isLav ? VT_LAVADOS_FILTER[activeVehicle] : null
         const data = (isLav && allowedIds) ? catData.filter(s => !s._divider && allowedIds.includes(s.id)) : catData
 

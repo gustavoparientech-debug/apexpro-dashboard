@@ -827,6 +827,59 @@ export function AppProvider({ children }) {
     if (error) throw error
   }
 
+  // ─── Tendencia del negocio (varios meses) ───────────────────────────────────
+  // El resto de la app carga un solo mes; esto trae la serie histórica que
+  // necesitan los gráficos de avance.
+  const fetchBusinessTrend = async (meses = 6, hastaYear, hastaMonth) => {
+    if (IS_DEMO) return []
+    const fin = new Date(hastaYear, hastaMonth, 1)               // día 1 del mes siguiente
+    const ini = new Date(hastaYear, hastaMonth - meses, 1)       // día 1 del primer mes
+    const iso = d => d.toISOString().slice(0, 10)
+
+    const [{ data: tk }, { data: mc }, { data: cp }, { data: wmc }] = await Promise.all([
+      supabase.from('tickets').select('date, price_charged, vehicle_type, plate, payment_method')
+        .gte('date', iso(ini)).lt('date', iso(fin)),
+      supabase.from('monthly_costs').select('*'),
+      supabase.from('casual_payments').select('date, amount').gte('date', iso(ini)).lt('date', iso(fin)),
+      supabase.from('worker_monthly_config').select('worker_id, year, month, base_salary, weekly_hours'),
+    ])
+
+    const buckets = []
+    for (let i = 0; i < meses; i++) {
+      const d = new Date(hastaYear, hastaMonth - meses + i, 1)
+      const y = d.getFullYear(), m = d.getMonth() + 1
+      const prefix = `${y}-${String(m).padStart(2, '0')}`
+      const delMes = (tk || []).filter(t => t.date?.startsWith(prefix))
+      const costs  = (mc || []).find(c => c.year === y && c.month === m)
+      const fijos  = Array.isArray(costs?.cost_items)
+        ? costs.cost_items.reduce((s, it) => s + (Number(it.amount) || 0), 0)
+        : Number(costs?.rent || 0) + Number(costs?.supplies || 0)
+      const eventuales = (cp || []).filter(p => p.date?.startsWith(prefix))
+        .reduce((s, p) => s + Number(p.amount || 0), 0)
+      const ingresos = delMes.reduce((s, t) => s + Number(t.price_charged || 0), 0)
+
+      // Planilla del mes con el sueldo congelado de ese mes; si el mes no lo
+      // tiene, se usa el vigente. Sin esto la utilidad saldría inflada.
+      const planilla = state.workers.filter(w => w.active).reduce((s, w) => {
+        const cfg = (wmc || []).find(c => c.worker_id === w.id && c.year === y && c.month === m)
+        const base  = cfg?.base_salary  ?? w.base_salary
+        const horas = cfg?.weekly_hours ?? w.weekly_hours
+        return s + calcRealSalary(base, horas)
+      }, 0)
+
+      buckets.push({
+        year: y, month: m, prefix,
+        label: d.toLocaleDateString('es-PE', { month: 'short' }).replace('.', ''),
+        ingresos, carros: delMes.length,
+        ticketProm: delMes.length ? ingresos / delMes.length : 0,
+        costosFijos: fijos, eventuales, planilla,
+        placas: [...new Set(delMes.map(t => t.plate).filter(Boolean))],
+        tickets: delMes,
+      })
+    }
+    return buckets
+  }
+
   // ─── Trabajadores eventuales ────────────────────────────────────────────────
   const fetchCasualWorkers = async () => {
     if (IS_DEMO) return []
@@ -1006,6 +1059,7 @@ export function AppProvider({ children }) {
       addBonus, deleteBonus,
       saveMonthlyCosts,
       fetchMonthlyCosts, saveWorkerMonthlyConfig, fetchWorkerMonthlyConfigs,
+      fetchBusinessTrend,
       fetchCasualWorkers, addCasualWorker, updateCasualWorker,
       fetchCasualPayments, addCasualPayment, deleteCasualPayment,
       resetDemoData,

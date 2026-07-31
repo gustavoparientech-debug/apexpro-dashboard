@@ -16,7 +16,7 @@ import {
   CreditCard, Smartphone, Calendar, Award, Trophy, Gift, Plus, Trash2, Banknote,
   ChevronLeft, ChevronRight, X, Pencil
 } from 'lucide-react'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, ComposedChart, Line, Legend } from 'recharts'
 import toast from 'react-hot-toast'
 
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
@@ -473,7 +473,7 @@ function RankingPanel({ ranking, workingDaysElapsed }) {
 }
 
 export default function Dashboard() {
-  const { tickets, dailySummaries, expenses, workers, services, incidents, monthlyCosts, bonuses, addBonus, deleteBonus, loading, loadData, invalidateAllCache, vehicleTypes, fetchCasualPayments } = useApp()
+  const { tickets, dailySummaries, expenses, workers, services, incidents, monthlyCosts, bonuses, addBonus, deleteBonus, loading, loadData, invalidateAllCache, vehicleTypes, fetchCasualPayments, fetchBusinessTrend } = useApp()
   const { month: cm, year: cy } = currentMonthYear()
   const [selMonth, setSelMonth] = useState(cm)
   const [selYear,  setSelYear]  = useState(cy)
@@ -496,7 +496,7 @@ export default function Dashboard() {
     localStorage.setItem('apexpro_avgtime_hidden', JSON.stringify(hidden))
   }
 
-  const DEFAULT_PANEL_ORDER = ['kpis','tiempos','progreso','estadisticas','cobros','gastos','gastos_personal','ranking','bonos','grafico']
+  const DEFAULT_PANEL_ORDER = ['kpis','tendencia','mix','clientes','tiempos','progreso','estadisticas','cobros','gastos','gastos_personal','ranking','bonos','grafico']
   const [panelOrder, setPanelOrder] = useState(() => {
     try { return JSON.parse(localStorage.getItem('apexpro_panel_order') || 'null') || DEFAULT_PANEL_ORDER } catch { return DEFAULT_PANEL_ORDER }
   })
@@ -546,6 +546,48 @@ export default function Dashboard() {
   useEffect(() => {
     fetchCasualPayments(selYear, selMonth).then(setCasualPayments)
   }, [selMonth, selYear])
+
+  // ── Serie histórica para los gráficos de avance ──────────────────────────
+  const [trend, setTrend] = useState([])
+  useEffect(() => {
+    fetchBusinessTrend(6, selYear, selMonth).then(setTrend)
+  }, [selMonth, selYear])
+
+  // Métricas de gestión derivadas de la serie histórica.
+  const insights = useMemo(() => {
+    if (!trend.length) return null
+    // Costos = fijos + planilla + eventuales. Omitir la planilla infla la utilidad.
+    const serie = trend.map(m => {
+      const costos = m.costosFijos + m.planilla + m.eventuales
+      return { ...m, costos, utilidad: m.ingresos - costos }
+    })
+    const actual = serie[serie.length - 1]
+    const previo = serie[serie.length - 2]
+    const variacion = previo && previo.ingresos > 0
+      ? ((actual.ingresos - previo.ingresos) / previo.ingresos) * 100
+      : null
+
+    // Mix por tipo de vehículo: dónde está realmente el dinero.
+    const porTipo = {}
+    actual.tickets.forEach(t => {
+      const k = t.vehicle_type || 'otro'
+      if (!porTipo[k]) porTipo[k] = { tipo: k, ingresos: 0, carros: 0 }
+      porTipo[k].ingresos += Number(t.price_charged || 0)
+      porTipo[k].carros += 1
+    })
+    const mix = Object.values(porTipo)
+      .map(x => ({ ...x, ticketProm: x.carros ? x.ingresos / x.carros : 0 }))
+      .sort((a, b) => b.ingresos - a.ingresos)
+
+    // Retención: placas del mes que ya habían venido en meses anteriores.
+    const previas = new Set(serie.slice(0, -1).flatMap(m => m.placas))
+    const recurrentes = actual.placas.filter(p => previas.has(p)).length
+    const nuevos = actual.placas.length - recurrentes
+    const pctRecurrencia = actual.placas.length
+      ? (recurrentes / actual.placas.length) * 100 : 0
+
+    return { serie, actual, previo, variacion, mix, recurrentes, nuevos, pctRecurrencia }
+  }, [trend])
 
   const data = useMemo(() => {
     const dateFilter = (date) => {
@@ -844,6 +886,112 @@ export default function Dashboard() {
               <StatCard label="Vehículos"          value={data.totalCars}                 sub={`Prom: ${formatMoney(data.totalCars ? data.totalIncome / data.totalCars : 0)}/carro`} icon={Car} color="neutral" />
             </div>
           )
+          // Evolución mensual: ingresos, costos y utilidad — el avance real del negocio
+          if (sectionId === 'tendencia') return insights && insights.serie.some(m => m.ingresos > 0) ? (
+            <div key="tendencia" className="card overflow-hidden">
+              <div className="flex items-start justify-between mb-1 gap-3">
+                <div>
+                  <p className="text-sm font-bold text-gray-900 dark:text-white">Evolución del negocio</p>
+                  <p className="text-xs text-gray-400">Últimos 6 meses · ingresos, costos y utilidad</p>
+                </div>
+                {insights.variacion !== null && (
+                  <div className={`text-right shrink-0 px-2.5 py-1 rounded-lg ${
+                    insights.variacion >= 0
+                      ? 'bg-green-50 dark:bg-green-900/20'
+                      : 'bg-red-50 dark:bg-red-900/20'}`}>
+                    <p className={`text-base font-black leading-none ${
+                      insights.variacion >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      {insights.variacion >= 0 ? '▲' : '▼'} {Math.abs(insights.variacion).toFixed(0)}%
+                    </p>
+                    <p className="text-[10px] text-gray-400 mt-0.5">vs. mes anterior</p>
+                  </div>
+                )}
+              </div>
+              <div className="h-60 mt-3">
+                <ResponsiveContainer width="100%" height="100%">
+                  <ComposedChart data={insights.serie} margin={{ top: 8, right: 4, left: -14, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
+                    <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#9ca3af' }} tickLine={false} axisLine={false} />
+                    <YAxis tick={{ fontSize: 10, fill: '#9ca3af' }} tickFormatter={v => `S/${v >= 1000 ? (v/1000).toFixed(0)+'k' : v}`} axisLine={false} tickLine={false} width={46} />
+                    <Tooltip contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.12)', fontSize: 12 }}
+                      formatter={(v, n) => [formatMoney(v), n]} />
+                    <Legend wrapperStyle={{ fontSize: 11 }} iconType="circle" />
+                    <Bar dataKey="ingresos" name="Ingresos" fill="#ef4444" radius={[5,5,0,0]} maxBarSize={38} />
+                    <Bar dataKey="costos"   name="Costos"   fill="#d1d5db" radius={[5,5,0,0]} maxBarSize={38} />
+                    <Line dataKey="utilidad" name="Utilidad" stroke="#16a34a" strokeWidth={2.5} dot={{ r: 3.5, fill: '#16a34a' }} />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </div>
+              {insights.actual.utilidad < 0 && (
+                <p className="text-xs text-red-600 dark:text-red-400 mt-2 font-medium">
+                  ⚠ Este mes cierra en pérdida de {formatMoney(Math.abs(insights.actual.utilidad))}
+                </p>
+              )}
+            </div>
+          ) : null
+
+          // Dónde está el dinero: ticket promedio por tipo de servicio
+          if (sectionId === 'mix') return insights && insights.mix.length > 0 ? (
+            <div key="mix" className="card">
+              <p className="text-sm font-bold text-gray-900 dark:text-white mb-1">Rentabilidad por servicio</p>
+              <p className="text-xs text-gray-400 mb-3">Ordenado por ingresos · el ticket promedio indica dónde conviene enfocar</p>
+              <div className="space-y-2">
+                {insights.mix.map(m => {
+                  const pct = insights.actual.ingresos > 0 ? (m.ingresos / insights.actual.ingresos) * 100 : 0
+                  return (
+                    <div key={m.tipo}>
+                      <div className="flex items-baseline justify-between text-xs mb-1">
+                        <span className="font-medium text-gray-700 dark:text-gray-300 capitalize">
+                          {m.tipo.replace(/_/g, ' ')}
+                          <span className="text-gray-400 font-normal ml-1.5">{m.carros} und.</span>
+                        </span>
+                        <span className="text-gray-500">
+                          <span className="font-bold text-gray-800 dark:text-gray-200">{formatMoney(m.ingresos)}</span>
+                          <span className="text-gray-400 ml-1.5">{formatMoney(m.ticketProm)}/und.</span>
+                        </span>
+                      </div>
+                      <div className="h-2 rounded-full bg-gray-100 dark:bg-gray-800 overflow-hidden">
+                        <div className="h-full rounded-full bg-gradient-to-r from-red-500 to-orange-500"
+                          style={{ width: `${Math.max(pct, 1.5)}%` }} />
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          ) : null
+
+          // Retención: cuántos clientes vuelven
+          if (sectionId === 'clientes') return insights && insights.actual.placas.length > 0 ? (
+            <div key="clientes" className="card">
+              <p className="text-sm font-bold text-gray-900 dark:text-white mb-1">Clientes del mes</p>
+              <p className="text-xs text-gray-400 mb-3">Recurrente = ya había venido en los meses anteriores</p>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="text-center">
+                  <p className="text-2xl font-black text-gray-900 dark:text-white">{insights.actual.placas.length}</p>
+                  <p className="text-[11px] text-gray-400 mt-0.5">Vehículos únicos</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-2xl font-black text-blue-600">{insights.nuevos}</p>
+                  <p className="text-[11px] text-gray-400 mt-0.5">Nuevos</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-2xl font-black text-green-600">{insights.recurrentes}</p>
+                  <p className="text-[11px] text-gray-400 mt-0.5">Repiten</p>
+                </div>
+              </div>
+              <div className="mt-3 h-2.5 rounded-full bg-blue-100 dark:bg-blue-900/30 overflow-hidden flex">
+                <div className="h-full bg-green-500" style={{ width: `${insights.pctRecurrencia}%` }} />
+              </div>
+              <p className="text-xs text-gray-500 mt-2">
+                Tasa de recurrencia: <span className="font-bold text-gray-800 dark:text-gray-200">{insights.pctRecurrencia.toFixed(0)}%</span>
+                {insights.pctRecurrencia < 30 && (
+                  <span className="text-amber-600 dark:text-amber-400"> · la mayoría no vuelve, hay margen para fidelizar</span>
+                )}
+              </p>
+            </div>
+          ) : null
+
           if (sectionId === 'tiempos') return Object.keys(data.avgTimeByType).length > 0 ? (() => {
             const fmtMins = (mins) => {
               if (mins < 60) return `${mins} min`
@@ -1046,7 +1194,7 @@ export default function Dashboard() {
 
         if (!sectionContent) return null
 
-        const SECTION_LABELS = { kpis: 'KPIs', tiempos: 'Tiempos promedio', progreso: 'Meta mensual', estadisticas: 'Estadísticas', cobros: 'Métodos de cobro', gastos: 'Desglose gastos', gastos_personal: 'Gastos personal', ranking: 'Ranking', bonos: 'Bonos', grafico: 'Gráfico diario' }
+        const SECTION_LABELS = { kpis: 'KPIs', tendencia: 'Evolución mensual', mix: 'Rentabilidad por servicio', clientes: 'Clientes nuevos vs. recurrentes', tiempos: 'Tiempos promedio', progreso: 'Meta mensual', estadisticas: 'Estadísticas', cobros: 'Métodos de cobro', gastos: 'Desglose gastos', gastos_personal: 'Gastos personal', ranking: 'Ranking', bonos: 'Bonos', grafico: 'Gráfico diario' }
 
         return (
           <div key={sectionId} className="relative group">

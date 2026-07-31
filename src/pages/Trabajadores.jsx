@@ -281,6 +281,9 @@ export function IncidentForm({ workers, onSave, onClose, initial, month, year })
   )
 }
 
+// Cuántos meses hacia adelante se puede navegar para programar sueldos y metas.
+const MONTHS_AHEAD = 12
+
 export default function Trabajadores() {
   const { workers, tickets, incidents, services, addWorker, updateWorker, addIncident, updateIncident, deleteIncident, addExpense,
           fetchWorkerMonthlyConfigs, saveWorkerMonthlyConfig } = useApp()
@@ -290,6 +293,7 @@ export default function Trabajadores() {
   const month = selMonth
   const year  = selYear
   const isCurrentMonth = selMonth === curMonth && selYear === curYear
+  const isFutureMonth  = (selYear - curYear) * 12 + (selMonth - curMonth) > 0
 
   function prevMonthW() {
     if (selMonth === 1) { setSelMonth(12); setSelYear(y => y - 1) }
@@ -298,7 +302,10 @@ export default function Trabajadores() {
   function nextMonthW() {
     const nextM = selMonth === 12 ? 1 : selMonth + 1
     const nextY = selMonth === 12 ? selYear + 1 : selYear
-    if (nextY > curYear || (nextY === curYear && nextM > curMonth)) return
+    // Se permite avanzar hasta MONTHS_AHEAD meses para poder programar sueldos
+    // y metas por adelantado; más allá de eso no hay nada que configurar.
+    const monthsFromNow = (nextY - curYear) * 12 + (nextM - curMonth)
+    if (monthsFromNow > MONTHS_AHEAD) return
     setSelMonth(nextM); setSelYear(nextY)
   }
 
@@ -772,7 +779,11 @@ export default function Trabajadores() {
             <button onClick={prevMonthW} className="p-0.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800"><ChevronLeft className="w-3.5 h-3.5 text-gray-400" /></button>
             <span className="text-sm text-gray-500 capitalize">{monthName(month)} {year}</span>
             <button onClick={nextMonthW} className="p-0.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800"><ChevronRight className="w-3.5 h-3.5 text-gray-400" /></button>
-            {!isCurrentMonth && <span className="text-[10px] font-semibold text-amber-500 ml-1">mes anterior</span>}
+            {!isCurrentMonth && (
+              <span className="text-[10px] font-semibold text-amber-500 ml-1">
+                {isFutureMonth ? 'programando mes futuro' : 'mes anterior'}
+              </span>
+            )}
           </div>
         </div>
         <div className="flex gap-2">

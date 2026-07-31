@@ -473,7 +473,7 @@ function RankingPanel({ ranking, workingDaysElapsed }) {
 }
 
 export default function Dashboard() {
-  const { tickets, dailySummaries, expenses, workers, services, incidents, monthlyCosts, bonuses, addBonus, deleteBonus, loading, loadData, invalidateAllCache, vehicleTypes, fetchCasualPayments, fetchBusinessTrend } = useApp()
+  const { tickets, dailySummaries, expenses, workers, services, incidents, monthlyCosts, bonuses, addBonus, deleteBonus, loading, loadData, invalidateAllCache, vehicleTypes, fetchCasualPayments, fetchBusinessTrend, fetchWorkerMonthlyConfigs } = useApp()
   const { month: cm, year: cy } = currentMonthYear()
   const [selMonth, setSelMonth] = useState(cm)
   const [selYear,  setSelYear]  = useState(cy)
@@ -545,6 +545,13 @@ export default function Dashboard() {
   const [casualPayments, setCasualPayments] = useState([])
   useEffect(() => {
     fetchCasualPayments(selYear, selMonth).then(setCasualPayments)
+  }, [selMonth, selYear])
+
+  // Sueldos congelados del mes: sin esto la planilla del dashboard usaría el
+  // sueldo vigente y no cuadraría con la pestaña Nómina.
+  const [workerMonthlyConfigs, setWorkerMonthlyConfigs] = useState([])
+  useEffect(() => {
+    fetchWorkerMonthlyConfigs(selYear, selMonth).then(setWorkerMonthlyConfigs)
   }, [selMonth, selYear])
 
   // ── Serie histórica para los gráficos de avance ──────────────────────────
@@ -629,7 +636,9 @@ export default function Dashboard() {
       ? costItemsData.reduce((s, i) => s + (i.amount || 0), 0)
       : (monthlyCosts?.rent || 0) + (monthlyCosts?.supplies || 0)
     const payrollTotal = workers.filter(w => w.active).reduce((s, w) => {
-      const real = calcRealSalary(w.base_salary, w.weekly_hours)
+      // Sueldo del mes seleccionado, no el vigente en `workers`.
+      const cfg = workerMonthlyConfigs.find(c => c.worker_id === w.id)
+      const real = calcRealSalary(cfg?.base_salary ?? w.base_salary, cfg?.weekly_hours ?? w.weekly_hours)
       // Descuentos reales (sin hora_extra que suma). Adelanto sí se resta porque ya aparece como expense
       const disc = incidents.filter(i => i.worker_id === w.id && i.apply_discount && !i.is_addition && i.date?.startsWith(prefix))
         .reduce((d, i) => d + (i.discount_amount || 0), 0)
@@ -713,7 +722,7 @@ export default function Dashboard() {
       workerRanking, monthBonusAmt, workerExpTotal, periodExpenses, costItemsData,
       proportionalFixed, proportionRatio, avgTimeByType,
     }
-  }, [tickets, dailySummaries, expenses, pastTickets, pastSummaries, pastExpenses, workers, services, incidents, monthlyCosts, bonuses, casualPayments, prefix, selMonth, selYear, isCurrentMonth, rangeFrom, rangeTo, hasRange])
+  }, [tickets, dailySummaries, expenses, pastTickets, pastSummaries, pastExpenses, workers, services, incidents, monthlyCosts, bonuses, casualPayments, workerMonthlyConfigs, prefix, selMonth, selYear, isCurrentMonth, rangeFrom, rangeTo, hasRange])
 
 
   const semaforoClass = {

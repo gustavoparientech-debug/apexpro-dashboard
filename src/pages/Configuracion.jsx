@@ -515,12 +515,13 @@ export default function Configuracion() {
   // Recalcular meta en tiempo real
   const payrollTotal = useMemo(() => {
     return workers.filter(w => w.active).reduce((s, w) => {
-      const realSalary = calcRealSalary(w.base_salary, w.weekly_hours)
+      const cfg = workerMonthlyConfigs.find(c => c.worker_id === w.id)
+      const realSalary = calcRealSalary(cfg?.base_salary ?? w.base_salary, cfg?.weekly_hours ?? w.weekly_hours)
       const discounts = incidents.filter(i => i.worker_id === w.id && i.apply_discount && !i.is_addition).reduce((d, i) => d + (i.discount_amount || 0), 0)
       const overtime  = incidents.filter(i => i.worker_id === w.id && i.apply_discount && i.is_addition).reduce((d, i) => d + (i.discount_amount || 0), 0)
       return s + realSalary - discounts + overtime
     }, 0)
-  }, [workers, incidents])
+  }, [workers, incidents, workerMonthlyConfigs])
 
   // Los pagos a eventuales son mano de obra del mes: cuentan en la planilla y
   // por tanto en la meta de ingresos.

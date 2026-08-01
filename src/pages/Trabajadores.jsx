@@ -769,13 +769,23 @@ export default function Trabajadores() {
         // Conteos de incidencias (unificados)
         const faltas  = w.workerIncidents.filter(i => ['falta','permiso_justificado','permiso'].includes(i.type)).length
         const tardanz = w.workerIncidents.filter(i => ['tardanza','permiso_horas'].includes(i.type)).length
-        const hrsExt  = w.workerIncidents.filter(i => i.type === 'hora_extra').reduce((s,i) => s + (i.hours_late || 0), 0)
+        // Las horas extra solo se pagan si la incidencia tiene apply_discount.
+        // Anunciar el total registrado junto al importe de las pagadas hacía que
+        // la boleta declarara muchas más horas de las que realmente se abonan.
+        const horasExtra = (pagadas) => w.workerIncidents
+          .filter(i => i.type === 'hora_extra' && !!i.apply_discount === pagadas)
+          .reduce((s, i) => s + (i.hours_late || 0), 0)
+        const hrsExt      = horasExtra(true)   // se pagan
+        const hrsExtNoPag = horasExtra(false)  // registradas, sin pago
 
         const infoRows = [
           [`CÓDIGO:  ${String(w.id).slice(0,8).toUpperCase()}`,   `NOMBRE:  ${w.name.toUpperCase().trim()}`],
           [`HABER BÁSICO:  S/ ${Number(w.base_salary||0).toFixed(2)}`, `CARGO:  Técnico`],
           [`FALTAS:  ${faltas}`,                                   `TARDANZAS:  ${tardanz}`],
-          [`HRS. EXTRA:  ${hrsExt.toFixed(1)}`,                   `PERÍODO:  ${MONTHS_ES[month-1]} ${year}`],
+          [`HRS. EXTRA PAGADAS:  ${hrsExt.toFixed(1)}`,           `PERÍODO:  ${MONTHS_ES[month-1]} ${year}`],
+          ...(hrsExtNoPag > 0
+            ? [[`HRS. EXTRA NO PAGADAS:  ${hrsExtNoPag.toFixed(1)}`, '']]
+            : []),
         ]
         infoRows.forEach(([left, right]) => {
           doc.text(left, mL, y); doc.text(right, col2, y); y += 5

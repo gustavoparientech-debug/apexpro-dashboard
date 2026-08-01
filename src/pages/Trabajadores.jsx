@@ -347,28 +347,6 @@ export default function Trabajadores() {
     return true
   }
 
-  // Filas ya filtradas, por trabajador, más los totales de lo que quedó a la
-  // vista: sin ese resumen el filtro sirve para buscar pero no para decidir.
-  const incidenciasFiltradas = useMemo(() => {
-    const grupos = payrollData
-      .filter(w => !incFiltro.worker || w.id === incFiltro.worker)
-      .map(w => ({ ...w, filtradas: w.workerIncidents.filter(cumpleFiltro) }))
-      .filter(w => w.filtradas.length > 0)
-    const todas = grupos.flatMap(g => g.filtradas)
-    return {
-      grupos,
-      cantidad: todas.length,
-      descuentos: todas.filter(i => i.apply_discount && !i.is_addition).reduce((s, i) => s + (i.discount_amount || 0), 0),
-      sumas:      todas.filter(i => i.apply_discount &&  i.is_addition).reduce((s, i) => s + (i.discount_amount || 0), 0),
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [payrollData, incFiltro])
-
-  // Solo se ofrecen los tipos que existen este mes, para no llenar de opciones vacías.
-  const tiposPresentes = useMemo(() => {
-    const set = new Set(payrollData.flatMap(w => w.workerIncidents.map(i => i.type)))
-    return Object.keys(INCIDENT_LABELS).filter(t => set.has(t))
-  }, [payrollData])
 
   async function handleAddCasualPayment() {
     const monto = parseFloat(casualForm.amount)
@@ -680,6 +658,29 @@ export default function Trabajadores() {
         return { ...w, base_salary, weekly_hours, realSalary, workerIncidents, totalDiscounts, totalOvertime, finalPay }
       })
   }, [workers, activeIncidents, month, year, workerMonthlyConfigs])
+
+  // Filas ya filtradas, por trabajador, más los totales de lo que quedó a la
+  // vista: sin ese resumen el filtro sirve para buscar pero no para decidir.
+  const incidenciasFiltradas = useMemo(() => {
+    const grupos = payrollData
+      .filter(w => !incFiltro.worker || w.id === incFiltro.worker)
+      .map(w => ({ ...w, filtradas: w.workerIncidents.filter(cumpleFiltro) }))
+      .filter(w => w.filtradas.length > 0)
+    const todas = grupos.flatMap(g => g.filtradas)
+    return {
+      grupos,
+      cantidad: todas.length,
+      descuentos: todas.filter(i => i.apply_discount && !i.is_addition).reduce((s, i) => s + (i.discount_amount || 0), 0),
+      sumas:      todas.filter(i => i.apply_discount &&  i.is_addition).reduce((s, i) => s + (i.discount_amount || 0), 0),
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [payrollData, incFiltro])
+
+  // Solo se ofrecen los tipos que existen este mes, para no llenar de opciones vacías.
+  const tiposPresentes = useMemo(() => {
+    const set = new Set(payrollData.flatMap(w => w.workerIncidents.map(i => i.type)))
+    return Object.keys(INCIDENT_LABELS).filter(t => set.has(t))
+  }, [payrollData])
 
   const totalPayroll   = payrollData.reduce((s, w) => s + w.finalPay, 0)
   const totalNominaDisc = payrollData.reduce((s, w) => s + w.totalDiscounts, 0)

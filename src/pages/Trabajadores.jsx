@@ -328,6 +328,48 @@ export default function Trabajadores() {
 
   const totalCasual = casualPayments.reduce((s, p) => s + Number(p.amount || 0), 0)
 
+  // ── Filtros del desglose de incidencias ──────────────────────────────────
+  const [incFiltro, setIncFiltro] = useState({ worker: '', tipos: [], efecto: 'todos', texto: '' })
+  const incFiltroActivo = !!incFiltro.worker || incFiltro.tipos.length > 0
+    || incFiltro.efecto !== 'todos' || !!incFiltro.texto.trim()
+
+  function limpiarFiltroInc() {
+    setIncFiltro({ worker: '', tipos: [], efecto: 'todos', texto: '' })
+  }
+
+  function cumpleFiltro(i) {
+    if (incFiltro.tipos.length && !incFiltro.tipos.includes(i.type)) return false
+    if (incFiltro.efecto === 'descuento' && !(i.apply_discount && !i.is_addition)) return false
+    if (incFiltro.efecto === 'suma'      && !(i.apply_discount && i.is_addition))  return false
+    if (incFiltro.efecto === 'sin'       && i.apply_discount)                      return false
+    const t = incFiltro.texto.trim().toLowerCase()
+    if (t && !(`${i.observation || ''} ${INCIDENT_LABELS[i.type] || ''}`).toLowerCase().includes(t)) return false
+    return true
+  }
+
+  // Filas ya filtradas, por trabajador, más los totales de lo que quedó a la
+  // vista: sin ese resumen el filtro sirve para buscar pero no para decidir.
+  const incidenciasFiltradas = useMemo(() => {
+    const grupos = payrollData
+      .filter(w => !incFiltro.worker || w.id === incFiltro.worker)
+      .map(w => ({ ...w, filtradas: w.workerIncidents.filter(cumpleFiltro) }))
+      .filter(w => w.filtradas.length > 0)
+    const todas = grupos.flatMap(g => g.filtradas)
+    return {
+      grupos,
+      cantidad: todas.length,
+      descuentos: todas.filter(i => i.apply_discount && !i.is_addition).reduce((s, i) => s + (i.discount_amount || 0), 0),
+      sumas:      todas.filter(i => i.apply_discount &&  i.is_addition).reduce((s, i) => s + (i.discount_amount || 0), 0),
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [payrollData, incFiltro])
+
+  // Solo se ofrecen los tipos que existen este mes, para no llenar de opciones vacías.
+  const tiposPresentes = useMemo(() => {
+    const set = new Set(payrollData.flatMap(w => w.workerIncidents.map(i => i.type)))
+    return Object.keys(INCIDENT_LABELS).filter(t => set.has(t))
+  }, [payrollData])
+
   async function handleAddCasualPayment() {
     const monto = parseFloat(casualForm.amount)
     if (!monto || monto <= 0) { toast.error('Indica el monto pagado'); return }
@@ -1278,13 +1320,97 @@ export default function Trabajadores() {
           {/* Desglose incidencias */}
           {activeIncidents.length > 0 && (
             <div className="card">
-              <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">Desglose de descuentos por incidencia</p>
+              <div className="flex items-center justify-between mb-3 gap-2">
+                <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">Desglose de descuentos por incidencia</p>
+                {incFiltroActivo && (
+                  <button onClick={limpiarFiltroInc}
+                    className="text-xs text-red-500 hover:text-red-600 shrink-0">Limpiar filtros</button>
+                )}
+              </div>
+
+              {/* Filtros */}
+              <div className="space-y-2 mb-3 pb-3 border-b border-gray-100 dark:border-gray-800">
+                <div className="flex flex-wrap gap-2">
+                  <select value={incFiltro.worker}
+                    onChange={e => setIncFiltro(f => ({ ...f, worker: e.target.value }))}
+                    className="input text-xs py-1.5 w-auto min-w-[150px]">
+                    <option value="">Todos los trabajadores</option>
+                    {payrollData.filter(w => w.workerIncidents.length > 0)
+                      .map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+                  </select>
+                  <input value={incFiltro.texto}
+                    onChange={e => setIncFiltro(f => ({ ...f, texto: e.target.value }))}
+                    placeholder="Buscar en la observación..."
+                    className="input text-xs py-1.5 flex-1 min-w-[160px]" />
+                </div>
+
+                <div className="flex items-center gap-1 flex-wrap">
+                  <span className="text-[10px] text-gray-400 mr-0.5">Efecto:</span>
+                  {[
+                    { v: 'todos',     label: 'Todos' },
+                    { v: 'descuento', label: 'Descuentan' },
+                    { v: 'suma',      label: 'Suman' },
+                    { v: 'sin',       label: 'Sin efecto' },
+                  ].map(({ v, label }) => (
+                    <button key={v} onClick={() => setIncFiltro(f => ({ ...f, efecto: v }))}
+                      className={`text-[10px] px-2 py-0.5 rounded-full border font-semibold transition-colors ${
+                        incFiltro.efecto === v
+                          ? 'bg-gray-800 border-gray-800 text-white dark:bg-gray-200 dark:border-gray-200 dark:text-gray-900'
+                          : 'bg-white dark:bg-gray-800 text-gray-500 border-gray-300 dark:border-gray-600 hover:border-gray-400'
+                      }`}>{label}</button>
+                  ))}
+                </div>
+
+                {tiposPresentes.length > 1 && (
+                  <div className="flex items-center gap-1 flex-wrap">
+                    <span className="text-[10px] text-gray-400 mr-0.5">Tipo:</span>
+                    {tiposPresentes.map(t => {
+                      const on = incFiltro.tipos.includes(t)
+                      return (
+                        <button key={t} onClick={() => setIncFiltro(f => ({
+                          ...f, tipos: on ? f.tipos.filter(x => x !== t) : [...f.tipos, t],
+                        }))}
+                          className={`text-[10px] px-2 py-0.5 rounded-full border font-semibold transition-colors ${
+                            on
+                              ? 'bg-red-500 border-red-500 text-white'
+                              : 'bg-white dark:bg-gray-800 text-gray-500 border-gray-300 dark:border-gray-600 hover:border-red-400'
+                          }`}>{INCIDENT_LABELS[t]}</button>
+                      )
+                    })}
+                  </div>
+                )}
+
+                {/* Totales de lo que quedó filtrado */}
+                <div className="flex items-center gap-3 flex-wrap text-[11px] pt-0.5">
+                  <span className="text-gray-500">
+                    {incidenciasFiltradas.cantidad} incidencia{incidenciasFiltradas.cantidad !== 1 ? 's' : ''}
+                  </span>
+                  {incidenciasFiltradas.descuentos > 0 && (
+                    <span className="text-red-500 font-semibold">−{formatMoney(incidenciasFiltradas.descuentos)}</span>
+                  )}
+                  {incidenciasFiltradas.sumas > 0 && (
+                    <span className="text-green-600 font-semibold">+{formatMoney(incidenciasFiltradas.sumas)}</span>
+                  )}
+                  {(incidenciasFiltradas.descuentos > 0 || incidenciasFiltradas.sumas > 0) && (
+                    <span className="text-gray-600 dark:text-gray-300">
+                      neto <span className="font-bold">{formatMoney(incidenciasFiltradas.sumas - incidenciasFiltradas.descuentos)}</span>
+                    </span>
+                  )}
+                </div>
+              </div>
+
               <div className="space-y-4 pb-20 lg:pb-0">
-                {payrollData.filter(w => w.workerIncidents.length > 0).map(w => (
+                {incidenciasFiltradas.grupos.length === 0 && (
+                  <p className="text-xs text-gray-400 py-3 text-center">Ninguna incidencia coincide con el filtro.</p>
+                )}
+                {incidenciasFiltradas.grupos.map(w => (
                   <div key={w.id}>
-                    <p className="text-sm font-medium text-gray-800 dark:text-gray-200 mb-2">{w.name}</p>
+                    <div className="flex items-baseline gap-2 mb-2">
+                      <p className="text-sm font-medium text-gray-800 dark:text-gray-200">{w.name}</p>
+                      <span className="text-[10px] text-gray-400">{w.filtradas.length}</span>
+                    </div>
                     <div className="space-y-1 pl-3">
-                      {[...w.workerIncidents].sort((a, b) => b.date.localeCompare(a.date)).map(i => (
+                      {[...w.filtradas].sort((a, b) => b.date.localeCompare(a.date)).map(i => (
                         <div key={i.id} className="flex items-center gap-2 text-xs group py-0.5">
                           <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
                             <button onClick={() => openEditIncident(i)} className="p-1 rounded hover:bg-blue-50 dark:hover:bg-blue-900/20 text-blue-500">

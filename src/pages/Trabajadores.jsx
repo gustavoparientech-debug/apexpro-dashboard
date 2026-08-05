@@ -3,7 +3,7 @@ import { useApp } from '../context/AppContext'
 import { supabase } from '../lib/supabase'
 import {
   formatMoney, formatDate, calcRealSalary, calcDailySalary, calcProratedSalary,
-  calcAbsenceDiscount, calcLatenessDiscount, calcOvertimePay, calcLeaveDiscount, getRatioColor, currentMonthYear, monthName, todayISO
+  calcAbsenceDiscount, calcLatenessDiscount, calcOvertimePay, calcLeaveDiscount, calcHourlyRate, fmtHours, getRatioColor, currentMonthYear, monthName, todayISO
 } from '../lib/utils'
 import Modal from '../components/ui/Modal'
 import ConfirmDialog from '../components/ui/ConfirmDialog'
@@ -131,16 +131,26 @@ export function IncidentForm({ workers, onSave, onClose, initial, month, year, s
     observation: initial?.observation || '',
   })
 
+  // Los horarios se cargan aquí y no se dependen del que invoca: este formulario
+  // se abre desde tres pantallas distintas y solo una los pasaba, con lo que el
+  // cálculo caía al reparto genérico de la semana entre 6 días.
+  const [horarios, setHorarios] = useState(schedules)
+  useEffect(() => {
+    if (schedules.length) { setHorarios(schedules); return }
+    supabase.from('work_schedules').select('*').then(({ data }) => setHorarios(data || []))
+  }, [schedules])
+
   const worker = workers.find(w => w.id === form.worker_id)
   const isAddition = form.type === 'hora_extra' || form.type === 'vacaciones'
   // Ausencias de jornada completa: pueden abarcar varios días seguidos.
   const esRango = form.type === 'falta' || form.type === 'permiso'
-  const horarioTrab = schedules.find(x => x.id === worker?.schedule_id)
+  const horarioTrab = horarios.find(x => x.id === worker?.schedule_id)
   const tramoLibre = useMemo(() => {
     if (!worker || !esRango) return null
     return calcLeaveDiscount(worker.base_salary, worker.weekly_hours,
       form.date, form.end_date || form.date, horarioTrab?.weekday_hours)
   }, [worker, esRango, form.date, form.end_date, horarioTrab])
+  const tarifaHora = worker ? calcHourlyRate(worker.base_salary, worker.weekly_hours) : 0
   const hoursDecimal = (parseInt(form.hours_h) || 0) + (parseInt(form.hours_m) || 0) / 60
 
   const previewDiscount = useMemo(() => {
@@ -271,17 +281,23 @@ export function IncidentForm({ workers, onSave, onClose, initial, month, year, s
           </div>
           {tramoLibre && tramoLibre.dias.length > 0 && form.apply_discount && (
             <div className="rounded-lg p-3 text-xs bg-amber-50 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-900/30">
+              <p className="text-[10px] text-gray-400 mb-1.5">
+                Tarifa: {formatMoney(tarifaHora)} por hora
+              </p>
               <div className="flex justify-between font-semibold text-gray-700 dark:text-gray-200 mb-1">
-                <span>{tramoLibre.dias.length} día{tramoLibre.dias.length !== 1 ? 's' : ''} · {tramoLibre.horas}h</span>
+                <span>{tramoLibre.dias.length} día{tramoLibre.dias.length !== 1 ? 's' : ''} · {fmtHours(tramoLibre.horas)}</span>
                 <span className="text-red-600 dark:text-red-400">−{formatMoney(tramoLibre.monto)}</span>
               </div>
               <div className="space-y-0.5 text-gray-500">
                 {tramoLibre.dias.map(d => (
-                  <div key={d.date} className="flex justify-between">
-                    <span className="capitalize">
+                  <div key={d.date} className="flex justify-between gap-2">
+                    <span className="capitalize flex-1 truncate">
                       {new Date(`${d.date}T00:00:00`).toLocaleDateString('es-PE', { weekday: 'long', day: '2-digit', month: 'short' })}
                     </span>
-                    <span>{d.hours}h</span>
+                    <span className="shrink-0 w-16 text-right">{fmtHours(d.hours)}</span>
+                    <span className="shrink-0 w-20 text-right text-red-500">
+                      −{formatMoney(tarifaHora * d.hours)}
+                    </span>
                   </div>
                 ))}
               </div>

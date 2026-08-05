@@ -212,3 +212,14 @@ export function calcLeaveDiscount(baseSalary, weeklyHours, from, to, weekdayHour
   const horas = dias.reduce((s, d) => s + d.hours, 0)
   return { dias, horas, monto: calcHourlyRate(baseSalary, weeklyHours) * horas }
 }
+
+// Horas de jornada en formato legible: 5h · 7h · 5h 20m. Evita arrastrar
+// decimales como 5.333333333333333h en pantalla.
+export function fmtHours(h) {
+  const n = Number(h) || 0
+  const horas = Math.floor(n)
+  const min = Math.round((n - horas) * 60)
+  if (min === 60) return `${horas + 1}h`
+  if (!min) return `${horas}h`
+  return horas ? `${horas}h ${min}m` : `${min}m`
+}

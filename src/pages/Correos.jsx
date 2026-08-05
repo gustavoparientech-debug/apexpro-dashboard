@@ -14,9 +14,12 @@ function fechaCorta(valor) {
   const d = new Date(valor)
   if (isNaN(d)) return ''
   const hoy = new Date()
-  return d.toDateString() === hoy.toDateString()
-    ? d.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' })
-    : d.toLocaleDateString('es-PE', { day: '2-digit', month: 'short' })
+  const hora = d.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' })
+  if (d.toDateString() === hoy.toDateString()) return hora
+  const fecha = d.getFullYear() === hoy.getFullYear()
+    ? d.toLocaleDateString('es-PE', { day: '2-digit', month: 'short' })
+    : d.toLocaleDateString('es-PE', { day: '2-digit', month: 'short', year: 'numeric' })
+  return `${fecha} ${hora}`
 }
 
 function fechaLarga(valor) {
@@ -117,6 +120,7 @@ export default function Correos() {
         supabase.functions.invoke('leer-correo', { body: { action: 'lista', limit: 100 } }),
       ])
       setEnvios(envR.data || [])
+      if (inR.error) throw new Error(inR.error?.message || 'Error al leer el buzón')
       if (inR.data?.error) throw new Error(inR.data.error)
       setInbox(inR.data?.mensajes || [])
       setError('')

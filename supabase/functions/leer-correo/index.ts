@@ -43,7 +43,7 @@ class Imap {
   close() {
     try {
       this.#conn.close()
-    } catch { /* ya cerrado */ }
+    } catch (_e) { /* ya cerrado */ }
   }
 
   async #fill() {
@@ -117,7 +117,7 @@ class Imap {
   }
 }
 
-// ─── MIME ────────────────────────────────────────────────────────────────────
+// --- MIME ----------------------------------------------------------------
 
 /** Decodifica cabeceras: =?UTF-8?B?...?= y =?UTF-8?Q?...?= */
 function decodeHeader(value: string): string {
@@ -129,7 +129,7 @@ function decodeHeader(value: string): string {
           ? base64ABytes(text)
           : quotedPrintableABytes(String(text).replace(/_/g, " "))
         return new TextDecoder(String(charset).toLowerCase()).decode(bytes)
-      } catch {
+      } catch (_e) {
         return text
       }
     })
@@ -181,7 +181,7 @@ function decodeCuerpo(body: string, encoding: string, charset: string): string {
     const enc = encoding.toLowerCase().trim()
     if (enc === "base64") return new TextDecoder(charset).decode(base64ABytes(body))
     if (enc === "quoted-printable") return new TextDecoder(charset).decode(quotedPrintableABytes(body))
-  } catch { /* cae al texto tal cual */ }
+  } catch (_e) { /* cae al texto tal cual */ }
   return body
 }
 
@@ -238,7 +238,7 @@ function parseRemitente(from: string): { nombre: string; email: string } {
   return { nombre: "", email: from.trim().toLowerCase() }
 }
 
-// ─── Endpoint ────────────────────────────────────────────────────────────────
+// --- Endpoint ------------------------------------------------------------
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors })

@@ -193,17 +193,27 @@ function generateInvoicePDF(inv, logoB64) {
   doc.setFontSize(6); doc.setFont('helvetica', 'normal'); doc.setTextColor(120)
   doc.text('Representación impresa del comprobante electrónico.', W / 2, fY, { align: 'center' })
 
+  // ── Marca de borrador ──
+  // Mientras no exista integración con el PSE (Facturalá), este PDF NO es un
+  // comprobante válido: no se envía a SUNAT, no tiene XML firmado ni CDR.
+  // La marca evita que se entregue a un cliente por error.
+  if (!inv.cdr_hash) {
+    doc.setTextColor(220, 38, 38)
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(38)
+    doc.saveGraphicsState()
+    if (doc.setGState) doc.setGState(new doc.GState({ opacity: 0.16 }))
+    doc.text('BORRADOR', W / 2, 150, { align: 'center', angle: 32 })
+    doc.text('SIN VALIDEZ FISCAL', W / 2, 172, { align: 'center', angle: 32 })
+    doc.restoreGraphicsState()
+
+    doc.setTextColor(220, 38, 38); doc.setFontSize(7)
+    doc.text('DOCUMENTO NO VÁLIDO COMO COMPROBANTE DE PAGO — no declarado ante SUNAT',
+      W / 2, fY + 4, { align: 'center' })
+  }
+
   return doc
 }
 
-// ─── RUC Lookup (SUNAT) ──────────────────────────────────────────────────────
-async function lookupRuc(ruc) {
-  try {
-    const { data, error } = await supabase.functions.invoke('consulta-ruc', { body: { ruc } })
-    if (error || !data) return null
-    return data
-  } catch { return null }
-}
 
 // ─── Main Component ──────────────────────────────────────────────────────────
 export default function Facturas() {
@@ -326,6 +336,18 @@ export default function Facturas() {
           className="btn-primary flex items-center gap-2">
           <Plus className="w-4 h-4" /> Nueva factura
         </button>
+      </div>
+
+      <div className="rounded-xl border border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 p-3 flex gap-3">
+        <span className="text-lg leading-none">⚠️</span>
+        <div className="text-xs text-amber-800 dark:text-amber-300 leading-relaxed">
+          <p className="font-bold mb-0.5">Modo borrador — sin conexión a SUNAT</p>
+          <p>
+            Estos documentos <strong>no son comprobantes válidos</strong>: no se envían a SUNAT,
+            no tienen XML firmado ni CDR. Sirven para preparar el detalle y cobrar, pero la factura
+            real todavía debe emitirse desde Facturalá. El PDF sale marcado como borrador.
+          </p>
+        </div>
       </div>
 
       {/* Search */}
@@ -521,7 +543,6 @@ function InvoiceForm({ onClose, onSaved, logoB64, userId }) {
   const [ubigeo, setUbigeo] = useState('')
   const [clientEmail, setClientEmail] = useState('')
   const [clientPhone, setClientPhone] = useState('')
-  const [lookingUp, setLookingUp] = useState(false)
 
   const [items, setItems] = useState([emptyItem()])
   const [saving, setSaving] = useState(false)
@@ -537,21 +558,6 @@ function InvoiceForm({ onClose, onSaved, logoB64, userId }) {
         setCorrelativo((data?.[0]?.correlativo || 0) + 1)
       })
   }, [serie])
-
-  async function handleLookupRuc() {
-    if (ruc.length !== 11) { toast.error('El RUC debe tener 11 dígitos'); return }
-    setLookingUp(true)
-    const result = await lookupRuc(ruc)
-    if (result?.razonSocial) {
-      setRazonSocial(result.razonSocial)
-      setDireccion(result.direccion || '')
-      setUbigeo(result.ubigeo || '')
-      toast.success('Datos encontrados')
-    } else {
-      toast.error('No se encontraron datos para ese RUC')
-    }
-    setLookingUp(false)
-  }
 
   function addItem() { setItems(prev => [...prev, emptyItem()]) }
 
@@ -693,14 +699,8 @@ function InvoiceForm({ onClose, onSaved, logoB64, userId }) {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label className="text-xs text-gray-500 mb-1 block">RUC</label>
-            <div className="flex gap-2">
-              <input className="input flex-1" placeholder="20100284937" maxLength={11}
-                value={ruc} onChange={e => setRuc(e.target.value.replace(/\D/g, ''))} />
-              <button onClick={handleLookupRuc} disabled={lookingUp || ruc.length !== 11}
-                className="px-3 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white text-xs font-semibold transition-colors flex-none">
-                {lookingUp ? '...' : <Search className="w-4 h-4" />}
-              </button>
-            </div>
+            <input className="input" placeholder="20100284937" maxLength={11}
+              value={ruc} onChange={e => setRuc(e.target.value.replace(/\D/g, ''))} />
           </div>
           <div>
             <label className="text-xs text-gray-500 mb-1 block">Razón Social</label>

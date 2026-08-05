@@ -398,22 +398,6 @@ export default function Configuracion() {
     window.open(`https://wa.me/?text=${encoded}`, '_blank')
   }
 
-  // Destinatarios con correo: sin correo no hay a quién enviar.
-  const destinatarios = useMemo(() => {
-    const conCorreo = (w) => {
-      const p = perfiles.find(x => x.worker_id === w.id)
-      return p?.email ? { id: w.id, name: w.name, email: p.email } : null
-    }
-    const lista = anuncioTarget === 'all'
-      ? activeWorkers.map(conCorreo)
-      : [activeWorkers.find(w => w.id === anuncioWorker)].filter(Boolean).map(conCorreo)
-    return lista.filter(Boolean)
-  }, [anuncioTarget, anuncioWorker, activeWorkers, perfiles])
-
-  const sinCorreo = useMemo(() => {
-    if (anuncioTarget !== 'all') return []
-    return activeWorkers.filter(w => !perfiles.find(x => x.worker_id === w.id)?.email)
-  }, [anuncioTarget, activeWorkers, perfiles])
 
   async function handleSendAnuncio() {
     if (!correoAsunto.trim()) { toast.error('Escribe el asunto'); return }
@@ -481,6 +465,23 @@ export default function Configuracion() {
     setSavingReparto(false)
   }
   const activeWorkers = workers.filter(w => w.active)
+
+  // Destinatarios con correo: sin correo no hay a quién enviar.
+  const destinatarios = useMemo(() => {
+    const conCorreo = (w) => {
+      const p = perfiles.find(x => x.worker_id === w.id)
+      return p?.email ? { id: w.id, name: w.name, email: p.email } : null
+    }
+    const lista = anuncioTarget === 'all'
+      ? activeWorkers.map(conCorreo)
+      : [activeWorkers.find(w => w.id === anuncioWorker)].filter(Boolean).map(conCorreo)
+    return lista.filter(Boolean)
+  }, [anuncioTarget, anuncioWorker, activeWorkers, perfiles])
+
+  const sinCorreo = useMemo(() => {
+    if (anuncioTarget !== 'all') return []
+    return activeWorkers.filter(w => !perfiles.find(x => x.worker_id === w.id)?.email)
+  }, [anuncioTarget, activeWorkers, perfiles])
 
   useEffect(() => {
     // Inicializar metas con valores de monthly_config o fallback a workers.daily_goal

@@ -211,3 +211,40 @@ values (
   extract(year from current_date)::int,
   2700, 800, 2000
 ) on conflict (month, year) do nothing;
+
+-- ============================================================
+-- METAS DE SERVICIOS — AVANCE DEL EQUIPO
+-- ============================================================
+-- Los trabajadores solo pueden leer sus propios tickets (RLS), así que el
+-- avance del equipo llega por esta función, que devuelve lo mínimo para contar
+-- metas: fecha, tipo de vehículo y nombres de los adicionales. Sin precios,
+-- placas ni datos del cliente.
+
+create or replace function public.metas_tickets_mes(p_prefix text)
+returns table (
+  fecha date,
+  vehicle_type text,
+  vehicle_subtype text,
+  extras_names text[],
+  status text
+)
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select
+    t.date,
+    coalesce(t.vehicle_type, ''),
+    coalesce(t.vehicle_subtype, ''),
+    coalesce(
+      array(select e->>'name' from jsonb_array_elements(coalesce(t.extras, '[]'::jsonb)) e),
+      '{}'::text[]
+    ),
+    coalesce(t.status, 'cerrado')
+  from public.tickets t
+  where to_char(t.date, 'YYYY-MM') = p_prefix;
+$$;
+
+revoke all on function public.metas_tickets_mes(text) from public;
+grant execute on function public.metas_tickets_mes(text) to authenticated;

@@ -6,7 +6,7 @@ import { useApp } from '../../context/AppContext'
 import {
   LayoutDashboard, ClipboardList, Users, Wallet, TrendingUp,
   Settings, History, BarChart2, Sun, Moon, Menu, X, ChevronRight, UserCog, LogOut,
-  Plus, TrendingDown, AlertCircle, Calculator, CalendarDays, Fingerprint, Clock, AlarmClock, Mail
+  Plus, TrendingDown, AlertCircle, Calculator, CalendarDays, Fingerprint, Clock, AlarmClock, Mail, Target
 } from 'lucide-react'
 import { cn, todayISO } from '../../lib/utils'
 import { IncidentForm } from '../../pages/Trabajadores'
@@ -271,6 +271,7 @@ function GlobalFab({ canAdmin, workerWorkerId }) {
 const ADMIN_NAV = [
   { to: '/',              label: 'Panel',     icon: LayoutDashboard },
   { to: '/registro',      label: 'Registro',  icon: ClipboardList },
+  { to: '/metas',         label: 'Metas',     icon: Target },
   { to: '/trabajadores',  label: 'Equipo',    icon: Users },
   // { to: '/mix', label: 'Mix', icon: TrendingUp }, // oculto temporalmente
   { to: '/configuracion', label: 'Config',    icon: Settings },
@@ -288,11 +289,16 @@ const ADMIN_NAV = [
 
 const WORKER_NAV = [
   { to: '/',              label: 'Inicio',      icon: LayoutDashboard },
+  { to: '/metas',         label: 'Metas',       icon: Target },
   { to: '/registro',      label: 'Registro',    icon: ClipboardList },
   { to: '/citas',         label: 'Citas',       icon: CalendarDays },
   { to: '/presupuesto',   label: 'Presupuesto', icon: Calculator },
   { to: '/asistencia',    label: 'Asistencia',  icon: Fingerprint },
 ]
+
+// La barra inferior aguanta cinco destinos; Presupuesto queda en el menú lateral.
+const WORKER_MOBILE = ['/', '/metas', '/registro', '/citas', '/asistencia']
+  .map(to => WORKER_NAV.find(n => n.to === to))
 
 function NavItem({ item, collapsed, onClick }) {
   const Icon = item.icon
@@ -357,7 +363,7 @@ export default function Layout({ children }) {
     ADMIN_NAV.find(n => n.to === '/citas'),
     ADMIN_NAV.find(n => n.to === '/presupuesto'),
   ]
-  const mobileNav = isAdmin ? ADMIN_MOBILE : NAV
+  const mobileNav = isAdmin ? ADMIN_MOBILE : WORKER_MOBILE
 
   const currentPage = NAV.find(i => {
     if (i.to === '/') return location.pathname === '/'

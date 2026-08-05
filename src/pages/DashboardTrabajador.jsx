@@ -4,7 +4,10 @@ import { useApp } from '../context/AppContext'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { formatMoney, todayISO, getWorkingDaysInMonth, currentMonthYear, calcRealSalary, compressImage } from '../lib/utils'
-import { Target, Clock, CheckCircle, Car, AlertCircle, Plus, X, ClipboardList, TrendingDown, Pencil, Check, CalendarDays } from 'lucide-react'
+import {
+  monthPrefix, resolveItems, computeProgress, fetchMetasConfig, fetchMetasRows, rowsFromTickets,
+} from '../lib/metas'
+import { Target, Clock, CheckCircle, Car, AlertCircle, Plus, X, ClipboardList, TrendingDown, Pencil, Check, CalendarDays, ChevronRight } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 const GASTO_CATS = [
@@ -163,7 +166,64 @@ function FabMenu({ workerId, workerName }) {
   )
 }
 
+// Resumen de las metas del mes del equipo. El detalle vive en /metas; aquí solo
+// va el titular para que el trabajador lo vea al abrir la app.
+function MetasMesCard() {
+  const { tickets, isDemo } = useApp()
+  const { month, year } = currentMonthYear()
+  const prefix = monthPrefix(year, month)
+  const [data, setData] = useState(null)
+
+  useEffect(() => {
+    let vivo = true
+    async function cargar() {
+      const cfg = await fetchMetasConfig()
+      let rows
+      if (isDemo) rows = rowsFromTickets(tickets, prefix)
+      else {
+        try { rows = await fetchMetasRows(prefix) }
+        catch { rows = rowsFromTickets(tickets, prefix) }
+      }
+      if (!vivo) return
+      const prog  = computeProgress(resolveItems(cfg, prefix), rows, todayISO())
+      const meta  = prog.reduce((s, i) => s + i.goal, 0)
+      const hecho = prog.reduce((s, i) => s + Math.min(i.done, i.goal), 0)
+      const top   = [...prog].filter(i => i.goal > 0).sort((a, b) => b.goal - a.goal).slice(0, 3)
+      setData({ meta, hecho, pct: meta > 0 ? Math.round((hecho / meta) * 100) : 0, top })
+    }
+    cargar()
+    return () => { vivo = false }
+  }, [prefix, tickets.length])
+
+  if (!data || !data.meta) return null
+
+  return (
+    <Link to="/metas" className="card block active:scale-[0.99] transition-transform hover:border-red-200 dark:hover:border-red-900">
+      <div className="flex items-center gap-2 mb-2">
+        <Target className="w-4 h-4 text-red-500" />
+        <p className="text-xs font-bold text-gray-500 uppercase tracking-widest flex-1">Metas del mes</p>
+        <span className="text-sm font-black text-gray-900 dark:text-white tabular-nums">
+          {data.hecho}<span className="text-gray-400">/{data.meta}</span>
+        </span>
+        <span className="text-sm font-black text-red-600">{data.pct}%</span>
+        <ChevronRight className="w-4 h-4 text-gray-400" />
+      </div>
+      <div className="h-2 rounded-full bg-gray-100 dark:bg-gray-800 overflow-hidden">
+        <div className="h-full rounded-full bg-red-600" style={{ width: `${Math.min(100, data.pct)}%`, transition: 'width 800ms ease' }} />
+      </div>
+      <div className="flex flex-wrap gap-1.5 mt-2.5">
+        {data.top.map(i => (
+          <span key={i.id} className="text-[11px] font-semibold px-2 py-1 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300">
+            {i.emoji} {i.done}/{i.goal}
+          </span>
+        ))}
+      </div>
+    </Link>
+  )
+}
+
 export default function DashboardTrabajador() {
+  const navigate = useNavigate()
   const { tickets, workers, vehicleTypes, monthlyCosts, loadData, invalidateAllCache } = useApp()
   const { profile, refreshProfile } = useAuth()
 
@@ -475,6 +535,9 @@ export default function DashboardTrabajador() {
           </div>
         )
       })()}
+
+      {/* Metas del mes del equipo */}
+      <MetasMesCard />
 
       {/* Stats */}
       <div className="grid grid-cols-3 gap-3">

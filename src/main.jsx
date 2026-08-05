@@ -66,6 +66,7 @@ import AuthCallback from './pages/AuthCallback'
 const Trabajadores  = lazy(() => import('./pages/Trabajadores'))
 const Nomina        = lazy(() => import('./pages/Nomina'))
 const Mix           = lazy(() => import('./pages/Mix'))
+const Metas         = lazy(() => import('./pages/Metas'))
 const Configuracion = lazy(() => import('./pages/Configuracion'))
 const Historial     = lazy(() => import('./pages/Historial'))
 const Reportes      = lazy(() => import('./pages/Reportes'))
@@ -114,6 +115,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
                       <Route path="/trabajadores"  element={<AdminOnly><Trabajadores /></AdminOnly>} />
                       <Route path="/nomina"        element={<Navigate to="/trabajadores" replace />} />
                       <Route path="/mix"           element={<AdminOnly><Mix /></AdminOnly>} />
+                      <Route path="/metas"         element={<Metas />} />
                       <Route path="/configuracion" element={<AdminOnly><Configuracion /></AdminOnly>} />
                       <Route path="/historial"     element={<AdminOnly><Historial /></AdminOnly>} />
                       <Route path="/reportes"      element={<AdminOnly><Reportes /></AdminOnly>} />

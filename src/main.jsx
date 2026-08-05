@@ -92,6 +92,7 @@ const Citas         = lazy(() => import('./pages/Citas'))
 const Asistencia         = lazy(() => import('./pages/Asistencia'))
 const AsistenciaReporte  = lazy(() => import('./pages/AsistenciaReporte'))
 const Horarios           = lazy(() => import('./pages/Horarios'))
+const Correos            = lazy(() => import('./pages/Correos'))
 
 function HomeRoute() {
   const { isAdmin, isDemo } = useAuth()
@@ -138,6 +139,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
                       <Route path="/asistencia"    element={<Asistencia />} />
                       <Route path="/asistencia/reporte" element={<AdminOnly><AsistenciaReporte /></AdminOnly>} />
                       <Route path="/horarios"          element={<AdminOnly><Horarios /></AdminOnly>} />
+                      <Route path="/correos"           element={<AdminOnly><Correos /></AdminOnly>} />
                     </Routes>
                   </Suspense>
                 </Layout>

@@ -1,8 +1,11 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { useApp } from '../../context/AppContext'
 import { supabase } from '../../lib/supabase'
-import { Send, X } from 'lucide-react'
+import { Send, X, Paperclip, Image, Trash2 } from 'lucide-react'
 import toast from 'react-hot-toast'
+
+const MAX_FILE_SIZE = 4 * 1024 * 1024
+const MAX_FILES = 5
 
 export default function ComposeForm({ onSent, onClose }) {
   const { workers } = useApp()
@@ -18,6 +21,8 @@ export default function ComposeForm({ onSent, onClose }) {
   const [tone, setTone] = useState('normal')
   const [aiPreview, setAiPreview] = useState('')
   const [generatingAi, setGeneratingAi] = useState(false)
+  const [adjuntos, setAdjuntos] = useState([])
+  const fileInputRef = useRef(null)
 
   useEffect(() => {
     supabase.from('profiles').select('worker_id, email').then(({ data }) => setPerfiles(data || []))
@@ -61,6 +66,31 @@ export default function ComposeForm({ onSent, onClose }) {
     setGeneratingAi(false)
   }
 
+  function handleFiles(e) {
+    const files = Array.from(e.target.files || [])
+    if (adjuntos.length + files.length > MAX_FILES) {
+      toast.error(`Máximo ${MAX_FILES} archivos`); return
+    }
+    for (const f of files) {
+      if (f.size > MAX_FILE_SIZE) {
+        toast.error(`${f.name} excede 4 MB`); continue
+      }
+      if (!f.type.startsWith('image/')) {
+        toast.error(`${f.name} no es una imagen`); continue
+      }
+      const reader = new FileReader()
+      reader.onload = () => {
+        const base64 = reader.result.split(',')[1]
+        setAdjuntos(prev => {
+          if (prev.length >= MAX_FILES) return prev
+          return [...prev, { name: f.name, type: f.type, base64, preview: reader.result }]
+        })
+      }
+      reader.readAsDataURL(f)
+    }
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
   async function handleSend() {
     if (!asunto.trim()) { toast.error('Escribe el asunto'); return }
     if (!msg.trim()) { toast.error('Escribe el mensaje'); return }
@@ -69,7 +99,8 @@ export default function ComposeForm({ onSent, onClose }) {
     try {
       const { data, error } = await supabase.functions.invoke('enviar-correo', {
         body: { kind: tipo, subject: asunto.trim(), body: msg.trim(),
-          recipients: destinatarios.map(d => ({ name: d.name, email: d.email })) },
+          recipients: destinatarios.map(d => ({ name: d.name, email: d.email })),
+          attachments: adjuntos.map(a => ({ name: a.name, type: a.type, base64: a.base64 })) },
       })
       if (error || data?.error) throw new Error(data?.error || error.message)
 
@@ -85,7 +116,7 @@ export default function ComposeForm({ onSent, onClose }) {
         toast.error(`Enviados ${data.enviados.length} de ${data.total}. Fallaron: ${fallidos.map(f => f.email).join(', ')}`)
       } else {
         toast.success(`Correo enviado a ${data.enviados.length} destinatario${data.enviados.length !== 1 ? 's' : ''} ✓`)
-        setMsg(''); setAsunto(''); setAiPreview('')
+        setMsg(''); setAsunto(''); setAiPreview(''); setAdjuntos([])
         onSent?.()
       }
     } catch (e) { toast.error(`Error al enviar: ${e.message}`) }
@@ -173,6 +204,37 @@ export default function ComposeForm({ onSent, onClose }) {
       <textarea className="input resize-none mb-2" rows={3}
         placeholder="Escribe el anuncio o mensaje para el equipo..."
         value={msg} onChange={e => { setMsg(e.target.value); setAiPreview('') }} />
+
+      <input ref={fileInputRef} type="file" accept="image/*" multiple
+        className="hidden" onChange={handleFiles} />
+
+      <div className="flex items-center gap-2 mb-3">
+        <button onClick={() => fileInputRef.current?.click()}
+          disabled={adjuntos.length >= MAX_FILES}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-40 transition-all">
+          <Image className="w-3.5 h-3.5" />
+          Adjuntar imagen
+        </button>
+        {adjuntos.length > 0 && (
+          <span className="text-xs text-gray-400">{adjuntos.length}/{MAX_FILES}</span>
+        )}
+      </div>
+
+      {adjuntos.length > 0 && (
+        <div className="flex gap-2 mb-3 flex-wrap">
+          {adjuntos.map((a, i) => (
+            <div key={i} className="relative group">
+              <img src={a.preview} alt={a.name}
+                className="w-16 h-16 object-cover rounded-lg border border-gray-200 dark:border-gray-700" />
+              <button onClick={() => setAdjuntos(prev => prev.filter((_, j) => j !== i))}
+                className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                <X className="w-3 h-3" />
+              </button>
+              <p className="text-[10px] text-gray-400 truncate w-16 mt-0.5">{a.name}</p>
+            </div>
+          ))}
+        </div>
+      )}
 
       <button onClick={handleGenerateAI} disabled={generatingAi || !msg.trim()}
         className="w-full mb-3 py-2 rounded-xl text-sm font-semibold border-2 border-dashed border-indigo-300 dark:border-indigo-700 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 disabled:opacity-40 transition-all flex items-center justify-center gap-2">

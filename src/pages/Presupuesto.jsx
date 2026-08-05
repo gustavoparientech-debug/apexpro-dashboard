@@ -45,9 +45,9 @@ const VEHICLE_TYPES = [
 
 const DAMAGE_LEVELS = [
   { id: 'none',     label: 'Solo pintura', short: '—',        pct: 0,   color: 'border-gray-200 text-gray-500 dark:border-gray-600 dark:text-gray-400' },
-  { id: 'leve',     label: 'Leve',         short: 'Leve',     pct: 0.3, color: 'border-yellow-400 text-yellow-700 dark:border-yellow-600 dark:text-yellow-400' },
-  { id: 'moderado', label: 'Moderado',     short: 'Mod.',     pct: 0.6, color: 'border-orange-400 text-orange-700 dark:border-orange-500 dark:text-orange-400' },
-  { id: 'severo',   label: 'Severo',       short: 'Severo',   pct: 1.0, color: 'border-red-500 text-red-700 dark:border-red-500 dark:text-red-400' },
+  { id: 'leve',     label: 'Leve',         short: 'Leve',     pct: 0.4, color: 'border-yellow-400 text-yellow-700 dark:border-yellow-600 dark:text-yellow-400' },
+  { id: 'moderado', label: 'Moderado',     short: 'Mod.',     pct: 0.8, color: 'border-orange-400 text-orange-700 dark:border-orange-500 dark:text-orange-400' },
+  { id: 'severo',   label: 'Severo',       short: 'Severo',   pct: 1.2, color: 'border-red-500 text-red-700 dark:border-red-500 dark:text-red-400' },
 ]
 
 // Estimación de tiempo de entrega basada en nivel de daño y cantidad de paños

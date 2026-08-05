@@ -1,14 +1,31 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
-import {
-  Mail, MailOpen, RefreshCw, ArrowLeft, Send, Inbox, Users, CornerUpLeft, Check, ChevronRight,
-} from 'lucide-react'
+import { RefreshCw, ArrowLeft, Send, Users, ChevronDown } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 const IS_DEMO = !import.meta.env.VITE_SUPABASE_URL || import.meta.env.VITE_SUPABASE_URL === 'https://placeholder.supabase.co'
 
-// Las respuestas de Gmail arrastran el correo anterior citado con ">" y una
-// línea de "El día X escribió:". Se separa para no repetir todo el hilo.
+function stripRe(s) {
+  return (s || '').replace(/^(Re|Fwd|RV|RE|FW|Fw|Rv):\s*/gi, '').trim()
+}
+
+function fechaCorta(valor) {
+  const d = new Date(valor)
+  if (isNaN(d)) return ''
+  const hoy = new Date()
+  return d.toDateString() === hoy.toDateString()
+    ? d.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' })
+    : d.toLocaleDateString('es-PE', { day: '2-digit', month: 'short' })
+}
+
+function fechaLarga(valor) {
+  const d = new Date(valor)
+  if (isNaN(d)) return ''
+  return d.toLocaleString('es-PE', {
+    day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit',
+  })
+}
+
 function partirCita(texto) {
   const lineas = (texto || '').split('\n')
   const corte = lineas.findIndex((l, i) =>
@@ -23,57 +40,75 @@ function partirCita(texto) {
   }
 }
 
-function fechaCorta(valor) {
-  const d = new Date(valor)
-  if (isNaN(d)) return ''
-  const hoy = new Date()
-  const mismoDia = d.toDateString() === hoy.toDateString()
-  return mismoDia
-    ? d.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' })
-    : d.toLocaleDateString('es-PE', { day: '2-digit', month: 'short' })
+const COLORES = ['#e53e3e', '#dd6b20', '#38a169', '#3182ce', '#805ad5', '#d53f8c', '#319795']
+function colorAvatar(nombre) {
+  return COLORES[[...(nombre || '?')].reduce((h, c) => h + c.charCodeAt(0), 0) % COLORES.length]
+}
+function iniciales(nombre) {
+  return (nombre || '?').split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
 }
 
-function fechaLarga(valor) {
-  const d = new Date(valor)
-  if (isNaN(d)) return ''
-  return d.toLocaleString('es-PE', {
-    day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit',
-  })
+function buildThreads(envios, inbox) {
+  const map = new Map()
+
+  for (const e of envios) {
+    const key = stripRe(e.subject).toLowerCase()
+    if (!map.has(key)) map.set(key, { subject: stripRe(e.subject), msgs: [] })
+    map.get(key).msgs.push({
+      dir: 'out', body: e.body, recipients: e.recipients || [],
+      date: new Date(e.created_at), id: `s${e.id}`, kind: e.kind,
+    })
+  }
+
+  for (const m of inbox) {
+    const key = stripRe(m.asunto).toLowerCase()
+    if (!map.has(key)) map.set(key, { subject: stripRe(m.asunto), msgs: [] })
+    map.get(key).msgs.push({
+      dir: 'in', from: { nombre: m.nombre, email: m.email },
+      date: new Date(m.fecha), uid: m.uid, leido: m.leido,
+      id: `r${m.uid}`, messageId: m.messageId,
+    })
+  }
+
+  const threads = []
+  for (const [key, t] of map) {
+    t.msgs.sort((a, b) => a.date - b.date)
+    t.key = key
+    t.lastDate = t.msgs[t.msgs.length - 1].date
+
+    const names = new Set()
+    t.msgs.forEach(m => {
+      if (m.dir === 'out') {
+        names.add('Tú')
+        m.recipients.forEach(r => names.add(r.name || r.email))
+      } else {
+        names.add(m.from.nombre || m.from.email)
+      }
+    })
+    t.participants = [...names]
+    t.unread = t.msgs.filter(m => m.dir === 'in' && !m.leido).length
+    t.hasSent = t.msgs.some(m => m.dir === 'out')
+
+    const last = t.msgs[t.msgs.length - 1]
+    t.snippet = last.dir === 'out' ? (last.body || '').slice(0, 80) : ''
+    t.lastSender = last.dir === 'out' ? 'Tú' : (last.from.nombre || last.from.email)
+
+    threads.push(t)
+  }
+  threads.sort((a, b) => b.lastDate - a.lastDate)
+  return threads
 }
+
+// ─── Componente principal ───────────────────────────────────────────────────
 
 export default function Correos() {
-  const [tab, setTab] = useState('recibidos')
-
-  return (
-    <div className="space-y-4 pb-8">
-      <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 rounded-xl p-1">
-        <button onClick={() => setTab('recibidos')}
-          className={`flex-1 flex items-center justify-center gap-2 py-2 text-sm font-medium rounded-lg transition-colors ${
-            tab === 'recibidos' ? 'bg-white dark:bg-gray-700 shadow text-gray-900 dark:text-white' : 'text-gray-500'
-          }`}>
-          <Inbox className="w-4 h-4" /> Recibidos
-        </button>
-        <button onClick={() => setTab('enviados')}
-          className={`flex-1 flex items-center justify-center gap-2 py-2 text-sm font-medium rounded-lg transition-colors ${
-            tab === 'enviados' ? 'bg-white dark:bg-gray-700 shadow text-gray-900 dark:text-white' : 'text-gray-500'
-          }`}>
-          <Send className="w-4 h-4" /> Enviados
-        </button>
-      </div>
-
-      {tab === 'recibidos' ? <Recibidos /> : <Enviados />}
-    </div>
-  )
-}
-
-// ─── Bandeja de entrada ──────────────────────────────────────────────────────
-function Recibidos() {
-  const [mensajes, setMensajes] = useState([])
+  const [envios, setEnvios] = useState([])
+  const [inbox, setInbox] = useState([])
+  const [correosEquipo, setCorreosEquipo] = useState([])
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState('')
   const [soloEquipo, setSoloEquipo] = useState(true)
   const [abierto, setAbierto] = useState(null)
-  const [correosEquipo, setCorreosEquipo] = useState([])
 
   useEffect(() => {
     if (IS_DEMO) return
@@ -86,56 +121,44 @@ function Recibidos() {
     if (IS_DEMO) { setCargando(false); setError('El buzón no está disponible en modo demo.'); return }
     setCargando(true)
     try {
-      const { data, error } = await supabase.functions.invoke('leer-correo', {
-        body: { action: 'lista', limit: 50 },
-      })
-      if (error || data?.error) throw new Error(data?.error || error.message)
-      setMensajes(data.mensajes || [])
+      const [envR, inR] = await Promise.all([
+        supabase.from('sent_emails').select('*').order('created_at', { ascending: false }).limit(50),
+        supabase.functions.invoke('leer-correo', { body: { action: 'lista', limit: 100 } }),
+      ])
+      setEnvios(envR.data || [])
+      if (inR.data?.error) throw new Error(inR.data.error)
+      setInbox(inR.data?.mensajes || [])
       setError('')
-    } catch (e) {
-      setError(e.message)
-    }
+    } catch (e) { setError(e.message) }
     setCargando(false)
   }, [])
 
   useEffect(() => { cargar() }, [cargar])
 
-  const delEquipo = useCallback(
-    (m) => correosEquipo.includes((m.email || '').toLowerCase()),
-    [correosEquipo],
-  )
+  const allThreads = useMemo(() => buildThreads(envios, inbox), [envios, inbox])
 
-  const visibles = useMemo(
-    () => (soloEquipo ? mensajes.filter(delEquipo) : mensajes),
-    [mensajes, soloEquipo, delEquipo],
-  )
-  const sinLeer = visibles.filter(m => !m.leido).length
-
-  // El estado local se adelanta al servidor para que la lista no parpadee.
-  function actualizar(uid, cambios) {
-    setMensajes(prev => prev.map(m => (m.uid === uid ? { ...m, ...cambios } : m)))
-  }
+  const visibleThreads = useMemo(() => {
+    if (!soloEquipo) return allThreads
+    return allThreads.filter(t =>
+      t.hasSent || t.msgs.some(m => m.dir === 'in' && correosEquipo.includes(m.from.email.toLowerCase()))
+    )
+  }, [allThreads, soloEquipo, correosEquipo])
 
   if (abierto) {
-    return (
-      <Detalle
-        resumen={abierto}
-        onVolver={() => setAbierto(null)}
-        onLeido={() => actualizar(abierto.uid, { leido: true })}
-        onRespondido={() => actualizar(abierto.uid, { leido: true, respondido: true })}
-      />
-    )
+    return <VistaHilo thread={abierto} onVolver={() => { setAbierto(null); cargar() }} />
   }
 
+  const sinLeer = visibleThreads.reduce((n, t) => n + t.unread, 0)
+
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 pb-8">
       <div className="flex items-center gap-2">
         <div className="flex-1 flex gap-1 text-sm">
           <button onClick={() => setSoloEquipo(true)}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-medium border transition-all ${
               soloEquipo ? 'bg-red-600 border-red-600 text-white' : 'border-gray-200 dark:border-gray-700 text-gray-500'
             }`}>
-            <Users className="w-3.5 h-3.5" /> Del equipo
+            <Users className="w-3.5 h-3.5" /> Equipo
           </button>
           <button onClick={() => setSoloEquipo(false)}
             className={`px-3 py-1.5 rounded-lg font-medium border transition-all ${
@@ -144,377 +167,304 @@ function Recibidos() {
             Todos
           </button>
         </div>
-        <button onClick={cargar} disabled={cargando} className="btn-secondary flex items-center gap-2 text-sm">
+        <button onClick={cargar} disabled={cargando}
+          className="p-2 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-500 hover:text-red-600 transition-colors">
           <RefreshCw className={`w-4 h-4 ${cargando ? 'animate-spin' : ''}`} />
-          Actualizar
         </button>
       </div>
 
       <p className="text-xs text-gray-400">
-        Buzón de apexprodetailing0@gmail.com
-        {sinLeer > 0 && ` · ${sinLeer} sin leer`}
+        apexprodetailing0@gmail.com{sinLeer > 0 && ` · ${sinLeer} sin leer`}
       </p>
 
       {error && (
-        <div className="card border-red-200 dark:border-red-900 text-sm text-red-600 dark:text-red-400">
-          {error}
-        </div>
+        <div className="card border-red-200 dark:border-red-900 text-sm text-red-600 dark:text-red-400">{error}</div>
       )}
 
-      {cargando && !mensajes.length && (
+      {cargando && !allThreads.length && (
         <div className="flex justify-center py-10">
           <div className="w-8 h-8 border-4 border-red-600 border-t-transparent rounded-full animate-spin" />
         </div>
       )}
 
-      {!cargando && !visibles.length && !error && (
+      {!cargando && !visibleThreads.length && !error && (
         <div className="card text-center py-10 text-sm text-gray-400">
-          {soloEquipo
-            ? 'No hay correos del equipo. Prueba con «Todos».'
-            : 'El buzón está vacío.'}
+          {soloEquipo ? 'No hay conversaciones con el equipo.' : 'El buzón está vacío.'}
         </div>
       )}
 
-      <div className="space-y-2">
-        {visibles.map(m => (
-          <button key={m.uid} onClick={() => setAbierto(m)}
-            className={`card w-full text-left flex items-start gap-3 hover:border-red-200 dark:hover:border-red-900 transition-colors ${
-              m.leido ? '' : 'border-l-4 border-l-red-600'
-            }`}>
-            <div className="mt-0.5 flex-none text-gray-400">
-              {m.leido ? <MailOpen className="w-4 h-4" /> : <Mail className="w-4 h-4 text-red-600" />}
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <p className={`flex-1 truncate text-sm ${m.leido ? 'text-gray-600 dark:text-gray-300' : 'font-semibold text-gray-900 dark:text-white'}`}>
-                  {m.nombre || m.email}
-                </p>
-                <span className="text-[11px] text-gray-400 flex-none">{fechaCorta(m.fecha)}</span>
+      <div className="divide-y divide-gray-100 dark:divide-gray-800">
+        {visibleThreads.map(t => {
+          const otro = t.participants.find(p => p !== 'Tú') || 'Tú'
+          return (
+            <button key={t.key} onClick={() => setAbierto(t)}
+              className={`w-full text-left flex items-center gap-3 px-2 py-3 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors ${
+                t.unread ? 'bg-blue-50/40 dark:bg-blue-950/20' : ''
+              }`}>
+              <div className="w-10 h-10 rounded-full flex items-center justify-center text-white text-xs font-bold flex-none"
+                style={{ background: colorAvatar(otro) }}>
+                {iniciales(otro)}
               </div>
-              <p className={`truncate text-sm ${m.leido ? 'text-gray-500' : 'text-gray-800 dark:text-gray-200'}`}>
-                {m.asunto}
-              </p>
-              <div className="flex items-center gap-2 mt-0.5">
-                <span className="text-[11px] text-gray-400 truncate">{m.email}</span>
-                {m.respondido && (
-                  <span className="text-[11px] text-green-600 dark:text-green-400 flex items-center gap-0.5 flex-none">
-                    <CornerUpLeft className="w-3 h-3" /> respondido
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <p className={`flex-1 truncate text-sm ${t.unread ? 'font-bold text-gray-900 dark:text-white' : 'text-gray-600 dark:text-gray-300'}`}>
+                    {t.participants.filter(p => p !== 'Tú').join(', ') || 'Tú'}
+                    {t.msgs.length > 1 && <span className="text-gray-400 font-normal"> ({t.msgs.length})</span>}
+                  </p>
+                  <span className={`text-[11px] flex-none ${t.unread ? 'text-red-600 font-semibold' : 'text-gray-400'}`}>
+                    {fechaCorta(t.lastDate)}
                   </span>
-                )}
+                </div>
+                <p className={`truncate text-sm ${t.unread ? 'font-semibold text-gray-800 dark:text-gray-200' : 'text-gray-500'}`}>
+                  {t.subject}
+                </p>
+                <p className="truncate text-xs text-gray-400 mt-0.5">
+                  {t.lastSender}: {t.snippet || t.subject}
+                </p>
               </div>
-            </div>
-          </button>
-        ))}
+              {t.unread > 0 && (
+                <span className="w-5 h-5 rounded-full bg-red-600 text-white text-[10px] font-bold flex items-center justify-center flex-none">
+                  {t.unread}
+                </span>
+              )}
+            </button>
+          )
+        })}
       </div>
     </div>
   )
 }
 
-// ─── Un correo abierto, con su respuesta ─────────────────────────────────────
-function Detalle({ resumen, onVolver, onLeido, onRespondido, volverLabel = 'Volver a la bandeja' }) {
-  const [mensaje, setMensaje] = useState(null)
+// ─── Vista de hilo (tipo Gmail) ─────────────────────────────────────────────
+
+function VistaHilo({ thread, onVolver }) {
+  const [bodies, setBodies] = useState({})
   const [cargando, setCargando] = useState(true)
-  const [error, setError] = useState('')
-  const [verCita, setVerCita] = useState(false)
+  const [expanded, setExpanded] = useState({})
   const [respuesta, setRespuesta] = useState('')
   const [enviando, setEnviando] = useState(false)
-  const [respondido, setRespondido] = useState(resumen.respondido)
+  const [mensajesLocales, setMensajesLocales] = useState(thread.msgs)
 
   useEffect(() => {
-    let vivo = true
+    const uids = thread.msgs.filter(m => m.dir === 'in').map(m => m.uid)
+    if (!uids.length) { setCargando(false); return }
+
+    const lastId = thread.msgs[thread.msgs.length - 1].id
+    setExpanded({ [lastId]: true })
+
     ;(async () => {
-      try {
-        const { data, error } = await supabase.functions.invoke('leer-correo', {
-          body: { action: 'mensaje', uid: resumen.uid },
-        })
-        if (error || data?.error) throw new Error(data?.error || error.message)
-        if (!vivo) return
-        setMensaje(data.mensaje)
-        if (!resumen.leido) {
-          supabase.functions.invoke('leer-correo', { body: { action: 'marcar', uid: resumen.uid, leido: true } })
-          onLeido()
+      const map = {}
+      await Promise.all(uids.map(async uid => {
+        try {
+          const { data } = await supabase.functions.invoke('leer-correo', {
+            body: { action: 'mensaje', uid },
+          })
+          if (data?.mensaje) map[uid] = data.mensaje.texto
+        } catch { /* skip */ }
+      }))
+      setBodies(map)
+      setCargando(false)
+
+      for (const m of thread.msgs) {
+        if (m.dir === 'in' && !m.leido) {
+          supabase.functions.invoke('leer-correo', { body: { action: 'marcar', uid: m.uid, leido: true } })
         }
-      } catch (e) {
-        if (vivo) setError(e.message)
       }
-      if (vivo) setCargando(false)
     })()
-    return () => { vivo = false }
-  }, [resumen.uid])
+  }, [thread])
 
-  const { cuerpo, cita } = useMemo(() => partirCita(mensaje?.texto || ''), [mensaje])
+  useEffect(() => {
+    if (!cargando) {
+      const lastId = mensajesLocales[mensajesLocales.length - 1]?.id
+      if (lastId) setExpanded(prev => ({ ...prev, [lastId]: true }))
+    }
+  }, [cargando, mensajesLocales])
 
-  async function responder() {
-    if (!respuesta.trim()) { toast.error('Escribe la respuesta'); return }
+  const lastReceived = [...mensajesLocales].reverse().find(m => m.dir === 'in')
+  const replyTarget = lastReceived?.from
+    || (mensajesLocales[0]?.dir === 'out' ? mensajesLocales[0].recipients[0] : null)
+
+  async function enviar() {
+    if (!respuesta.trim() || !replyTarget) return
     setEnviando(true)
     try {
-      const asunto = /^re:/i.test(mensaje.asunto) ? mensaje.asunto : `Re: ${mensaje.asunto}`
+      const asunto = `Re: ${thread.subject}`
       const { data, error } = await supabase.functions.invoke('enviar-correo', {
         body: {
-          kind: 'respuesta',
-          subject: asunto,
-          body: respuesta.trim(),
-          recipients: [{ name: mensaje.nombre, email: mensaje.email }],
-          inReplyTo: mensaje.messageId,
+          kind: 'respuesta', subject: asunto, body: respuesta.trim(),
+          recipients: [{ name: replyTarget.nombre || replyTarget.name, email: replyTarget.email }],
+          inReplyTo: lastReceived?.messageId || '',
         },
       })
       if (error || data?.error) throw new Error(data?.error || error.message)
-      if (data.fallidos?.length) throw new Error(data.fallidos[0].error)
 
       await supabase.from('sent_emails').insert({
-        kind: 'respuesta',
-        subject: asunto,
-        body: respuesta.trim(),
-        recipients: [{ name: mensaje.nombre, email: mensaje.email }],
+        kind: 'respuesta', subject: asunto, body: respuesta.trim(),
+        recipients: [{ name: replyTarget.nombre || replyTarget.name, email: replyTarget.email }],
         status: 'enviado',
       })
-      supabase.functions.invoke('leer-correo', {
-        body: { action: 'marcar', uid: resumen.uid, respondido: true },
-      })
+      if (lastReceived?.uid) {
+        supabase.functions.invoke('leer-correo', {
+          body: { action: 'marcar', uid: lastReceived.uid, respondido: true },
+        })
+      }
 
-      toast.success('Respuesta enviada ✓')
+      const nuevo = {
+        dir: 'out', body: respuesta.trim(),
+        recipients: [{ name: replyTarget.nombre || replyTarget.name, email: replyTarget.email }],
+        date: new Date(), id: `s-new-${Date.now()}`, kind: 'respuesta',
+      }
+      setMensajesLocales(prev => [...prev, nuevo])
+      setExpanded(prev => ({ ...prev, [nuevo.id]: true }))
+      toast.success('Respuesta enviada')
       setRespuesta('')
-      setRespondido(true)
-      onRespondido()
-    } catch (e) {
-      toast.error(`Error al responder: ${e.message}`)
-    }
+    } catch (e) { toast.error(`Error: ${e.message}`) }
     setEnviando(false)
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4 pb-8">
       <button onClick={onVolver} className="flex items-center gap-2 text-sm text-gray-500 hover:text-red-600">
-        <ArrowLeft className="w-4 h-4" /> {volverLabel}
+        <ArrowLeft className="w-4 h-4" /> Correos
       </button>
 
-      {cargando && (
-        <div className="flex justify-center py-10">
-          <div className="w-8 h-8 border-4 border-red-600 border-t-transparent rounded-full animate-spin" />
-        </div>
-      )}
-
-      {error && <div className="card text-sm text-red-600 dark:text-red-400">{error}</div>}
-
-      {mensaje && (
-        <>
-          <div className="card space-y-3">
-            <div>
-              <h2 className="text-base font-semibold text-gray-900 dark:text-white">{mensaje.asunto}</h2>
-              <p className="text-xs text-gray-500 mt-1">
-                {mensaje.nombre ? `${mensaje.nombre} · ` : ''}{mensaje.email}
-              </p>
-              <p className="text-xs text-gray-400">{fechaLarga(mensaje.fecha)}</p>
-            </div>
-
-            <p className="text-sm whitespace-pre-wrap text-gray-800 dark:text-gray-200">
-              {cuerpo || '(sin texto)'}
-            </p>
-
-            {cita && (
-              <div>
-                <button onClick={() => setVerCita(v => !v)}
-                  className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
-                  {verCita ? 'Ocultar mensaje anterior' : 'Ver mensaje anterior'}
-                </button>
-                {verCita && (
-                  <p className="mt-2 pl-3 border-l-2 border-gray-200 dark:border-gray-700 text-xs whitespace-pre-wrap text-gray-500">
-                    {cita}
-                  </p>
-                )}
-              </div>
-            )}
-
-            {mensaje.truncado && (
-              <p className="text-xs text-amber-600 dark:text-amber-400">
-                El correo era muy largo y se muestra solo el comienzo.
-              </p>
-            )}
-          </div>
-
-          <div className="card space-y-3">
-            <div className="flex items-center gap-2">
-              <CornerUpLeft className="w-4 h-4 text-gray-400" />
-              <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-                Responder a {mensaje.nombre || mensaje.email}
-              </p>
-              {respondido && (
-                <span className="ml-auto text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
-                  <Check className="w-3.5 h-3.5" /> ya respondido
-                </span>
-              )}
-            </div>
-            <textarea className="input min-h-[120px] resize-y"
-              placeholder="Escribe tu respuesta..."
-              value={respuesta}
-              onChange={e => setRespuesta(e.target.value)} />
-            <button onClick={responder} disabled={enviando || !respuesta.trim()}
-              className="btn-primary w-full flex items-center justify-center gap-2">
-              <Send className="w-4 h-4" />
-              {enviando ? 'Enviando...' : 'Enviar respuesta'}
-            </button>
-            <p className="text-xs text-gray-400">
-              Sale desde apexprodetailing0@gmail.com y queda enganchada al mismo hilo.
-            </p>
-          </div>
-        </>
-      )}
-    </div>
-  )
-}
-
-// ─── Constancia de lo enviado desde la app ───────────────────────────────────
-function Enviados() {
-  const [envios, setEnvios] = useState([])
-  const [cargando, setCargando] = useState(true)
-  const [abierto, setAbierto] = useState(null)
-
-  useEffect(() => {
-    if (IS_DEMO) { setCargando(false); return }
-    supabase.from('sent_emails').select('*').order('created_at', { ascending: false }).limit(50)
-      .then(({ data }) => setEnvios(data || []))
-      .finally(() => setCargando(false))
-  }, [])
-
-  if (abierto) {
-    return <HiloEnviado envio={abierto} onVolver={() => setAbierto(null)} />
-  }
-
-  if (cargando) {
-    return (
-      <div className="flex justify-center py-10">
-        <div className="w-8 h-8 border-4 border-red-600 border-t-transparent rounded-full animate-spin" />
-      </div>
-    )
-  }
-
-  if (!envios.length) {
-    return <div className="card text-center py-10 text-sm text-gray-400">Todavía no se ha enviado ningún correo.</div>
-  }
-
-  return (
-    <div className="space-y-2">
-      {envios.map(e => (
-        <button key={e.id} onClick={() => setAbierto(e)}
-          className="card w-full text-left space-y-1 hover:border-red-200 dark:hover:border-red-900 transition-colors">
-          <div className="flex items-center gap-2">
-            <p className="flex-1 truncate text-sm font-semibold text-gray-900 dark:text-white">{e.subject}</p>
-            <ChevronRight className="w-4 h-4 text-gray-300 flex-none" />
-            <span className="text-[11px] text-gray-400 flex-none">{fechaCorta(e.created_at)}</span>
-          </div>
-          <p className="text-xs text-gray-500 truncate">
-            {(e.recipients || []).map(r => r.name || r.email).join(', ')}
-          </p>
-          <div className="flex items-center gap-2">
-            <span className="text-[11px] px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-gray-500 capitalize">
-              {e.kind}
-            </span>
-            {e.status !== 'enviado' && (
-              <span className="text-[11px] text-red-600 dark:text-red-400">falló el envío</span>
-            )}
-          </div>
-          <p className="text-xs text-gray-500 dark:text-gray-400 whitespace-pre-wrap line-clamp-3">{e.body}</p>
-        </button>
-      ))}
-    </div>
-  )
-}
-
-// ─── Hilo de un correo enviado: muestra el original + respuestas del inbox ──
-function HiloEnviado({ envio, onVolver }) {
-  const [respuestas, setRespuestas] = useState([])
-  const [cargando, setCargando] = useState(true)
-  const [detalle, setDetalle] = useState(null)
-
-  useEffect(() => {
-    if (IS_DEMO) { setCargando(false); return }
-    ;(async () => {
-      try {
-        const { data } = await supabase.functions.invoke('leer-correo', {
-          body: { action: 'lista', limit: 100 },
-        })
-        const msgs = data?.mensajes || []
-        const base = (envio.subject || '').replace(/^Re:\s*/i, '').trim().toLowerCase()
-        const dests = (envio.recipients || []).map(r => (r.email || '').toLowerCase())
-
-        setRespuestas(msgs.filter(m => {
-          const asuntoMsg = (m.asunto || '').replace(/^Re:\s*/i, '').trim().toLowerCase()
-          return asuntoMsg === base && dests.includes((m.email || '').toLowerCase())
-        }))
-      } catch { /* sin conexión al buzón */ }
-      setCargando(false)
-    })()
-  }, [envio])
-
-  if (detalle) {
-    return (
-      <Detalle
-        resumen={detalle}
-        onVolver={() => setDetalle(null)}
-        onLeido={() => {}}
-        onRespondido={() => {}}
-        volverLabel="Volver al hilo"
-      />
-    )
-  }
-
-  return (
-    <div className="space-y-3">
-      <button onClick={onVolver} className="flex items-center gap-2 text-sm text-gray-500 hover:text-red-600">
-        <ArrowLeft className="w-4 h-4" /> Volver a enviados
-      </button>
-
-      <div className="card space-y-2">
-        <div className="flex items-center gap-2">
-          <Send className="w-4 h-4 text-red-500 flex-none" />
-          <p className="text-xs font-medium text-gray-500">Enviado</p>
-          <span className="text-[11px] text-gray-400 ml-auto">{fechaCorta(envio.created_at)}</span>
-        </div>
-        <h2 className="text-base font-semibold text-gray-900 dark:text-white">{envio.subject}</h2>
-        <p className="text-xs text-gray-500">
-          Para: {(envio.recipients || []).map(r => r.name || r.email).join(', ')}
-        </p>
-        <p className="text-sm whitespace-pre-wrap text-gray-800 dark:text-gray-200">{envio.body}</p>
-      </div>
-
-      <div className="flex items-center gap-2 pt-1">
-        <CornerUpLeft className="w-4 h-4 text-gray-400" />
-        <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-          Respuestas {!cargando && `(${respuestas.length})`}
+      <div>
+        <h1 className="text-lg font-bold text-gray-900 dark:text-white">{thread.subject}</h1>
+        <p className="text-xs text-gray-400 mt-0.5">
+          {mensajesLocales.length} mensaje{mensajesLocales.length !== 1 ? 's' : ''}
+          {' · '}{thread.participants.join(', ')}
         </p>
       </div>
-
-      {cargando && (
-        <div className="flex justify-center py-6">
-          <div className="w-6 h-6 border-[3px] border-red-600 border-t-transparent rounded-full animate-spin" />
-        </div>
-      )}
-
-      {!cargando && !respuestas.length && (
-        <div className="card text-center py-6 text-sm text-gray-400">
-          Ningún destinatario ha respondido todavía.
-        </div>
-      )}
 
       <div className="space-y-2">
-        {respuestas.map(r => (
-          <button key={r.uid} onClick={() => setDetalle(r)}
-            className="card w-full text-left flex items-start gap-3 hover:border-green-200 dark:hover:border-green-900 transition-colors">
-            <div className="mt-0.5 flex-none">
-              <CornerUpLeft className="w-4 h-4 text-green-600" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <p className="flex-1 truncate text-sm font-medium text-gray-900 dark:text-white">
-                  {r.nombre || r.email}
-                </p>
-                <span className="text-[11px] text-gray-400 flex-none">{fechaCorta(r.fecha)}</span>
-              </div>
-              <p className="text-xs text-gray-500 truncate">{r.email}</p>
-            </div>
-          </button>
-        ))}
+        {mensajesLocales.map(m => {
+          const isOpen = expanded[m.id]
+          if (m.dir === 'out') {
+            return (
+              <MsgEnviado key={m.id} msg={m} open={isOpen}
+                onToggle={() => setExpanded(p => ({ ...p, [m.id]: !p[m.id] }))} />
+            )
+          }
+          return (
+            <MsgRecibido key={m.id} msg={m} open={isOpen}
+              texto={bodies[m.uid]} loading={cargando && !bodies[m.uid]}
+              onToggle={() => setExpanded(p => ({ ...p, [m.id]: !p[m.id] }))} />
+          )
+        })}
       </div>
+
+      {replyTarget && (
+        <div className="border border-gray-200 dark:border-gray-700 rounded-2xl overflow-hidden">
+          <div className="px-4 py-2 bg-gray-50 dark:bg-gray-800/50 text-xs text-gray-500">
+            Responder a {replyTarget.nombre || replyTarget.name || replyTarget.email}
+          </div>
+          <textarea
+            className="w-full px-4 py-3 text-sm bg-transparent resize-y min-h-[80px] focus:outline-none text-gray-800 dark:text-gray-200"
+            placeholder="Escribe tu respuesta..."
+            value={respuesta}
+            onChange={e => setRespuesta(e.target.value)}
+          />
+          <div className="flex items-center justify-between px-4 py-2 border-t border-gray-100 dark:border-gray-800">
+            <p className="text-[11px] text-gray-400">desde apexprodetailing0@gmail.com</p>
+            <button onClick={enviar} disabled={enviando || !respuesta.trim()}
+              className="flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white text-sm font-medium transition-colors">
+              <Send className="w-3.5 h-3.5" />
+              {enviando ? 'Enviando...' : 'Enviar'}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Burbuja de mensaje enviado ─────────────────────────────────────────────
+
+function MsgEnviado({ msg, open, onToggle }) {
+  return (
+    <div className={`rounded-2xl border transition-all ${
+      open
+        ? 'border-red-200 dark:border-red-900/50 bg-red-50/50 dark:bg-red-950/20'
+        : 'border-transparent hover:bg-gray-50 dark:hover:bg-gray-800/30 cursor-pointer'
+    }`}>
+      <div className="flex items-center gap-3 px-4 py-3 cursor-pointer" onClick={onToggle}>
+        <div className="w-8 h-8 rounded-full bg-red-600 flex items-center justify-center text-white text-[10px] font-bold flex-none">
+          Tú
+        </div>
+        <div className="flex-1 min-w-0">
+          <span className="text-sm font-semibold text-gray-900 dark:text-white">Tú</span>
+          {!open && <span className="text-xs text-gray-400 ml-2 truncate">{(msg.body || '').slice(0, 60)}...</span>}
+        </div>
+        <span className="text-[11px] text-gray-400 flex-none">{fechaCorta(msg.date)}</span>
+        {!open && <ChevronDown className="w-3.5 h-3.5 text-gray-300 flex-none" />}
+      </div>
+      {open && (
+        <div className="px-4 pb-4 pl-[3.75rem]">
+          <p className="text-xs text-gray-400 mb-2">
+            Para: {msg.recipients.map(r => r.name || r.email).join(', ')}
+          </p>
+          <p className="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-wrap">{msg.body}</p>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Burbuja de mensaje recibido ────────────────────────────────────────────
+
+function MsgRecibido({ msg, open, texto, loading, onToggle }) {
+  const { cuerpo, cita } = useMemo(() => partirCita(texto || ''), [texto])
+  const [verCita, setVerCita] = useState(false)
+  const nombre = msg.from.nombre || msg.from.email
+
+  return (
+    <div className={`rounded-2xl border transition-all ${
+      open
+        ? 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm'
+        : 'border-transparent hover:bg-gray-50 dark:hover:bg-gray-800/30 cursor-pointer'
+    }`}>
+      <div className="flex items-center gap-3 px-4 py-3 cursor-pointer" onClick={onToggle}>
+        <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-[10px] font-bold flex-none"
+          style={{ background: colorAvatar(nombre) }}>
+          {iniciales(nombre)}
+        </div>
+        <div className="flex-1 min-w-0">
+          <span className="text-sm font-semibold text-gray-900 dark:text-white">{nombre}</span>
+          {!open && texto && <span className="text-xs text-gray-400 ml-2 truncate">{cuerpo.slice(0, 60)}...</span>}
+        </div>
+        <span className="text-[11px] text-gray-400 flex-none">{fechaCorta(msg.date)}</span>
+        {!open && <ChevronDown className="w-3.5 h-3.5 text-gray-300 flex-none" />}
+      </div>
+      {open && (
+        <div className="px-4 pb-4 pl-[3.75rem]">
+          <p className="text-xs text-gray-400 mb-2">{msg.from.email}</p>
+          {loading ? (
+            <div className="flex items-center gap-2 py-2 text-xs text-gray-400">
+              <div className="w-3 h-3 border-2 border-gray-300 border-t-transparent rounded-full animate-spin" />
+              Cargando mensaje...
+            </div>
+          ) : (
+            <>
+              <p className="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-wrap">
+                {cuerpo || '(sin texto)'}
+              </p>
+              {cita && (
+                <div className="mt-3">
+                  <button onClick={() => setVerCita(v => !v)}
+                    className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                    {verCita ? '▾ Ocultar citado' : '▸ Mostrar citado'}
+                  </button>
+                  {verCita && (
+                    <p className="mt-1.5 pl-3 border-l-2 border-gray-200 dark:border-gray-700 text-xs whitespace-pre-wrap text-gray-400">
+                      {cita}
+                    </p>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
     </div>
   )
 }

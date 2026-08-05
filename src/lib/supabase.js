@@ -12,3 +12,17 @@ export const supabase = createClient(
   supabaseAnonKey || 'placeholder-key',
   { auth: { flowType: 'implicit', detectSessionInUrl: true } }
 )
+
+// supabase-js descarta el cuerpo de la respuesta cuando una edge function
+// devuelve 4xx/5xx: solo queda "Edge Function returned a non-2xx status code".
+// El mensaje real viene en error.context, que es el Response original.
+export async function invokeFunction(name, body) {
+  const { data, error } = await supabase.functions.invoke(name, { body })
+  if (error) {
+    let detalle = ''
+    try { detalle = (await error.context?.json())?.error } catch {}
+    throw new Error(detalle || error.message)
+  }
+  if (data?.error) throw new Error(data.error)
+  return data
+}

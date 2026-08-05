@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useAuth } from '../context/AuthContext'
-import { supabase } from '../lib/supabase'
+import { supabase, invokeFunction } from '../lib/supabase'
 import { todayISO, formatMoney } from '../lib/utils'
 import { Plus, FileText, Send, Search, X, Trash2, Download, Eye, Copy, ChevronDown, MessageCircle } from 'lucide-react'
 import toast from 'react-hot-toast'
@@ -281,16 +281,13 @@ export default function Facturas() {
       const doc = generateInvoicePDF(inv, logoB64)
       const pdfBase64 = doc.output('datauristring').split(',')[1]
 
-      const { error } = await supabase.functions.invoke('enviar-correo', {
-        body: {
-          kind: 'factura',
-          subject: `Factura Electrónica ${num} - APEX PRO DETAILING`,
-          body: `Estimado/a ${inv.client_razon_social},\n\nAdjunto encontrará su Factura Electrónica ${num} por un total de ${formatMoney(inv.total)}.\n\nGracias por su preferencia.\n\nAPEX PRO DETAILING E.I.R.L.\nRUC: 20614041669`,
-          recipients: [{ name: inv.client_razon_social, email: inv.client_email }],
-          attachments: [{ filename: `Factura-${num}.pdf`, content: pdfBase64, type: 'application/pdf' }],
-        },
+      await invokeFunction('enviar-correo', {
+        kind: 'factura',
+        subject: `Factura Electrónica ${num} - APEX PRO DETAILING`,
+        body: `Estimado/a ${inv.client_razon_social},\n\nAdjunto encontrará su Factura Electrónica ${num} por un total de ${formatMoney(inv.total)}.\n\nGracias por su preferencia.\n\nAPEX PRO DETAILING E.I.R.L.\nRUC: 20614041669`,
+        recipients: [{ name: inv.client_razon_social, email: inv.client_email }],
+        attachments: [{ filename: `Factura-${num}.pdf`, content: pdfBase64, type: 'application/pdf' }],
       })
-      if (error) throw error
 
       await supabase.from('invoices').update({ estado: 'enviada', updated_at: new Date().toISOString() }).eq('id', inv.id)
       toast.success(`Factura enviada a ${inv.client_email}`)
@@ -564,8 +561,7 @@ function InvoiceForm({ onClose, onSaved, logoB64, userId }) {
     if (ruc.length !== 11) { toast.error('El RUC debe tener 11 dígitos'); return }
     setLookingUp(true)
     try {
-      const { data, error } = await supabase.functions.invoke('consulta-ruc', { body: { ruc } })
-      if (error || data?.error) throw new Error(data?.error || error.message)
+      const data = await invokeFunction('consulta-ruc', { ruc })
       setRazonSocial(data.razonSocial || '')
       setDireccion(data.direccion || '')
       setUbigeo(data.ubigeo || '')

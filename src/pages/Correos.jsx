@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
-import { RefreshCw, ArrowLeft, Send, Users, ChevronDown } from 'lucide-react'
+import { RefreshCw, ArrowLeft, Send, Users, ChevronDown, PenSquare } from 'lucide-react'
 import toast from 'react-hot-toast'
+import ComposeForm from '../components/correos/ComposeForm'
 
 const IS_DEMO = !import.meta.env.VITE_SUPABASE_URL || import.meta.env.VITE_SUPABASE_URL === 'https://placeholder.supabase.co'
 
@@ -109,6 +110,7 @@ export default function Correos() {
   const [error, setError] = useState('')
   const [soloEquipo, setSoloEquipo] = useState(true)
   const [abierto, setAbierto] = useState(null)
+  const [componer, setComponer] = useState(false)
 
   useEffect(() => {
     if (IS_DEMO) return
@@ -167,11 +169,19 @@ export default function Correos() {
             Todos
           </button>
         </div>
+        <button onClick={() => setComponer(c => !c)}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border transition-all ${
+            componer ? 'bg-red-600 border-red-600 text-white' : 'border-gray-200 dark:border-gray-700 text-gray-500 hover:text-red-600'
+          }`}>
+          <PenSquare className="w-3.5 h-3.5" /> Nuevo
+        </button>
         <button onClick={cargar} disabled={cargando}
           className="p-2 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-500 hover:text-red-600 transition-colors">
           <RefreshCw className={`w-4 h-4 ${cargando ? 'animate-spin' : ''}`} />
         </button>
       </div>
+
+      {componer && <ComposeForm onSent={() => { setComponer(false); cargar() }} onClose={() => setComponer(false)} />}
 
       <p className="text-xs text-gray-400">
         apexprodetailing0@gmail.com{sinLeer > 0 && ` · ${sinLeer} sin leer`}

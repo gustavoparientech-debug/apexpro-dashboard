@@ -543,6 +543,7 @@ function InvoiceForm({ onClose, onSaved, logoB64, userId }) {
   const [ubigeo, setUbigeo] = useState('')
   const [clientEmail, setClientEmail] = useState('')
   const [clientPhone, setClientPhone] = useState('')
+  const [lookingUp, setLookingUp] = useState(false)
 
   const [items, setItems] = useState([emptyItem()])
   const [saving, setSaving] = useState(false)
@@ -558,6 +559,22 @@ function InvoiceForm({ onClose, onSaved, logoB64, userId }) {
         setCorrelativo((data?.[0]?.correlativo || 0) + 1)
       })
   }, [serie])
+
+  async function handleLookupRuc() {
+    if (ruc.length !== 11) { toast.error('El RUC debe tener 11 dígitos'); return }
+    setLookingUp(true)
+    try {
+      const { data, error } = await supabase.functions.invoke('consulta-ruc', { body: { ruc } })
+      if (error || data?.error) throw new Error(data?.error || error.message)
+      setRazonSocial(data.razonSocial || '')
+      setDireccion(data.direccion || '')
+      setUbigeo(data.ubigeo || '')
+      toast.success(data.estado === 'ACTIVO' ? 'Datos encontrados' : `Datos encontrados — estado: ${data.estado}`)
+    } catch (e) {
+      toast.error(e.message || 'No se pudo consultar el RUC')
+    }
+    setLookingUp(false)
+  }
 
   function addItem() { setItems(prev => [...prev, emptyItem()]) }
 
@@ -699,8 +716,18 @@ function InvoiceForm({ onClose, onSaved, logoB64, userId }) {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label className="text-xs text-gray-500 mb-1 block">RUC</label>
-            <input className="input" placeholder="20100284937" maxLength={11}
-              value={ruc} onChange={e => setRuc(e.target.value.replace(/\D/g, ''))} />
+            <div className="flex gap-2">
+              <input className="input flex-1" placeholder="20100284937" maxLength={11}
+                value={ruc} onChange={e => setRuc(e.target.value.replace(/\D/g, ''))}
+                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleLookupRuc() } }} />
+              <button onClick={handleLookupRuc} disabled={lookingUp || ruc.length !== 11}
+                title="Buscar datos en SUNAT"
+                className="px-3 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white transition-colors flex-none flex items-center">
+                {lookingUp
+                  ? <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  : <Search className="w-4 h-4" />}
+              </button>
+            </div>
           </div>
           <div>
             <label className="text-xs text-gray-500 mb-1 block">Razón Social</label>

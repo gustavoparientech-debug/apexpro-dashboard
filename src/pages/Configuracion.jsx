@@ -339,10 +339,16 @@ export default function Configuracion() {
   const [repartoPorc, setRepartoPorc] = useState({})
   const [savingReparto, setSavingReparto] = useState(false)
 
-  // Anuncios
+  // Correos al equipo
   const [anuncioMsg, setAnuncioMsg] = useState('')
   const [anuncioTarget, setAnuncioTarget] = useState('all')
   const [anuncioWorker, setAnuncioWorker] = useState('')
+  const [correoTipo, setCorreoTipo] = useState('memorandum')
+  const [correoAsunto, setCorreoAsunto] = useState('')
+  const [perfiles, setPerfiles] = useState([])
+  useEffect(() => {
+    supabase.from('profiles').select('worker_id, email').then(({ data }) => setPerfiles(data || []))
+  }, [])
   const [sendingAnuncio, setSendingAnuncio] = useState(false)
   const [anuncioTone, setAnuncioTone] = useState('normal')
   const [aiPreview, setAiPreview] = useState('')
@@ -392,26 +398,58 @@ export default function Configuracion() {
     window.open(`https://wa.me/?text=${encoded}`, '_blank')
   }
 
+  // Destinatarios con correo: sin correo no hay a quién enviar.
+  const destinatarios = useMemo(() => {
+    const conCorreo = (w) => {
+      const p = perfiles.find(x => x.worker_id === w.id)
+      return p?.email ? { id: w.id, name: w.name, email: p.email } : null
+    }
+    const lista = anuncioTarget === 'all'
+      ? activeWorkers.map(conCorreo)
+      : [activeWorkers.find(w => w.id === anuncioWorker)].filter(Boolean).map(conCorreo)
+    return lista.filter(Boolean)
+  }, [anuncioTarget, anuncioWorker, activeWorkers, perfiles])
+
+  const sinCorreo = useMemo(() => {
+    if (anuncioTarget !== 'all') return []
+    return activeWorkers.filter(w => !perfiles.find(x => x.worker_id === w.id)?.email)
+  }, [anuncioTarget, activeWorkers, perfiles])
+
   async function handleSendAnuncio() {
-    if (!anuncioMsg.trim()) { toast.error('Escribe un mensaje'); return }
+    if (!correoAsunto.trim()) { toast.error('Escribe el asunto'); return }
+    if (!anuncioMsg.trim())   { toast.error('Escribe el mensaje'); return }
+    if (!destinatarios.length) { toast.error('Ningún destinatario tiene correo registrado'); return }
     setSendingAnuncio(true)
     try {
-      const { data } = await supabase.from('app_settings').select('value').eq('key', 'anuncios').maybeSingle()
-      const existing = data?.value || []
-      const nuevo = {
-        id: Date.now().toString(),
-        message: anuncioMsg.trim(),
-        target: anuncioTarget === 'all' ? 'all' : anuncioWorker,
-        createdAt: new Date().toISOString(),
-        read: [],
+      const { data, error } = await supabase.functions.invoke('enviar-correo', {
+        body: {
+          kind: correoTipo,
+          subject: correoAsunto.trim(),
+          body: anuncioMsg.trim(),
+          recipients: destinatarios.map(d => ({ name: d.name, email: d.email })),
+        },
+      })
+      if (error || data?.error) throw new Error(data?.error || error.message)
+
+      const fallidos = data?.fallidos || []
+      await supabase.from('sent_emails').insert({
+        kind: correoTipo,
+        subject: correoAsunto.trim(),
+        body: anuncioMsg.trim(),
+        recipients: destinatarios.map(d => ({ name: d.name, email: d.email })),
+        status: fallidos.length ? 'error' : 'enviado',
+        error: fallidos.length ? JSON.stringify(fallidos) : null,
+      })
+
+      if (fallidos.length) {
+        toast.error(`Enviados ${data.enviados.length} de ${data.total}. Fallaron: ${fallidos.map(f => f.email).join(', ')}`)
+      } else {
+        toast.success(`Correo enviado a ${data.enviados.length} destinatario${data.enviados.length !== 1 ? 's' : ''} ✓`)
+        setAnuncioMsg(''); setCorreoAsunto('')
       }
-      await supabase.from('app_settings').upsert(
-        { key: 'anuncios', value: [nuevo, ...existing].slice(0, 50), updated_at: new Date().toISOString() },
-        { onConflict: 'key' }
-      )
-      setAnuncioMsg('')
-      toast.success('Anuncio enviado ✓')
-    } catch { toast.error('Error al enviar') }
+    } catch (e) {
+      toast.error(`Error al enviar: ${e.message}`)
+    }
     setSendingAnuncio(false)
   }
 
@@ -806,8 +844,10 @@ export default function Configuracion() {
       {/* Anuncios */}
       <div className="card">
         <div className="mb-3">
-          <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">Anuncios al equipo</p>
-          <p className="text-xs text-gray-400 mt-0.5">Aparece como tarjeta flotante en el dashboard del trabajador</p>
+          <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">Correos al equipo</p>
+          <p className="text-xs text-gray-400 mt-0.5">
+            Se envían desde apexprodetailing0@gmail.com · las respuestas llegan a esa misma bandeja
+          </p>
         </div>
 
         {/* Destinatario */}
@@ -828,6 +868,46 @@ export default function Configuracion() {
             {activeWorkers.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
           </select>
         )}
+
+        {/* Tipo de documento */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
+          {[
+            { v: 'memorandum',   label: '📋 Memorándum' },
+            { v: 'permiso',      label: '📝 Permiso' },
+            { v: 'aviso',        label: '📢 Aviso' },
+            { v: 'felicitacion', label: '🏅 Reconocimiento' },
+          ].map(({ v, label }) => (
+            <button key={v} onClick={() => setCorreoTipo(v)}
+              className={`py-2 rounded-xl text-xs font-semibold border transition-all ${
+                correoTipo === v
+                  ? 'bg-red-600 border-red-600 text-white'
+                  : 'border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:border-red-300'
+              }`}>{label}</button>
+          ))}
+        </div>
+
+        <input className="input mb-3" placeholder="Asunto del correo"
+          value={correoAsunto} onChange={e => setCorreoAsunto(e.target.value)} />
+
+        {/* A quién le va a llegar */}
+        <div className="mb-3 text-xs">
+          {destinatarios.length > 0 ? (
+            <p className="text-gray-500">
+              Se enviará a <span className="font-semibold text-gray-700 dark:text-gray-300">
+                {destinatarios.map(d => d.name).join(', ')}
+              </span>
+            </p>
+          ) : (
+            <p className="text-amber-600 dark:text-amber-400">
+              Ningún destinatario tiene correo registrado.
+            </p>
+          )}
+          {sinCorreo.length > 0 && (
+            <p className="text-amber-600 dark:text-amber-400 mt-0.5">
+              Sin correo, no recibirán: {sinCorreo.map(w => w.name).join(', ')}
+            </p>
+          )}
+        </div>
 
         {/* Selector de tono IA */}
         <div className="flex gap-2 mb-3">
@@ -885,8 +965,8 @@ export default function Configuracion() {
         <div className="flex gap-2">
           <button onClick={handleSendAnuncio} disabled={sendingAnuncio}
             className="flex-1 btn-primary flex items-center justify-center gap-2">
-            <span>📣</span>
-            {sendingAnuncio ? 'Enviando...' : 'Enviar anuncio'}
+            <span>✉️</span>
+            {sendingAnuncio ? 'Enviando...' : `Enviar correo${destinatarios.length ? ` (${destinatarios.length})` : ''}`}
           </button>
           <button onClick={() => handleShareWhatsApp(anuncioMsg)} disabled={!anuncioMsg.trim()}
             title="Compartir en WhatsApp"

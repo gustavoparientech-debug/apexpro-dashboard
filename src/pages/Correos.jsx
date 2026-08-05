@@ -120,7 +120,14 @@ export default function Correos() {
         supabase.functions.invoke('leer-correo', { body: { action: 'lista', limit: 100 } }),
       ])
       setEnvios(envR.data || [])
-      if (inR.error) throw new Error(inR.error?.message || 'Error al leer el buzón')
+      if (inR.error) {
+        const ctx = inR.error?.context
+        if (ctx?.status === 401 || inR.error?.message?.includes('401')) {
+          throw new Error('Sesión expirada — vuelve a iniciar sesión.')
+        }
+        const body = typeof ctx?.json === 'function' ? await ctx.json().catch(() => null) : null
+        throw new Error(body?.error || inR.error?.message || 'Error al leer el buzón')
+      }
       if (inR.data?.error) throw new Error(inR.data.error)
       setInbox(inR.data?.mensajes || [])
       setError('')

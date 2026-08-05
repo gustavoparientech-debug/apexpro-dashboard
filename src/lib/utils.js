@@ -176,3 +176,39 @@ export function compressImage(file, maxSize = 400, quality = 0.35) {
     img.src = url
   })
 }
+
+// ─── Jornadas por día ─────────────────────────────────────────────────────────
+// Horas que le corresponden a un trabajador en una fecha concreta. `weekdayHours`
+// mapea 0=domingo … 6=sábado; sin él se reparte la semana en 6 días laborables.
+export function hoursForDate(dateStr, weekdayHours, weeklyHours) {
+  const dow = new Date(`${dateStr}T00:00:00`).getDay()
+  const h = weekdayHours?.[dow] ?? weekdayHours?.[String(dow)]
+  if (h !== undefined && h !== null) return Number(h) || 0
+  return dow === 0 ? 0 : (Number(weeklyHours) || 0) / 6
+}
+
+// Días laborables del rango (ambos extremos incluidos) con sus horas. Los días
+// de descanso quedan fuera: pedir libre un domingo no descuenta nada.
+export function scheduleDaysInRange(from, to, weekdayHours, weeklyHours) {
+  const dias = []
+  if (!from) return dias
+  const cur = new Date(`${from}T00:00:00`)
+  const end = new Date(`${(to || from)}T00:00:00`)
+  // Tope de seguridad por si llegan fechas invertidas o absurdas.
+  let guard = 0
+  while (cur <= end && guard++ < 400) {
+    const iso = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, '0')}-${String(cur.getDate()).padStart(2, '0')}`
+    const h = hoursForDate(iso, weekdayHours, weeklyHours)
+    if (h > 0) dias.push({ date: iso, hours: h })
+    cur.setDate(cur.getDate() + 1)
+  }
+  return dias
+}
+
+// Descuento de un permiso o falta de varios días: se cobra por las horas que
+// el trabajador dejó de cubrir, no por un día promedio.
+export function calcLeaveDiscount(baseSalary, weeklyHours, from, to, weekdayHours) {
+  const dias = scheduleDaysInRange(from, to, weekdayHours, weeklyHours)
+  const horas = dias.reduce((s, d) => s + d.hours, 0)
+  return { dias, horas, monto: calcHourlyRate(baseSalary, weeklyHours) * horas }
+}

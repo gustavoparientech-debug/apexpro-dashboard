@@ -3,7 +3,7 @@ import { useApp } from '../context/AppContext'
 import { supabase } from '../lib/supabase'
 import {
   formatMoney, formatDate, calcRealSalary, calcDailySalary, calcProratedSalary,
-  calcAbsenceDiscount, calcLatenessDiscount, calcOvertimePay, getRatioColor, currentMonthYear, monthName, todayISO
+  calcAbsenceDiscount, calcLatenessDiscount, calcOvertimePay, calcLeaveDiscount, getRatioColor, currentMonthYear, monthName, todayISO
 } from '../lib/utils'
 import Modal from '../components/ui/Modal'
 import ConfirmDialog from '../components/ui/ConfirmDialog'
@@ -13,7 +13,7 @@ import toast from 'react-hot-toast'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 
 const INCIDENT_ICONS = { falta: '🔴', permiso: '🟡', permiso_horas: '🟡', tardanza: '🟠', hora_extra: '🟢', no_marcacion: '🔵', multa: '🚫', adelanto: '💵' }
-const INCIDENT_LABELS = { falta: 'Falta injustificada', permiso: 'Permiso justificado', permiso_horas: 'Permiso por horas', tardanza: 'Tardanza', hora_extra: 'Hora extra', no_marcacion: 'No marcó entrada/salida', multa: 'Multa', adelanto: 'Adelanto de sueldo' }
+const INCIDENT_LABELS = { vacaciones: 'Vacaciones', falta: 'Falta injustificada', permiso: 'Permiso justificado', permiso_horas: 'Permiso por horas', tardanza: 'Tardanza', hora_extra: 'Hora extra', no_marcacion: 'No marcó entrada/salida', multa: 'Multa', adelanto: 'Adelanto de sueldo' }
 
 function monthRangeStr(year, month) {
   return `${year}-${String(month).padStart(2, '0')}-01`
@@ -100,7 +100,7 @@ function WorkerForm({ initial, onSave, onClose, schedules = [] }) {
   )
 }
 
-export function IncidentForm({ workers, onSave, onClose, initial, month, year }) {
+export function IncidentForm({ workers, onSave, onClose, initial, month, year, schedules = [] }) {
   // Incluir activos + cesados activos en el mes seleccionado
   const monthStart = (month != null && year != null) ? monthRangeStr(year, month) : null
   const activeWorkers = workers.filter(w => {
@@ -119,17 +119,28 @@ export function IncidentForm({ workers, onSave, onClose, initial, month, year })
   const [form, setForm] = useState({
     worker_id: initial?.worker_id || '',
     date: initial?.date || new Date().toISOString().slice(0, 10),
+    end_date: initial?.end_date || '',
     type: initial?.type || 'falta',
     hours_h: initHours.h,
     hours_m: initHours.m,
     multa_amount: initial?.discount_amount && ['multa','adelanto','permiso'].includes(initial?.type) ? String(initial.discount_amount) : '',
+    days: initial?.days ? String(initial.days) : '',
+    vac_amount: initial?.type === 'vacaciones' && initial?.discount_amount ? String(initial.discount_amount) : '',
     no_marcacion_count: initial?.no_marcacion_count || 1,
     apply_discount: initial?.apply_discount !== false,
     observation: initial?.observation || '',
   })
 
   const worker = workers.find(w => w.id === form.worker_id)
-  const isAddition = form.type === 'hora_extra'
+  const isAddition = form.type === 'hora_extra' || form.type === 'vacaciones'
+  // Ausencias de jornada completa: pueden abarcar varios días seguidos.
+  const esRango = form.type === 'falta' || form.type === 'permiso'
+  const horarioTrab = schedules.find(x => x.id === worker?.schedule_id)
+  const tramoLibre = useMemo(() => {
+    if (!worker || !esRango) return null
+    return calcLeaveDiscount(worker.base_salary, worker.weekly_hours,
+      form.date, form.end_date || form.date, horarioTrab?.weekday_hours)
+  }, [worker, esRango, form.date, form.end_date, horarioTrab])
   const hoursDecimal = (parseInt(form.hours_h) || 0) + (parseInt(form.hours_m) || 0) / 60
 
   const previewDiscount = useMemo(() => {
@@ -137,7 +148,12 @@ export function IncidentForm({ workers, onSave, onClose, initial, month, year })
     if (form.type === 'tardanza' || form.type === 'permiso_horas') return calcLatenessDiscount(worker.base_salary, worker.weekly_hours, hoursDecimal)
     if (form.type === 'hora_extra') return calcOvertimePay(worker.base_salary, worker.weekly_hours, hoursDecimal)
     if (form.type === 'no_marcacion') return 5 * (parseInt(form.no_marcacion_count) || 1)
-    if (form.type === 'multa' || form.type === 'permiso') return parseFloat(form.multa_amount) || 0
+    if (form.type === 'multa') return parseFloat(form.multa_amount) || 0
+    // Falta y permiso se cobran por las horas de jornada de cada día del rango.
+    if (esRango) return tramoLibre?.monto || 0
+    // Vacaciones: se abona el importe legal (calculado fuera, sobre el promedio
+    // de sueldos del año) y se descuentan los días no trabajados.
+    if (form.type === 'vacaciones') return parseFloat(form.vac_amount) || 0
     return calcAbsenceDiscount(worker.base_salary, worker.weekly_hours)
   }, [worker, form, hoursDecimal])
 
@@ -151,10 +167,14 @@ export function IncidentForm({ workers, onSave, onClose, initial, month, year })
       type: form.type,
       hours_late: hoursDecimal,
       no_marcacion_count: parseInt(form.no_marcacion_count) || 1,
+      end_date: esRango && form.end_date && form.end_date > form.date ? form.end_date : null,
       apply_discount: (form.type === 'multa' || form.type === 'adelanto') ? true : form.apply_discount,
       observation: form.observation,
       is_addition: isAddition,
-      multa_amount: (form.type === 'multa' || form.type === 'adelanto' || form.type === 'permiso') ? parseFloat(form.multa_amount) || 0 : undefined,
+      multa_amount: esRango ? (tramoLibre?.monto || 0)
+        : (form.type === 'multa' || form.type === 'adelanto') ? parseFloat(form.multa_amount) || 0
+        : form.type === 'vacaciones' ? parseFloat(form.vac_amount) || 0 : undefined,
+      days: form.type === 'vacaciones' ? parseFloat(form.days) || 0 : undefined,
     })
     onClose()
   }
@@ -173,7 +193,7 @@ export function IncidentForm({ workers, onSave, onClose, initial, month, year })
       </div>
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="label">Fecha</label>
+          <label className="label">{esRango ? 'Desde' : 'Fecha'}</label>
           <input type="date" className="input" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} required />
         </div>
         <div>
@@ -229,7 +249,7 @@ export function IncidentForm({ workers, onSave, onClose, initial, month, year })
           </p>
         </div>
       )}
-      {(form.type === 'multa' || form.type === 'adelanto' || (form.type === 'permiso' && form.apply_discount)) && (
+      {(form.type === 'multa' || form.type === 'adelanto') && (
         <div>
           <label className="label">
             {form.type === 'adelanto' ? 'Monto del adelanto (S/)' : form.type === 'permiso' ? 'Monto del descuento (S/)' : 'Monto de la multa (S/)'}
@@ -242,7 +262,80 @@ export function IncidentForm({ workers, onSave, onClose, initial, month, year })
           />
         </div>
       )}
-      {form.type !== 'multa' && form.type !== 'adelanto' && (
+      {esRango && (
+        <div className="space-y-2">
+          <div>
+            <label className="label">Hasta (dejar vacío si es un solo día)</label>
+            <input type="date" className="input" value={form.end_date} min={form.date}
+              onChange={e => setForm(f => ({ ...f, end_date: e.target.value }))} />
+          </div>
+          {tramoLibre && tramoLibre.dias.length > 0 && form.apply_discount && (
+            <div className="rounded-lg p-3 text-xs bg-amber-50 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-900/30">
+              <div className="flex justify-between font-semibold text-gray-700 dark:text-gray-200 mb-1">
+                <span>{tramoLibre.dias.length} día{tramoLibre.dias.length !== 1 ? 's' : ''} · {tramoLibre.horas}h</span>
+                <span className="text-red-600 dark:text-red-400">−{formatMoney(tramoLibre.monto)}</span>
+              </div>
+              <div className="space-y-0.5 text-gray-500">
+                {tramoLibre.dias.map(d => (
+                  <div key={d.date} className="flex justify-between">
+                    <span className="capitalize">
+                      {new Date(`${d.date}T00:00:00`).toLocaleDateString('es-PE', { weekday: 'long', day: '2-digit', month: 'short' })}
+                    </span>
+                    <span>{d.hours}h</span>
+                  </div>
+                ))}
+              </div>
+              <p className="text-[10px] text-gray-400 pt-1.5">
+                Se cobran las horas de jornada de cada día; los días de descanso no cuentan.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+      {form.type === 'vacaciones' && (
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="label">Días de vacaciones</label>
+              <input type="number" className="input" min="0" step="0.5" required
+                value={form.days} placeholder="15"
+                onChange={e => setForm(f => ({ ...f, days: e.target.value }))} />
+            </div>
+            <div>
+              <label className="label">Monto a pagar (S/)</label>
+              <input type="number" className="input" min="0" step="0.01" required
+                value={form.vac_amount} placeholder="751.67"
+                onChange={e => setForm(f => ({ ...f, vac_amount: e.target.value }))} />
+            </div>
+          </div>
+          {worker && (() => {
+            const dias = parseFloat(form.days) || 0
+            const pago = parseFloat(form.vac_amount) || 0
+            const diario = calcDailySalary(worker.base_salary, worker.weekly_hours)
+            const noTrabajados = diario * dias
+            return (
+              <div className="rounded-lg p-3 text-xs bg-blue-50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-900/30 space-y-1">
+                <div className="flex justify-between text-red-600 dark:text-red-400">
+                  <span>{dias} día{dias !== 1 ? 's' : ''} no trabajados (S/{diario.toFixed(2)}/día)</span>
+                  <span className="font-semibold">−{formatMoney(noTrabajados)}</span>
+                </div>
+                <div className="flex justify-between text-green-600 dark:text-green-400">
+                  <span>Pago de vacaciones</span>
+                  <span className="font-semibold">+{formatMoney(pago)}</span>
+                </div>
+                <div className="flex justify-between pt-1 border-t border-blue-200 dark:border-blue-800 text-gray-700 dark:text-gray-200">
+                  <span>Efecto neto en la nómina</span>
+                  <span className="font-bold">{formatMoney(pago - noTrabajados)}</span>
+                </div>
+                <p className="text-[10px] text-gray-400 pt-0.5">
+                  El monto se calcula fuera del sistema (promedio de sueldos del año) y se ingresa aquí.
+                </p>
+              </div>
+            )
+          })()}
+        </div>
+      )}
+      {form.type !== 'multa' && form.type !== 'adelanto' && form.type !== 'vacaciones' && (
         <div className="flex items-center gap-2">
           <input type="checkbox" id="apply_discount" checked={form.apply_discount} onChange={e => setForm(f => ({ ...f, apply_discount: e.target.checked }))} />
           <label htmlFor="apply_discount" className="text-sm text-gray-700 dark:text-gray-300 cursor-pointer">{isAddition ? 'Pagar en planilla' : 'Aplicar descuento'}</label>
@@ -408,8 +501,10 @@ export default function Trabajadores() {
         const w = wks.find(x => x.id === inc.worker_id)
         if (!inc.apply_discount || !w) return { ...inc, discount_amount: inc.discount_amount || 0 }
         let discount = 0
-        if (inc.type === 'falta')       discount = calcAbsenceDiscount(w.base_salary, w.weekly_hours)
-        else if (inc.type === 'permiso') discount = inc.multa_amount || inc.discount_amount || 0
+        // Falta y permiso ya vienen calculados sobre el horario real del
+        // trabajador (y pueden abarcar varios días): se respeta lo guardado.
+        if (inc.type === 'falta' || inc.type === 'permiso')
+          discount = inc.discount_amount ?? calcAbsenceDiscount(w.base_salary, w.weekly_hours)
         else if (inc.type === 'tardanza' || inc.type === 'permiso_horas') discount = calcLatenessDiscount(w.base_salary, w.weekly_hours, inc.hours_late || 0)
         else if (inc.type === 'hora_extra') discount = calcOvertimePay(w.base_salary, w.weekly_hours, inc.hours_late || 0)
         else if (inc.type === 'multa' || inc.type === 'adelanto') discount = inc.multa_amount || inc.discount_amount || 0
@@ -545,7 +640,11 @@ export default function Trabajadores() {
         const workerIncidents = activeIncidents.filter(i => i.worker_id === w.id)
         const totalDiscounts = workerIncidents.filter(i => i.apply_discount && !i.is_addition).reduce((s, i) => s + (i.discount_amount || 0), 0)
         const totalOvertime  = workerIncidents.filter(i => i.apply_discount && i.is_addition).reduce((s, i) => s + (i.discount_amount || 0), 0)
-        const finalPay = realSalary - totalDiscounts + totalOvertime
+        // Vacaciones: los días no trabajados se descuentan del sueldo. El pago
+        // de la vacación ya entra por totalOvertime (is_addition).
+        const diasVac = workerIncidents.filter(i => i.type === 'vacaciones').reduce((s, i) => s + (i.days || 0), 0)
+        const descVac = diasVac * calcDailySalary(base_salary, weekly_hours)
+        const finalPay = realSalary - totalDiscounts - descVac + totalOvertime
         const ratio = realSalary > 0 ? income / realSalary : 0
         const daysInMonth = new Date(year, month, 0).getDate()
         const avgDaily = income / daysInMonth
@@ -652,7 +751,11 @@ export default function Trabajadores() {
         const workerIncidents = activeIncidents.filter(i => i.worker_id === w.id)
         const totalDiscounts = workerIncidents.filter(i => i.apply_discount && !i.is_addition).reduce((s, i) => s + (i.discount_amount || 0), 0)
         const totalOvertime  = workerIncidents.filter(i => i.apply_discount && i.is_addition).reduce((s, i) => s + (i.discount_amount || 0), 0)
-        const finalPay = realSalary - totalDiscounts + totalOvertime
+        // Vacaciones: los días no trabajados se descuentan del sueldo. El pago
+        // de la vacación ya entra por totalOvertime (is_addition).
+        const diasVac = workerIncidents.filter(i => i.type === 'vacaciones').reduce((s, i) => s + (i.days || 0), 0)
+        const descVac = diasVac * calcDailySalary(base_salary, weekly_hours)
+        const finalPay = realSalary - totalDiscounts - descVac + totalOvertime
         // base_salary/weekly_hours van después del spread para que la fila y el
         // editor muestren el sueldo del mes y no el global.
         return { ...w, base_salary, weekly_hours, realSalary, workerIncidents, totalDiscounts, totalOvertime, finalPay }
@@ -1087,7 +1190,7 @@ export default function Trabajadores() {
           {/* Resumen compacto cuando está cerrado */}
           {!incExpanded && (
             <div className="flex flex-wrap gap-2 mt-2">
-              {['falta','tardanza','adelanto','multa','hora_extra','permiso','permiso_horas','no_marcacion'].map(type => {
+              {['falta','tardanza','adelanto','multa','hora_extra','vacaciones','permiso','permiso_horas','no_marcacion'].map(type => {
                 const count = activeIncidents.filter(i => i.type === type).length
                 if (!count) return null
                 return (
@@ -1549,7 +1652,7 @@ export default function Trabajadores() {
       </Modal>
 
       <Modal open={showIncidentForm} onClose={() => { setShowIncidentForm(false); setEditingIncident(null) }} title={editingIncident ? 'Editar incidencia' : 'Registrar incidencia'}>
-        <IncidentForm workers={workers} onSave={handleSaveIncident} onClose={() => { setShowIncidentForm(false); setEditingIncident(null) }} initial={editingIncident} month={month} year={year} />
+        <IncidentForm workers={workers} schedules={schedules} onSave={handleSaveIncident} onClose={() => { setShowIncidentForm(false); setEditingIncident(null) }} initial={editingIncident} month={month} year={year} />
       </Modal>
 
       {deactivateTarget?.active ? (

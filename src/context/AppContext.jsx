@@ -228,7 +228,15 @@ function calcIncidentDiscount(data, worker) {
   if (data.type === 'hora_extra') return calcOvertimePay(worker.base_salary, worker.weekly_hours, data.hours_late || 0)
   if (data.type === 'no_marcacion') return NO_MARCACION_COST * (data.no_marcacion_count || 1)
   if (data.type === 'multa' || data.type === 'adelanto') return parseFloat(data.multa_amount) || data.discount_amount || 0
-  if (data.type === 'permiso') return parseFloat(data.multa_amount) || 0
+  // Falta y permiso: el importe llega calculado desde el formulario, que conoce
+  // el horario del trabajador y el rango de días. Se respeta.
+  if (data.type === 'falta' || data.type === 'permiso') {
+    const m = parseFloat(data.multa_amount)
+    return Number.isFinite(m) && m > 0 ? m : calcAbsenceDiscount(worker.base_salary, worker.weekly_hours)
+  }
+  // Vacaciones: el importe lo fija el usuario (promedio de sueldos del año).
+  // Los días no trabajados se descuentan aparte, en el cálculo de la nómina.
+  if (data.type === 'vacaciones') return parseFloat(data.multa_amount) || 0
   return calcAbsenceDiscount(worker.base_salary, worker.weekly_hours)
 }
 

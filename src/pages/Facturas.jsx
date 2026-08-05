@@ -247,6 +247,12 @@ export default function Facturas() {
     )
   }, [invoices, search])
 
+  const stats = useMemo(() => {
+    const mes = new Date().toISOString().slice(0, 7)
+    const delMes = invoices.filter(i => i.fecha?.startsWith(mes) && i.estado !== 'anulada')
+    return { count: delMes.length, total: delMes.reduce((s, i) => s + Number(i.total), 0) }
+  }, [invoices])
+
   function handleDownloadPDF(inv) {
     const doc = generateInvoicePDF(inv, logoB64)
     doc.save(`Factura-${inv.serie}-${String(inv.correlativo).padStart(3, '0')}.pdf`)
@@ -308,14 +314,6 @@ export default function Facturas() {
       onAnular={handleAnular}
     />
   }
-
-  const stats = useMemo(() => {
-    const thisMonth = invoices.filter(i => i.fecha?.startsWith(new Date().toISOString().slice(0, 7)) && i.estado !== 'anulada')
-    return {
-      count: thisMonth.length,
-      total: thisMonth.reduce((s, i) => s + Number(i.total), 0),
-    }
-  }, [invoices])
 
   return (
     <div className="space-y-4">

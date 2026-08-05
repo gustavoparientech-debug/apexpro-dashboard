@@ -267,7 +267,7 @@ Deno.serve(async (req: Request) => {
       return json({ error: "Falta el secreto GMAIL_APP_PASSWORD en el proyecto de Supabase." }, 500)
     }
 
-    const { action = "lista", limit = 40, uid, leido, respondido } = await req.json().catch(() => ({}))
+    const { action = "lista", limit = 40, uid, uids, leido, respondido } = await req.json().catch(() => ({}))
 
     imap = await Imap.connect()
     await imap.login(password)
@@ -341,6 +341,16 @@ Deno.serve(async (req: Request) => {
       const signo = leido === false ? "-" : "+"
       await imap.exec(`UID STORE ${Number(uid)} ${signo}FLAGS (${flags.join(" ")})`)
       return json({ ok: true })
+    }
+
+    if (action === "eliminar") {
+      const lista = uids ?? (uid ? [uid] : [])
+      if (!lista.length) return json({ error: "Falta el identificador del mensaje." }, 400)
+      for (const u of lista) {
+        await imap.exec(`UID STORE ${Number(u)} +FLAGS (\\Deleted)`)
+      }
+      await imap.exec("EXPUNGE")
+      return json({ ok: true, eliminados: lista.length })
     }
 
     return json({ error: `Acción desconocida: ${action}` }, 400)

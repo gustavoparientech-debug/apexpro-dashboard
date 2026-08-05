@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
-import { RefreshCw, ArrowLeft, Send, Users, ChevronDown, PenSquare } from 'lucide-react'
+import { RefreshCw, ArrowLeft, Send, Users, ChevronDown, PenSquare, Trash2 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import ComposeForm from '../components/correos/ComposeForm'
 
@@ -51,49 +51,38 @@ function iniciales(nombre) {
 
 function buildThreads(envios, inbox) {
   const map = new Map()
+  const ensure = (key, subject) => { if (!map.has(key)) map.set(key, { subject, msgs: [] }); return map.get(key) }
 
   for (const e of envios) {
     const key = stripRe(e.subject).toLowerCase()
-    if (!map.has(key)) map.set(key, { subject: stripRe(e.subject), msgs: [] })
-    map.get(key).msgs.push({
+    ensure(key, stripRe(e.subject)).msgs.push({
       dir: 'out', body: e.body, recipients: e.recipients || [],
       date: new Date(e.created_at), id: `s${e.id}`, kind: e.kind,
     })
   }
-
   for (const m of inbox) {
     const key = stripRe(m.asunto).toLowerCase()
-    if (!map.has(key)) map.set(key, { subject: stripRe(m.asunto), msgs: [] })
-    map.get(key).msgs.push({
+    ensure(key, stripRe(m.asunto)).msgs.push({
       dir: 'in', from: { nombre: m.nombre, email: m.email },
-      date: new Date(m.fecha), uid: m.uid, leido: m.leido,
-      id: `r${m.uid}`, messageId: m.messageId,
+      date: new Date(m.fecha), uid: m.uid, leido: m.leido, id: `r${m.uid}`, messageId: m.messageId,
     })
   }
-
   const threads = []
   for (const [key, t] of map) {
     t.msgs.sort((a, b) => a.date - b.date)
     t.key = key
     t.lastDate = t.msgs[t.msgs.length - 1].date
-
     const names = new Set()
     t.msgs.forEach(m => {
-      if (m.dir === 'out') {
-        names.add('Tú')
-        m.recipients.forEach(r => names.add(r.name || r.email))
-      } else {
-        names.add(m.from.nombre || m.from.email)
-      }
+      if (m.dir === 'out') { names.add('Tú'); m.recipients.forEach(r => names.add(r.name || r.email)) }
+      else names.add(m.from.nombre || m.from.email)
     })
     t.participants = [...names]
     t.unread = t.msgs.filter(m => m.dir === 'in' && !m.leido).length
     t.hasSent = t.msgs.some(m => m.dir === 'out')
-
     const last = t.msgs[t.msgs.length - 1]
     t.snippet = last.dir === 'out' ? (last.body || '').slice(0, 80) : ''
     t.lastSender = last.dir === 'out' ? 'Tú' : (last.from.nombre || last.from.email)
-
     threads.push(t)
   }
   threads.sort((a, b) => b.lastDate - a.lastDate)
@@ -145,6 +134,26 @@ export default function Correos() {
       t.hasSent || t.msgs.some(m => m.dir === 'in' && correosEquipo.includes(m.from.email.toLowerCase()))
     )
   }, [allThreads, soloEquipo, correosEquipo])
+
+  async function eliminarHilo(t, e) {
+    e.stopPropagation()
+    if (!confirm(`¿Eliminar la conversación "${t.subject}"?\nSe borrará de la app y de Gmail.`)) return
+
+    const sentIds = t.msgs.filter(m => m.dir === 'out' && !m.id.startsWith('s-new-')).map(m => m.id.replace(/^s/, ''))
+    const imapUids = t.msgs.filter(m => m.dir === 'in').map(m => m.uid)
+
+    try {
+      if (sentIds.length) {
+        await supabase.from('sent_emails').delete().in('id', sentIds)
+      }
+      if (imapUids.length) {
+        await supabase.functions.invoke('leer-correo', { body: { action: 'eliminar', uids: imapUids } })
+      }
+      toast.success('Conversación eliminada')
+      setEnvios(prev => prev.filter(e => !sentIds.includes(String(e.id))))
+      setInbox(prev => prev.filter(m => !imapUids.includes(m.uid)))
+    } catch (err) { toast.error(`Error: ${err.message}`) }
+  }
 
   if (abierto) {
     return <VistaHilo thread={abierto} onVolver={() => { setAbierto(null); cargar() }} />
@@ -207,37 +216,43 @@ export default function Correos() {
         {visibleThreads.map(t => {
           const otro = t.participants.find(p => p !== 'Tú') || 'Tú'
           return (
-            <button key={t.key} onClick={() => setAbierto(t)}
-              className={`w-full text-left flex items-center gap-3 px-2 py-3 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors ${
+            <div key={t.key}
+              className={`w-full flex items-center gap-3 px-2 py-3 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors group ${
                 t.unread ? 'bg-blue-50/40 dark:bg-blue-950/20' : ''
               }`}>
-              <div className="w-10 h-10 rounded-full flex items-center justify-center text-white text-xs font-bold flex-none"
-                style={{ background: colorAvatar(otro) }}>
-                {iniciales(otro)}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <p className={`flex-1 truncate text-sm ${t.unread ? 'font-bold text-gray-900 dark:text-white' : 'text-gray-600 dark:text-gray-300'}`}>
-                    {t.participants.filter(p => p !== 'Tú').join(', ') || 'Tú'}
-                    {t.msgs.length > 1 && <span className="text-gray-400 font-normal"> ({t.msgs.length})</span>}
-                  </p>
-                  <span className={`text-[11px] flex-none ${t.unread ? 'text-red-600 font-semibold' : 'text-gray-400'}`}>
-                    {fechaCorta(t.lastDate)}
-                  </span>
+              <button onClick={() => setAbierto(t)} className="flex items-center gap-3 flex-1 min-w-0 text-left">
+                <div className="w-10 h-10 rounded-full flex items-center justify-center text-white text-xs font-bold flex-none"
+                  style={{ background: colorAvatar(otro) }}>
+                  {iniciales(otro)}
                 </div>
-                <p className={`truncate text-sm ${t.unread ? 'font-semibold text-gray-800 dark:text-gray-200' : 'text-gray-500'}`}>
-                  {t.subject}
-                </p>
-                <p className="truncate text-xs text-gray-400 mt-0.5">
-                  {t.lastSender}: {t.snippet || t.subject}
-                </p>
-              </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <p className={`flex-1 truncate text-sm ${t.unread ? 'font-bold text-gray-900 dark:text-white' : 'text-gray-600 dark:text-gray-300'}`}>
+                      {t.participants.filter(p => p !== 'Tú').join(', ') || 'Tú'}
+                      {t.msgs.length > 1 && <span className="text-gray-400 font-normal"> ({t.msgs.length})</span>}
+                    </p>
+                    <span className={`text-[11px] flex-none ${t.unread ? 'text-red-600 font-semibold' : 'text-gray-400'}`}>
+                      {fechaCorta(t.lastDate)}
+                    </span>
+                  </div>
+                  <p className={`truncate text-sm ${t.unread ? 'font-semibold text-gray-800 dark:text-gray-200' : 'text-gray-500'}`}>
+                    {t.subject}
+                  </p>
+                  <p className="truncate text-xs text-gray-400 mt-0.5">
+                    {t.lastSender}: {t.snippet || t.subject}
+                  </p>
+                </div>
+              </button>
               {t.unread > 0 && (
                 <span className="w-5 h-5 rounded-full bg-red-600 text-white text-[10px] font-bold flex items-center justify-center flex-none">
                   {t.unread}
                 </span>
               )}
-            </button>
+              <button onClick={(e) => eliminarHilo(t, e)} title="Eliminar conversación"
+                className="p-1.5 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 opacity-0 group-hover:opacity-100 transition-all flex-none">
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </div>
           )
         })}
       </div>

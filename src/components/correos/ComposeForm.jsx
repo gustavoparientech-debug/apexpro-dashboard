@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
 import { useApp } from '../../context/AppContext'
 import { supabase } from '../../lib/supabase'
-import { Send, X, Paperclip, Image, Trash2 } from 'lucide-react'
+import { Send, X, Image, Clipboard } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 const MAX_FILE_SIZE = 4 * 1024 * 1024
@@ -71,24 +71,54 @@ export default function ComposeForm({ onSent, onClose }) {
     if (adjuntos.length + files.length > MAX_FILES) {
       toast.error(`Máximo ${MAX_FILES} archivos`); return
     }
-    for (const f of files) {
-      if (f.size > MAX_FILE_SIZE) {
-        toast.error(`${f.name} excede 4 MB`); continue
-      }
-      if (!f.type.startsWith('image/')) {
-        toast.error(`${f.name} no es una imagen`); continue
-      }
-      const reader = new FileReader()
-      reader.onload = () => {
-        const base64 = reader.result.split(',')[1]
-        setAdjuntos(prev => {
-          if (prev.length >= MAX_FILES) return prev
-          return [...prev, { name: f.name, type: f.type, base64, preview: reader.result }]
-        })
-      }
-      reader.readAsDataURL(f)
-    }
+    for (const f of files) addImageFile(f)
     if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
+  function addImageFile(f) {
+    if (f.size > MAX_FILE_SIZE) { toast.error(`${f.name} excede 4 MB`); return }
+    if (!f.type.startsWith('image/')) { toast.error(`${f.name} no es una imagen`); return }
+    const reader = new FileReader()
+    reader.onload = () => {
+      const base64 = reader.result.split(',')[1]
+      setAdjuntos(prev => {
+        if (prev.length >= MAX_FILES) return prev
+        return [...prev, { name: f.name, type: f.type, base64, preview: reader.result }]
+      })
+    }
+    reader.readAsDataURL(f)
+  }
+
+  function handlePaste(e) {
+    const items = e.clipboardData?.items
+    if (!items) return
+    for (const item of items) {
+      if (item.type.startsWith('image/')) {
+        e.preventDefault()
+        const f = item.getAsFile()
+        if (!f) continue
+        const named = new File([f], `captura-${Date.now()}.png`, { type: f.type })
+        addImageFile(named)
+      }
+    }
+  }
+
+  async function handlePasteBtn() {
+    try {
+      const items = await navigator.clipboard.read()
+      for (const item of items) {
+        const imgType = item.types.find(t => t.startsWith('image/'))
+        if (imgType) {
+          const blob = await item.getType(imgType)
+          const f = new File([blob], `captura-${Date.now()}.png`, { type: imgType })
+          addImageFile(f)
+          return
+        }
+      }
+      toast.error('No hay imagen en el portapapeles')
+    } catch {
+      toast.error('No se pudo acceder al portapapeles')
+    }
   }
 
   async function handleSend() {
@@ -203,7 +233,8 @@ export default function ComposeForm({ onSent, onClose }) {
 
       <textarea className="input resize-none mb-2" rows={3}
         placeholder="Escribe el anuncio o mensaje para el equipo..."
-        value={msg} onChange={e => { setMsg(e.target.value); setAiPreview('') }} />
+        value={msg} onChange={e => { setMsg(e.target.value); setAiPreview('') }}
+        onPaste={handlePaste} />
 
       <input ref={fileInputRef} type="file" accept="image/*" multiple
         className="hidden" onChange={handleFiles} />
@@ -214,6 +245,12 @@ export default function ComposeForm({ onSent, onClose }) {
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-40 transition-all">
           <Image className="w-3.5 h-3.5" />
           Adjuntar imagen
+        </button>
+        <button onClick={handlePasteBtn}
+          disabled={adjuntos.length >= MAX_FILES}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-40 transition-all">
+          <Clipboard className="w-3.5 h-3.5" />
+          Pegar
         </button>
         {adjuntos.length > 0 && (
           <span className="text-xs text-gray-400">{adjuntos.length}/{MAX_FILES}</span>

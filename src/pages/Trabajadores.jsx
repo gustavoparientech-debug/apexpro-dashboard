@@ -1265,7 +1265,7 @@ export default function Trabajadores() {
                   <span className="text-lg">{INCIDENT_ICONS[incident.type]}</span>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-gray-900 dark:text-white">{worker?.name} — {INCIDENT_LABELS[incident.type]}</p>
-                    <p className="text-xs text-gray-500">{formatDate(incident.date)}{incident.hours_late ? ` · ${Math.floor(incident.hours_late)}h ${Math.round((incident.hours_late % 1) * 60)}min` : ''}</p>
+                    <p className="text-xs text-gray-500">{formatDate(incident.date)}{incident.end_date ? ` al ${formatDate(incident.end_date)}` : ''}{incident.hours_late ? ` · ${Math.floor(incident.hours_late)}h ${Math.round((incident.hours_late % 1) * 60)}min` : ''}</p>
                     {incident.observation && <p className="text-xs text-gray-400 italic mt-0.5">{incident.observation}</p>}
                   </div>
                   <div className="flex items-center gap-2">
@@ -1550,7 +1550,9 @@ export default function Trabajadores() {
                               <Trash2 className="w-3 h-3" />
                             </button>
                           </div>
-                          <span className="text-gray-500 shrink-0">{formatDate(i.date)}</span>
+                          <span className="text-gray-500 shrink-0">
+                            {formatDate(i.date)}{i.end_date ? ` al ${formatDate(i.end_date)}` : ''}
+                          </span>
                           <span className="text-gray-600 dark:text-gray-400 shrink-0">{INCIDENT_LABELS[i.type]}</span>
                           {(i.type === 'tardanza' || i.type === 'permiso_horas' || i.type === 'hora_extra') && i.hours_late > 0 && (
                             <span className="text-gray-400 shrink-0">{Math.floor(i.hours_late)}h {Math.round((i.hours_late % 1) * 60)}min</span>
@@ -1647,7 +1649,8 @@ export default function Trabajadores() {
                 onClick={e => e.stopPropagation()}>
                 <p className="font-bold text-gray-900 dark:text-white mb-1">¿Eliminar incidencia?</p>
                 <p className="text-sm text-gray-500 mb-4">
-                  {INCIDENT_LABELS[confirmDelete.type]} del {formatDate(confirmDelete.date)} — {formatMoney(confirmDelete.discount_amount)}
+                  {INCIDENT_LABELS[confirmDelete.type]} del {formatDate(confirmDelete.date)}
+                  {confirmDelete.end_date ? ` al ${formatDate(confirmDelete.end_date)}` : ''} — {formatMoney(confirmDelete.discount_amount)}
                 </p>
                 <div className="grid grid-cols-2 gap-2">
                   <button onClick={() => setConfirmDelete(null)} className="btn-secondary py-2.5 text-sm rounded-xl">Cancelar</button>

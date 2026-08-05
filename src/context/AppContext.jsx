@@ -158,13 +158,23 @@ function enrichIncident(incident, workers) {
       discount = calcOvertimePay(worker.base_salary, worker.weekly_hours, incident.hours_late || 0)
     } else if (incident.type === 'no_marcacion') {
       discount = NO_MARCACION_COST * (incident.no_marcacion_count || 1)
-    } else if (incident.type === 'multa' || incident.type === 'adelanto') {
-      discount = incident.discount_amount || 0
+    } else if (incident.type === 'multa' || incident.type === 'adelanto' || incident.type === 'vacaciones') {
+      discount = Number(incident.discount_amount) || 0
+    } else if (incident.type === 'falta' || incident.type === 'permiso') {
+      // Faltas y permisos se guardan ya calculados sobre el horario real del
+      // trabajador y pueden abarcar varios días. Recalcularlos aquí los reducía
+      // a un día plano: un permiso de 47h aparecía como si fuera de 5h.
+      const guardado = Number(incident.discount_amount)
+      discount = Number.isFinite(guardado) && guardado > 0
+        ? guardado
+        : calcAbsenceDiscount(worker.base_salary, worker.weekly_hours)
     } else {
       discount = calcAbsenceDiscount(worker.base_salary, worker.weekly_hours)
     }
   }
-  const is_addition = incident.type === 'hora_extra'
+  // Las vacaciones se abonan (el importe legal) y los días no trabajados se
+  // descuentan aparte en la nómina; forzarlas a descuento las cobraba dos veces.
+  const is_addition = incident.type === 'hora_extra' || incident.type === 'vacaciones'
   return { ...incident, discount_amount: discount, is_addition }
 }
 

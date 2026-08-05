@@ -261,7 +261,9 @@ export default function Nomina() {
                 <div className="space-y-1 pl-3">
                   {[...w.workerIncidents].sort((a, b) => b.date.localeCompare(a.date)).map(i => (
                     <div key={i.id} className="flex items-center gap-2 text-xs group py-0.5">
-                      <span className="text-gray-500 shrink-0">{formatDate(i.date)}</span>
+                      <span className="text-gray-500 shrink-0">
+                        {formatDate(i.date)}{i.end_date ? ` al ${formatDate(i.end_date)}` : ''}
+                      </span>
                       <span className="text-gray-600 dark:text-gray-400 shrink-0">{INCIDENT_LABELS[i.type]}</span>
                       {(i.type === 'tardanza' || i.type === 'permiso_horas' || i.type === 'hora_extra') && i.hours_late > 0 && <span className="text-gray-400 shrink-0">{Math.floor(i.hours_late)}h {Math.round((i.hours_late % 1) * 60)}min</span>}
                       {i.type === 'no_marcacion' && <span className="text-gray-400 shrink-0">{i.no_marcacion_count || 1} vez{(i.no_marcacion_count || 1) > 1 ? 'es' : ''} · S/ 5 c/u</span>}
@@ -369,7 +371,8 @@ export default function Nomina() {
           onClick={e => e.stopPropagation()}>
           <p className="font-bold text-gray-900 dark:text-white mb-1">¿Eliminar incidencia?</p>
           <p className="text-sm text-gray-500 mb-4">
-            {INCIDENT_LABELS[confirmDelete.type]} del {formatDate(confirmDelete.date)} — {formatMoney(confirmDelete.discount_amount)}
+            {INCIDENT_LABELS[confirmDelete.type]} del {formatDate(confirmDelete.date)}
+            {confirmDelete.end_date ? ` al ${formatDate(confirmDelete.end_date)}` : ''} — {formatMoney(confirmDelete.discount_amount)}
           </p>
           <div className="grid grid-cols-2 gap-2">
             <button onClick={() => setConfirmDelete(null)} className="btn-secondary py-2.5 text-sm rounded-xl">Cancelar</button>

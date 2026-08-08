@@ -827,7 +827,7 @@ export default function Trabajadores() {
   function exportPDF() {
     // Carga logo con proporción real
     const loadLogo = () => new Promise(resolve => {
-      fetch('/logo.jpg').then(r => r.blob()).then(blob => {
+      fetch('/logo-claro.png').then(r => r.blob()).then(blob => {
         const reader = new FileReader()
         reader.onload = e => {
           const img = new Image()

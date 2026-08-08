@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import { cn, todayISO } from '../../lib/utils'
 import { IncidentForm } from '../../pages/Trabajadores'
+import { LogoOscuro } from '../ui/Logo'
 import UpdateBanner from '../UpdateBanner'
 import InstallBanner from '../InstallBanner'
 import toast from 'react-hot-toast'
@@ -382,14 +383,14 @@ export default function Layout({ children }) {
         <div className="flex items-center justify-between p-4 border-b border-white/10">
           {!collapsed && (
             <div className="flex items-center gap-2">
-              <img src="/logo.jpg" alt="Apex Pro" className="w-8 h-8 rounded-md object-cover" />
+              <LogoOscuro className="h-7 w-auto object-contain" />
               <div className="leading-tight">
                 <div className="text-white font-black text-sm tracking-wide">APEX-PRO</div>
                 <div className="text-red-500 font-bold text-[9px] tracking-widest uppercase">Detailing</div>
               </div>
             </div>
           )}
-          {collapsed && <img src="/logo.jpg" alt="Apex Pro" className="w-8 h-8 rounded-md object-cover mx-auto" />}
+          {collapsed && <LogoOscuro className="h-7 w-auto object-contain mx-auto" />}
           {!collapsed && (
             <button onClick={() => setCollapsed(true)} className="p-1 rounded hover:bg-white/10 ml-2">
               <ChevronRight className="w-4 h-4 text-gray-400" />
@@ -425,7 +426,7 @@ export default function Layout({ children }) {
           <aside className="relative w-64 h-full bg-[#1e1e1e] flex flex-col">
             <div className="flex items-center justify-between p-4 border-b border-white/10">
               <div className="flex items-center gap-2">
-                <img src="/logo.jpg" alt="Apex Pro" className="w-8 h-8 rounded-md object-cover" />
+                <LogoOscuro className="h-7 w-auto object-contain" />
                 <div className="leading-tight">
                   <div className="text-white font-black text-sm tracking-wide">APEX-PRO</div>
                   <div className="text-red-500 font-bold text-[9px] tracking-widest uppercase">Detailing</div>
@@ -457,7 +458,7 @@ export default function Layout({ children }) {
             <Menu className="w-5 h-5 text-gray-300" />
           </button>
           <div className="flex items-center gap-2 flex-1">
-            <img src="/logo.jpg" alt="Apex Pro" className="w-7 h-7 rounded-md object-cover" />
+            <LogoOscuro className="h-6 w-auto object-contain" />
             <div className="leading-tight">
               <div className="text-white font-black text-xs tracking-wide">APEX-PRO</div>
               <div className="text-red-500 font-bold text-[8px] tracking-widest uppercase">Detailing</div>

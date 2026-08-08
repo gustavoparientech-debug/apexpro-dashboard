@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { LogoOscuro } from '../components/ui/Logo'
 import { Navigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
@@ -98,7 +99,7 @@ export default function Login() {
 
           {/* Logo */}
           <div className="flex flex-col items-center mb-8">
-            <img src="/logo.jpg" alt="Apex Pro" className="w-20 h-20 rounded-2xl object-cover shadow-lg mb-4" />
+            <LogoOscuro className="h-16 w-auto object-contain mb-4" />
             <h1 className="text-white font-black text-2xl tracking-wide">APEX-PRO</h1>
             <p className="text-red-500 font-bold text-xs tracking-widest uppercase">Detailing</p>
             <p className="text-gray-500 text-sm mt-1">Panel de gestión</p>

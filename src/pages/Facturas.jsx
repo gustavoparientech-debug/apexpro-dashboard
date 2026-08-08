@@ -226,7 +226,7 @@ export default function Facturas() {
   const [logoB64, setLogoB64] = useState(null)
 
   useEffect(() => {
-    fetch('/logo.jpg')
+    fetch('/logo-claro.png')
       .then(r => r.ok ? r.blob() : Promise.reject())
       .then(blob => new Promise(res => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.readAsDataURL(blob) }))
       .then(b64 => setLogoB64(b64))

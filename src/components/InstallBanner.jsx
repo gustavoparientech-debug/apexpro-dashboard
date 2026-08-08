@@ -46,7 +46,7 @@ export default function InstallBanner() {
   if (deferredPrompt) return (
     <div className="fixed bottom-16 lg:bottom-4 left-4 right-4 z-50 max-w-sm mx-auto">
       <div className="bg-gray-900 dark:bg-gray-800 rounded-2xl shadow-2xl px-4 py-3 flex items-center gap-3 border border-white/10">
-        <img src="/icon-192.png" alt="" className="w-10 h-10 rounded-xl shrink-0" />
+        <img src="/icon-192-v2.png" alt="" className="w-10 h-10 rounded-xl shrink-0" />
         <div className="flex-1 min-w-0">
           <p className="text-white text-sm font-bold leading-tight">Instalar Apex Pro</p>
           <p className="text-gray-400 text-xs">Acceso rápido desde tu pantalla de inicio</p>
@@ -67,7 +67,7 @@ export default function InstallBanner() {
     <div className="fixed bottom-16 lg:bottom-4 left-4 right-4 z-50 max-w-sm mx-auto">
       <div className="bg-gray-900 dark:bg-gray-800 rounded-2xl shadow-2xl px-4 py-3 border border-white/10">
         <div className="flex items-start gap-3">
-          <img src="/icon-192.png" alt="" className="w-10 h-10 rounded-xl shrink-0 mt-0.5" />
+          <img src="/icon-192-v2.png" alt="" className="w-10 h-10 rounded-xl shrink-0 mt-0.5" />
           <div className="flex-1 min-w-0">
             <p className="text-white text-sm font-bold">Instalar Apex Pro</p>
             <p className="text-gray-400 text-xs mt-0.5 leading-snug">

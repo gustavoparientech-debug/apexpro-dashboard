@@ -19,11 +19,16 @@ const ORIGEN = 'public/logo-cuadrado-oscuro.jpg'
 
 // El icono se ve sobre el fondo del sistema (pantalla de inicio, pestaña del
 // navegador), no sobre la app: por eso se usa la variante de fondo oscuro.
+// Los nombres llevan sufijo de version a proposito: Chrome cachea los iconos
+// de una PWA instalada y no los revalida, asi que la unica forma fiable de que
+// tome uno nuevo es cambiar la ruta. Al cambiar la marca, sube el sufijo aqui
+// y en manifest.json, index.html e InstallBanner.jsx.
+const V = 'v2'
 const SALIDAS = [
-  ['public/icon-512.png', 512],
-  ['public/icon-192.png', 192],
-  ['public/apple-touch-icon.png', 180],
-  ['public/favicon.png', 64],
+  [`public/icon-512-${V}.png`, 512],
+  [`public/icon-192-${V}.png`, 192],
+  [`public/apple-touch-icon-${V}.png`, 180],
+  [`public/favicon-${V}.png`, 64],
 ]
 
 if (!existsSync(ORIGEN)) {

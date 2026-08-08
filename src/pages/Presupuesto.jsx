@@ -341,7 +341,7 @@ export default function Presupuesto() {
   const [logoB64, setLogoB64] = useState(null)
 
   useEffect(() => {
-    fetch('/logo-claro.png')
+    fetch('/logo-cuadrado-claro.jpg')
       .then(r => r.blob())
       .then(blob => new Promise(res => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.readAsDataURL(blob) }))
       .then(b64 => setLogoB64(b64))
@@ -1051,7 +1051,7 @@ export default function Presupuesto() {
 
     // Logo izquierda — el logo ya incluye APEX-PRO y DETAILING
     if (logoB64) {
-      doc.addImage(logoB64, 'PNG', mL, 2, 52, 52)
+      doc.addImage(logoB64, 'JPEG', mL, 2, 52, 52)
     } else {
       doc.setTextColor(0, 0, 0)
       doc.setFontSize(14)

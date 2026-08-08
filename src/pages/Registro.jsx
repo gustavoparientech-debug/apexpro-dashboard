@@ -1259,7 +1259,7 @@ function TicketSummaryModal({ ticket, workers, vehicleTypes, onClose }) {
 
     // Logo
     try {
-      const img = new Image(); img.src = '/logo-claro.png'
+      const img = new Image(); img.src = '/logo-cuadrado-claro.jpg'
       await new Promise(resolve => { img.onload = resolve; img.onerror = resolve })
       if (img.complete && img.naturalWidth > 0) {
         doc.addImage(img, 'JPEG', mid - 9, y, 18, 18, undefined, 'FAST'); y += 21

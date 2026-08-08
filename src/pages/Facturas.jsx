@@ -69,7 +69,7 @@ function generateInvoicePDF(inv, logoB64) {
   doc.rect(mL, 8, 95, headerH)
 
   if (logoB64) {
-    doc.addImage(logoB64, 'PNG', mL + 2, 10, 28, 28)
+    doc.addImage(logoB64, 'JPEG', mL + 2, 10, 28, 28)
   }
   const tLeft = logoB64 ? mL + 32 : mL + 4
   doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(0)
@@ -226,7 +226,7 @@ export default function Facturas() {
   const [logoB64, setLogoB64] = useState(null)
 
   useEffect(() => {
-    fetch('/logo-claro.png')
+    fetch('/logo-cuadrado-claro.jpg')
       .then(r => r.ok ? r.blob() : Promise.reject())
       .then(blob => new Promise(res => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.readAsDataURL(blob) }))
       .then(b64 => setLogoB64(b64))

@@ -99,10 +99,10 @@ export default function Login() {
 
           {/* Logo */}
           <div className="flex flex-col items-center mb-8">
-            <LogoOscuro className="h-16 w-auto object-contain mb-4" />
-            <h1 className="text-white font-black text-2xl tracking-wide">APEX-PRO</h1>
-            <p className="text-red-500 font-bold text-xs tracking-widest uppercase">Detailing</p>
-            <p className="text-gray-500 text-sm mt-1">Panel de gestión</p>
+            {/* El logotipo ya incluye el nombre de la marca, así que el título
+                escrito sobraba: se duplicaba justo debajo de la imagen. */}
+            <LogoOscuro className="w-64 max-w-full h-auto object-contain" />
+            <p className="text-gray-500 text-sm mt-2">Panel de gestión</p>
           </div>
 
           {/* Card */}

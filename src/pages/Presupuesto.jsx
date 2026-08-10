@@ -1170,7 +1170,7 @@ export default function Presupuesto() {
     // Con el vehículo completo la lista pasa del alto de la hoja. Antes de cada
     // fila se comprueba si entra; si no, se abre una página nueva y se repite
     // la cabecera de la tabla para que se siga entendiendo qué es cada columna.
-    const LIMITE_Y = 282        // el pie ocupa de 290 a 297
+    const LIMITE_Y = 276        // el pie ocupa de 290 a 297; se deja aire para no pegarse
     const MARGEN_SUP = 18       // desde dónde arranca el contenido en las hojas siguientes
 
     function cabeceraTabla(yPos) {
@@ -1260,6 +1260,17 @@ export default function Presupuesto() {
     }
     y += 2
 
+    // ── Cierre ───────────────────────────────────────────────────────────────
+    // Totales, condiciones y firmas se piden como un solo bloque: si se parten,
+    // el TOTAL queda en una hoja y las firmas en otra, y antes la caja de TOTAL
+    // llegaba a dibujarse debajo del pie, donde no se ve.
+    const altoTotales = (discountMode === 'global'
+      ? ((manualDiscountPct != null ? manualDiscountPct : autoDiscountPct || catDiscountPct) > 0 ? 16 : 0)
+      : (pdfBruto - pdfTotal > 0 ? 16 : 0)) + 13
+    const altoObs   = observaciones ? 13 : 0
+    const altoFirma = 26
+    y = espacio(altoTotales + altoObs + 20 + altoFirma, false)
+
     // Subtotal / descuento / total
     const numCol = W - mR - 35
     if (discountMode === 'global') {
@@ -1298,7 +1309,6 @@ export default function Presupuesto() {
     y += 13
 
     // Observaciones
-    y = espacio(22, false)
     if (observaciones) {
       doc.setFillColor(245, 245, 245)
       doc.rect(mL, y, cW, 10, 'F')
@@ -1312,7 +1322,6 @@ export default function Presupuesto() {
     }
 
     // Condiciones
-    y = espacio(26, false)
     {
       const tiempoTextoPDF = autoTiempoDias ? `${autoTiempoDias} dias habiles` : null
       const condText = [
@@ -1333,7 +1342,6 @@ export default function Presupuesto() {
     }
 
     // Firmas
-    y = espacio(26, false)
     const col1 = mL, col2 = mL + cW / 2 + 5
     const sigW = cW / 2 - 10
     doc.setDrawColor(160, 160, 160)

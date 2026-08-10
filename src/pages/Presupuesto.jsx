@@ -520,6 +520,10 @@ export default function Presupuesto() {
       // Datos del cliente y del vehiculo: sin esto habia que reescribirlos
       // cada vez que se retomaba una cotizacion guardada.
       exportForm,
+      // De estos tres sale el precio por paño del planchado: sin ellos, al
+      // reabrir la cotizacion los importes se recalculaban con lo que hubiera
+      // seleccionado en ese momento y no coincidian con lo cotizado.
+      vehicleType, selectedTier, selectedBrand,
       teamSize, withPulido, agruparPintura,
       discountMode, sectionDiscounts, manualDiscountPct,
       created_at: Date.now(),
@@ -580,6 +584,9 @@ export default function Presupuesto() {
     // Datos del cliente: se rellenan si la cotizacion los trae. Las guardadas
     // antes de este cambio no los tienen, y se dejan como esten.
     if (q.exportForm) setExportForm(f => ({ ...f, ...q.exportForm }))
+    if (q.vehicleType)   setVehicleType(q.vehicleType)
+    if (q.selectedTier)  setSelectedTier(q.selectedTier)
+    if (q.selectedBrand !== undefined) setSelectedBrand(q.selectedBrand)
     if (q.teamSize)   setTeamSize(q.teamSize)
     if (q.withPulido !== undefined)     setWithPulido(q.withPulido)
     if (q.agruparPintura !== undefined) setAgruparPintura(q.agruparPintura)

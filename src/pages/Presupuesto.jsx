@@ -1295,7 +1295,7 @@ export default function Presupuesto() {
     const adelantoPdf = parseFloat(exportForm.adelanto) || 0
     const altoAdelanto = adelantoPdf > 0 ? 16 : 0
     const altoObs   = observaciones ? 13 : 0
-    const altoFirma = 26
+    const altoFirma = firmaB64 ? 34 : 26   // con firma la linea baja 8mm
     y = espacio(altoTotales + altoAdelanto + altoObs + 20 + altoFirma, false)
 
     // Subtotal / descuento / total
@@ -1386,23 +1386,25 @@ export default function Presupuesto() {
     // Firmas
     const col1 = mL, col2 = mL + cW / 2 + 5
     const sigW = cW / 2 - 10
-    // Firma del asesor sobre la linea, con su proporcion real y discreta.
+    // La firma va encima de la linea, asi que la linea baja lo suficiente para
+    // que quepa: si no, el trazo invadiria el bloque de condiciones de arriba.
+    const firmaH = firmaB64 ? 20 : 0
+    const yLinea = y + Math.max(14, firmaH + 2)
     if (firmaB64) {
-      const firmaH = 13
       const firmaW = Math.min(firmaH * (firmaB64.w / firmaB64.h), sigW)
-      doc.addImage(firmaB64.data, 'PNG', col1, y + 14 - firmaH - 0.5, firmaW, firmaH)
+      doc.addImage(firmaB64.data, 'PNG', col1, yLinea - firmaH - 1, firmaW, firmaH)
     }
     doc.setDrawColor(160, 160, 160)
     doc.setLineWidth(0.4)
-    doc.line(col1, y + 14, col1 + sigW, y + 14)
-    doc.line(col2, y + 14, col2 + sigW, y + 14)
+    doc.line(col1, yLinea, col1 + sigW, yLinea)
+    doc.line(col2, yLinea, col2 + sigW, yLinea)
     doc.setTextColor(80, 80, 80)
     doc.setFontSize(7.5)
     doc.setFont('helvetica', 'bold')
-    doc.text('Gustavo Pariente', col1, y + 18)
+    doc.text('Gustavo Pariente', col1, yLinea + 4)
     doc.setFont('helvetica', 'normal')
-    doc.text('Firma Asesor', col1, y + 22)
-    doc.text('Firma Cliente', col2, y + 18)
+    doc.text('Firma Asesor', col1, yLinea + 8)
+    doc.text('Firma Cliente', col2, yLinea + 4)
 
     // Pie en todas las hojas, con numeración: se recorre al final porque hasta
     // aquí no se sabe cuántas páginas salieron.

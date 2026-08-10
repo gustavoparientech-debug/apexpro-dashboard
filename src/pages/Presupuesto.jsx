@@ -970,7 +970,10 @@ export default function Presupuesto() {
 
   function openExportModal(target) {
     if (totalItemsSelected === 0) { toast.error('Selecciona al menos un servicio'); return }
-    setExportForm(f => ({ ...f, marca: selectedBrand || '' }))
+    // Solo se sugiere la marca del planchado si el campo esta vacio: antes se
+    // sobreescribia siempre, asi que borraba lo que el usuario habia escrito
+    // cada vez que abria el modal.
+    setExportForm(f => ({ ...f, marca: f.marca || selectedBrand || '' }))
     setExportTarget(target)
     setExportModal(true)
   }
@@ -2741,13 +2744,57 @@ export default function Presupuesto() {
               Esta cotización estará disponible por 7 días y luego se eliminará automáticamente.
             </p>
             <div className="space-y-2">
+              {/* El nombre y la placa se escriben aqui y se replican al formulario
+                  de exportacion, para no volver a pedirlos al generar el PDF. */}
               <input className="input w-full" placeholder="Nombre del cliente"
                 value={saveQuoteForm.nombre}
-                onChange={e => setSaveQuoteForm(f => ({ ...f, nombre: e.target.value }))} />
+                onChange={e => {
+                  const v = e.target.value
+                  setSaveQuoteForm(f => ({ ...f, nombre: v }))
+                  setExportForm(f => ({ ...f, nombre: v }))
+                }} />
               <input className="input w-full uppercase" placeholder="Placa (opcional)"
                 maxLength={8}
                 value={saveQuoteForm.placa}
-                onChange={e => setSaveQuoteForm(f => ({ ...f, placa: e.target.value.toUpperCase() }))} />
+                onChange={e => {
+                  const v = e.target.value.toUpperCase()
+                  setSaveQuoteForm(f => ({ ...f, placa: v }))
+                  setExportForm(f => ({ ...f, placa: v }))
+                }} />
+
+              {/* Resto de datos del cliente y del vehiculo: al llenarlos aqui
+                  quedan guardados y el PDF y el WhatsApp ya salen completos. */}
+              <details className="rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+                <summary className="px-3 py-2 text-xs font-semibold text-gray-600 dark:text-gray-300 cursor-pointer select-none">
+                  Datos para el PDF y el WhatsApp
+                  {[exportForm.celular, exportForm.ruc, exportForm.marca, exportForm.modelo,
+                    exportForm.anio, exportForm.color].filter(Boolean).length > 0 && (
+                    <span className="ml-1.5 text-[10px] font-normal text-green-600">· completados</span>
+                  )}
+                </summary>
+                <div className="p-3 pt-1 grid grid-cols-2 gap-2 bg-gray-50 dark:bg-gray-800/40">
+                  {[
+                    { k: 'celular', ph: 'Celular',        cols: 1 },
+                    { k: 'ruc',     ph: 'RUC / DNI',      cols: 1 },
+                    { k: 'marca',   ph: 'Marca',          cols: 1 },
+                    { k: 'modelo',  ph: 'Modelo',         cols: 1 },
+                    { k: 'anio',    ph: 'Año',            cols: 1 },
+                    { k: 'color',   ph: 'Color',          cols: 1 },
+                    { k: 'observaciones', ph: 'Observaciones', cols: 2 },
+                  ].map(({ k, ph, cols }) => (
+                    <input key={k} className={`input text-sm ${cols === 2 ? 'col-span-2' : ''}`}
+                      placeholder={ph} value={exportForm[k] || ''}
+                      onChange={e => setExportForm(f => ({ ...f, [k]: e.target.value }))} />
+                  ))}
+                  <div className="col-span-2 flex items-center gap-2">
+                    <span className="text-xs text-gray-500 shrink-0">Adelanto S/</span>
+                    <input type="number" min="0" step="0.01" className="input text-sm flex-1"
+                      placeholder="0.00" value={exportForm.adelanto || ''}
+                      onChange={e => setExportForm(f => ({ ...f, adelanto: e.target.value }))} />
+                  </div>
+                </div>
+              </details>
+
               <div>
                 <p className="text-xs text-gray-500 mb-1.5">
                   Técnico asignado {isWorker ? '' : '(opcional)'}

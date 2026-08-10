@@ -517,6 +517,11 @@ export default function Presupuesto() {
       catVehicle, lavVehicle, serviciosVehicle,
       manualItems, lavItems,
       catDiscountPct, damage,
+      // Datos del cliente y del vehiculo: sin esto habia que reescribirlos
+      // cada vez que se retomaba una cotizacion guardada.
+      exportForm,
+      teamSize, withPulido, agruparPintura,
+      discountMode, sectionDiscounts, manualDiscountPct,
       created_at: Date.now(),
       expires_at: Date.now() + 7 * 24 * 60 * 60 * 1000,
     }
@@ -572,6 +577,15 @@ export default function Presupuesto() {
     setDamage(q.damage || {})
     setLoadedQuoteId(q.id)
     setSaveQuoteForm({ nombre: q.nombre || '', placa: q.placa || '', worker_id: q.worker_id || '' })
+    // Datos del cliente: se rellenan si la cotizacion los trae. Las guardadas
+    // antes de este cambio no los tienen, y se dejan como esten.
+    if (q.exportForm) setExportForm(f => ({ ...f, ...q.exportForm }))
+    if (q.teamSize)   setTeamSize(q.teamSize)
+    if (q.withPulido !== undefined)     setWithPulido(q.withPulido)
+    if (q.agruparPintura !== undefined) setAgruparPintura(q.agruparPintura)
+    if (q.discountMode)      setDiscountMode(q.discountMode)
+    if (q.sectionDiscounts)  setSectionDiscounts(q.sectionDiscounts)
+    if (q.manualDiscountPct !== undefined) setManualDiscountPct(q.manualDiscountPct)
     toast.success(`Cotización "${q.nombre || q.placa}" cargada ✓`)
   }
 
@@ -2602,7 +2616,14 @@ export default function Presupuesto() {
                     <PlusCircle className="w-4 h-4" />Ticket
                   </button>
                   <button onClick={() => {
-                    if (profile?.worker_id) setSaveQuoteForm(f => ({ ...f, worker_id: profile.worker_id }))
+                    // Si ya se llenaron los datos del cliente para exportar, se
+                    // reaprovechan aqui en vez de pedir el nombre y la placa otra vez.
+                    setSaveQuoteForm(f => ({
+                      ...f,
+                      nombre: f.nombre || exportForm.nombre || '',
+                      placa:  f.placa  || exportForm.placa  || '',
+                      worker_id: profile?.worker_id || f.worker_id,
+                    }))
                     setSaveQuoteModal({ allSelected, grandTotal, discountPct: catDiscountPct || discountPct || 0 })
                   }}
                     className="flex items-center justify-center gap-1 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 active:scale-95 text-white font-bold text-sm transition-all">

@@ -151,6 +151,9 @@ function PresupuestoResumen({ defaultExtras, form, vehicleTypes, discountPct, pr
           <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Resumen</p>
           <p className="text-xs font-bold text-red-600">{count} ítem{count !== 1 ? 's' : ''}</p>
         </div>
+        {/* La lista se limita en alto y hace scroll: con un presupuesto de 20
+            ítems empujaba los campos del ticket fuera de la pantalla. */}
+        <div className="max-h-48 overflow-y-auto">
         {baseLabel && (
           <div className="flex items-center justify-between px-3 py-1.5 border-b border-indigo-100 dark:border-indigo-900/40">
             <p className="text-xs text-gray-600 dark:text-gray-300 truncate flex-1 mr-2">{baseLabel}</p>
@@ -178,6 +181,7 @@ function PresupuestoResumen({ defaultExtras, form, vehicleTypes, discountPct, pr
             </div>
           )
         })}
+        </div>
         {totalDisc > 0 && (
           <div className="flex items-center justify-between px-3 py-1 border-t border-gray-100 dark:border-gray-700">
             <p className="text-xs text-green-600 font-semibold">Descuento por sección</p>
@@ -204,7 +208,8 @@ function PresupuestoResumen({ defaultExtras, form, vehicleTypes, discountPct, pr
         <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Resumen</p>
         <p className="text-xs font-bold text-red-600">{count} ítem{count !== 1 ? 's' : ''}</p>
       </div>
-      <div className="divide-y divide-indigo-100 dark:divide-indigo-900/40">
+      {/* Mismo tope de alto que el modo por secciones. */}
+      <div className="divide-y divide-indigo-100 dark:divide-indigo-900/40 max-h-48 overflow-y-auto">
         {baseLabel && (
           <div className="flex items-center justify-between px-3 py-1.5">
             <p className="text-xs text-gray-600 dark:text-gray-300 truncate flex-1 mr-2">{baseLabel}</p>

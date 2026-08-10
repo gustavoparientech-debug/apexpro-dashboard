@@ -1166,16 +1166,41 @@ export default function Presupuesto() {
     // ── Tabla de ítems ───────────────────────────────────────────
     y = sectionHeader('DESCRIPCIÓN DE SERVICIOS', y)
 
-    // Cabecera tabla
-    doc.setFillColor(220, 220, 220)
-    doc.rect(mL, y, cW, 6, 'F')
-    doc.setTextColor(40, 40, 40)
-    doc.setFontSize(7.5)
-    doc.setFont('helvetica', 'bold')
-    doc.text('N°', mL + 2, y + 4.2)
-    doc.text('DESCRIPCIÓN DEL SERVICIO', mL + 12, y + 4.2)
-    doc.text('TOTAL', W - mR - 2, y + 4.2, { align: 'right' })
-    y += 6
+    // ── Paginación ──────────────────────────────────────────────────────────
+    // Con el vehículo completo la lista pasa del alto de la hoja. Antes de cada
+    // fila se comprueba si entra; si no, se abre una página nueva y se repite
+    // la cabecera de la tabla para que se siga entendiendo qué es cada columna.
+    const LIMITE_Y = 282        // el pie ocupa de 290 a 297
+    const MARGEN_SUP = 18       // desde dónde arranca el contenido en las hojas siguientes
+
+    function cabeceraTabla(yPos) {
+      doc.setFillColor(220, 220, 220)
+      doc.rect(mL, yPos, cW, 6, 'F')
+      doc.setTextColor(40, 40, 40)
+      doc.setFontSize(7.5)
+      doc.setFont('helvetica', 'bold')
+      doc.text('N°', mL + 2, yPos + 4.2)
+      doc.text('DESCRIPCIÓN DEL SERVICIO', mL + 12, yPos + 4.2)
+      doc.text('TOTAL', W - mR - 2, yPos + 4.2, { align: 'right' })
+      return yPos + 6
+    }
+
+    // Devuelve la Y donde dibujar, saltando de página si el bloque no entra.
+    function espacio(alto, repetirCabecera = true) {
+      if (y + alto <= LIMITE_Y) return y
+      doc.addPage()
+      y = MARGEN_SUP
+      if (repetirCabecera) {
+        doc.setTextColor(120, 120, 120)
+        doc.setFontSize(7)
+        doc.setFont('helvetica', 'italic')
+        doc.text('Continuación — Descripción de servicios', mL, y - 4)
+        y = cabeceraTabla(y)
+      }
+      return y
+    }
+
+    y = cabeceraTabla(y)
 
     const { sections: pdfSections, subtotalBruto: pdfBruto, grandTotalExport: pdfTotal } = buildExportSections()
     const allPdfItems = pdfSections.flatMap(s => s.items)
@@ -1188,6 +1213,9 @@ export default function Presupuesto() {
       if (pdfSections.length > 1) {
         const secSub = s.items.reduce((a, i) => a + i.price, 0)
         const secDisc = secHasDiscount ? Math.round(secSub * sectionDiscounts[s.sectKey] / 100) : 0
+        // Una cabecera de sección al final de la hoja dejaría el titulo huérfano:
+        // se pide sitio para ella y para al menos una fila.
+        y = espacio(6 + 7.5)
         doc.setFillColor(230, 230, 240)
         doc.rect(mL, y, cW, 6, 'F')
         doc.setTextColor(60, 60, 120)
@@ -1202,6 +1230,7 @@ export default function Presupuesto() {
       }
       s.items.forEach(r => {
         const rowH = 7.5
+        y = espacio(rowH)
         if (rowIdx % 2 === 0) { doc.setFillColor(250, 250, 250); doc.rect(mL, y, cW, rowH, 'F') }
         doc.setDrawColor(235, 235, 235); doc.setLineWidth(0.2)
         doc.line(mL, y + rowH, mL + cW, y + rowH)
@@ -1220,6 +1249,7 @@ export default function Presupuesto() {
     // Filas vacías hasta completar al menos 10 ítems
     const emptyRows = Math.max(0, 10 - allPdfItems.length)
     for (let i = 0; i < emptyRows; i++) {
+      if (y + 7.5 > LIMITE_Y) break   // el relleno es estético, no arrastra páginas
       const ii = allPdfItems.length + i
       if (ii % 2 === 0) { doc.setFillColor(250, 250, 250); doc.rect(mL, y, cW, 7.5, 'F') }
       doc.setDrawColor(235, 235, 235)
@@ -1268,6 +1298,7 @@ export default function Presupuesto() {
     y += 13
 
     // Observaciones
+    y = espacio(22, false)
     if (observaciones) {
       doc.setFillColor(245, 245, 245)
       doc.rect(mL, y, cW, 10, 'F')
@@ -1281,6 +1312,7 @@ export default function Presupuesto() {
     }
 
     // Condiciones
+    y = espacio(26, false)
     {
       const tiempoTextoPDF = autoTiempoDias ? `${autoTiempoDias} dias habiles` : null
       const condText = [
@@ -1301,6 +1333,7 @@ export default function Presupuesto() {
     }
 
     // Firmas
+    y = espacio(26, false)
     const col1 = mL, col2 = mL + cW / 2 + 5
     const sigW = cW / 2 - 10
     doc.setDrawColor(160, 160, 160)
@@ -1315,13 +1348,21 @@ export default function Presupuesto() {
     doc.text('Firma Asesor', col1, y + 22)
     doc.text('Firma Cliente', col2, y + 18)
 
-    // Footer
-    doc.setFillColor(189, 189, 189)
-    doc.rect(0, 290, W, 7, 'F')
-    doc.setTextColor(40, 40, 40)
-    doc.setFontSize(7)
-    doc.setFont('helvetica', 'normal')
-    doc.text('Apex Pro Detailing  |  Calle Idelfonzo Lopez N° 700 Zamacola  |  959 240 309  |  Apexprodetailing0@gmail.com', W / 2, 294.5, { align: 'center' })
+    // Pie en todas las hojas, con numeración: se recorre al final porque hasta
+    // aquí no se sabe cuántas páginas salieron.
+    const totalPaginas = doc.getNumberOfPages()
+    for (let pag = 1; pag <= totalPaginas; pag++) {
+      doc.setPage(pag)
+      doc.setFillColor(189, 189, 189)
+      doc.rect(0, 290, W, 7, 'F')
+      doc.setTextColor(40, 40, 40)
+      doc.setFontSize(7)
+      doc.setFont('helvetica', 'normal')
+      doc.text('Apex Pro Detailing  |  Calle Idelfonzo Lopez N° 700 Zamacola  |  959 240 309  |  Apexprodetailing0@gmail.com', W / 2, 294.5, { align: 'center' })
+      if (totalPaginas > 1) {
+        doc.text(`${pag} / ${totalPaginas}`, W - mR, 294.5, { align: 'right' })
+      }
+    }
 
     doc.save(`cotizacion-apexpro-${today.replace(/\//g, '-')}.pdf`)
     toast.success('PDF descargado')

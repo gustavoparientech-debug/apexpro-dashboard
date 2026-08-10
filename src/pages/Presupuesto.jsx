@@ -358,6 +358,10 @@ export default function Presupuesto() {
   const [damage, setDamage] = useState({})
   const [teamSize, setTeamSize] = useState(2) // 1=solo maestro, 2=maestro+ayudante, 3=maestro+2ayudantes
   const [withPulido, setWithPulido] = useState(true)
+  // Agrupar en el presupuesto los paños que solo se pintan: en trabajos grandes
+  // la lista paño por paño no aporta nada y lo que interesa detallar es el
+  // planchado, que es el trabajo que justifica el precio.
+  const [agruparPintura, setAgruparPintura] = useState(false)
   const [editingPrices, setEditingPrices] = useState(false)
   const [pricesDraft, setPricesDraft] = useState(config.basePrices)
   const [showBrands, setShowBrands] = useState(false)
@@ -945,12 +949,26 @@ export default function Presupuesto() {
     const ceramicoIds = new Set(CERAMICO_DATA.map(x => x.id))
     const ppfIds = new Set(PPF_DATA.map(x => x.id))
     const polIds = new Set(POLARIZADOS_DATA.map(x => x.id))
-    const planchadoSel = rows.filter(r => selected[r.id]).map(r => ({
-      label: r.damageId !== 'none'
-        ? `${r.label} + Planchado (${DAMAGE_LEVELS.find(d => d.id === r.damageId)?.label})`
-        : `Pintado de ${r.label}`,
-      price: r.price,
-    }))
+    const planchadoRows = rows.filter(r => selected[r.id])
+    const etiquetaPlanchado = r =>
+      `${r.label} + Planchado (${DAMAGE_LEVELS.find(d => d.id === r.damageId)?.label})`
+    const soloPintura  = planchadoRows.filter(r => !r.damageId || r.damageId === 'none')
+    const conPlanchado = planchadoRows.filter(r =>  r.damageId && r.damageId !== 'none')
+
+    const planchadoSel = agruparPintura
+      // Los paños que solo llevan pintura se resumen en una linea; los que
+      // llevan planchado se siguen detallando uno por uno.
+      ? [
+          ...(soloPintura.length ? [{
+            label: `Pintado de ${soloPintura.length} paño${soloPintura.length !== 1 ? 's' : ''}`,
+            price: soloPintura.reduce((a, r) => a + r.price, 0),
+          }] : []),
+          ...conPlanchado.map(r => ({ label: etiquetaPlanchado(r), price: r.price })),
+        ]
+      : planchadoRows.map(r => ({
+          label: r.damageId !== 'none' ? etiquetaPlanchado(r) : `Pintado de ${r.label}`,
+          price: r.price,
+        }))
     const ceramicoSel = catRows.filter(r => !r._divider && (ceramicoIds.has(r.id) || ppfIds.has(r.id))).map(r => ({ label: r.label, price: r.price }))
     const polSel = catRows.filter(r => polIds.has(r.id)).map(r => ({ label: r.label, price: r.price }))
     const lavSel = lavItems.map(r => ({ label: r.label, price: r.price }))
@@ -2175,6 +2193,37 @@ export default function Presupuesto() {
                       </button>
                     ))}
                   </div>
+
+                  {/* Agrupar pintura — solo tiene sentido si hay paños de solo pintura */}
+                  {(() => {
+                    const seleccionados = rows.filter(r => selected[r.id])
+                    const nPintura = seleccionados.filter(r => !r.damageId || r.damageId === 'none').length
+                    if (nPintura < 2) return null
+                    return (
+                      <div className="flex items-start gap-1 flex-wrap">
+                        <span className="text-[10px] text-gray-400 mr-1 mt-0.5">📦 Presupuesto:</span>
+                        {[
+                          { v: false, label: 'Detallar cada paño' },
+                          { v: true,  label: `Agrupar los ${nPintura} de pintura` },
+                        ].map(({ v, label }) => (
+                          <button key={String(v)} onClick={() => setAgruparPintura(v)}
+                            className={`text-[10px] px-2 py-0.5 rounded-full border transition-colors ${
+                              agruparPintura === v
+                                ? 'bg-emerald-600 text-white border-emerald-600 font-semibold'
+                                : 'bg-white dark:bg-gray-800 text-gray-500 border-gray-300 dark:border-gray-600 hover:border-emerald-400'
+                            }`}>
+                            {label}
+                          </button>
+                        ))}
+                        {agruparPintura && (
+                          <p className="w-full text-[10px] text-gray-400 mt-0.5">
+                            En el PDF y el WhatsApp saldrá una sola línea con los {nPintura} paños de
+                            pintura; los planchados se siguen detallando.
+                          </p>
+                        )}
+                      </div>
+                    )
+                  })()}
                 </div>
               )}
               {(() => {

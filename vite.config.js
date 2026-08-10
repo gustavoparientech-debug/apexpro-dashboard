@@ -7,7 +7,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon-v2.png', 'apple-touch-icon-v2.png', 'logo-claro.png', 'logo-oscuro.png', 'logo-cuadrado-claro.jpg'],
+      includeAssets: ['favicon-v2.png', 'apple-touch-icon-v2.png', 'logo-claro.png', 'logo-oscuro.png', 'logo-cuadrado-claro.jpg', 'firma.png'],
       manifest: {
         name: 'Apex Pro Detailing',
         short_name: 'Apex Pro',

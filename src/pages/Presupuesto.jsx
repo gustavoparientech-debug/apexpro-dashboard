@@ -339,6 +339,25 @@ export default function Presupuesto() {
   const [config, setConfig] = useState(() => mergeConfig(null))
   const [loading, setLoading] = useState(true)
   const [logoB64, setLogoB64] = useState(null)
+  // Firma del asesor para los PDF. Si el archivo no existe se ignora y queda
+  // solo la linea, como antes: no debe impedir generar la cotizacion.
+  const [firmaB64, setFirmaB64] = useState(null)
+  useEffect(() => {
+    fetch('/firma.png')
+      .then(r => (r.ok ? r.blob() : Promise.reject()))
+      .then(b => new Promise(res => {
+        const fr = new FileReader()
+        fr.onload = () => {
+          const img = new Image()
+          img.onload = () => res({ data: fr.result, w: img.naturalWidth, h: img.naturalHeight })
+          img.onerror = () => res(null)
+          img.src = fr.result
+        }
+        fr.readAsDataURL(b)
+      }))
+      .then(setFirmaB64)
+      .catch(() => setFirmaB64(null))
+  }, [])
 
   useEffect(() => {
     fetch('/logo-cuadrado-claro.jpg')
@@ -882,7 +901,7 @@ export default function Presupuesto() {
   const [saveQuoteModal, setSaveQuoteModal] = useState(false)
   const [loadedQuoteId, setLoadedQuoteId] = useState(null)
   const [saveQuoteForm, setSaveQuoteForm] = useState({ nombre: '', placa: '', worker_id: '' })
-  const [exportForm, setExportForm] = useState({ nombre: '', celular: '', ruc: '', marca: '', modelo: '', placa: '', anio: '', color: '', observaciones: '' })
+  const [exportForm, setExportForm] = useState({ nombre: '', celular: '', ruc: '', marca: '', modelo: '', placa: '', anio: '', color: '', observaciones: '', adelanto: '' })
   const [cotizacionNum, setCotizacionNum] = useState(150)
 
   useEffect(() => {
@@ -1041,6 +1060,12 @@ export default function Presupuesto() {
       }
     }
     msg += `💵 *TOTAL: ${formatMoney(grandTotalExport)}*\n`
+    // Adelanto y saldo: mismo criterio que el PDF, para que no se contradigan.
+    const adelantoWA = parseFloat(exportForm.adelanto) || 0
+    if (adelantoWA > 0) {
+      msg += `✅ Adelanto recibido: -${formatMoney(adelantoWA)}\n`
+      msg += `🧾 *SALDO PENDIENTE: ${formatMoney(Math.max(0, grandTotalExport - adelantoWA))}*\n`
+    }
     msg += `${SEP}\n\n`
     if (observaciones) msg += `📝 *Nota:* ${observaciones}\n\n`
     msg += `Forma de pago: 50% de adelanto y 50% contra entrega.\n`
@@ -1267,9 +1292,11 @@ export default function Presupuesto() {
     const altoTotales = (discountMode === 'global'
       ? ((manualDiscountPct != null ? manualDiscountPct : autoDiscountPct || catDiscountPct) > 0 ? 16 : 0)
       : (pdfBruto - pdfTotal > 0 ? 16 : 0)) + 13
+    const adelantoPdf = parseFloat(exportForm.adelanto) || 0
+    const altoAdelanto = adelantoPdf > 0 ? 16 : 0
     const altoObs   = observaciones ? 13 : 0
     const altoFirma = 26
-    y = espacio(altoTotales + altoObs + 20 + altoFirma, false)
+    y = espacio(altoTotales + altoAdelanto + altoObs + 20 + altoFirma, false)
 
     // Subtotal / descuento / total
     const numCol = W - mR - 35
@@ -1308,6 +1335,21 @@ export default function Presupuesto() {
     doc.text(formatMoney(pdfTotal), W - mR - 2, y + 6.3, { align: 'right' })
     y += 13
 
+    // Adelanto y saldo: solo si el cliente dejó algo a cuenta.
+    if (adelantoPdf > 0) {
+      doc.setFontSize(8); doc.setFont('helvetica', 'normal'); doc.setTextColor(21, 128, 61)
+      doc.text('Adelanto recibido:', numCol, y + 5, { align: 'right' })
+      doc.text(`-${formatMoney(adelantoPdf)}`, W - mR - 2, y + 5, { align: 'right' })
+      y += 7
+      const saldo = Math.max(0, pdfTotal - adelantoPdf)
+      doc.setFillColor(235, 245, 235); doc.rect(mL, y, cW, 9, 'F')
+      doc.setDrawColor(150, 170, 150); doc.setLineWidth(0.3); doc.rect(mL, y, cW, 9, 'S')
+      doc.setTextColor(20, 20, 20); doc.setFontSize(10); doc.setFont('helvetica', 'bold')
+      doc.text('SALDO PENDIENTE:', numCol, y + 6.3, { align: 'right' })
+      doc.text(formatMoney(saldo), W - mR - 2, y + 6.3, { align: 'right' })
+      y += 13
+    }
+
     // Observaciones
     if (observaciones) {
       doc.setFillColor(245, 245, 245)
@@ -1344,6 +1386,12 @@ export default function Presupuesto() {
     // Firmas
     const col1 = mL, col2 = mL + cW / 2 + 5
     const sigW = cW / 2 - 10
+    // Firma del asesor sobre la linea, con su proporcion real y discreta.
+    if (firmaB64) {
+      const firmaH = 13
+      const firmaW = Math.min(firmaH * (firmaB64.w / firmaB64.h), sigW)
+      doc.addImage(firmaB64.data, 'PNG', col1, y + 14 - firmaH - 0.5, firmaW, firmaH)
+    }
     doc.setDrawColor(160, 160, 160)
     doc.setLineWidth(0.4)
     doc.line(col1, y + 14, col1 + sigW, y + 14)
@@ -2847,6 +2895,25 @@ export default function Presupuesto() {
                 <label className="text-xs text-gray-500 mb-0.5 block">Observaciones</label>
                 <input className="input w-full text-sm" placeholder="Notas adicionales..."
                   value={exportForm.observaciones} onChange={e => setExportForm(f => ({ ...f, observaciones: e.target.value }))} />
+              </div>
+
+              {/* Adelanto */}
+              <div>
+                <label className="text-xs text-gray-500 mb-0.5 block">Adelanto recibido (opcional)</label>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-gray-500">S/</span>
+                  <input type="number" min="0" step="0.01" className="input flex-1 text-sm" placeholder="0.00"
+                    value={exportForm.adelanto}
+                    onChange={e => setExportForm(f => ({ ...f, adelanto: e.target.value }))} />
+                </div>
+                {(parseFloat(exportForm.adelanto) || 0) > 0 && (
+                  <p className="text-[11px] text-gray-500 mt-1">
+                    Saldo pendiente:{' '}
+                    <span className="font-bold text-gray-700 dark:text-gray-300">
+                      {formatMoney(Math.max(0, buildExportSections().grandTotalExport - (parseFloat(exportForm.adelanto) || 0)))}
+                    </span>
+                  </p>
+                )}
               </div>
 
               {/* Condiciones — auto-calculadas */}

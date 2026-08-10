@@ -2731,7 +2731,9 @@ export default function Presupuesto() {
       {saveQuoteModal && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 px-3 pb-6"
           onClick={() => setSaveQuoteModal(false)}>
-          <div className="w-full max-w-lg bg-white dark:bg-gray-900 rounded-2xl p-5 space-y-4"
+          {/* El modal nunca pasa del alto de la pantalla: con la cotizacion
+              desplegada el boton de guardar quedaba fuera de la vista. */}
+          <div className="w-full max-w-lg bg-white dark:bg-gray-900 rounded-2xl p-5 space-y-4 max-h-[85vh] overflow-y-auto"
             onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between">
               <p className="font-bold text-base text-gray-900 dark:text-white">Guardar cotización</p>
@@ -2850,24 +2852,30 @@ export default function Presupuesto() {
               }
 
               return (
-                <div className="text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800/50 rounded-xl px-3 py-2.5 space-y-1">
+                <div className="text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800/50 rounded-xl px-3 py-2.5 space-y-1 max-h-56 overflow-y-auto">
                   {sections.map(s => {
                     const sub = s.items.reduce((a, i) => a + i.price, 0)
                     const pct = discountMode === 'section' ? (sectionDiscounts[s.key] || 0) : 0
                     const discAmt = Math.round(sub * pct / 100)
                     return (
-                      <div key={s.key}>
-                        <div className="flex justify-between items-center font-semibold text-gray-600 dark:text-gray-300 border-b border-gray-200 dark:border-gray-700 pb-0.5 mb-0.5">
-                          <span className="uppercase text-[10px] tracking-wide">{s.title}</span>
+                      <details key={s.key} className="group">
+                        <summary className="flex justify-between items-center font-semibold text-gray-600 dark:text-gray-300 border-b border-gray-200 dark:border-gray-700 pb-0.5 mb-0.5 cursor-pointer select-none list-none">
+                          <span className="uppercase text-[10px] tracking-wide flex items-center gap-1">
+                            <span className="text-gray-400 transition-transform group-open:rotate-90">▸</span>
+                            {s.title}
+                            <span className="font-normal normal-case text-gray-400">({s.items.length})</span>
+                          </span>
                           <div className="flex items-center gap-1.5">
                             {pct > 0 && <span className="text-green-500 text-[10px]">-{pct}%</span>}
                             <span>{formatMoney(sub - discAmt)}</span>
                           </div>
+                        </summary>
+                        <div className="pb-1">
+                          {s.items.map((it, i) => (
+                            <p key={i} className="truncate pl-4">· {it.label} — {formatMoney(it.price)}</p>
+                          ))}
                         </div>
-                        {s.items.map((it, i) => (
-                          <p key={i} className="truncate pl-1">· {it.label} — {formatMoney(it.price)}</p>
-                        ))}
-                      </div>
+                      </details>
                     )
                   })}
                   <div className="pt-1 border-t border-gray-200 dark:border-gray-700 space-y-0.5">

@@ -854,12 +854,14 @@ export function AppProvider({ children }) {
     const ini = new Date(hastaYear, hastaMonth - meses, 1)       // día 1 del primer mes
     const iso = d => d.toISOString().slice(0, 10)
 
-    const [{ data: tk }, { data: mc }, { data: cp }, { data: wmc }] = await Promise.all([
-      supabase.from('tickets').select('date, price_charged, vehicle_type, plate, payment_method')
+    const [{ data: tk }, { data: mc }, { data: cp }, { data: wmc }, { data: adv }] = await Promise.all([
+      supabase.from('tickets').select('id, date, price_charged, vehicle_type, plate, payment_method, status')
         .gte('date', iso(ini)).lt('date', iso(fin)),
       supabase.from('monthly_costs').select('*'),
       supabase.from('casual_payments').select('date, amount').gte('date', iso(ini)).lt('date', iso(fin)),
       supabase.from('worker_monthly_config').select('worker_id, year, month, base_salary, weekly_hours'),
+      supabase.from('ticket_advances').select('ticket_id, date, amount')
+        .gte('date', iso(ini)).lt('date', iso(fin)),
     ])
 
     const buckets = []
@@ -874,7 +876,15 @@ export function AppProvider({ children }) {
         : Number(costs?.rent || 0) + Number(costs?.supplies || 0)
       const eventuales = (cp || []).filter(p => p.date?.startsWith(prefix))
         .reduce((s, p) => s + Number(p.amount || 0), 0)
-      const ingresos = delMes.reduce((s, t) => s + Number(t.price_charged || 0), 0)
+      // Mismo criterio que el panel: un ticket abierto no aporta su precio,
+      // solo los adelantos ya cobrados. Antes el grafico sumaba el precio de
+      // todos y no cuadraba con la cifra de ingresos del mes.
+      const adelantoDe = (id) => (adv || [])
+        .filter(a => a.ticket_id === id)
+        .reduce((x, a) => x + Number(a.amount || 0), 0)
+      const ingresos = delMes.reduce((s, t) => s + (
+        t.status === 'abierto' ? adelantoDe(t.id) : Number(t.price_charged || 0)
+      ), 0)
 
       // Un mes sin tickets y sin costos registrados es un mes en el que la
       // empresa no operó (o del que no hay datos). Incluirlo pintaría una
@@ -901,6 +911,44 @@ export function AppProvider({ children }) {
       })
     }
     return buckets
+  }
+
+  // ─── Adelantos por ticket ───────────────────────────────────────────────────
+  // Un servicio puede recibir varios adelantos, asi que viven en su propia
+  // tabla y no en una columna del ticket.
+  const fetchAdvances = async (year, month) => {
+    if (IS_DEMO) return []
+    const start = `${year}-${String(month).padStart(2, '0')}-01`
+    const nm = month === 12 ? 1 : month + 1
+    const ny = month === 12 ? year + 1 : year
+    const end = `${ny}-${String(nm).padStart(2, '0')}-01`
+    const { data } = await supabase.from('ticket_advances').select('*')
+      .gte('date', start).lt('date', end).order('date')
+    return data || []
+  }
+
+  const fetchTicketAdvances = async (ticketId) => {
+    if (IS_DEMO) return []
+    const { data } = await supabase.from('ticket_advances').select('*')
+      .eq('ticket_id', ticketId).order('date')
+    return data || []
+  }
+
+  const addAdvance = async ({ ticket_id, date, amount, method, note }) => {
+    if (IS_DEMO) return null
+    const { data, error } = await supabase.from('ticket_advances')
+      .insert({ ticket_id, date, amount: parseFloat(amount) || 0, method: method || null, note: note?.trim() || null })
+      .select().single()
+    if (error) throw error
+    invalidateDynamicCache()
+    return data
+  }
+
+  const deleteAdvance = async (id) => {
+    if (IS_DEMO) return
+    const { error } = await supabase.from('ticket_advances').delete().eq('id', id)
+    if (error) throw error
+    invalidateDynamicCache()
   }
 
   // ─── Trabajadores eventuales ────────────────────────────────────────────────
@@ -1083,6 +1131,7 @@ export function AppProvider({ children }) {
       saveMonthlyCosts,
       fetchMonthlyCosts, saveWorkerMonthlyConfig, fetchWorkerMonthlyConfigs,
       fetchBusinessTrend,
+      fetchAdvances, fetchTicketAdvances, addAdvance, deleteAdvance,
       fetchCasualWorkers, addCasualWorker, updateCasualWorker,
       fetchCasualPayments, addCasualPayment, deleteCasualPayment,
       resetDemoData,

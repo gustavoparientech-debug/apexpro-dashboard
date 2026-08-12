@@ -548,7 +548,8 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
   const worker  = workers.find(w => w.id === ticket.worker_id)
   const vehicle = (vehicleTypes || []).find(v => v.value === ticket.vehicle_type)
   const extras  = ticket.extras || []
-  const { fetchTicketPhotos, expenses, addExpense, updateExpense, deleteExpense } = useApp()
+  const { fetchTicketPhotos, expenses, addExpense, updateExpense, deleteExpense,
+          fetchTicketAdvances, addAdvance, deleteAdvance } = useApp()
 
   // ── Gastos del servicio ───────────────────────────────────────────────────
   // Se guardan en worker_expenses con ticket_id, o sea en la misma tabla que
@@ -564,24 +565,44 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
   // Dinero ya cobrado antes de cerrar el servicio. Se guarda en el ticket, no
   // como ingreso aparte: al cerrarlo el precio total ya lo incluye y contarlo
   // dos veces inflaria la caja.
-  const [adelanto, setAdelanto] = useState(ticket.adelanto || 0)
-  const [editAdelanto, setEditAdelanto] = useState(false)
-  const [adelantoDraft, setAdelantoDraft] = useState(String(ticket.adelanto || ''))
-  const [adelantoMethod, setAdelantoMethod] = useState(ticket.adelanto_method || 'efectivo')
+  const [adelantos, setAdelantos] = useState([])
+  const [showAdelantoForm, setShowAdelantoForm] = useState(false)
+  const [adelantoDraft, setAdelantoDraft] = useState('')
+  const [adelantoMethod, setAdelantoMethod] = useState('efectivo')
+  const [savingAdelanto, setSavingAdelanto] = useState(false)
+  const adelanto = adelantos.reduce((s, a) => s + Number(a.amount || 0), 0)
+
+  useEffect(() => { fetchTicketAdvances(ticket.id).then(setAdelantos) }, [ticket.id])
 
   const [gastoForm, setGastoForm] = useState({ amount: '', description: '', category: 'insumos', paid: true })
   const [savingGasto, setSavingGasto] = useState(false)
   const [showGastoForm, setShowGastoForm] = useState(false)
 
-  async function handleSaveAdelanto() {
-    const monto = Math.max(0, parseFloat(adelantoDraft) || 0)
-    if (monto > total) { toast.error('El adelanto no puede superar el total del servicio'); return }
+  async function handleAddAdelanto() {
+    const monto = parseFloat(adelantoDraft) || 0
+    if (monto <= 0) { toast.error('Indica el monto del adelanto'); return }
+    if (adelanto + monto > total) {
+      toast.error(`Los adelantos superarían el total del servicio (${formatMoney(total)})`); return
+    }
+    setSavingAdelanto(true)
     try {
-      await onUpdate(ticket.id, { adelanto: monto, adelanto_method: monto > 0 ? adelantoMethod : null })
-      setAdelanto(monto)
-      setEditAdelanto(false)
-      toast.success(monto > 0 ? 'Adelanto guardado' : 'Adelanto eliminado')
-    } catch { toast.error('Error al guardar el adelanto') }
+      const nuevo = await addAdvance({
+        ticket_id: ticket.id, date: ticket.date, amount: monto, method: adelantoMethod,
+      })
+      setAdelantos(a => [...a, nuevo])
+      setAdelantoDraft('')
+      setShowAdelantoForm(false)
+      toast.success('Adelanto registrado')
+    } catch { toast.error('Error al registrar el adelanto') }
+    setSavingAdelanto(false)
+  }
+
+  async function handleDeleteAdelanto(id) {
+    try {
+      await deleteAdvance(id)
+      setAdelantos(a => a.filter(x => x.id !== id))
+      toast.success('Adelanto eliminado')
+    } catch { toast.error('Error al eliminar') }
   }
 
   async function handleAddGasto() {
@@ -918,28 +939,38 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
           )}
         </div>
 
-        {/* Adelanto */}
+        {/* Adelantos ─ un servicio puede recibir varios en fechas distintas */}
         <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-800">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between mb-2">
             <div>
-              <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">Adelanto del cliente</p>
+              <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">Adelantos del cliente</p>
               <p className="text-[11px] text-gray-400">Dinero ya cobrado de este servicio</p>
             </div>
-            {!editAdelanto && (
-              <div className="flex items-center gap-2">
-                <span className={`text-sm font-bold ${adelanto > 0 ? 'text-green-600' : 'text-gray-400'}`}>
-                  {adelanto > 0 ? formatMoney(adelanto) : 'Sin adelanto'}
-                </span>
-                <button onClick={() => { setAdelantoDraft(String(adelanto || '')); setEditAdelanto(true) }}
-                  className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-400">
-                  <PenLine className="w-3.5 h-3.5" />
-                </button>
-              </div>
+            {adelanto > 0 && (
+              <p className="text-sm font-bold text-green-600">{formatMoney(adelanto)}</p>
             )}
           </div>
 
-          {editAdelanto && (
-            <div className="mt-2 space-y-2 rounded-xl bg-green-50 dark:bg-green-950/20 p-2.5">
+          {adelantos.length > 0 && (
+            <div className="space-y-1 mb-2">
+              {adelantos.map(a => (
+                <div key={a.id} className="flex items-center gap-2 text-xs">
+                  <button onClick={() => handleDeleteAdelanto(a.id)}
+                    className="w-5 h-5 shrink-0 flex items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30 text-red-500 hover:bg-red-200">
+                    <X className="w-3 h-3" />
+                  </button>
+                  <span className="flex-1 truncate text-gray-600 dark:text-gray-300">
+                    {new Date(`${a.date}T00:00:00`).toLocaleDateString('es-PE', { day: '2-digit', month: 'short' })}
+                    {a.method && <span className="text-gray-400"> · {a.method}</span>}
+                  </span>
+                  <span className="font-semibold text-green-600 shrink-0">{formatMoney(a.amount)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {showAdelantoForm ? (
+            <div className="space-y-2 rounded-xl bg-green-50 dark:bg-green-950/20 p-2.5">
               <div className="flex items-center gap-2">
                 <span className="text-xs text-gray-500">S/</span>
                 <input type="number" min="0" step="0.01" autoFocus
@@ -959,16 +990,20 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
                 ))}
               </div>
               <div className="flex gap-2">
-                <button onClick={handleSaveAdelanto}
-                  className="flex-1 py-1.5 rounded-xl bg-green-600 hover:bg-green-700 text-white text-xs font-bold">
-                  Guardar adelanto
+                <button onClick={handleAddAdelanto} disabled={savingAdelanto}
+                  className="flex-1 py-1.5 rounded-xl bg-green-600 hover:bg-green-700 text-white text-xs font-bold disabled:opacity-50">
+                  {savingAdelanto ? 'Guardando...' : 'Agregar adelanto'}
                 </button>
-                <button onClick={() => setEditAdelanto(false)}
+                <button onClick={() => setShowAdelantoForm(false)}
                   className="px-3 py-1.5 rounded-xl border border-gray-200 dark:border-gray-700 text-gray-400 text-xs">✕</button>
               </div>
             </div>
+          ) : (
+            <button onClick={() => setShowAdelantoForm(true)}
+              className="w-full py-2 rounded-xl border border-dashed border-green-300 dark:border-green-800 text-green-600 text-xs font-semibold hover:bg-green-50 dark:hover:bg-green-950/20 transition-colors">
+              + Agregar adelanto
+            </button>
           )}
-
         </div>
 
         {/* Gastos del servicio */}

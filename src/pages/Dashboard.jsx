@@ -499,7 +499,7 @@ function RankingPanel({ ranking, workingDaysElapsed }) {
 }
 
 export default function Dashboard() {
-  const { tickets, dailySummaries, expenses, workers, services, incidents, monthlyCosts, bonuses, addBonus, deleteBonus, loading, loadData, invalidateAllCache, vehicleTypes, fetchCasualPayments, fetchBusinessTrend, fetchWorkerMonthlyConfigs, fetchMonthlyCosts } = useApp()
+  const { tickets, dailySummaries, expenses, workers, services, incidents, monthlyCosts, bonuses, addBonus, deleteBonus, loading, loadData, invalidateAllCache, vehicleTypes, fetchCasualPayments, fetchBusinessTrend, fetchWorkerMonthlyConfigs, fetchMonthlyCosts, fetchAdvances } = useApp()
   const { month: cm, year: cy } = currentMonthYear()
   const [selMonth, setSelMonth] = useState(cm)
   const [selYear,  setSelYear]  = useState(cy)
@@ -591,6 +591,13 @@ export default function Dashboard() {
   }, [selMonth, selYear, isCurrentMonth])
   const prefix = `${selYear}-${String(selMonth).padStart(2, '0')}`
   const lastDayOfMonth = new Date(selYear, selMonth, 0).getDate()
+
+  // Adelantos del mes: viven en su propia tabla porque un servicio puede
+  // recibir varios.
+  const [advances, setAdvances] = useState([])
+  useEffect(() => {
+    fetchAdvances(selYear, selMonth).then(setAdvances)
+  }, [selMonth, selYear])
 
   // Pagos a trabajadores eventuales del mes — cuentan como mano de obra.
   const [casualPayments, setCasualPayments] = useState([])
@@ -693,8 +700,11 @@ export default function Dashboard() {
     // el ticket cierre, su precio total pasa a contar y el adelanto sale de
     // aqui: asi el dinero nunca se cuenta dos veces.
     const openTickets     = sourceTickets.filter(t => dateFilter(t.date) && t.status === 'abierto')
-    const adelantosAbiertos = openTickets.reduce((s, t) => s + Number(t.adelanto || 0), 0)
-    const ticketsConAdelanto = openTickets.filter(t => Number(t.adelanto || 0) > 0).length
+    const adelantoDe = (id) => advances
+      .filter(a => a.ticket_id === id)
+      .reduce((x, a) => x + Number(a.amount || 0), 0)
+    const adelantosAbiertos = openTickets.reduce((s, t) => s + adelantoDe(t.id), 0)
+    const ticketsConAdelanto = openTickets.filter(t => adelantoDe(t.id) > 0).length
     const ticketsAbiertos    = openTickets.length
     // El total de un ticket no es price_charged: hay que sumarle los extras y
     // restarle el descuento, igual que en la tarjeta del ticket. Con solo
@@ -706,7 +716,7 @@ export default function Dashboard() {
       return Math.max(0, bruto - desc)
     }
     const saldoPorCobrar  = openTickets.reduce(
-      (s, t) => s + Math.max(0, totalDeTicket(t) - Number(t.adelanto || 0)), 0)
+      (s, t) => s + Math.max(0, totalDeTicket(t) - adelantoDe(t.id)), 0)
     // Los gastos pendientes estan comprometidos pero aun no salieron de caja:
     // no restan de la utilidad hasta marcarse como pagados.
     const gastosPagados   = periodExpenses.filter(e => e.paid !== false)
@@ -808,7 +818,7 @@ export default function Dashboard() {
       adelantosAbiertos, ticketsConAdelanto, ticketsAbiertos, saldoPorCobrar, gastosPendTotal,
       proportionalFixed, proportionRatio, avgTimeByType,
     }
-  }, [tickets, dailySummaries, expenses, pastTickets, pastSummaries, pastExpenses, workers, services, incidents, selectedCosts, bonuses, casualPayments, workerMonthlyConfigs, prefix, selMonth, selYear, isCurrentMonth, rangeFrom, rangeTo, hasRange])
+  }, [tickets, dailySummaries, expenses, pastTickets, pastSummaries, pastExpenses, workers, services, incidents, selectedCosts, bonuses, casualPayments, advances, workerMonthlyConfigs, prefix, selMonth, selYear, isCurrentMonth, rangeFrom, rangeTo, hasRange])
 
 
   const semaforoClass = {

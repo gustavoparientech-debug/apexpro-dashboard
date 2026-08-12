@@ -1024,20 +1024,6 @@ export default function Dashboard() {
             // nada por cerrar. Los meses previos van a null para que la linea
             // punteada no los cruce.
             const hayProyeccion = isCurrentMonth && (data.saldoPorCobrar > 0 || data.gastosPendTotal > 0)
-            const ultimo = insights.serie.length - 1
-            const serieConProyeccion = insights.serie.map((m, i) => {
-              if (!hayProyeccion) return m
-              // La punteada arranca en la utilidad del mes anterior para que se
-              // vea bifurcarse de la real: un punto suelto no comunica nada.
-              if (i === ultimo - 1) return { ...m, utilidadProy: m.utilidad }
-              if (i !== ultimo) return { ...m, utilidadProy: null }
-              return {
-                ...m,
-                ingresosProy: data.saldoPorCobrar,
-                costosProy: data.gastosPendTotal,
-                utilidadProy: m.utilidad + data.saldoPorCobrar - data.gastosPendTotal,
-              }
-            })
             return (
             <div key="tendencia" className="card overflow-hidden">
               <div className="flex items-start justify-between mb-1 gap-3">
@@ -1060,23 +1046,16 @@ export default function Dashboard() {
               </div>
               <div className="h-60 mt-3">
                 <ResponsiveContainer width="100%" height="100%">
-                  <ComposedChart data={serieConProyeccion} margin={{ top: 8, right: 4, left: -14, bottom: 0 }}>
+                  <ComposedChart data={insights.serie} margin={{ top: 8, right: 4, left: -14, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
                     <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#9ca3af' }} tickLine={false} axisLine={false} />
                     <YAxis tick={{ fontSize: 10, fill: '#9ca3af' }} tickFormatter={v => `S/${v >= 1000 ? (v/1000).toFixed(0)+'k' : v}`} axisLine={false} tickLine={false} width={46} />
                     <Tooltip contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.12)', fontSize: 12 }}
                       formatter={(v, n) => [formatMoney(v), n]} />
                     <Legend wrapperStyle={{ fontSize: 11 }} iconType="circle" />
-                    {/* La parte proyectada se apila encima de la real y va en
-                        tono claro: se distingue lo ya conseguido de lo que
-                        depende de cerrar los servicios abiertos. */}
-                    <Bar dataKey="ingresos" name="Ingresos" stackId="ing" fill="#ef4444" maxBarSize={38} />
-                    <Bar dataKey="ingresosProy" name="Por cobrar" stackId="ing" fill="#fca5a5" radius={[5,5,0,0]} maxBarSize={38} />
-                    <Bar dataKey="costos"   name="Costos"   stackId="cos" fill="#d1d5db" maxBarSize={38} />
-                    <Bar dataKey="costosProy" name="Por pagar" stackId="cos" fill="#e5e7eb" radius={[5,5,0,0]} maxBarSize={38} />
+                    <Bar dataKey="ingresos" name="Ingresos" fill="#ef4444" radius={[5,5,0,0]} maxBarSize={38} />
+                    <Bar dataKey="costos"   name="Costos"   fill="#d1d5db" radius={[5,5,0,0]} maxBarSize={38} />
                     <Line dataKey="utilidad" name="Utilidad" stroke="#16a34a" strokeWidth={2.5} dot={{ r: 3.5, fill: '#16a34a' }} />
-                    <Line dataKey="utilidadProy" name="Si cierras todo" stroke="#16a34a" strokeWidth={2}
-                      strokeDasharray="5 4" connectNulls dot={{ r: 4, fill: '#fff', stroke: '#16a34a', strokeWidth: 2 }} />
                   </ComposedChart>
                 </ResponsiveContainer>
               </div>
@@ -1087,46 +1066,55 @@ export default function Dashboard() {
               )}
 
               {/* Proyeccion al cerrar los servicios abiertos ─────────────────
-                  Los tickets abiertos no suman a los ingresos hasta cerrarse,
-                  de modo que la utilidad de hoy no refleja el trabajo ya
-                  comprometido. Solo aplica al mes en curso: en un mes pasado
-                  no hay nada por cerrar. */}
-              {isCurrentMonth && (data.saldoPorCobrar > 0 || data.gastosPendTotal > 0) && (() => {
-                const proyectada = insights.actual.utilidad + data.saldoPorCobrar - data.gastosPendTotal
-                const mejora = proyectada - insights.actual.utilidad
+                  Va aparte del grafico a proposito: meterla como series extra
+                  lo dejaba con seis leyendas y no se entendia nada. Aqui se
+                  compara en dos barras donde va hoy y donde quedaria. */}
+              {hayProyeccion && (() => {
+                const hoy = insights.actual.utilidad
+                const proyectada = hoy + data.saldoPorCobrar - data.gastosPendTotal
+                // Las barras se dibujan sobre la misma escala para que se puedan
+                // comparar: el cero queda en la misma posicion en ambas.
+                const tope = Math.max(Math.abs(hoy), Math.abs(proyectada), 1)
+                const ancho = v => `${(Math.abs(v) / tope) * 100}%`
                 return (
                   <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-800">
-                    <div className="flex items-baseline justify-between mb-1.5">
-                      <p className="text-xs font-semibold text-gray-700 dark:text-gray-300">
-                        Si cierras los {data.ticketsAbiertos} servicios abiertos
-                      </p>
-                      <p className={`text-lg font-black ${proyectada >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                        {formatMoney(proyectada)}
-                      </p>
+                    <p className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2.5">
+                      Cómo cerraría el mes si entregas los {data.ticketsAbiertos} servicios abiertos
+                    </p>
+
+                    <div className="space-y-2.5">
+                      {[
+                        { etiqueta: 'Hoy', valor: hoy, tono: hoy >= 0 ? 'bg-green-400' : 'bg-red-400' },
+                        { etiqueta: 'Al cerrarlos', valor: proyectada, tono: proyectada >= 0 ? 'bg-green-600' : 'bg-red-600' },
+                      ].map(({ etiqueta, valor, tono }) => (
+                        <div key={etiqueta}>
+                          <div className="flex items-baseline justify-between mb-1">
+                            <span className="text-[11px] text-gray-500">{etiqueta}</span>
+                            <span className={`text-sm font-black ${valor >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                              {formatMoney(valor)}
+                            </span>
+                          </div>
+                          <div className="h-2.5 rounded-full bg-gray-100 dark:bg-gray-800 overflow-hidden">
+                            <div className={`h-full rounded-full ${tono}`} style={{ width: ancho(valor) }} />
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                    <div className="space-y-0.5 text-[11px]">
-                      <div className="flex justify-between text-gray-500">
-                        <span>Utilidad de hoy</span>
-                        <span>{formatMoney(insights.actual.utilidad)}</span>
-                      </div>
+
+                    <div className="mt-3 pt-2 border-t border-gray-100 dark:border-gray-800 space-y-0.5 text-[11px]">
                       {data.saldoPorCobrar > 0 && (
                         <div className="flex justify-between text-gray-500">
-                          <span>+ Por cobrar de servicios abiertos</span>
+                          <span>Falta cobrar de esos servicios</span>
                           <span className="text-green-600 font-semibold">+{formatMoney(data.saldoPorCobrar)}</span>
                         </div>
                       )}
                       {data.gastosPendTotal > 0 && (
                         <div className="flex justify-between text-gray-500">
-                          <span>− Gastos pendientes de pago</span>
+                          <span>Gastos que faltan pagar</span>
                           <span className="text-amber-600 font-semibold">−{formatMoney(data.gastosPendTotal)}</span>
                         </div>
                       )}
                     </div>
-                    <p className="text-[10px] text-gray-400 mt-1.5">
-                      {proyectada >= 0 && insights.actual.utilidad < 0
-                        ? `Cerrarlos saca el mes de pérdida: mejora ${formatMoney(mejora)}.`
-                        : `Cobrar y pagar lo pendiente mueve el resultado en ${formatMoney(Math.abs(mejora))}.`}
-                    </p>
                   </div>
                 )
               })()}

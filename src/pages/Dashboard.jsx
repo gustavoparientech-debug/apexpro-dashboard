@@ -1009,7 +1009,26 @@ export default function Dashboard() {
           ) : null
 
           // Evolución mensual: ingresos, costos y utilidad — el avance real del negocio
-          if (sectionId === 'tendencia') return insights && insights.serie.some(m => m.ingresos > 0) ? (
+          if (sectionId === 'tendencia') return insights && insights.serie.some(m => m.ingresos > 0) ? (() => {
+            // Solo el mes en curso lleva proyeccion: en uno pasado no queda
+            // nada por cerrar. Los meses previos van a null para que la linea
+            // punteada no los cruce.
+            const hayProyeccion = isCurrentMonth && (data.saldoPorCobrar > 0 || data.gastosPendTotal > 0)
+            const ultimo = insights.serie.length - 1
+            const serieConProyeccion = insights.serie.map((m, i) => {
+              if (!hayProyeccion) return m
+              // La punteada arranca en la utilidad del mes anterior para que se
+              // vea bifurcarse de la real: un punto suelto no comunica nada.
+              if (i === ultimo - 1) return { ...m, utilidadProy: m.utilidad }
+              if (i !== ultimo) return { ...m, utilidadProy: null }
+              return {
+                ...m,
+                ingresosProy: data.saldoPorCobrar,
+                costosProy: data.gastosPendTotal,
+                utilidadProy: m.utilidad + data.saldoPorCobrar - data.gastosPendTotal,
+              }
+            })
+            return (
             <div key="tendencia" className="card overflow-hidden">
               <div className="flex items-start justify-between mb-1 gap-3">
                 <div>
@@ -1031,16 +1050,23 @@ export default function Dashboard() {
               </div>
               <div className="h-60 mt-3">
                 <ResponsiveContainer width="100%" height="100%">
-                  <ComposedChart data={insights.serie} margin={{ top: 8, right: 4, left: -14, bottom: 0 }}>
+                  <ComposedChart data={serieConProyeccion} margin={{ top: 8, right: 4, left: -14, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
                     <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#9ca3af' }} tickLine={false} axisLine={false} />
                     <YAxis tick={{ fontSize: 10, fill: '#9ca3af' }} tickFormatter={v => `S/${v >= 1000 ? (v/1000).toFixed(0)+'k' : v}`} axisLine={false} tickLine={false} width={46} />
                     <Tooltip contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.12)', fontSize: 12 }}
                       formatter={(v, n) => [formatMoney(v), n]} />
                     <Legend wrapperStyle={{ fontSize: 11 }} iconType="circle" />
-                    <Bar dataKey="ingresos" name="Ingresos" fill="#ef4444" radius={[5,5,0,0]} maxBarSize={38} />
-                    <Bar dataKey="costos"   name="Costos"   fill="#d1d5db" radius={[5,5,0,0]} maxBarSize={38} />
+                    {/* La parte proyectada se apila encima de la real y va en
+                        tono claro: se distingue lo ya conseguido de lo que
+                        depende de cerrar los servicios abiertos. */}
+                    <Bar dataKey="ingresos" name="Ingresos" stackId="ing" fill="#ef4444" maxBarSize={38} />
+                    <Bar dataKey="ingresosProy" name="Por cobrar" stackId="ing" fill="#fca5a5" radius={[5,5,0,0]} maxBarSize={38} />
+                    <Bar dataKey="costos"   name="Costos"   stackId="cos" fill="#d1d5db" maxBarSize={38} />
+                    <Bar dataKey="costosProy" name="Por pagar" stackId="cos" fill="#e5e7eb" radius={[5,5,0,0]} maxBarSize={38} />
                     <Line dataKey="utilidad" name="Utilidad" stroke="#16a34a" strokeWidth={2.5} dot={{ r: 3.5, fill: '#16a34a' }} />
+                    <Line dataKey="utilidadProy" name="Si cierras todo" stroke="#16a34a" strokeWidth={2}
+                      strokeDasharray="5 4" connectNulls dot={{ r: 4, fill: '#fff', stroke: '#16a34a', strokeWidth: 2 }} />
                   </ComposedChart>
                 </ResponsiveContainer>
               </div>
@@ -1095,7 +1121,8 @@ export default function Dashboard() {
                 )
               })()}
             </div>
-          ) : null
+            )
+          })() : null
 
           // Dónde está el dinero: ticket promedio por tipo de servicio
           if (sectionId === 'mix') return insights && insights.mix.length > 0 ? (

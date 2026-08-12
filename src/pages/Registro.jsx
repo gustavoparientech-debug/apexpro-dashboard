@@ -969,15 +969,6 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
             </div>
           )}
 
-          {adelanto > 0 && !editAdelanto && (
-            <div className="mt-2 pt-2 border-t border-gray-100 dark:border-gray-800 flex items-center justify-between">
-              <span className="text-xs text-gray-500">
-                Saldo por cobrar
-                <span className="text-gray-400"> · {formatMoney(total)} − {formatMoney(adelanto)}</span>
-              </span>
-              <span className="text-sm font-black text-red-600">{formatMoney(Math.max(0, total - adelanto))}</span>
-            </div>
-          )}
         </div>
 
         {/* Gastos del servicio */}
@@ -1079,19 +1070,68 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
             </button>
           )}
 
-          {/* Ganancia real: es el dato que justifica registrar los gastos. */}
-          {gastosTotal > 0 && (
-            <div className="mt-2.5 pt-2 border-t border-gray-100 dark:border-gray-800 flex items-center justify-between">
-              <span className="text-xs text-gray-500">
-                Ganancia del servicio
-                <span className="text-gray-400"> · {formatMoney(total)} − {formatMoney(gastosTotal)}</span>
-              </span>
-              <span className={`text-sm font-black ${total - gastosTotal >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                {formatMoney(total - gastosTotal)}
-              </span>
-            </div>
-          )}
         </div>
+
+        {/* Resumen economico del servicio ─────────────────────────────────────
+            Antes la ganancia se mostraba dentro de los gastos y solo restaba
+            los pagados: con un gasto pendiente grande daba una cifra optimista
+            que no se iba a cumplir. Aqui se separa lo cobrado de lo pendiente
+            y se distingue la ganancia de hoy de la que quedara al cerrar. */}
+        {(adelanto > 0 || gastosTotal > 0 || pendienteTotal > 0) && (
+          <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/40">
+            <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Resumen del servicio</p>
+
+            <div className="space-y-1 text-xs">
+              <div className="flex justify-between">
+                <span className="text-gray-500">Total del servicio</span>
+                <span className="font-semibold text-gray-800 dark:text-gray-200">{formatMoney(total)}</span>
+              </div>
+
+              {adelanto > 0 && (
+                <>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500 pl-3">· Adelanto ya cobrado</span>
+                    <span className="font-semibold text-green-600">{formatMoney(adelanto)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500 pl-3">· Falta cobrar al cliente</span>
+                    <span className="font-semibold text-amber-600">{formatMoney(Math.max(0, total - adelanto))}</span>
+                  </div>
+                </>
+              )}
+
+              {gastosTotal > 0 && (
+                <div className="flex justify-between pt-1 border-t border-gray-200 dark:border-gray-800">
+                  <span className="text-gray-500">Gastos ya pagados</span>
+                  <span className="font-semibold text-orange-600">−{formatMoney(gastosTotal)}</span>
+                </div>
+              )}
+              {pendienteTotal > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Gastos por pagar</span>
+                  <span className="font-semibold text-amber-600">−{formatMoney(pendienteTotal)}</span>
+                </div>
+              )}
+
+              {/* Ganancia final: descuenta tambien lo comprometido, que es lo
+                  que de verdad quedara cuando todo este pagado. */}
+              <div className="flex justify-between items-baseline pt-1.5 mt-1 border-t-2 border-gray-200 dark:border-gray-700">
+                <span className="text-gray-600 dark:text-gray-300 font-semibold">
+                  {pendienteTotal > 0 ? 'Ganancia al cerrar todo' : 'Ganancia del servicio'}
+                </span>
+                <span className={`text-base font-black ${total - gastosTotal - pendienteTotal >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {formatMoney(total - gastosTotal - pendienteTotal)}
+                </span>
+              </div>
+              {pendienteTotal > 0 && (
+                <p className="text-[10px] text-gray-400 pt-0.5">
+                  Hoy llevas {formatMoney(total - gastosTotal)}; bajará a{' '}
+                  {formatMoney(total - gastosTotal - pendienteTotal)} al pagar lo pendiente.
+                </p>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Método de pago */}
         <div className="px-4 py-3 border-t border-gray-100 dark:border-gray-800">

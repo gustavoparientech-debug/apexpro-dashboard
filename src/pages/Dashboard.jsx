@@ -1046,9 +1046,54 @@ export default function Dashboard() {
               </div>
               {insights.actual.utilidad < 0 && (
                 <p className="text-xs text-red-600 dark:text-red-400 mt-2 font-medium">
-                  ⚠ Este mes cierra en pérdida de {formatMoney(Math.abs(insights.actual.utilidad))}
+                  ⚠ Hoy el mes va en pérdida de {formatMoney(Math.abs(insights.actual.utilidad))}
                 </p>
               )}
+
+              {/* Proyeccion al cerrar los servicios abiertos ─────────────────
+                  Los tickets abiertos no suman a los ingresos hasta cerrarse,
+                  de modo que la utilidad de hoy no refleja el trabajo ya
+                  comprometido. Solo aplica al mes en curso: en un mes pasado
+                  no hay nada por cerrar. */}
+              {isCurrentMonth && (data.saldoPorCobrar > 0 || data.gastosPendTotal > 0) && (() => {
+                const proyectada = insights.actual.utilidad + data.saldoPorCobrar - data.gastosPendTotal
+                const mejora = proyectada - insights.actual.utilidad
+                return (
+                  <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-800">
+                    <div className="flex items-baseline justify-between mb-1.5">
+                      <p className="text-xs font-semibold text-gray-700 dark:text-gray-300">
+                        Si cierras los {data.ticketsAbiertos} servicios abiertos
+                      </p>
+                      <p className={`text-lg font-black ${proyectada >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        {formatMoney(proyectada)}
+                      </p>
+                    </div>
+                    <div className="space-y-0.5 text-[11px]">
+                      <div className="flex justify-between text-gray-500">
+                        <span>Utilidad de hoy</span>
+                        <span>{formatMoney(insights.actual.utilidad)}</span>
+                      </div>
+                      {data.saldoPorCobrar > 0 && (
+                        <div className="flex justify-between text-gray-500">
+                          <span>+ Por cobrar de servicios abiertos</span>
+                          <span className="text-green-600 font-semibold">+{formatMoney(data.saldoPorCobrar)}</span>
+                        </div>
+                      )}
+                      {data.gastosPendTotal > 0 && (
+                        <div className="flex justify-between text-gray-500">
+                          <span>− Gastos pendientes de pago</span>
+                          <span className="text-amber-600 font-semibold">−{formatMoney(data.gastosPendTotal)}</span>
+                        </div>
+                      )}
+                    </div>
+                    <p className="text-[10px] text-gray-400 mt-1.5">
+                      {proyectada >= 0 && insights.actual.utilidad < 0
+                        ? `Cerrarlos saca el mes de pérdida: mejora ${formatMoney(mejora)}.`
+                        : `Cobrar y pagar lo pendiente mueve el resultado en ${formatMoney(Math.abs(mejora))}.`}
+                    </p>
+                  </div>
+                )
+              })()}
             </div>
           ) : null
 

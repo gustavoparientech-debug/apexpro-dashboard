@@ -126,7 +126,7 @@ function BonusSection({ workers, bonuses, addBonus, deleteBonus, monthPrefix }) 
   )
 }
 
-const CAT_LABELS = { insumos: '🧴 Insumos', herramientas: '🔧 Herramientas', transporte: '🚌 Transporte', comida: '🍱 Comida', adelanto: '💵 Adelanto', otro: '📦 Otro' }
+const CAT_LABELS = { insumos: '🧴 Insumos', pintura: '🎨 Pintura', repuestos: '⚙️ Repuestos', herramientas: '🔧 Herramientas', transporte: '🚌 Transporte', comida: '🍱 Comida', adelanto: '💵 Adelanto', otro: '📦 Otro' }
 const SORT_OPTIONS = [
   { value: 'date_desc', label: 'Fecha ↓' },
   { value: 'date_asc',  label: 'Fecha ↑' },
@@ -205,10 +205,10 @@ function ExpensesPanel({ expenses, workers }) {
       {!expanded && (
         <div className="flex items-center gap-3 mt-2 flex-wrap">
           <span className="text-xs text-gray-400">{expenses.length} gasto{expenses.length !== 1 ? 's' : ''} este período</span>
-          {['adelanto','insumos','comida','otro'].map(cat => {
+          {[...new Set(expenses.map(e => e.category).filter(Boolean))].map(cat => {
             const catTotal = expenses.filter(e => e.category === cat).reduce((s, e) => s + e.amount, 0)
             if (!catTotal) return null
-            return <span key={cat} className="text-xs text-gray-500">{CAT_LABELS[cat]}: <span className="font-semibold text-amber-600">-{formatMoney(catTotal)}</span></span>
+            return <span key={cat} className="text-xs text-gray-500">{CAT_LABELS[cat] || cat}: <span className="font-semibold text-amber-600">-{formatMoney(catTotal)}</span></span>
           })}
         </div>
       )}
@@ -365,6 +365,14 @@ function ExpensesPanel({ expenses, workers }) {
                     {worker && <span className="text-xs text-gray-400">{worker.name}</span>}
                     {exp.method === 'efectivo' && <span className="text-xs font-medium text-green-600 bg-green-50 dark:bg-green-900/20 px-1.5 py-0.5 rounded-md">💵 Efectivo</span>}
                     {exp.method === 'yape'     && <span className="text-xs font-medium text-purple-600 bg-purple-50 dark:bg-purple-900/20 px-1.5 py-0.5 rounded-md">💜 Yape</span>}
+                    {/* Los gastos con ticket vienen de un servicio concreto:
+                        conviene distinguirlos de los generales del taller. */}
+                    {exp.ticket_id && (
+                      <span className="text-xs font-medium text-orange-600 bg-orange-50 dark:bg-orange-900/20 px-1.5 py-0.5 rounded-md">
+                        🎫 De un servicio
+                      </span>
+                    )}
+                    {exp.description && <span className="text-xs text-gray-400 italic truncate">· {exp.description}</span>}
                     {exp.notes && <span className="text-xs text-gray-400 italic truncate">· {exp.notes}</span>}
                     <span className="text-xs text-gray-300 dark:text-gray-600">{exp.date}</span>
                   </div>

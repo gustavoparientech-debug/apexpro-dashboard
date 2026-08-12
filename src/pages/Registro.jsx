@@ -548,7 +548,41 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
   const worker  = workers.find(w => w.id === ticket.worker_id)
   const vehicle = (vehicleTypes || []).find(v => v.value === ticket.vehicle_type)
   const extras  = ticket.extras || []
-  const { fetchTicketPhotos } = useApp()
+  const { fetchTicketPhotos, expenses, addExpense, deleteExpense } = useApp()
+
+  // ── Gastos del servicio ───────────────────────────────────────────────────
+  // Se guardan en worker_expenses con ticket_id, o sea en la misma tabla que
+  // el resto: asi entran solos en el Dashboard y en Reportes sin duplicar nada.
+  const gastos = (expenses || []).filter(e => e.ticket_id === ticket.id)
+  const gastosTotal = gastos.reduce((s, e) => s + Number(e.amount || 0), 0)
+  const [gastoForm, setGastoForm] = useState({ amount: '', description: '', category: 'insumos' })
+  const [savingGasto, setSavingGasto] = useState(false)
+  const [showGastoForm, setShowGastoForm] = useState(false)
+
+  async function handleAddGasto() {
+    const monto = parseFloat(gastoForm.amount)
+    if (!monto || monto <= 0) { toast.error('Indica el monto del gasto'); return }
+    setSavingGasto(true)
+    try {
+      await addExpense({
+        ticket_id: ticket.id,
+        worker_id: ticket.worker_id || null,
+        date: ticket.date,          // el gasto pertenece al dia del servicio
+        amount: monto,
+        category: gastoForm.category,
+        description: gastoForm.description.trim() || null,
+      })
+      setGastoForm({ amount: '', description: '', category: 'insumos' })
+      setShowGastoForm(false)
+      toast.success('Gasto registrado')
+    } catch { toast.error('Error al registrar el gasto') }
+    setSavingGasto(false)
+  }
+
+  async function handleDeleteGasto(id) {
+    try { await deleteExpense(id); toast.success('Gasto eliminado') }
+    catch { toast.error('Error al eliminar') }
+  }
 
   // Cargar fotos lazy al abrir el ticket (no vienen en la consulta inicial)
   useEffect(() => {
@@ -849,6 +883,92 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
                   <span className="text-red-600">-{formatMoney(discountAmt)}</span>
                 </div>
               )}
+            </div>
+          )}
+        </div>
+
+        {/* Gastos del servicio */}
+        <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-800">
+          <div className="flex items-center justify-between mb-2">
+            <div>
+              <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">Gastos del servicio</p>
+              <p className="text-[11px] text-gray-400">Materiales e insumos usados en este trabajo</p>
+            </div>
+            {gastosTotal > 0 && (
+              <p className="text-sm font-bold text-orange-600">−{formatMoney(gastosTotal)}</p>
+            )}
+          </div>
+
+          {gastos.length > 0 && (
+            <div className="space-y-1 mb-2">
+              {gastos.map(g => (
+                <div key={g.id} className="flex items-center gap-2 text-xs">
+                  <button onClick={() => handleDeleteGasto(g.id)}
+                    className="w-5 h-5 shrink-0 flex items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30 text-red-500 hover:bg-red-200">
+                    <X className="w-3 h-3" />
+                  </button>
+                  <span className="flex-1 truncate text-gray-600 dark:text-gray-300">
+                    {g.description || g.category}
+                    {g.description && <span className="text-gray-400"> · {g.category}</span>}
+                  </span>
+                  <span className="font-semibold text-gray-800 dark:text-gray-200 shrink-0">
+                    {formatMoney(g.amount)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {showGastoForm ? (
+            <div className="space-y-2 rounded-xl bg-orange-50 dark:bg-orange-950/20 p-2.5">
+              <div className="flex gap-2">
+                <div className="flex items-center gap-1 shrink-0">
+                  <span className="text-xs text-gray-500">S/</span>
+                  <input type="number" min="0" step="0.01" autoFocus
+                    className="input py-1 w-20 text-sm text-right" placeholder="0.00"
+                    value={gastoForm.amount}
+                    onChange={e => setGastoForm(f => ({ ...f, amount: e.target.value }))} />
+                </div>
+                <input className="input py-1 flex-1 text-sm" placeholder="Descripción (ej: pintura, tiner)"
+                  value={gastoForm.description}
+                  onChange={e => setGastoForm(f => ({ ...f, description: e.target.value }))} />
+              </div>
+              <div className="flex items-center gap-1 flex-wrap">
+                {['insumos', 'pintura', 'repuestos', 'otro'].map(c => (
+                  <button key={c} onClick={() => setGastoForm(f => ({ ...f, category: c }))}
+                    className={`text-[10px] px-2 py-0.5 rounded-full border font-semibold capitalize transition-colors ${
+                      gastoForm.category === c
+                        ? 'bg-orange-500 border-orange-500 text-white'
+                        : 'bg-white dark:bg-gray-800 text-gray-500 border-gray-300 dark:border-gray-600'
+                    }`}>{c}</button>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <button onClick={handleAddGasto} disabled={savingGasto}
+                  className="flex-1 py-1.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-xs font-bold disabled:opacity-50">
+                  {savingGasto ? 'Guardando...' : 'Agregar gasto'}
+                </button>
+                <button onClick={() => setShowGastoForm(false)}
+                  className="px-3 py-1.5 rounded-xl border border-gray-200 dark:border-gray-700 text-gray-400 text-xs">✕</button>
+              </div>
+            </div>
+          ) : (
+            <button onClick={() => setShowGastoForm(true)}
+              className="w-full py-2 rounded-xl border border-dashed border-orange-300 dark:border-orange-800 text-orange-500 text-xs font-semibold hover:bg-orange-50 dark:hover:bg-orange-950/20 transition-colors">
+              + Agregar gasto
+            </button>
+          )}
+
+          {/* Ganancia real: es el dato que justifica registrar los gastos. */}
+          {gastosTotal > 0 && (
+            <div className="mt-2.5 pt-2 border-t border-gray-100 dark:border-gray-800 flex items-center justify-between">
+              <span className="text-xs text-gray-500">
+                Ganancia del servicio
+                <span className="text-gray-400"> · {formatMoney(total)} − {formatMoney(gastosTotal)}</span>
+              </span>
+              <span className={`text-sm font-black ${total - gastosTotal >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                {formatMoney(total - gastosTotal)}
+              </span>
             </div>
           )}
         </div>

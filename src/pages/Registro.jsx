@@ -548,13 +548,18 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
   const worker  = workers.find(w => w.id === ticket.worker_id)
   const vehicle = (vehicleTypes || []).find(v => v.value === ticket.vehicle_type)
   const extras  = ticket.extras || []
-  const { fetchTicketPhotos, expenses, addExpense, deleteExpense } = useApp()
+  const { fetchTicketPhotos, expenses, addExpense, updateExpense, deleteExpense } = useApp()
 
   // ── Gastos del servicio ───────────────────────────────────────────────────
   // Se guardan en worker_expenses con ticket_id, o sea en la misma tabla que
   // el resto: asi entran solos en el Dashboard y en Reportes sin duplicar nada.
   const gastos = (expenses || []).filter(e => e.ticket_id === ticket.id)
-  const gastosTotal = gastos.reduce((s, e) => s + Number(e.amount || 0), 0)
+  // Un gasto pendiente esta comprometido pero aun no salio de caja: se muestra
+  // aparte y no resta de la ganancia hasta que se marque como pagado.
+  const gastosPagados    = gastos.filter(e => e.paid !== false)
+  const gastosPendientes = gastos.filter(e => e.paid === false)
+  const gastosTotal      = gastosPagados.reduce((s, e) => s + Number(e.amount || 0), 0)
+  const pendienteTotal   = gastosPendientes.reduce((s, e) => s + Number(e.amount || 0), 0)
   // ── Adelanto ──────────────────────────────────────────────────────────────
   // Dinero ya cobrado antes de cerrar el servicio. Se guarda en el ticket, no
   // como ingreso aparte: al cerrarlo el precio total ya lo incluye y contarlo
@@ -564,7 +569,7 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
   const [adelantoDraft, setAdelantoDraft] = useState(String(ticket.adelanto || ''))
   const [adelantoMethod, setAdelantoMethod] = useState(ticket.adelanto_method || 'efectivo')
 
-  const [gastoForm, setGastoForm] = useState({ amount: '', description: '', category: 'insumos' })
+  const [gastoForm, setGastoForm] = useState({ amount: '', description: '', category: 'insumos', paid: true })
   const [savingGasto, setSavingGasto] = useState(false)
   const [showGastoForm, setShowGastoForm] = useState(false)
 
@@ -591,12 +596,18 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
         amount: monto,
         category: gastoForm.category,
         description: gastoForm.description.trim() || null,
+        paid: gastoForm.paid,
       })
-      setGastoForm({ amount: '', description: '', category: 'insumos' })
+      setGastoForm({ amount: '', description: '', category: 'insumos', paid: true })
       setShowGastoForm(false)
       toast.success('Gasto registrado')
     } catch { toast.error('Error al registrar el gasto') }
     setSavingGasto(false)
+  }
+
+  async function handleTogglePagado(g) {
+    try { await updateExpense(g.id, { paid: g.paid === false }) }
+    catch { toast.error('Error al actualizar el gasto') }
   }
 
   async function handleDeleteGasto(id) {
@@ -976,9 +987,16 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
               <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">Gastos del servicio</p>
               <p className="text-[11px] text-gray-400">Materiales e insumos usados en este trabajo</p>
             </div>
-            {gastosTotal > 0 && (
-              <p className="text-sm font-bold text-orange-600">−{formatMoney(gastosTotal)}</p>
-            )}
+            <div className="text-right">
+              {gastosTotal > 0 && (
+                <p className="text-sm font-bold text-orange-600">−{formatMoney(gastosTotal)}</p>
+              )}
+              {pendienteTotal > 0 && (
+                <p className="text-[11px] font-semibold text-amber-600">
+                  {formatMoney(pendienteTotal)} pendiente
+                </p>
+              )}
+            </div>
           </div>
 
           {gastos.length > 0 && (
@@ -989,11 +1007,20 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
                     className="w-5 h-5 shrink-0 flex items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30 text-red-500 hover:bg-red-200">
                     <X className="w-3 h-3" />
                   </button>
-                  <span className="flex-1 truncate text-gray-600 dark:text-gray-300">
+                  <span className={`flex-1 truncate ${g.paid === false ? 'text-gray-400' : 'text-gray-600 dark:text-gray-300'}`}>
                     {g.description || g.category}
                     {g.description && <span className="text-gray-400"> · {g.category}</span>}
                   </span>
-                  <span className="font-semibold text-gray-800 dark:text-gray-200 shrink-0">
+                  <button onClick={() => handleTogglePagado(g)}
+                    title={g.paid === false ? 'Marcar como pagado' : 'Marcar como pendiente'}
+                    className={`shrink-0 text-[10px] px-1.5 py-0.5 rounded-full border font-semibold transition-colors ${
+                      g.paid === false
+                        ? 'bg-amber-50 dark:bg-amber-900/20 text-amber-600 border-amber-300'
+                        : 'bg-green-50 dark:bg-green-900/20 text-green-600 border-green-300'
+                    }`}>
+                    {g.paid === false ? 'Pendiente' : 'Pagado'}
+                  </button>
+                  <span className={`font-semibold shrink-0 ${g.paid === false ? 'text-gray-400 line-through' : 'text-gray-800 dark:text-gray-200'}`}>
                     {formatMoney(g.amount)}
                   </span>
                 </div>
@@ -1023,6 +1050,17 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
                         ? 'bg-orange-500 border-orange-500 text-white'
                         : 'bg-white dark:bg-gray-800 text-gray-500 border-gray-300 dark:border-gray-600'
                     }`}>{c}</button>
+                ))}
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="text-[10px] text-gray-400 mr-0.5">Estado:</span>
+                {[{ v: true, l: 'Pagado' }, { v: false, l: 'Pendiente' }].map(({ v, l }) => (
+                  <button key={String(v)} onClick={() => setGastoForm(f => ({ ...f, paid: v }))}
+                    className={`text-[10px] px-2 py-0.5 rounded-full border font-semibold transition-colors ${
+                      gastoForm.paid === v
+                        ? (v ? 'bg-green-600 border-green-600 text-white' : 'bg-amber-500 border-amber-500 text-white')
+                        : 'bg-white dark:bg-gray-800 text-gray-500 border-gray-300 dark:border-gray-600'
+                    }`}>{l}</button>
                 ))}
               </div>
               <div className="flex gap-2">

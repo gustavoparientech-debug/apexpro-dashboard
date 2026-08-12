@@ -372,6 +372,11 @@ function ExpensesPanel({ expenses, workers }) {
                         🎫 De un servicio
                       </span>
                     )}
+                    {exp.paid === false && (
+                      <span className="text-xs font-medium text-amber-600 bg-amber-50 dark:bg-amber-900/20 px-1.5 py-0.5 rounded-md">
+                        ⏳ Pendiente de pago
+                      </span>
+                    )}
                     {exp.description && <span className="text-xs text-gray-400 italic truncate">· {exp.description}</span>}
                     {exp.notes && <span className="text-xs text-gray-400 italic truncate">· {exp.notes}</span>}
                     <span className="text-xs text-gray-300 dark:text-gray-600">{exp.date}</span>
@@ -689,7 +694,12 @@ export default function Dashboard() {
     }
     const saldoPorCobrar  = openTickets.reduce(
       (s, t) => s + Math.max(0, totalDeTicket(t) - Number(t.adelanto || 0)), 0)
-    const workerExpTotal  = periodExpenses.reduce((s, e) => s + (e.amount || 0), 0)
+    // Los gastos pendientes estan comprometidos pero aun no salieron de caja:
+    // no restan de la utilidad hasta marcarse como pagados.
+    const gastosPagados   = periodExpenses.filter(e => e.paid !== false)
+    const gastosPendientes = periodExpenses.filter(e => e.paid === false)
+    const workerExpTotal  = gastosPagados.reduce((s, e) => s + (e.amount || 0), 0)
+    const gastosPendTotal = gastosPendientes.reduce((s, e) => s + (e.amount || 0), 0)
     const totalIncome     = ticketIncome + summaryIncome + adelantosAbiertos
 
     const utilityGoal = selectedCosts?.utility_goal || 2000
@@ -782,7 +792,7 @@ export default function Dashboard() {
       workingDaysElapsed, workingDaysRemaining, workingDaysTotal,
       bestDay, efectivo, yape, transferencia, onTrack, projectedIncome, dailyData,
       workerRanking, monthBonusAmt, workerExpTotal, periodExpenses, costItemsData,
-      adelantosAbiertos, ticketsConAdelanto, ticketsAbiertos, saldoPorCobrar,
+      adelantosAbiertos, ticketsConAdelanto, ticketsAbiertos, saldoPorCobrar, gastosPendTotal,
       proportionalFixed, proportionRatio, avgTimeByType,
     }
   }, [tickets, dailySummaries, expenses, pastTickets, pastSummaries, pastExpenses, workers, services, incidents, selectedCosts, bonuses, casualPayments, workerMonthlyConfigs, prefix, selMonth, selYear, isCurrentMonth, rangeFrom, rangeTo, hasRange])
@@ -1240,6 +1250,11 @@ export default function Dashboard() {
               <Row label="👷 Planilla" value={formatMoney(data.payrollTotal * data.proportionRatio)} />
               {data.monthBonusAmt > 0 && <Row label="🎁 Bonos" value={formatMoney(data.monthBonusAmt * data.proportionRatio)} />}
               {data.workerExpTotal > 0 && <Row label="💸 Gastos personal" value={formatMoney(data.workerExpTotal)} />}
+              {data.gastosPendTotal > 0 && (
+                <p className="text-[11px] text-amber-600 dark:text-amber-400 pt-1">
+                  + {formatMoney(data.gastosPendTotal)} en gastos pendientes de pago, aún no descontados
+                </p>
+              )}
               <div className="flex items-center justify-between pt-2 mt-1 border-t border-gray-100 dark:border-gray-800">
                 <span className="text-sm font-bold text-gray-700 dark:text-gray-300">Total gastos</span>
                 <span className="text-sm font-black text-red-600">{formatMoney(data.displayCosts)}</span>

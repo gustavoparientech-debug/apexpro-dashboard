@@ -85,7 +85,8 @@ export default function Historial() {
     const ticketIncome   = periodTickets.reduce((s, t) => s + (t.price_charged || 0), 0)
     const summaryIncome  = periodSummaries.reduce((s, d) => s + (d.total_income || 0), 0)
     const grossIncome    = ticketIncome + summaryIncome
-    const totalExpenses  = periodExpenses.reduce((s, e) => s + (e.amount || 0), 0)
+    // Solo los gastos pagados: los pendientes aun no salieron de caja.
+    const totalExpenses  = periodExpenses.filter(e => e.paid !== false).reduce((s, e) => s + (e.amount || 0), 0)
 
     const costItemsData = monthlyCosts?.cost_items
     const fixedCosts = (costItemsData && Array.isArray(costItemsData) && costItemsData.length > 0)

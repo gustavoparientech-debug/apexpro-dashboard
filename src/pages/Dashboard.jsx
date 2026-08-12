@@ -371,7 +371,14 @@ function ExpensesPanel({ expenses, workers }) {
             )
 
             return (
-              <div key={exp.id} className="flex items-center gap-2 py-2 border-b border-gray-100 dark:border-gray-800 last:border-0">
+              // Los pendientes se tinen por completo: una etiqueta sola se
+              // pierde en una lista larga y no permite reconocerlos de un
+              // vistazo. Al marcarlos pagados vuelven al estilo normal.
+              <div key={exp.id} className={`flex items-center gap-2 py-2 border-b border-gray-100 dark:border-gray-800 last:border-0 ${
+                exp.paid === false
+                  ? 'bg-amber-50 dark:bg-amber-950/25 -mx-2 px-2 rounded-lg border-l-4 border-l-amber-400'
+                  : ''
+              }`}>
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-semibold text-gray-700 dark:text-gray-300">{CAT_LABELS[exp.category] || exp.category || 'Gasto'}</p>
                   <div className="flex items-center gap-1.5 flex-wrap">
@@ -395,7 +402,9 @@ function ExpensesPanel({ expenses, workers }) {
                     <span className="text-xs text-gray-300 dark:text-gray-600">{exp.date}</span>
                   </div>
                 </div>
-                <span className="text-xs font-bold text-amber-600 flex-shrink-0">-{formatMoney(exp.amount)}</span>
+                <span className={`text-xs font-bold flex-shrink-0 ${
+                  exp.paid === false ? 'text-amber-700 dark:text-amber-400' : 'text-amber-600'
+                }`}>-{formatMoney(exp.amount)}</span>
                 {canAdmin && (
                   <>
                     <button onClick={() => setEditingExp({ ...exp })}

@@ -1325,7 +1325,7 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
 }
 
 // ─── Tarjeta ticket abierto ───────────────────────────────────────────────────
-function ActiveTicketCard({ ticket, workers, vehicleTypes, onClick, onToggleHide }) {
+function ActiveTicketCard({ ticket, workers, vehicleTypes, onClick, onToggleHide, expenses = [], advances = [] }) {
   const worker  = workers.find(w => w.id === ticket.worker_id)
   const vehicle = (vehicleTypes || []).find(v => v.value === ticket.vehicle_type)
   const extras  = ticket.extras || []
@@ -1333,6 +1333,13 @@ function ActiveTicketCard({ ticket, workers, vehicleTypes, onClick, onToggleHide
   const bruto = (ticket.price_charged || 0) + extrasTotal
   const discountAmt = Math.round((bruto * ((ticket.discount_pct || 0) / 100) + (ticket.discount_fixed || 0)) * 100) / 100
   const total = Math.max(0, bruto - discountAmt)
+
+  // Estado economico del servicio, visible sin abrir el ticket.
+  const gastos = expenses.filter(e => e.ticket_id === ticket.id)
+  const gastoPagado = gastos.filter(e => e.paid !== false).reduce((s, e) => s + Number(e.amount || 0), 0)
+  const gastoPend   = gastos.filter(e => e.paid === false).reduce((s, e) => s + Number(e.amount || 0), 0)
+  const adelantado  = advances.filter(a => a.ticket_id === ticket.id).reduce((s, a) => s + Number(a.amount || 0), 0)
+  const tieneMovimientos = gastos.length > 0 || adelantado > 0
 
   return (
     <div className={`card flex items-start gap-3 border-l-4 ${ticket.hidden_from_workers ? 'border-l-gray-400 opacity-60' : 'border-l-amber-400'}`}>
@@ -1357,6 +1364,25 @@ function ActiveTicketCard({ ticket, workers, vehicleTypes, onClick, onToggleHide
             )}
           </div>
           <p className="text-xs text-gray-500">{vehicle?.label || ticket.vehicle_type}{ticket.vehicle_subtype ? ` · ${ticket.vehicle_subtype}` : ''} · {worker?.name || '—'}</p>
+          {tieneMovimientos && (
+            <div className="flex items-center gap-1.5 flex-wrap mt-1">
+              {adelantado > 0 && (
+                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400">
+                  Adelanto {formatMoney(adelantado)}
+                </span>
+              )}
+              {gastoPagado > 0 && (
+                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400">
+                  Gasto {formatMoney(gastoPagado)}
+                </span>
+              )}
+              {gastoPend > 0 && (
+                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700">
+                  ⏳ Por pagar {formatMoney(gastoPend)}
+                </span>
+              )}
+            </div>
+          )}
           {extras.length > 0 && (
             <p className="text-xs text-gray-400 mt-0.5">{extras.length} extra{extras.length > 1 ? 's' : ''}</p>
           )}
@@ -2014,13 +2040,19 @@ export default function Registro() {
   const {
     tickets, dailySummaries, workers, vehicleTypes, extrasCatalog, expenses,
     addTicket, updateTicket, deleteTicket, addDailySummary, deleteDailySummary, updateExpense, deleteExpense, addIncident, loadData,
+    fetchAdvances,
   } = useApp()
   const { profile, isAdmin, isDemo } = useAuth()
+
+  // Adelantos del mes: la tarjeta del ticket los muestra sin abrirlo.
+  const [advances, setAdvances] = useState([])
 
   const { month: cm, year: cy } = useMemo(() => {
     const n = new Date()
     return { month: n.getMonth() + 1, year: n.getFullYear() }
   }, [])
+
+  useEffect(() => { fetchAdvances(cy, cm).then(setAdvances) }, [cy, cm, tickets.length])
 
   const location = useLocation()
   const today = todayISO()
@@ -2491,7 +2523,7 @@ export default function Registro() {
           </div>
           <div className="space-y-2">
             {overdueOpenTickets.map(t => (
-              <ActiveTicketCard key={t.id} ticket={t} workers={workers} vehicleTypes={vehicleTypes}
+              <ActiveTicketCard key={t.id} ticket={t} workers={workers} vehicleTypes={vehicleTypes} expenses={expenses} advances={advances}
                 onClick={() => setActiveTicket(t.id)}
                 onToggleHide={canAdmin ? handleToggleHideTicket : null} />
             ))}
@@ -2518,7 +2550,7 @@ export default function Registro() {
         ) : (
           <div className="space-y-2">
             {openTickets.map(t => (
-              <ActiveTicketCard key={t.id} ticket={t} workers={workers} vehicleTypes={vehicleTypes}
+              <ActiveTicketCard key={t.id} ticket={t} workers={workers} vehicleTypes={vehicleTypes} expenses={expenses} advances={advances}
                 onClick={() => setActiveTicket(t.id)}
                 onToggleHide={canAdmin ? handleToggleHideTicket : null} />
             ))}

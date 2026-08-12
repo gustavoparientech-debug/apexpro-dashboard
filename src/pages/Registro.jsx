@@ -555,9 +555,29 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
   // el resto: asi entran solos en el Dashboard y en Reportes sin duplicar nada.
   const gastos = (expenses || []).filter(e => e.ticket_id === ticket.id)
   const gastosTotal = gastos.reduce((s, e) => s + Number(e.amount || 0), 0)
+  // ── Adelanto ──────────────────────────────────────────────────────────────
+  // Dinero ya cobrado antes de cerrar el servicio. Se guarda en el ticket, no
+  // como ingreso aparte: al cerrarlo el precio total ya lo incluye y contarlo
+  // dos veces inflaria la caja.
+  const [adelanto, setAdelanto] = useState(ticket.adelanto || 0)
+  const [editAdelanto, setEditAdelanto] = useState(false)
+  const [adelantoDraft, setAdelantoDraft] = useState(String(ticket.adelanto || ''))
+  const [adelantoMethod, setAdelantoMethod] = useState(ticket.adelanto_method || 'efectivo')
+
   const [gastoForm, setGastoForm] = useState({ amount: '', description: '', category: 'insumos' })
   const [savingGasto, setSavingGasto] = useState(false)
   const [showGastoForm, setShowGastoForm] = useState(false)
+
+  async function handleSaveAdelanto() {
+    const monto = Math.max(0, parseFloat(adelantoDraft) || 0)
+    if (monto > total) { toast.error('El adelanto no puede superar el total del servicio'); return }
+    try {
+      await onUpdate(ticket.id, { adelanto: monto, adelanto_method: monto > 0 ? adelantoMethod : null })
+      setAdelanto(monto)
+      setEditAdelanto(false)
+      toast.success(monto > 0 ? 'Adelanto guardado' : 'Adelanto eliminado')
+    } catch { toast.error('Error al guardar el adelanto') }
+  }
 
   async function handleAddGasto() {
     const monto = parseFloat(gastoForm.amount)
@@ -883,6 +903,68 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
                   <span className="text-red-600">-{formatMoney(discountAmt)}</span>
                 </div>
               )}
+            </div>
+          )}
+        </div>
+
+        {/* Adelanto */}
+        <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-800">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">Adelanto del cliente</p>
+              <p className="text-[11px] text-gray-400">Dinero ya cobrado de este servicio</p>
+            </div>
+            {!editAdelanto && (
+              <div className="flex items-center gap-2">
+                <span className={`text-sm font-bold ${adelanto > 0 ? 'text-green-600' : 'text-gray-400'}`}>
+                  {adelanto > 0 ? formatMoney(adelanto) : 'Sin adelanto'}
+                </span>
+                <button onClick={() => { setAdelantoDraft(String(adelanto || '')); setEditAdelanto(true) }}
+                  className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-400">
+                  <PenLine className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+          </div>
+
+          {editAdelanto && (
+            <div className="mt-2 space-y-2 rounded-xl bg-green-50 dark:bg-green-950/20 p-2.5">
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-500">S/</span>
+                <input type="number" min="0" step="0.01" autoFocus
+                  className="input py-1 flex-1 text-sm text-right" placeholder="0.00"
+                  value={adelantoDraft}
+                  onChange={e => setAdelantoDraft(e.target.value)} />
+              </div>
+              <div className="flex items-center gap-1 flex-wrap">
+                <span className="text-[10px] text-gray-400 mr-0.5">Cobrado por:</span>
+                {[['efectivo', '💵 Efectivo'], ['yape', '📱 Yape'], ['transferencia', '🏦 Transf.']].map(([v, l]) => (
+                  <button key={v} onClick={() => setAdelantoMethod(v)}
+                    className={`text-[10px] px-2 py-0.5 rounded-full border font-semibold transition-colors ${
+                      adelantoMethod === v
+                        ? 'bg-green-600 border-green-600 text-white'
+                        : 'bg-white dark:bg-gray-800 text-gray-500 border-gray-300 dark:border-gray-600'
+                    }`}>{l}</button>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <button onClick={handleSaveAdelanto}
+                  className="flex-1 py-1.5 rounded-xl bg-green-600 hover:bg-green-700 text-white text-xs font-bold">
+                  Guardar adelanto
+                </button>
+                <button onClick={() => setEditAdelanto(false)}
+                  className="px-3 py-1.5 rounded-xl border border-gray-200 dark:border-gray-700 text-gray-400 text-xs">✕</button>
+              </div>
+            </div>
+          )}
+
+          {adelanto > 0 && !editAdelanto && (
+            <div className="mt-2 pt-2 border-t border-gray-100 dark:border-gray-800 flex items-center justify-between">
+              <span className="text-xs text-gray-500">
+                Saldo por cobrar
+                <span className="text-gray-400"> · {formatMoney(total)} − {formatMoney(adelanto)}</span>
+              </span>
+              <span className="text-sm font-black text-red-600">{formatMoney(Math.max(0, total - adelanto))}</span>
             </div>
           )}
         </div>

@@ -504,7 +504,7 @@ export default function Dashboard() {
     localStorage.setItem('apexpro_avgtime_hidden', JSON.stringify(hidden))
   }
 
-  const DEFAULT_PANEL_ORDER = ['kpis','tendencia','mix','clientes','tiempos','progreso','estadisticas','cobros','gastos','gastos_personal','ranking','bonos','grafico']
+  const DEFAULT_PANEL_ORDER = ['kpis','adelantos','tendencia','mix','clientes','tiempos','progreso','estadisticas','cobros','gastos','gastos_personal','ranking','bonos','grafico']
   const [panelOrder, setPanelOrder] = useState(() => {
     try {
       const saved = JSON.parse(localStorage.getItem('apexpro_panel_order') || 'null')
@@ -669,8 +669,28 @@ export default function Dashboard() {
 
     const ticketIncome    = periodTickets.reduce((s, t) => s + (t.price_charged || 0), 0)
     const summaryIncome   = periodSummaries.reduce((s, d) => s + (d.total_income || 0), 0)
+
+    // Adelantos de servicios aun abiertos. Un ticket abierto no suma a los
+    // ingresos, pero su adelanto ya esta cobrado y debe verse en caja. Cuando
+    // el ticket cierre, su precio total pasa a contar y el adelanto sale de
+    // aqui: asi el dinero nunca se cuenta dos veces.
+    const openTickets     = sourceTickets.filter(t => dateFilter(t.date) && t.status === 'abierto')
+    const adelantosAbiertos = openTickets.reduce((s, t) => s + Number(t.adelanto || 0), 0)
+    const ticketsConAdelanto = openTickets.filter(t => Number(t.adelanto || 0) > 0).length
+    const ticketsAbiertos    = openTickets.length
+    // El total de un ticket no es price_charged: hay que sumarle los extras y
+    // restarle el descuento, igual que en la tarjeta del ticket. Con solo
+    // price_charged un servicio cuyo importe vive en los extras daba saldo cero.
+    const totalDeTicket = (t) => {
+      const extrasTotal = (t.extras || []).reduce((a, e) => a + (e.price || 0), 0)
+      const bruto = (t.price_charged || 0) + extrasTotal
+      const desc  = Math.round((bruto * ((t.discount_pct || 0) / 100) + (t.discount_fixed || 0)) * 100) / 100
+      return Math.max(0, bruto - desc)
+    }
+    const saldoPorCobrar  = openTickets.reduce(
+      (s, t) => s + Math.max(0, totalDeTicket(t) - Number(t.adelanto || 0)), 0)
     const workerExpTotal  = periodExpenses.reduce((s, e) => s + (e.amount || 0), 0)
-    const totalIncome     = ticketIncome + summaryIncome
+    const totalIncome     = ticketIncome + summaryIncome + adelantosAbiertos
 
     const utilityGoal = selectedCosts?.utility_goal || 2000
     const costItemsData = selectedCosts?.cost_items
@@ -762,6 +782,7 @@ export default function Dashboard() {
       workingDaysElapsed, workingDaysRemaining, workingDaysTotal,
       bestDay, efectivo, yape, transferencia, onTrack, projectedIncome, dailyData,
       workerRanking, monthBonusAmt, workerExpTotal, periodExpenses, costItemsData,
+      adelantosAbiertos, ticketsConAdelanto, ticketsAbiertos, saldoPorCobrar,
       proportionalFixed, proportionRatio, avgTimeByType,
     }
   }, [tickets, dailySummaries, expenses, pastTickets, pastSummaries, pastExpenses, workers, services, incidents, selectedCosts, bonuses, casualPayments, workerMonthlyConfigs, prefix, selMonth, selYear, isCurrentMonth, rangeFrom, rangeTo, hasRange])
@@ -937,6 +958,33 @@ export default function Dashboard() {
               <StatCard label="Vehículos"          value={data.totalCars}                 sub={`Prom: ${formatMoney(data.totalCars ? data.totalIncome / data.totalCars : 0)}/carro`} icon={Car} color="neutral" />
             </div>
           )
+          // Adelantos de servicios en curso: dinero ya cobrado y lo que falta.
+          if (sectionId === 'adelantos') return data.ticketsAbiertos > 0 ? (
+            <div key="adelantos" className="card">
+              <div className="flex items-start justify-between mb-3">
+                <div>
+                  <p className="text-sm font-bold text-gray-900 dark:text-white">Servicios en curso</p>
+                  <p className="text-xs text-gray-400">
+                    {data.ticketsAbiertos} abierto{data.ticketsAbiertos !== 1 ? 's' : ''}
+                    {data.ticketsConAdelanto > 0 && ` · ${data.ticketsConAdelanto} con adelanto`}
+                  </p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-xl bg-green-50 dark:bg-green-900/20 px-3 py-2.5">
+                  <p className="text-[11px] text-gray-500 dark:text-gray-400">Adelantos cobrados</p>
+                  <p className="text-xl font-black text-green-600">{formatMoney(data.adelantosAbiertos)}</p>
+                  <p className="text-[10px] text-gray-400 mt-0.5">ya suma a los ingresos</p>
+                </div>
+                <div className="rounded-xl bg-amber-50 dark:bg-amber-900/20 px-3 py-2.5">
+                  <p className="text-[11px] text-gray-500 dark:text-gray-400">Por cobrar al entregar</p>
+                  <p className="text-xl font-black text-amber-600">{formatMoney(data.saldoPorCobrar)}</p>
+                  <p className="text-[10px] text-gray-400 mt-0.5">de todos los servicios abiertos</p>
+                </div>
+              </div>
+            </div>
+          ) : null
+
           // Evolución mensual: ingresos, costos y utilidad — el avance real del negocio
           if (sectionId === 'tendencia') return insights && insights.serie.some(m => m.ingresos > 0) ? (
             <div key="tendencia" className="card overflow-hidden">
@@ -1245,7 +1293,7 @@ export default function Dashboard() {
 
         if (!sectionContent) return null
 
-        const SECTION_LABELS = { kpis: 'KPIs', tendencia: 'Evolución mensual', mix: 'Rentabilidad por servicio', clientes: 'Clientes nuevos vs. recurrentes', tiempos: 'Tiempos promedio', progreso: 'Meta mensual', estadisticas: 'Estadísticas', cobros: 'Métodos de cobro', gastos: 'Desglose gastos', gastos_personal: 'Gastos personal', ranking: 'Ranking', bonos: 'Bonos', grafico: 'Gráfico diario' }
+        const SECTION_LABELS = { kpis: 'KPIs', adelantos: 'Adelantos por cobrar', tendencia: 'Evolución mensual', mix: 'Rentabilidad por servicio', clientes: 'Clientes nuevos vs. recurrentes', tiempos: 'Tiempos promedio', progreso: 'Meta mensual', estadisticas: 'Estadísticas', cobros: 'Métodos de cobro', gastos: 'Desglose gastos', gastos_personal: 'Gastos personal', ranking: 'Ranking', bonos: 'Bonos', grafico: 'Gráfico diario' }
 
         return (
           <div key={sectionId} className="relative group">

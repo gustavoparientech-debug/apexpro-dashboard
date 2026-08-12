@@ -344,10 +344,23 @@ function ExpensesPanel({ expenses, workers }) {
                 </div>
                 <input className="input text-xs py-1" placeholder="Notas" value={editingExp.notes || ''}
                   onChange={e => setEditingExp(f => ({ ...f, notes: e.target.value }))} />
+                {/* Estado de pago: un pendiente no descuenta hasta marcarse pagado. */}
+                <div className="flex items-center gap-1">
+                  <span className="text-[10px] text-gray-400 mr-0.5">Estado:</span>
+                  {[{ v: true, l: 'Pagado' }, { v: false, l: 'Pendiente' }].map(({ v, l }) => (
+                    <button key={String(v)} type="button"
+                      onClick={() => setEditingExp(f => ({ ...f, paid: v }))}
+                      className={`text-[10px] px-2 py-0.5 rounded-full border font-semibold transition-colors ${
+                        (editingExp.paid !== false) === v
+                          ? (v ? 'bg-green-600 border-green-600 text-white' : 'bg-amber-500 border-amber-500 text-white')
+                          : 'bg-white dark:bg-gray-800 text-gray-500 border-gray-300 dark:border-gray-600'
+                      }`}>{l}</button>
+                  ))}
+                </div>
                 <div className="flex gap-2">
                   <button onClick={async () => {
                     try {
-                      await updateExpense(exp.id, { ...editingExp, amount: parseFloat(editingExp.amount) })
+                      await updateExpense(exp.id, { ...editingExp, amount: parseFloat(editingExp.amount), paid: editingExp.paid !== false })
                       toast.success('Gasto actualizado')
                       setEditingExp(null)
                     } catch { toast.error('Error al actualizar') }

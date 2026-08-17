@@ -1033,6 +1033,15 @@ export function AppProvider({ children }) {
     return result
   }
 
+  // Gastos de un ticket puntual. El estado global solo trae el rango de fechas
+  // que se esta viendo, asi que un ticket viejo necesita su propia consulta.
+  const fetchTicketExpenses = async (ticketId) => {
+    if (IS_DEMO) return state.expenses.filter(e => e.ticket_id === ticketId)
+    const { data } = await supabase.from('worker_expenses').select('*')
+      .eq('ticket_id', ticketId).order('created_at')
+    return data || []
+  }
+
   // ─── CRUD Expenses ──────────────────────────────────────────────────────────
   const addExpense = async (data) => {
     if (IS_DEMO) {
@@ -1126,7 +1135,7 @@ export function AppProvider({ children }) {
       addIncident, updateIncident, deleteIncident,
       addVehicleType, updateVehicleType, deleteVehicleType,
       addExtra, updateExtra, deleteExtra,
-      addExpense, updateExpense, deleteExpense,
+      addExpense, updateExpense, deleteExpense, fetchTicketExpenses,
       addBonus, deleteBonus,
       saveMonthlyCosts,
       fetchMonthlyCosts, saveWorkerMonthlyConfig, fetchWorkerMonthlyConfigs,

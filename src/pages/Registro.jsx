@@ -50,6 +50,18 @@ function formatElapsed(ms) {
   return `${String(m).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`
 }
 
+// Marca de tiempo corta para gastos y adelantos. Dentro del mismo dia la hora
+// alcanza para ubicar el movimiento; en dias anteriores importa mas el dia.
+function shortStamp(value) {
+  if (!value) return ''
+  const d = new Date(value)
+  if (isNaN(d.getTime())) return ''
+  const now = new Date()
+  return d.toDateString() === now.toDateString()
+    ? d.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' })
+    : d.toLocaleDateString('es-PE', { day: '2-digit', month: 'short' })
+}
+
 function TimerBadge({ openedAt }) {
   const ms = useElapsedMs(openedAt)
   return (
@@ -544,7 +556,7 @@ export function NewTicketForm({ onSave, onClose, workers, vehicleTypes, lockedWo
 }
 
 // ─── Detalle ticket abierto ───────────────────────────────────────────────────
-function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, onUpdate, onDelete }) {
+function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, onUpdate, onDelete, onClosed }) {
   const worker  = workers.find(w => w.id === ticket.worker_id)
   const vehicle = (vehicleTypes || []).find(v => v.value === ticket.vehicle_type)
   const extras  = ticket.extras || []
@@ -739,6 +751,9 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
     })
     toast.success('Ticket cerrado')
     onClose()
+    // Al cerrar se ofrece el resumen del servicio: ahi esta el detalle de lo
+    // que paso dentro del ticket (gastos y adelantos con su hora).
+    onClosed?.(ticket)
   }
 
   return (
@@ -1033,10 +1048,15 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
                     className="w-5 h-5 shrink-0 flex items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30 text-red-500 hover:bg-red-200">
                     <X className="w-3 h-3" />
                   </button>
-                  <span className={`flex-1 truncate ${g.paid === false ? 'text-gray-400' : 'text-gray-600 dark:text-gray-300'}`}>
-                    {g.description || g.category}
-                    {g.description && <span className="text-gray-400"> · {g.category}</span>}
-                  </span>
+                  <div className="flex-1 min-w-0">
+                    <p className={`truncate ${g.paid === false ? 'text-gray-400' : 'text-gray-600 dark:text-gray-300'}`}>
+                      {g.description || g.category}
+                      {g.description && <span className="text-gray-400"> · {g.category}</span>}
+                    </p>
+                    {shortStamp(g.created_at || g.date) && (
+                      <p className="text-[10px] text-gray-400 leading-tight">{shortStamp(g.created_at || g.date)}</p>
+                    )}
+                  </div>
                   <button onClick={() => handleTogglePagado(g)}
                     title={g.paid === false ? 'Marcar como pagado' : 'Marcar como pendiente'}
                     className={`shrink-0 text-[10px] px-1.5 py-0.5 rounded-full border font-semibold transition-colors ${
@@ -1527,7 +1547,7 @@ const COUNTRY_CODES = [
 ]
 
 // ─── Modal resumen ticket cerrado ────────────────────────────────────────────
-function TicketSummaryModal({ ticket, workers, vehicleTypes, onClose }) {
+function TicketSummaryModal({ ticket, workers, vehicleTypes, onClose, canAdmin }) {
   const [closing, setClosing] = useState(false)
   const [animateIn, setAnimateIn] = useState(false)
   useEffect(() => {
@@ -1541,6 +1561,47 @@ function TicketSummaryModal({ ticket, workers, vehicleTypes, onClose }) {
   const [showWaPanel, setShowWaPanel] = useState(false)
   const [waCountry, setWaCountry] = useState('51')
   const [waPhone, setWaPhone] = useState(ticket.client_phone || '')
+
+  // ── Detalle interno del servicio ────────────────────────────────────────────
+  // Lo que paso dentro del ticket: gastos y adelantos con su hora. No entra en
+  // el comprobante del cliente, se carga solo cuando se abre el detalle.
+  const { fetchTicketExpenses, fetchTicketAdvances } = useApp()
+  const [showDetalle, setShowDetalle] = useState(false)
+  const [detalle, setDetalle] = useState(null)   // null = aun sin cargar
+  const [loadingDetalle, setLoadingDetalle] = useState(false)
+
+  async function toggleDetalle() {
+    if (showDetalle) { setShowDetalle(false); return }
+    setShowDetalle(true)
+    if (detalle) return
+    setLoadingDetalle(true)
+    try {
+      const [gastos, advances] = await Promise.all([
+        fetchTicketExpenses(ticket.id),
+        fetchTicketAdvances(ticket.id),
+      ])
+      setDetalle({ gastos, advances })
+    } catch { toast.error('No se pudo cargar el detalle') }
+    setLoadingDetalle(false)
+  }
+
+  const movimientos = detalle
+    ? [
+        ...detalle.gastos.map(g => ({
+          id: `g${g.id}`, kind: 'gasto', at: g.created_at || g.date,
+          label: g.description || g.category, sub: g.description ? g.category : null,
+          amount: Number(g.amount || 0), pending: g.paid === false,
+        })),
+        ...detalle.advances.map(a => ({
+          id: `a${a.id}`, kind: 'adelanto', at: a.created_at || a.date,
+          label: 'Adelanto cobrado', sub: a.method || null,
+          amount: Number(a.amount || 0), pending: false,
+        })),
+      ].sort((x, y) => new Date(x.at || 0) - new Date(y.at || 0))
+    : []
+  const gastosPagadosR = detalle ? detalle.gastos.filter(g => g.paid !== false).reduce((s, g) => s + Number(g.amount || 0), 0) : 0
+  const gastosPendR    = detalle ? detalle.gastos.filter(g => g.paid === false).reduce((s, g) => s + Number(g.amount || 0), 0) : 0
+  const adelantosR     = detalle ? detalle.advances.reduce((s, a) => s + Number(a.amount || 0), 0) : 0
 
   const show = animateIn && !closing
   const worker  = workers.find(w => w.id === ticket.worker_id)
@@ -1843,6 +1904,82 @@ function TicketSummaryModal({ ticket, workers, vehicleTypes, onClose }) {
               </div>
             )}
           </div>
+
+          {/* Detalle interno — que paso dentro del ticket (solo admin) */}
+          {canAdmin && (
+            <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-800">
+              <button onClick={toggleDetalle}
+                className="w-full py-2 rounded-xl border border-dashed border-gray-300 dark:border-gray-700 text-gray-500 dark:text-gray-400 text-xs font-semibold hover:bg-gray-50 dark:hover:bg-gray-800/60 transition-colors">
+                {showDetalle ? 'Ocultar detalle del servicio' : 'Ver detalle del servicio'}
+              </button>
+
+              {showDetalle && (
+                <div className="mt-3">
+                  {loadingDetalle ? (
+                    <p className="text-xs text-gray-400 text-center py-2">Cargando…</p>
+                  ) : movimientos.length === 0 ? (
+                    <p className="text-xs text-gray-400 text-center py-2">No se registraron gastos ni adelantos en este ticket.</p>
+                  ) : (
+                    <>
+                      <div className="space-y-1.5">
+                        {movimientos.map(m => (
+                          <div key={m.id} className="flex items-center gap-2 text-xs">
+                            <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${m.kind === 'adelanto' ? 'bg-green-500' : m.pending ? 'bg-amber-500' : 'bg-orange-500'}`} />
+                            <div className="flex-1 min-w-0">
+                              <p className="truncate text-gray-600 dark:text-gray-300">
+                                {m.label}
+                                {m.sub && <span className="text-gray-400"> · {m.sub}</span>}
+                              </p>
+                              {shortStamp(m.at) && (
+                                <p className="text-[10px] text-gray-400 leading-tight">{shortStamp(m.at)}</p>
+                              )}
+                            </div>
+                            {m.pending && (
+                              <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded-full border border-amber-300 bg-amber-50 dark:bg-amber-900/20 text-amber-600 font-semibold">
+                                Pendiente
+                              </span>
+                            )}
+                            <span className={`font-semibold shrink-0 ${m.kind === 'adelanto' ? 'text-green-600' : m.pending ? 'text-gray-400 line-through' : 'text-orange-600'}`}>
+                              {m.kind === 'adelanto' ? '+' : '−'}{formatMoney(m.amount)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-800 space-y-1 text-xs">
+                        {adelantosR > 0 && (
+                          <div className="flex justify-between">
+                            <span className="text-gray-500">Adelantos cobrados</span>
+                            <span className="font-semibold text-green-600">{formatMoney(adelantosR)}</span>
+                          </div>
+                        )}
+                        {gastosPagadosR > 0 && (
+                          <div className="flex justify-between">
+                            <span className="text-gray-500">Gastos pagados</span>
+                            <span className="font-semibold text-orange-600">−{formatMoney(gastosPagadosR)}</span>
+                          </div>
+                        )}
+                        {gastosPendR > 0 && (
+                          <div className="flex justify-between">
+                            <span className="text-gray-500">Gastos pendientes de pago</span>
+                            <span className="font-semibold text-amber-600">{formatMoney(gastosPendR)}</span>
+                          </div>
+                        )}
+                        <div className="flex justify-between pt-1 border-t border-gray-100 dark:border-gray-800 font-bold">
+                          <span className="text-gray-700 dark:text-gray-300">
+                            Ganancia del servicio{gastosPendR > 0 ? ' (con pendientes)' : ''}
+                          </span>
+                          <span className="text-green-600">
+                            {formatMoney((ticket.price_charged || 0) - gastosPagadosR - gastosPendR)}
+                          </span>
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -2735,6 +2872,7 @@ export default function Registro() {
             extrasCatalog={extrasCatalog || []}
             onUpdate={handleUpdateTicket}
             onDelete={canAdmin ? handleDeleteTicket : null}
+            onClosed={(tk) => setSummaryTicket(tk)}
           />
         )}
       </Modal>
@@ -2762,6 +2900,7 @@ export default function Registro() {
           ticket={tickets.find(t => t.id === summaryTicket.id) || summaryTicket}
           workers={workers}
           vehicleTypes={vehicleTypes}
+          canAdmin={canAdmin}
           onClose={() => setSummaryTicket(null)}
         />
       )}

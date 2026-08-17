@@ -536,6 +536,32 @@ export default function Trabajadores() {
     loadPastMonth(selMonth, selYear, workers)
   }, [selMonth, selYear, isCurrentMonth, workers])
 
+  // Hora real de entrada por trabajador y dia. En una tardanza lo primero que
+  // se pregunta es a que hora llego, y eso solo esta en attendance_logs.
+  const [arrivalByKey, setArrivalByKey] = useState({})
+  useEffect(() => {
+    const start = `${selYear}-${String(selMonth).padStart(2, '0')}-01`
+    const nextM = selMonth === 12 ? 1 : selMonth + 1
+    const nextY = selMonth === 12 ? selYear + 1 : selYear
+    const end   = `${nextY}-${String(nextM).padStart(2, '0')}-01`
+    supabase.from('attendance_logs').select('worker_id,date,logged_at')
+      .eq('type', 'entrada').gte('date', start).lt('date', end)
+      .then(({ data }) => {
+        const map = {}
+        for (const l of data || []) {
+          const k = `${l.worker_id}|${l.date}`
+          // Si marco varias veces, la primera es la que cuenta como llegada.
+          if (!map[k] || new Date(l.logged_at) < new Date(map[k])) map[k] = l.logged_at
+        }
+        setArrivalByKey(map)
+      })
+  }, [selMonth, selYear])
+
+  function arrivalTime(i) {
+    const at = arrivalByKey[`${i.worker_id}|${i.date}`]
+    return at ? new Date(at).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' }) : null
+  }
+
   // Obtiene el salario efectivo de un trabajador para el mes seleccionado
   function getWorkerSalary(w) {
     const mc = workerMonthlyConfigs.find(c => c.worker_id === w.id)
@@ -1556,6 +1582,9 @@ export default function Trabajadores() {
                           <span className="text-gray-600 dark:text-gray-400 shrink-0">{INCIDENT_LABELS[i.type]}</span>
                           {(i.type === 'tardanza' || i.type === 'permiso_horas' || i.type === 'hora_extra') && i.hours_late > 0 && (
                             <span className="text-gray-400 shrink-0">{Math.floor(i.hours_late)}h {Math.round((i.hours_late % 1) * 60)}min</span>
+                          )}
+                          {i.type === 'tardanza' && arrivalTime(i) && (
+                            <span className="text-amber-600 dark:text-amber-400 font-semibold shrink-0">llegó {arrivalTime(i)}</span>
                           )}
                           {i.type === 'no_marcacion' && (
                             <span className="text-gray-400 shrink-0">{i.no_marcacion_count || 1} vez{(i.no_marcacion_count || 1) > 1 ? 'es' : ''} · S/ 5 c/u</span>

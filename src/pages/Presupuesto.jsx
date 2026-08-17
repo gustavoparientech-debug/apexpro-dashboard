@@ -308,6 +308,29 @@ function EditableCell({ value, onSave }) {
   )
 }
 
+// Tiempo de un item seleccionado dentro de la cotizacion (no toca el catalogo).
+// `label` solo aparece cuando la fila es una subcategoria, para saber cual es.
+function TimeRow({ id, label, defaultMin, overrides, setOverrides }) {
+  const ov = overrides[id]
+  const h = ov?.h ?? Math.floor((defaultMin || 0) / 60)
+  const m = ov?.m ?? (defaultMin || 0) % 60
+  return (
+    <div className="border-t border-gray-100 dark:border-gray-700 px-3 py-1.5 flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
+      <span className="text-[10px] text-gray-400 mr-0.5">⏱ Tiempo{label ? ` · ${label}` : ''}:</span>
+      <input type="number" min="0" placeholder="0"
+        className="w-12 text-xs border border-gray-200 dark:border-gray-600 rounded-lg px-1.5 py-0.5 text-center dark:bg-gray-800 dark:text-white"
+        value={h}
+        onChange={e => setOverrides(o => ({ ...o, [id]: { h: e.target.value, m } }))} />
+      <span className="text-[10px] text-gray-400">h</span>
+      <input type="number" min="0" max="59" placeholder="0"
+        className="w-12 text-xs border border-gray-200 dark:border-gray-600 rounded-lg px-1.5 py-0.5 text-center dark:bg-gray-800 dark:text-white"
+        value={m}
+        onChange={e => setOverrides(o => ({ ...o, [id]: { h, m: e.target.value } }))} />
+      <span className="text-[10px] text-gray-400">m</span>
+    </div>
+  )
+}
+
 function EditableTextCell({ label, value, onSave }) {
   const [editing, setEditing] = useState(false)
   const [val, setVal] = useState(value)
@@ -596,11 +619,17 @@ export default function Presupuesto() {
     toast.success(`Cotización "${q.nombre || q.placa}" cargada ✓`)
   }
 
+  // El tiempo de la subcategoria se edita en horas y minutos, pero se guarda
+  // como un solo timeMin para que entre igual que el resto en el total.
+  function splitTime(timeMin) {
+    return { timeH: timeMin ? String(Math.floor(timeMin / 60)) : '', timeM: timeMin ? String(timeMin % 60) : '' }
+  }
+
   function openSubcatConfig(s) {
     const items = s.subcats?.length
-      ? s.subcats.map(x => ({ ...x }))
+      ? s.subcats.map(x => ({ ...x, ...splitTime(x.timeMin) }))
       : s.prices
-        ? Object.entries(s.prices).map(([k]) => ({ key: k, label: SV_VK_LABELS[k] || k, price: getEffectivePrice(s, k) }))
+        ? Object.entries(s.prices).map(([k]) => ({ key: k, label: SV_VK_LABELS[k] || k, price: getEffectivePrice(s, k), ...splitTime(0) }))
         : [{ key: 'op1', label: '', price: '' }, { key: 'op2', label: '', price: '' }]
     setSubcatDraft({ group: s.subcatGroup || '', items })
     setSubcatConfigId(s.id)
@@ -608,7 +637,11 @@ export default function Presupuesto() {
 
   function saveSubcatConfig(s) {
     const items = subcatDraft.items.filter(i => i.label.trim())
-      .map((i, idx) => ({ key: i.key || `op${idx + 1}`, label: i.label.trim(), price: parseFloat(i.price) || 0 }))
+      .map((i, idx) => {
+        // Sin tiempo propio se hereda el del servicio padre, como antes.
+        const timeMin = (parseInt(i.timeH) || 0) * 60 + (parseInt(i.timeM) || 0)
+        return { key: i.key || `op${idx + 1}`, label: i.label.trim(), price: parseFloat(i.price) || 0, ...(timeMin > 0 ? { timeMin } : {}) }
+      })
     if (items.length === 0) { removeAllSubcats(s); return }
     const overrides = {
       ...catMeta.overrides,
@@ -946,6 +979,14 @@ export default function Presupuesto() {
   const ALL_DATA_FLAT = [...CERAMICO_DATA, ...PPF_DATA, ...POLARIZADOS_DATA, ...SERVICIOS_DATA]
 
   function getItemDefaultTimeMin(id) {
+    // Una subcategoria puede tardar bastante mas que otra del mismo servicio
+    // (un "Detallado" contra un "Basico"): si tiene tiempo propio manda ese, y
+    // si no lo definieron se hereda el del servicio padre.
+    for (const svc of ALL_CAT_DATA) {
+      if (!svc.subcats?.length || !id.startsWith(svc.id + '_')) continue
+      const sc = svc.subcats.find(x => `${svc.id}_${x.key}` === id)
+      if (sc?.timeMin) return sc.timeMin
+    }
     const item = ALL_DATA_FLAT.find(x => id === x.id || id.startsWith(x.id + '_'))
     return item?.timeMin || 0
   }
@@ -1762,7 +1803,7 @@ export default function Presupuesto() {
                   )
                   const isSelected = isSv ? (hasSubcats ? anyChipSel : serviciosSelected[s.id]) : catSelected[s.id]
                   const chips = hasCustomSubcats
-                    ? s.subcats.map(sc => ({ key: sc.key, label: sc.label, price: sc.price }))
+                    ? s.subcats.map(sc => ({ key: sc.key, label: sc.label, price: sc.price, timeMin: sc.timeMin }))
                     : hasVehiclePrices
                       ? Object.entries(s.prices).map(([vk]) => ({ key: vk, label: SV_VK_LABELS[vk] || vk, price: getEffectivePrice(s, vk) }))
                       : null
@@ -1793,6 +1834,9 @@ export default function Presupuesto() {
                                       : 'bg-indigo-50 dark:bg-indigo-900/20 border-indigo-200 dark:border-indigo-700 text-indigo-700 dark:text-indigo-300 hover:border-indigo-400'
                                   }`}>
                                   {chip.label} · S/{chip.price}
+                                  {chip.timeMin > 0 && (
+                                    <span className={`ml-1 font-normal ${chipSel ? 'text-white/70' : 'text-indigo-400'}`}>· ⏱ {formatMinutes(chip.timeMin)}</span>
+                                  )}
                                 </button>
                               )
                             })}
@@ -1832,22 +1876,19 @@ export default function Presupuesto() {
                           </div>
                         </button>
                       )}
+                      {/* Tiempo del item en esta cotizacion. Con subcategorias se
+                          edita el de cada opcion elegida: antes el control era uno
+                          solo por servicio y no llegaba a las filas de subcategoria,
+                          asi que el ajuste no se sumaba al total. */}
                       {isSelected && (
-                        <div className="border-t border-gray-100 dark:border-gray-700 px-3 py-1.5 flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
-                          <span className="text-[10px] text-gray-400 mr-0.5">⏱ Tiempo:</span>
-                          <input type="number" min="0"
-                            className="w-12 text-xs border border-gray-200 dark:border-gray-600 rounded-lg px-1.5 py-0.5 text-center dark:bg-gray-800 dark:text-white"
-                            placeholder="0"
-                            value={timeOverrides[s.id]?.h ?? Math.floor((s.timeMin || 0) / 60)}
-                            onChange={e => setTimeOverrides(o => ({ ...o, [s.id]: { h: e.target.value, m: o[s.id]?.m ?? (s.timeMin || 0) % 60 } }))} />
-                          <span className="text-[10px] text-gray-400">h</span>
-                          <input type="number" min="0" max="59"
-                            className="w-12 text-xs border border-gray-200 dark:border-gray-600 rounded-lg px-1.5 py-0.5 text-center dark:bg-gray-800 dark:text-white"
-                            placeholder="0"
-                            value={timeOverrides[s.id]?.m ?? (s.timeMin || 0) % 60}
-                            onChange={e => setTimeOverrides(o => ({ ...o, [s.id]: { h: o[s.id]?.h ?? Math.floor((s.timeMin || 0) / 60), m: e.target.value } }))} />
-                          <span className="text-[10px] text-gray-400">m</span>
-                        </div>
+                        hasSubcats
+                          ? chips.filter(c => serviciosSelected[`${s.id}_${c.key}`]).map(c => (
+                              <TimeRow key={c.key} id={`${s.id}_${c.key}`} label={c.label}
+                                defaultMin={getItemDefaultTimeMin(`${s.id}_${c.key}`)}
+                                overrides={timeOverrides} setOverrides={setTimeOverrides} />
+                            ))
+                          : <TimeRow id={s.id} defaultMin={getItemDefaultTimeMin(s.id)}
+                              overrides={timeOverrides} setOverrides={setTimeOverrides} />
                       )}
                       {canAdmin && (
                         <div className="border-t border-gray-100 dark:border-gray-700" onClick={e => e.stopPropagation()}>
@@ -1862,6 +1903,12 @@ export default function Presupuesto() {
                                 value={subcatDraft.group}
                                 onChange={e => setSubcatDraft(d => ({ ...d, group: e.target.value }))}
                                 className="w-full text-xs border border-indigo-200 dark:border-indigo-700 rounded-lg px-2.5 py-1.5 dark:bg-gray-800 dark:text-white" />
+                              <div className="flex gap-1.5 items-center text-[10px] text-indigo-400 font-semibold px-0.5">
+                                <span className="flex-1">Opción</span>
+                                <span className="w-20 text-center">S/</span>
+                                <span className="w-[76px] text-center">⏱ Tiempo</span>
+                                <span className="w-3.5" />
+                              </div>
                               {subcatDraft.items.map((item, idx) => (
                                 <div key={idx} className="flex gap-1.5 items-center">
                                   <input placeholder="Etiqueta (ej: Bajo)" value={item.label}
@@ -1870,10 +1917,21 @@ export default function Presupuesto() {
                                   <input placeholder="S/" type="number" value={item.price}
                                     onChange={e => setSubcatDraft(d => { const items = [...d.items]; items[idx] = { ...items[idx], price: e.target.value }; return { ...d, items } })}
                                     className="w-20 text-xs border border-gray-200 dark:border-gray-600 rounded-lg px-2 py-1.5 dark:bg-gray-800 dark:text-white" />
+                                  <div className="flex items-center gap-0.5 w-[76px]">
+                                    <input placeholder="0" type="number" min="0" value={item.timeH ?? ''}
+                                      onChange={e => setSubcatDraft(d => { const items = [...d.items]; items[idx] = { ...items[idx], timeH: e.target.value }; return { ...d, items } })}
+                                      className="w-8 text-xs border border-gray-200 dark:border-gray-600 rounded-lg px-1 py-1.5 text-center dark:bg-gray-800 dark:text-white" />
+                                    <span className="text-[10px] text-gray-400">h</span>
+                                    <input placeholder="0" type="number" min="0" max="59" value={item.timeM ?? ''}
+                                      onChange={e => setSubcatDraft(d => { const items = [...d.items]; items[idx] = { ...items[idx], timeM: e.target.value }; return { ...d, items } })}
+                                      className="w-8 text-xs border border-gray-200 dark:border-gray-600 rounded-lg px-1 py-1.5 text-center dark:bg-gray-800 dark:text-white" />
+                                    <span className="text-[10px] text-gray-400">m</span>
+                                  </div>
                                   <button onClick={() => setSubcatDraft(d => ({ ...d, items: d.items.filter((_, i) => i !== idx) }))} className="text-red-400 hover:text-red-600"><X className="w-3.5 h-3.5" /></button>
                                 </div>
                               ))}
-                              <button onClick={() => setSubcatDraft(d => ({ ...d, items: [...d.items, { key: `op${Date.now()}`, label: '', price: '' }] }))}
+                              <p className="text-[10px] text-gray-400">Sin tiempo propio, la opción hereda el del servicio.</p>
+                              <button onClick={() => setSubcatDraft(d => ({ ...d, items: [...d.items, { key: `op${Date.now()}`, label: '', price: '', timeH: '', timeM: '' }] }))}
                                 className="text-xs text-indigo-600 font-semibold">+ Agregar opción</button>
                               <div className="flex gap-2 pt-1">
                                 <button onClick={() => saveSubcatConfig(s)} className="flex-1 py-1.5 rounded-xl bg-indigo-600 text-white text-xs font-bold">Guardar</button>

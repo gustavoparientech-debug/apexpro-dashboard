@@ -314,15 +314,23 @@ export default function Asistencia() {
 
   function closeCamera() { stopCamera(); setCamOpen(false); setPendingType(null); setPhoto(null); setGeoStatus('idle') }
 
-  async function autoCreateIncident(type, hoursLate, dateStr, workerId) {
+  // atMin = minuto del dia en que marco. Se guarda en la observacion porque al
+  // revisar una tardanza lo primero que se pregunta es a que hora llego.
+  function minToHHMM(min) {
+    const h = Math.floor(min / 60), m = Math.round(min % 60)
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
+  }
+
+  async function autoCreateIncident(type, hoursLate, dateStr, workerId, atMin = null) {
     const worker = workers.find(w => w.id === workerId)
     const discount = worker ? calcLatenessDiscount(worker.base_salary, worker.weekly_hours, hoursLate) : 0
+    const hora = atMin == null ? '' : (type === 'tardanza' ? ` · llegó ${minToHHMM(atMin)}` : ` · salió ${minToHHMM(atMin)}`)
     const { error } = await supabase.from('attendance_incidents').insert({
       worker_id: workerId, date: dateStr, type,
       hours_late: hoursLate, apply_discount: true, discount_amount: discount,
       observation: type === 'tardanza'
-        ? `Tardanza automática — ${Math.round(hoursLate * 60)} min tarde`
-        : `Salida anticipada automática — ${Math.round(hoursLate * 60)} min faltantes`,
+        ? `Tardanza automática — ${Math.round(hoursLate * 60)} min tarde${hora}`
+        : `Salida anticipada automática — ${Math.round(hoursLate * 60)} min faltantes${hora}`,
     })
     if (error) toast.error(`Error incidencia auto: ${error.message}`)
   }
@@ -365,7 +373,7 @@ export default function Asistencia() {
       }
       const diffMin = nowMin - timeToMin(sched.start_time)
       if (diffMin > tolerance && diffMin <= 240)
-        await autoCreateIncident('tardanza', Math.round(diffMin) / 60, dateStr, workerId)
+        await autoCreateIncident('tardanza', Math.round(diffMin) / 60, dateStr, workerId, nowMin)
     }
 
     if (logType === 'salida' && sched.end_time) {
@@ -385,7 +393,7 @@ export default function Asistencia() {
         }
       }
       if (earlyMin > tolerance && earlyMin <= 240)
-        await autoCreateIncident('permiso_horas', Math.round(earlyMin) / 60, dateStr, workerId)
+        await autoCreateIncident('permiso_horas', Math.round(earlyMin) / 60, dateStr, workerId, nowMin)
       else if (lateMin > tolerance)
         await autoCreateOvertime(Math.round(lateMin) / 60, dateStr, workerId)
     }
@@ -432,7 +440,7 @@ export default function Asistencia() {
         const diffMin = nowMin - schedMin
         if (diffMin > tolerance && diffMin <= 240) {
           const hoursLate = Math.round(diffMin) / 60
-          await autoCreateIncident('tardanza', hoursLate, today, selectedWorkerId)
+          await autoCreateIncident('tardanza', hoursLate, today, selectedWorkerId, nowMin)
           toast(`Tardanza registrada: ${Math.round(diffMin)} min`, { icon: '⚠️' })
         }
       }
@@ -448,7 +456,7 @@ export default function Asistencia() {
         const lateMin  = nowMin - effectiveEndMin
         if (earlyMin > tolerance && earlyMin <= 240) {
           const hoursEarly = Math.round(earlyMin) / 60
-          await autoCreateIncident('permiso_horas', hoursEarly, today, selectedWorkerId)
+          await autoCreateIncident('permiso_horas', hoursEarly, today, selectedWorkerId, nowMin)
           toast(`Salida anticipada: ${Math.round(earlyMin)} min antes`, { icon: '⚠️' })
         } else if (lateMin > tolerance) {
           const hoursExtra = Math.round(lateMin) / 60
@@ -510,7 +518,7 @@ export default function Asistencia() {
       if (editingLog.type === 'entrada' && sched.start_time) {
         const diffMin = editedMin - timeToMin(sched.start_time)
         if (diffMin > tolerance && diffMin <= 240) {
-          await autoCreateIncident('tardanza', Math.round(diffMin) / 60, adminDate, editingLog.worker_id)
+          await autoCreateIncident('tardanza', Math.round(diffMin) / 60, adminDate, editingLog.worker_id, editedMin)
           toast(`Tardanza recalculada: ${Math.round(diffMin)} min`, { icon: '⚠️' })
         }
       }
@@ -525,7 +533,7 @@ export default function Asistencia() {
         const earlyMin = effectiveEndMin - editedMin
         const lateMin  = editedMin - effectiveEndMin
         if (earlyMin > tolerance && earlyMin <= 240) {
-          await autoCreateIncident('permiso_horas', Math.round(earlyMin) / 60, adminDate, editingLog.worker_id)
+          await autoCreateIncident('permiso_horas', Math.round(earlyMin) / 60, adminDate, editingLog.worker_id, editedMin)
           toast(`Salida anticipada recalculada: ${Math.round(earlyMin)} min`, { icon: '⚠️' })
         } else if (lateMin > tolerance) {
           // Borrar hora_extra automática previa antes de crear la nueva

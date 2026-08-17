@@ -1569,6 +1569,9 @@ function TicketSummaryModal({ ticket, workers, vehicleTypes, onClose, canAdmin }
   const [showDetalle, setShowDetalle] = useState(false)
   const [detalle, setDetalle] = useState(null)   // null = aun sin cargar
   const [loadingDetalle, setLoadingDetalle] = useState(false)
+  // El comprobante de pago no viene en la consulta del listado (pesa mucho),
+  // asi que se trae junto con el detalle.
+  const [fotoPago, setFotoPago] = useState(null)
 
   async function toggleDetalle() {
     if (showDetalle) { setShowDetalle(false); return }
@@ -1576,11 +1579,17 @@ function TicketSummaryModal({ ticket, workers, vehicleTypes, onClose, canAdmin }
     if (detalle) return
     setLoadingDetalle(true)
     try {
-      const [gastos, advances] = await Promise.all([
+      const [gastos, advances, foto] = await Promise.all([
         fetchTicketExpenses(ticket.id),
         fetchTicketAdvances(ticket.id),
+        ticket.payment_photo
+          ? Promise.resolve(null)
+          : supabase.from('tickets').select('payment_photo').eq('id', ticket.id).single()
+              .then(({ data }) => data?.payment_photo || null)
+              .catch(() => null),
       ])
       setDetalle({ gastos, advances })
+      setFotoPago(foto)
     } catch { toast.error('No se pudo cargar el detalle') }
     setLoadingDetalle(false)
   }
@@ -1915,6 +1924,15 @@ function TicketSummaryModal({ ticket, workers, vehicleTypes, onClose, canAdmin }
 
               {showDetalle && (
                 <div className="mt-3">
+                  {/* Comprobante Yape. Si ya se muestra arriba no se repite. */}
+                  {fotoPago && !ticket.payment_photo && (
+                    <div className="mb-3">
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Comprobante Yape</p>
+                      <a href={fotoPago} target="_blank" rel="noopener noreferrer">
+                        <img src={fotoPago} alt="comprobante yape" className="w-full rounded-xl object-cover max-h-48 border border-purple-200 dark:border-purple-800" />
+                      </a>
+                    </div>
+                  )}
                   {loadingDetalle ? (
                     <p className="text-xs text-gray-400 text-center py-2">Cargando…</p>
                   ) : movimientos.length === 0 ? (

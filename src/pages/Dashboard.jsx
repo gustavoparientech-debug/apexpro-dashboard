@@ -16,7 +16,7 @@ import {
   CreditCard, Smartphone, Calendar, Award, Trophy, Gift, Plus, Trash2, Banknote,
   ChevronLeft, ChevronRight, X, Pencil
 } from 'lucide-react'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, ComposedChart, Line, Legend } from 'recharts'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, ComposedChart, Line, Legend, LabelList } from 'recharts'
 import toast from 'react-hot-toast'
 
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
@@ -790,7 +790,9 @@ export default function Dashboard() {
     periodSummaries.forEach(d => { byDate[d.date] = (byDate[d.date] || 0) + d.total_income })
     const bestDay = Object.entries(byDate).sort((a, b) => b[1] - a[1])[0]
     const dailyData = Object.entries(byDate).sort((a, b) => a[0].localeCompare(b[0]))
-      .map(([date, amount]) => ({ date, label: formatDate(date), amount }))
+      // El eje X usa dia/mes: la fecha completa obligaba a girar las etiquetas
+      // y aun asi se cortaban en los extremos.
+      .map(([date, amount]) => ({ date, label: formatDate(date), shortLabel: `${date.slice(8, 10)}/${date.slice(5, 7)}`, amount }))
 
     const projectedIncome = workingDaysTotal > 0 && workingDaysElapsed > 0 ? (totalIncome / workingDaysElapsed) * workingDaysTotal : 0
     const onTrack = projectedIncome >= incomeGoal
@@ -1053,12 +1055,12 @@ export default function Dashboard() {
                   </div>
                 )}
               </div>
-              <div className="h-60 mt-3">
+              <div className="h-72 mt-3">
                 <ResponsiveContainer width="100%" height="100%">
-                  <ComposedChart data={insights.serie} margin={{ top: 8, right: 4, left: -14, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
-                    <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#9ca3af' }} tickLine={false} axisLine={false} />
-                    <YAxis tick={{ fontSize: 10, fill: '#9ca3af' }} tickFormatter={v => `S/${v >= 1000 ? (v/1000).toFixed(0)+'k' : v}`} axisLine={false} tickLine={false} width={46} />
+                  <ComposedChart data={insights.serie} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
+                    <XAxis dataKey="label" tick={{ fontSize: 12, fill: '#6b7280', fontWeight: 600 }} tickLine={false} axisLine={false} tickMargin={8} />
+                    <YAxis tick={{ fontSize: 11, fill: '#6b7280' }} tickFormatter={v => `S/${v >= 1000 ? (v/1000).toFixed(0)+'k' : v}`} axisLine={false} tickLine={false} width={52} />
                     <Tooltip contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.12)', fontSize: 12 }}
                       formatter={(v, n) => [formatMoney(v), n]} />
                     <Legend wrapperStyle={{ fontSize: 11 }} iconType="circle" />
@@ -1364,19 +1366,22 @@ export default function Dashboard() {
                 <div className="flex items-center justify-between mb-1"><p className="text-sm font-bold text-gray-900 dark:text-white">Ingresos por día</p><span className="text-xs text-gray-400">{data.dailyData.length} días</span></div>
                 <p className="text-xs text-gray-400 mb-4">Mejor día: <span className="font-semibold text-gray-600 dark:text-gray-300">{data.bestDay ? `${formatDate(data.bestDay[0])} · ${formatMoney(data.bestDay[1])}` : '—'}</span></p>
                 <div className="overflow-x-auto -mx-4 px-4">
-                  <div style={{ minWidth: Math.max(data.dailyData.length * 36, 300) }} className="h-52">
+                  <div style={{ minWidth: Math.max(data.dailyData.length * 46, 320) }} className="h-72">
                     <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={data.dailyData} margin={{ top: 4, right: 4, left: -16, bottom: 0 }} barCategoryGap="25%">
+                      <BarChart data={data.dailyData} margin={{ top: 20, right: 8, left: 0, bottom: 0 }} barCategoryGap="18%">
                         <defs>
                           <linearGradient id="barGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#ef4444" stopOpacity={1} /><stop offset="100%" stopColor="#b91c1c" stopOpacity={0.85} /></linearGradient>
                           <linearGradient id="barGradTop" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#f97316" stopOpacity={1} /><stop offset="100%" stopColor="#dc2626" stopOpacity={0.9} /></linearGradient>
                           <linearGradient id="barGradToday" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#6366f1" stopOpacity={1} /><stop offset="100%" stopColor="#4f46e5" stopOpacity={0.85} /></linearGradient>
                         </defs>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
-                        <XAxis dataKey="label" tick={{ fontSize: 9, fill: '#9ca3af' }} tickLine={false} axisLine={false} interval={0} angle={-35} textAnchor="end" height={36} />
-                        <YAxis tick={{ fontSize: 10, fill: '#9ca3af' }} tickFormatter={v => `S/${v}`} tickCount={5} axisLine={false} tickLine={false} width={48} />
-                        <Tooltip cursor={{ fill: 'rgba(0,0,0,0.04)', radius: 6 }} contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.12)', fontSize: 12, padding: '8px 14px' }} formatter={(v) => [formatMoney(v), 'Ingresos']} labelStyle={{ fontWeight: 700, marginBottom: 2 }} />
-                        <Bar dataKey="amount" radius={[6, 6, 2, 2]} maxBarSize={32}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
+                        <XAxis dataKey="shortLabel" tick={{ fontSize: 11, fill: '#6b7280', fontWeight: 600 }} tickLine={false} axisLine={false} interval={0} tickMargin={8} height={26} />
+                        <YAxis tick={{ fontSize: 11, fill: '#6b7280' }} tickFormatter={v => `S/${v}`} tickCount={5} axisLine={false} tickLine={false} width={54} />
+                        <Tooltip cursor={{ fill: 'rgba(0,0,0,0.04)', radius: 6 }} contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.12)', fontSize: 12, padding: '8px 14px' }} formatter={(v) => [formatMoney(v), 'Ingresos']} labelFormatter={(_, p) => p?.[0]?.payload?.label || ''} labelStyle={{ fontWeight: 700, marginBottom: 2 }} />
+                        <Bar dataKey="amount" radius={[6, 6, 2, 2]} maxBarSize={40}>
+                          <LabelList dataKey="amount" position="top" offset={6}
+                            style={{ fontSize: 10, fontWeight: 700, fill: '#6b7280' }}
+                            formatter={v => v >= 1000 ? `${(v / 1000).toFixed(1)}k` : Math.round(v)} />
                           {data.dailyData.map((d) => {
                             const isTop = d.amount === maxAmt
                             const isToday = d.date === todayStr

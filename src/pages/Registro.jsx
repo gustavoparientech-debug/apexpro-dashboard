@@ -625,7 +625,10 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
       await addExpense({
         ticket_id: ticket.id,
         worker_id: ticket.worker_id || null,
-        date: ticket.date,          // el gasto pertenece al dia del servicio
+        // El gasto se registra el dia en que se agrega, no el del servicio: en
+        // un ticket que lleva dias abierto la plata sale de caja hoy, y en
+        // Gastos aparecia fechado al dia en que se abrio el ticket.
+        date: todayISO(),
         amount: monto,
         category: gastoForm.category,
         description: gastoForm.description.trim() || null,

@@ -599,7 +599,9 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
     setSavingAdelanto(true)
     try {
       const nuevo = await addAdvance({
-        ticket_id: ticket.id, date: ticket.date, amount: monto, method: adelantoMethod,
+        // La fecha es la del cobro, no la del servicio: el adelanto entra a
+        // caja hoy y el detalle del ticket necesita saber cuando se dio.
+        ticket_id: ticket.id, date: todayISO(), amount: monto, method: adelantoMethod,
       })
       setAdelantos(a => [...a, nuevo])
       setAdelantoDraft('')

@@ -788,6 +788,14 @@ export default function Dashboard() {
     const avgTicketAuto = autoTickets.length > 0
       ? autoTickets.reduce((s, t) => s + (t.price_charged || 0), 0) / autoTickets.length
       : 0
+    // Segundo promedio, con los servicios que siguen abiertos: de esos se toma
+    // lo que se va a cobrar al entregar (precio + adicionales − descuento), que
+    // es lo único que hay hasta que cierren.
+    const openIncomeEsperado = openTickets.reduce((s, t) => s + totalDeTicket(t), 0)
+    const carsConAbiertos = totalCars + openTickets.length
+    const avgTicketConAbiertos = carsConAbiertos > 0
+      ? (ticketIncome + openIncomeEsperado) / carsConAbiertos
+      : 0
 
     const efectivo      = periodTickets.filter(t => t.payment_method === 'efectivo').reduce((s, t) => s + t.price_charged, 0)
     const yape          = periodTickets.filter(t => t.payment_method === 'yape').reduce((s, t) => s + t.price_charged, 0)
@@ -831,6 +839,7 @@ export default function Dashboard() {
     return {
       totalIncome, netProfit, totalCosts, displayCosts, payrollTotal, rent, supplies, utilityGoal,
       incomeGoal, progressPct, semaforo, totalCars, avgTicket, avgTicketAuto, autoCars: autoTickets.length,
+      avgTicketConAbiertos, carsConAbiertos,
       avgDailyActual, avgDailyNeeded,
       workingDaysElapsed, workingDaysRemaining, workingDaysTotal,
       bestDay, efectivo, yape, transferencia, onTrack, projectedIncome, dailyData,
@@ -1010,7 +1019,13 @@ export default function Dashboard() {
               <StatCard label={hasRange ? 'Gastos del rango' : 'Total gastos'} value={formatMoney(data.displayCosts)} sub={hasRange ? `Fijos prop. + gastos` : `Planilla: ${formatMoney(data.payrollTotal)}`} icon={CreditCard} color="neutral" />
               <StatCard label="Vehículos"          value={data.totalCars}                 sub={`Prom: ${formatMoney(data.avgTicket)}/carro`} icon={Car} color="neutral" />
               <StatCard label="Ticket promedio"    value={formatMoney(data.avgTicket)}
-                sub={data.autoCars > 0 ? `Solo autos: ${formatMoney(data.avgTicketAuto)} (${data.autoCars})` : 'Por vehículo atendido'}
+                sub={<>
+                  {data.totalCars} cerrados{data.autoCars > 0 && ` · autos ${formatMoney(data.avgTicketAuto)}`}
+                  <br />
+                  {data.ticketsAbiertos > 0
+                    ? <>Con {data.ticketsAbiertos} abiertos: <strong className="text-gray-500 dark:text-gray-400">{formatMoney(data.avgTicketConAbiertos)}</strong></>
+                    : 'Sin servicios abiertos'}
+                </>}
                 icon={Receipt} color="neutral" />
             </div>
           )

@@ -298,3 +298,24 @@ create policy loyalty_redemptions_auth on public.loyalty_redemptions
 -- Funciones: loyalty_config, loyalty_public_config, loyalty_card,
 -- loyalty_activate y loyalty_redeem. El cuerpo completo está en la migración
 -- `loyalty_program` ya aplicada en Supabase (Dashboard > Database > Migrations).
+
+-- ============================================================
+-- FIDELIZACIÓN DESDE EL TALLER
+-- ============================================================
+-- Dentro del ticket se ven las visitas de la placa y se cobra el bono. El que
+-- mira ya inició sesión, así que estas funciones no piden PIN; siguen siendo
+-- security definer para que un trabajador no necesite leer vehicle_clients ni
+-- los tickets de otros.
+--
+--   loyalty_card_staff(placa)      → tarjeta de una placa (sellos, ciclo, canjes)
+--   loyalty_cards_staff(placas[])  → lo mismo para varias placas de un saque,
+--                                    lo usa la lista de tickets del día
+--   loyalty_redeem_staff(placa, nivel, nota)
+--                                  → registra el canje; si la placa no tiene
+--                                    ficha de cliente la crea, porque el que
+--                                    nunca activó su tarjeta igual tiene bono.
+--                                    Al canjear el nivel más alto la tarjeta se
+--                                    reinicia (stamps_used += ciclo, cycle_index++).
+--
+-- El cuerpo completo está en las migraciones `loyalty_staff_lookup` y
+-- `loyalty_redeem_staff`, ya aplicadas en Supabase.

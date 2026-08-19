@@ -17,7 +17,11 @@ import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { formatMoney, todayISO, compressImage } from '../lib/utils'
 import ConfirmDialog from '../components/ui/ConfirmDialog'
-import { Plus, Camera, Search, X, Clock, CheckCircle, Trash2, PenLine, Zap, Save, ChevronLeft, ChevronRight, Eye, EyeOff, AlertCircle, TrendingDown } from 'lucide-react'
+import { Plus, Camera, Search, X, Clock, CheckCircle, Trash2, PenLine, Zap, Save, ChevronLeft, ChevronRight, Eye, EyeOff, AlertCircle, TrendingDown, Gift } from 'lucide-react'
+import {
+  cardState, cardsFromTickets, fetchStaffCards, loadConfig as loadFidelidadConfig,
+  normPlate, redeemTier, REDEEM_ERRORS, DEFAULT_CONFIG as FIDELIDAD_DEFAULT,
+} from '../lib/fidelidad'
 import { IncidentForm } from './Trabajadores'
 import toast from 'react-hot-toast'
 
@@ -556,7 +560,8 @@ export function NewTicketForm({ onSave, onClose, workers, vehicleTypes, lockedWo
 }
 
 // ─── Detalle ticket abierto ───────────────────────────────────────────────────
-function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, onUpdate, onDelete, onClosed }) {
+function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, onUpdate, onDelete, onClosed,
+                        loyaltyCard, loyaltyConfig, onLoyaltyChange }) {
   const worker  = workers.find(w => w.id === ticket.worker_id)
   const vehicle = (vehicleTypes || []).find(v => v.value === ticket.vehicle_type)
   const extras  = ticket.extras || []
@@ -673,6 +678,9 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
   const [saving,        setSaving]        = useState(false)
   const [notes,         setNotes]         = useState(ticket.notes || '')
   const [paymentPhoto,  setPaymentPhoto]  = useState(ticket.payment_photo || '')
+  // Fidelidad: cobrar el bono registra el canje y aplica el descuento al ticket.
+  const [confirmTier, setConfirmTier] = useState(null)
+  const [cobrandoBono, setCobrandoBono] = useState(false)
   const [mixtoYape,     setMixtoYape]     = useState(ticket.mixto_yape || '')
   const [mixtoEfectivo, setMixtoEfectivo] = useState(ticket.mixto_efectivo || '')
   const paymentPhotoRef = useRef()
@@ -735,6 +743,26 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
       onClose()
     } catch (e) { toast.error('Error al guardar') }
     finally { setSaving(false) }
+  }
+
+  async function handleCobrarBono(tier) {
+    setCobrandoBono(true)
+    try {
+      const res = await redeemTier(ticket.plate, tier.sellos, `Ticket ${ticket.plate}`)
+      if (res?.status && res.status !== 'ok') {
+        toast.error(REDEEM_ERRORS[res.status] || 'No se pudo cobrar el bono')
+        return
+      }
+      // El descuento del bono reemplaza al que hubiera: son excluyentes.
+      setDiscountPct(Number(tier.pct) || 0)
+      setShowDiscount(true)
+      setConfirmTier(null)
+      await onUpdate(ticket.id, { discount_pct: Number(tier.pct) || 0 })
+      await onLoyaltyChange?.()
+      toast.success(`Bono ${tier.pct}% cobrado`)
+    } catch {
+      toast.error('No se pudo cobrar el bono')
+    } finally { setCobrandoBono(false) }
   }
 
   async function handleClose() {
@@ -916,6 +944,11 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
             </div>
           </div>
         )}
+
+        {/* Tarjeta de fidelidad del cliente */}
+        <LoyaltyPanel plate={ticket.plate} card={loyaltyCard} config={loyaltyConfig}
+          onCobrar={handleCobrarBono} cobrando={cobrandoBono}
+          confirmTier={confirmTier} setConfirmTier={setConfirmTier} />
 
         {/* Descuento */}
         <div className="px-4 pb-1">
@@ -1351,7 +1384,119 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
 }
 
 // ─── Tarjeta ticket abierto ───────────────────────────────────────────────────
-function ActiveTicketCard({ ticket, workers, vehicleTypes, onClick, onToggleHide, expenses = [], advances = [] }) {
+// ─── Fidelidad dentro del registro ───────────────────────────────────────────
+// Las visitas salen de los tickets cerrados de esa placa, así que el sello
+// avanza solo cuando se cierra un servicio. Acá solo se muestran y se cobran.
+
+function LoyaltyBadge({ card, config }) {
+  if (!card) return null
+  const est = cardState(card, config)
+  if (est.sellos === 0 && !est.disponibles.length) return null
+  const bono = est.disponibles[est.disponibles.length - 1] || null
+  return (
+    <span className="inline-flex items-center gap-1 flex-wrap">
+      <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300">
+        🎟️ {est.enTarjeta}/{est.ciclo} visitas
+      </span>
+      {bono && (
+        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 border border-green-300 dark:border-green-700">
+          🎁 Bono {bono.pct}% disponible
+        </span>
+      )}
+    </span>
+  )
+}
+
+// Panel del ticket: el check que cobra el bono. Al marcarlo se registra el
+// canje y se aplica el descuento; si es el último nivel, la tarjeta se
+// reinicia sola y arranca la siguiente.
+function LoyaltyPanel({ plate, card, config, onCobrar, cobrando, confirmTier, setConfirmTier }) {
+  if (!plate || normPlate(plate).length < 4) return null
+  const est = cardState(card || { sellos: 0, canjeados: [] }, config)
+
+  return (
+    <div className="mx-4 mb-3 rounded-2xl border border-indigo-100 dark:border-indigo-900/60 bg-indigo-50/60 dark:bg-indigo-950/30 overflow-hidden">
+      <div className="flex items-center gap-2 px-3 py-2 border-b border-indigo-100 dark:border-indigo-900/60">
+        <Gift className="w-4 h-4 text-indigo-500" />
+        <p className="text-xs font-bold text-indigo-500 uppercase tracking-wide flex-1">Tarjeta del cliente</p>
+        <span className="text-xs font-black text-indigo-700 dark:text-indigo-300 tabular-nums">
+          {est.enTarjeta}/{est.ciclo}
+        </span>
+      </div>
+
+      <div className="px-3 py-2.5 space-y-2.5">
+        {/* Sellos de la tarjeta */}
+        <div className="flex flex-wrap gap-1.5">
+          {Array.from({ length: est.ciclo }).map((_, i) => (
+            <span key={i}
+              className={`w-6 h-6 rounded-full text-[10px] font-bold flex items-center justify-center ${
+                i < est.enTarjeta
+                  ? 'bg-indigo-500 text-white'
+                  : 'bg-white dark:bg-gray-800 text-gray-300 border border-indigo-200 dark:border-indigo-800'
+              }`}>
+              {i < est.enTarjeta ? '✓' : i + 1}
+            </span>
+          ))}
+        </div>
+
+        <p className="text-[11px] text-gray-500">
+          {card
+            ? <>{card.visitas_totales} servicio{card.visitas_totales === 1 ? '' : 's'} cerrados en total
+                {est.siguiente ? ` · faltan ${est.faltan} para el ${est.siguiente.pct}%` : ' · tarjeta completa'}</>
+            : 'Primera visita de esta placa'}
+        </p>
+
+        {/* Los bonos, uno por nivel */}
+        <div className="space-y-1.5">
+          {est.tiers.map(t => {
+            const confirmando = confirmTier === t.sellos
+            return (
+              <div key={t.sellos}
+                className={`flex items-center gap-2 px-2.5 py-2 rounded-xl border ${
+                  t.canjeado   ? 'bg-gray-100 dark:bg-gray-800 border-gray-200 dark:border-gray-700'
+                  : t.disponible ? 'bg-green-50 dark:bg-green-900/20 border-green-300 dark:border-green-700'
+                  : 'bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800'
+                }`}>
+                <span className={`w-5 h-5 rounded-md flex items-center justify-center text-[11px] font-black flex-none ${
+                  t.canjeado ? 'bg-gray-400 text-white' : t.disponible ? 'bg-green-500 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-400'
+                }`}>
+                  {t.canjeado ? '✓' : t.sellos}
+                </span>
+                <div className="flex-1 min-w-0">
+                  <p className={`text-xs font-bold ${t.canjeado ? 'text-gray-400 line-through' : 'text-gray-700 dark:text-gray-200'}`}>
+                    {t.pct}% en lavado — {t.sellos} servicios
+                  </p>
+                  {t.canjeado && <p className="text-[10px] text-gray-400">Bono ya cobrado en esta tarjeta</p>}
+                  {!t.canjeado && !t.disponible && (
+                    <p className="text-[10px] text-gray-400">Faltan {t.sellos - est.sellos} para desbloquearlo</p>
+                  )}
+                </div>
+                {t.disponible && (
+                  <button type="button" disabled={cobrando}
+                    onClick={() => confirmando ? onCobrar(t) : setConfirmTier(t.sellos)}
+                    className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold flex-none transition-colors ${
+                      confirmando ? 'bg-red-600 text-white' : 'bg-green-600 text-white hover:bg-green-700'
+                    } disabled:opacity-50`}>
+                    {cobrando ? 'Cobrando…' : confirmando ? 'Confirmar' : `Cobrar ${t.pct}%`}
+                  </button>
+                )}
+              </div>
+            )
+          })}
+        </div>
+
+        {est.tiers.some(t => t.canjeado) && est.tiers.every(t => t.canjeado) && (
+          <p className="text-[11px] font-semibold text-indigo-500">
+            Tarjeta completa y cobrada — la siguiente ya empezó a llenarse.
+          </p>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function ActiveTicketCard({ ticket, workers, vehicleTypes, onClick, onToggleHide, expenses = [], advances = [],
+                            loyaltyCard, loyaltyConfig }) {
   const worker  = workers.find(w => w.id === ticket.worker_id)
   const vehicle = (vehicleTypes || []).find(v => v.value === ticket.vehicle_type)
   const extras  = ticket.extras || []
@@ -1390,6 +1535,9 @@ function ActiveTicketCard({ ticket, workers, vehicleTypes, onClick, onToggleHide
             )}
           </div>
           <p className="text-xs text-gray-500">{vehicle?.label || ticket.vehicle_type}{ticket.vehicle_subtype ? ` · ${ticket.vehicle_subtype}` : ''} · {worker?.name || '—'}</p>
+          {loyaltyCard && (
+            <div className="mt-1"><LoyaltyBadge card={loyaltyCard} config={loyaltyConfig} /></div>
+          )}
           {tieneMovimientos && (
             <div className="flex items-center gap-1.5 flex-wrap mt-1">
               {adelantado > 0 && (
@@ -1450,7 +1598,8 @@ function serviceDuration(ticket) {
 }
 
 // ─── Tarjeta ticket cerrado ───────────────────────────────────────────────────
-function ClosedTicketCard({ ticket, workers, vehicleTypes, onDelete, onEdit, onSummary, onToggleHide }) {
+function ClosedTicketCard({ ticket, workers, vehicleTypes, onDelete, onEdit, onSummary, onToggleHide,
+                            loyaltyCard, loyaltyConfig }) {
   const worker  = workers.find(w => w.id === ticket.worker_id)
   const vehicle = (vehicleTypes || []).find(v => v.value === ticket.vehicle_type)
   const extras  = ticket.extras || []
@@ -1490,6 +1639,9 @@ function ClosedTicketCard({ ticket, workers, vehicleTypes, onDelete, onEdit, onS
             )}
           </div>
           <p className="text-xs text-gray-500">{vehicle?.label || ticket.vehicle_type}{ticket.vehicle_subtype ? ` · ${ticket.vehicle_subtype}` : ''} · {worker?.name || '—'}</p>
+          {loyaltyCard && (
+            <div className="mt-1"><LoyaltyBadge card={loyaltyCard} config={loyaltyConfig} /></div>
+          )}
         </div>
         <div className="flex items-start gap-1.5 flex-none">
           <div className="text-right mr-1">
@@ -2208,6 +2360,13 @@ export default function Registro() {
   // Adelantos del mes: la tarjeta del ticket los muestra sin abrirlo.
   const [advances, setAdvances] = useState([])
 
+  // ── Fidelidad ─────────────────────────────────────────────────────────────
+  // Las visitas de cada placa del día, para mostrarlas en la tarjeta del ticket
+  // y poder cobrar el bono adentro sin ir a buscar el historial del cliente.
+  const [fidelidadConfig, setFidelidadConfig] = useState(FIDELIDAD_DEFAULT)
+  const [loyaltyCards, setLoyaltyCards] = useState({})
+  useEffect(() => { loadFidelidadConfig().then(setFidelidadConfig).catch(() => {}) }, [])
+
   const { month: cm, year: cy } = useMemo(() => {
     const n = new Date()
     return { month: n.getMonth() + 1, year: n.getFullYear() }
@@ -2300,6 +2459,22 @@ export default function Registro() {
     },
     [tickets, selectedDate, hasRange, rangeFrom, rangeTo, canAdmin]
   )
+
+
+  // Las placas visibles del día, en una sola consulta. Se recarga cuando entra
+  // o se cierra un ticket: cerrar un servicio es lo que suma el sello.
+  const plateKey = useMemo(
+    () => [...openTickets, ...closedToday].map(t => normPlate(t.plate)).filter(p => p.length >= 4).sort().join(','),
+    [openTickets, closedToday]
+  )
+  const cargarTarjetas = useCallback(async () => {
+    const placas = plateKey ? plateKey.split(',') : []
+    if (isDemo) { setLoyaltyCards(cardsFromTickets(tickets, fidelidadConfig)); return }
+    if (placas.length === 0) { setLoyaltyCards({}); return }
+    try { setLoyaltyCards(await fetchStaffCards(placas)) } catch { /* sin tarjeta la vista sigue igual */ }
+  }, [plateKey, isDemo, tickets, fidelidadConfig])
+  useEffect(() => { cargarTarjetas() }, [cargarTarjetas])
+  const cardOf = useCallback(t => loyaltyCards[normPlate(t.plate)] || null, [loyaltyCards])
 
   const daySummaries = useMemo(() => hasRange
     ? dailySummaries.filter(d => d.date >= rangeFrom && d.date <= rangeTo)
@@ -2687,6 +2862,7 @@ export default function Registro() {
           <div className="space-y-2">
             {overdueOpenTickets.map(t => (
               <ActiveTicketCard key={t.id} ticket={t} workers={workers} vehicleTypes={vehicleTypes} expenses={expenses} advances={advances}
+                loyaltyCard={cardOf(t)} loyaltyConfig={fidelidadConfig}
                 onClick={() => setActiveTicket(t.id)}
                 onToggleHide={canAdmin ? handleToggleHideTicket : null} />
             ))}
@@ -2714,6 +2890,7 @@ export default function Registro() {
           <div className="space-y-2">
             {openTickets.map(t => (
               <ActiveTicketCard key={t.id} ticket={t} workers={workers} vehicleTypes={vehicleTypes} expenses={expenses} advances={advances}
+                loyaltyCard={cardOf(t)} loyaltyConfig={fidelidadConfig}
                 onClick={() => setActiveTicket(t.id)}
                 onToggleHide={canAdmin ? handleToggleHideTicket : null} />
             ))}
@@ -2737,6 +2914,7 @@ export default function Registro() {
           <div className="space-y-2">
             {closedToday.map(t => (
               <ClosedTicketCard key={t.id} ticket={t} workers={workers} vehicleTypes={vehicleTypes}
+                loyaltyCard={cardOf(t)} loyaltyConfig={fidelidadConfig}
                 onDelete={canAdmin ? handleDeleteTicket : null}
                 onEdit={canAdmin ? (tk) => setEditingTicket(tk) : null}
                 onSummary={(tk) => setSummaryTicket(tk)}
@@ -2899,6 +3077,9 @@ export default function Registro() {
             onUpdate={handleUpdateTicket}
             onDelete={canAdmin ? handleDeleteTicket : null}
             onClosed={(tk) => setSummaryTicket(tk)}
+            loyaltyCard={cardOf(activeTicketData)}
+            loyaltyConfig={fidelidadConfig}
+            onLoyaltyChange={cargarTarjetas}
           />
         )}
       </Modal>

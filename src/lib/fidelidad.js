@@ -84,11 +84,49 @@ export async function fetchPublicConfig() {
   return { ...DEFAULT_CONFIG, ...(data || {}) }
 }
 
+// ─── Tarjeta vista desde el taller ──────────────────────────────────────────
+// Adentro del ticket el que mira ya inició sesión, así que no se pide PIN.
+// `loyalty_cards_staff` trae varias placas de una sola vez para las tarjetas
+// de la lista del día.
+
+export async function fetchStaffCard(plate) {
+  if (IS_DEMO) return null
+  const { data, error } = await supabase.rpc('loyalty_card_staff', { p_plate: plate })
+  if (error) throw error
+  return data?.status === 'ok' ? data : null
+}
+
+export async function fetchStaffCards(plates) {
+  const limpias = [...new Set((plates || []).map(normPlate).filter(p => p.length >= 4))]
+  if (IS_DEMO || limpias.length === 0) return {}
+  const { data, error } = await supabase.rpc('loyalty_cards_staff', { p_plates: limpias })
+  if (error) throw error
+  return data || {}
+}
+
+// Sin base de datos (demo) las visitas se cuentan con los tickets que ya tiene
+// el contexto: los sellos son los servicios cerrados de esa placa.
+export function cardsFromTickets(tickets, config = DEFAULT_CONFIG) {
+  const ciclo = cycleSize(config)
+  const mapa = {}
+  for (const t of tickets || []) {
+    if ((t.status || 'cerrado') === 'abierto') continue
+    const norm = normPlate(t.plate)
+    if (norm.length < 4) continue
+    if (!mapa[norm]) mapa[norm] = { plate_norm: norm, nombre: '', activa: false, sellos: 0, ciclo, visitas_totales: 0, canjeados: [] }
+    mapa[norm].sellos += 1
+    mapa[norm].visitas_totales += 1
+  }
+  return mapa
+}
+
 // ─── Canje (personal) ───────────────────────────────────────────────────────
 
+// El canje del taller crea la ficha del cliente si no existe: quien nunca
+// activó su tarjeta en el celular igual tiene derecho al bono.
 export async function redeemTier(plate, tier, note) {
   if (IS_DEMO) return { status: 'ok' }
-  const { data, error } = await supabase.rpc('loyalty_redeem', {
+  const { data, error } = await supabase.rpc('loyalty_redeem_staff', {
     p_plate: plate, p_tier: tier, p_note: note || null,
   })
   if (error) throw error
@@ -97,7 +135,8 @@ export async function redeemTier(plate, tier, note) {
 
 export const REDEEM_ERRORS = {
   no_autorizado:        'Inicia sesión para canjear',
-  no_encontrada:        'Esa placa no tiene tarjeta activa',
+  no_encontrada:        'Esa placa todavía no tiene servicios cerrados',
+  placa_invalida:       'La placa del ticket no es válida',
   nivel_invalido:       'Ese premio ya no existe en la configuración',
   sellos_insuficientes: 'Todavía no llega a ese premio',
   ya_canjeado:          'Ese premio ya fue canjeado en esta tarjeta',

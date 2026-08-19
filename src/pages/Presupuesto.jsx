@@ -412,9 +412,15 @@ export default function Presupuesto() {
 
   // Se anade como linea negativa dentro de la seccion de ceramico: asi viaja
   // sola al PDF, al WhatsApp y al ticket, y el cliente ve el porque del monto.
+  // `esDescuento` permite que el PDF y el WhatsApp lo presenten como rebaja y
+  // no como un servicio mas: sin la marca salia numerado junto a los items.
   const lineaVehiculoNuevo = (items) =>
     ceramicoVehiculoNuevo && items.length > 0
-      ? [...items, { label: 'Descuento vehículo nuevo', price: -DESC_VEHICULO_NUEVO }]
+      ? [...items, {
+          label: 'Descuento por vehículo nuevo',
+          price: -DESC_VEHICULO_NUEVO,
+          esDescuento: true,
+        }]
       : items
   const [editingPrices, setEditingPrices] = useState(false)
   const [pricesDraft, setPricesDraft] = useState(config.basePrices)
@@ -1125,6 +1131,11 @@ export default function Presupuesto() {
       const discAmtS = Math.round(sub * discPctS / 100)
       if (sections.length > 1) msg += `\n*${s.title.toUpperCase()}*${discPctS > 0 ? ` (-${discPctS}%)` : ''}\n`
       s.items.forEach(r => {
+        if (r.esDescuento) {
+          // No lleva numero: no es un servicio contratado sino una rebaja.
+          msg += `🎁 *${r.label}: -${formatMoney(Math.abs(r.price))}*\n`
+          return
+        }
         msg += `*${idx++}.* ${r.label}\n`
         msg += `   💰 ${formatMoney(r.price)}\n`
       })
@@ -1335,6 +1346,20 @@ export default function Presupuesto() {
       s.items.forEach(r => {
         const rowH = 7.5
         y = espacio(rowH)
+
+        // Los descuentos se pintan en verde y sin numero de fila: no son un
+        // servicio contratado, y numerarlos hacia perder la cuenta de items.
+        if (r.esDescuento) {
+          doc.setFillColor(240, 250, 242); doc.rect(mL, y, cW, rowH, 'F')
+          doc.setDrawColor(235, 235, 235); doc.setLineWidth(0.2)
+          doc.line(mL, y + rowH, mL + cW, y + rowH)
+          doc.setTextColor(21, 128, 61); doc.setFontSize(8.5); doc.setFont('helvetica', 'bold')
+          doc.text(r.label, mL + 12, y + 5)
+          doc.text(`-${formatMoney(Math.abs(r.price))}`, W - mR - 2, y + 5, { align: 'right' })
+          y += rowH
+          return
+        }
+
         if (rowIdx % 2 === 0) { doc.setFillColor(250, 250, 250); doc.rect(mL, y, cW, rowH, 'F') }
         doc.setDrawColor(235, 235, 235); doc.setLineWidth(0.2)
         doc.line(mL, y + rowH, mL + cW, y + rowH)
@@ -2530,8 +2555,9 @@ export default function Presupuesto() {
         // El descuento se apaga desde su propio interruptor, de ahi el onRemove.
         const ceramicoSel = ceramicoVehiculoNuevo && ceramicoBase.length > 0
           ? [...ceramicoBase, {
-              key: 'c_veh_nuevo', label: 'Descuento vehículo nuevo',
-              price: -DESC_VEHICULO_NUEVO, onRemove: () => setCeramicoVehiculoNuevo(false),
+              key: 'c_veh_nuevo', label: 'Descuento por vehículo nuevo',
+              price: -DESC_VEHICULO_NUEVO, esDescuento: true,
+              onRemove: () => setCeramicoVehiculoNuevo(false),
             }]
           : ceramicoBase
         const polSel = catRows.filter(r => polIds.has(r.id)).map(r => ({
@@ -2612,11 +2638,15 @@ export default function Presupuesto() {
                     <X className="w-3 h-3" />
                   </button>
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs text-gray-700 dark:text-gray-300 leading-tight">{item.label}</p>
+                    <p className={`text-xs leading-tight ${item.esDescuento ? 'text-green-700 dark:text-green-400 font-semibold' : 'text-gray-700 dark:text-gray-300'}`}>
+                      {item.esDescuento && '🎁 '}{item.label}
+                    </p>
                     {item.sub && <p className="text-[10px] text-gray-400 truncate">{item.sub}</p>}
                   </div>
                   {item.manual && <span className="text-[9px] font-bold text-blue-500 bg-blue-50 dark:bg-blue-900/20 px-1.5 py-0.5 rounded">MANUAL</span>}
-                  <p className="text-xs font-bold text-gray-800 dark:text-gray-200 flex-shrink-0">{formatMoney(item.price)}</p>
+                  <p className={`text-xs font-bold flex-shrink-0 ${item.esDescuento ? 'text-green-600' : 'text-gray-800 dark:text-gray-200'}`}>
+                    {item.esDescuento ? `-${formatMoney(Math.abs(item.price))}` : formatMoney(item.price)}
+                  </p>
                 </div>
               ))}
               {discountMode === 'section' && <SectDiscount sectKey={sectKey} label={`Desc. ${title.toLowerCase()}`} />}

@@ -18,6 +18,12 @@ function fmtHmDecimal(ms) {
   return Math.round(ms / 3600000 * 10) / 10
 }
 
+// Fecha local en YYYY-MM-DD. toISOString() pasa a UTC, asi que de noche en
+// Lima (UTC-5) devolvia el dia siguiente y la semana arrancaba en martes.
+function localISO(d) {
+  return d.toLocaleDateString('en-CA')
+}
+
 // Semana: lunes → domingo
 function getWeekDates(refDate) {
   const d = new Date(refDate)
@@ -27,7 +33,7 @@ function getWeekDates(refDate) {
   return Array.from({ length: 7 }, (_, i) => {
     const dd = new Date(monday)
     dd.setDate(monday.getDate() + i)
-    return dd.toISOString().slice(0, 10)
+    return localISO(dd)
   })
 }
 
@@ -134,7 +140,7 @@ export default function AsistenciaReporte() {
               <th className="text-left px-4 py-3 font-semibold text-gray-600 dark:text-gray-400 w-36">Trabajador</th>
               {weekDates.map((date, i) => {
                 const d = new Date(date + 'T12:00:00')
-                const isToday = date === new Date().toISOString().slice(0, 10)
+                const isToday = date === localISO(new Date())
                 return (
                   <th key={date} className={`px-1 py-3 text-center font-semibold w-20 ${isToday ? 'text-red-500' : 'text-gray-500 dark:text-gray-400'}`}>
                     <div className="text-xs">{DAY_SHORT[d.getDay()]}</div>

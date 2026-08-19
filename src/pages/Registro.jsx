@@ -20,7 +20,7 @@ import ConfirmDialog from '../components/ui/ConfirmDialog'
 import { Plus, Camera, Search, X, Clock, CheckCircle, Trash2, PenLine, Zap, Save, ChevronLeft, ChevronRight, Eye, EyeOff, AlertCircle, TrendingDown, Gift } from 'lucide-react'
 import {
   cardState, cardsFromTickets, fetchStaffCards, loadConfig as loadFidelidadConfig,
-  normPlate, redeemTier, undoTier, REDEEM_ERRORS, DEFAULT_CONFIG as FIDELIDAD_DEFAULT,
+  normPlate, redeemTier, undoTier, setStamps, REDEEM_ERRORS, DEFAULT_CONFIG as FIDELIDAD_DEFAULT,
 } from '../lib/fidelidad'
 import { IncidentForm } from './Trabajadores'
 import toast from 'react-hot-toast'
@@ -788,6 +788,23 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
     } finally { setCobrandoBono(false) }
   }
 
+  // Los sellos a mano: la tarjeta de papel del cliente manda sobre lo que
+  // alcanzó a registrarse en el sistema.
+  async function handleAjustarSellos(sellos) {
+    setCobrandoBono(true)
+    try {
+      const res = await setStamps(ticket.plate, sellos)
+      if (res?.status && res.status !== 'ok') {
+        toast.error(REDEEM_ERRORS[res.status] || 'No se pudo ajustar la tarjeta')
+        return
+      }
+      await onLoyaltyChange?.()
+      toast.success(sellos === 0 ? 'Tarjeta reiniciada' : `Tarjeta con ${sellos} sello${sellos === 1 ? '' : 's'}`)
+    } catch {
+      toast.error('No se pudo ajustar la tarjeta')
+    } finally { setCobrandoBono(false) }
+  }
+
   async function handleClose() {
     if (isMixto && !mixtoOk) {
       toast.error(`La suma debe ser ${formatMoney(total)} (falta ${formatMoney(total - mixtoSum)})`)
@@ -970,7 +987,7 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
 
         {/* Tarjeta de fidelidad del cliente */}
         <LoyaltyPanel plate={ticket.plate} card={loyaltyCard} config={loyaltyConfig}
-          onCobrar={handleCobrarBono} onDeshacer={handleDeshacerBono} cobrando={cobrandoBono}
+          onCobrar={handleCobrarBono} onDeshacer={handleDeshacerBono} onAjustar={handleAjustarSellos} cobrando={cobrandoBono}
           confirmTier={confirmTier} setConfirmTier={setConfirmTier} />
 
         {/* Descuento */}
@@ -1433,7 +1450,8 @@ function LoyaltyBadge({ card, config }) {
 // Panel del ticket: el check que cobra el bono. Al marcarlo se registra el
 // canje y se aplica el descuento; si es el último nivel, la tarjeta se
 // reinicia sola y arranca la siguiente.
-function LoyaltyPanel({ plate, card, config, onCobrar, onDeshacer, cobrando, confirmTier, setConfirmTier }) {
+function LoyaltyPanel({ plate, card, config, onCobrar, onDeshacer, onAjustar, cobrando, confirmTier, setConfirmTier }) {
+  const [ajuste, setAjuste] = useState(null) // sellos escritos a mano, null = panel cerrado
   if (!plate || normPlate(plate).length < 4) return null
   const est = cardState(card || { sellos: 0, canjeados: [] }, config)
 
@@ -1522,6 +1540,35 @@ function LoyaltyPanel({ plate, card, config, onCobrar, onDeshacer, cobrando, con
           <p className="text-[11px] font-semibold text-indigo-500">
             Tarjeta completa y cobrada — la siguiente ya empezó a llenarse.
           </p>
+        )}
+
+        {/* Ajuste manual: el sistema solo cuenta desde que se registran los
+            tickets, así que la tarjeta de papel manda. */}
+        {ajuste === null ? (
+          <div className="flex items-center gap-3 pt-0.5">
+            <button type="button" onClick={() => setAjuste(String(est.sellos))}
+              className="text-[11px] font-semibold text-indigo-500 hover:underline">
+              Ajustar sellos
+            </button>
+            <button type="button" onClick={() => onAjustar(0)}
+              className="text-[11px] font-semibold text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+              Reiniciar a cero
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 pt-0.5">
+            <span className="text-[11px] text-gray-500">Sellos de la tarjeta</span>
+            <input type="number" min="0" step="1" value={ajuste} autoFocus
+              onChange={e => setAjuste(e.target.value)}
+              className="w-16 text-center text-xs font-bold bg-white dark:bg-gray-800 rounded-lg border border-indigo-200 dark:border-indigo-800 py-1 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            <button type="button"
+              onClick={() => { onAjustar(Math.max(0, Number(ajuste) || 0)); setAjuste(null) }}
+              className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-indigo-600 text-white hover:bg-indigo-700">
+              Guardar
+            </button>
+            <button type="button" onClick={() => setAjuste(null)}
+              className="text-[11px] text-gray-400 hover:text-gray-600">Cancelar</button>
+          </div>
         )}
       </div>
     </div>

@@ -142,6 +142,19 @@ export async function undoTier(plate, tier) {
   return data
 }
 
+// Ajuste manual de los sellos. El sistema solo tiene el historial desde que se
+// empezó a registrar: un cliente de años arranca con los sellos que diga el
+// mostrador, y la tarjeta que ya se entregó se reinicia a cero sin esperar a
+// que cuadren los tickets.
+export async function setStamps(plate, sellos) {
+  if (IS_DEMO) return { status: 'ok' }
+  const { data, error } = await supabase.rpc('loyalty_set_stamps_staff', {
+    p_plate: plate, p_sellos: Math.max(0, Number(sellos) || 0),
+  })
+  if (error) throw error
+  return data
+}
+
 export const REDEEM_ERRORS = {
   no_autorizado:        'Inicia sesión para canjear',
   no_encontrada:        'Esa placa todavía no tiene servicios cerrados',

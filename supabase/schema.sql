@@ -325,3 +325,9 @@ create policy loyalty_redemptions_auth on public.loyalty_redemptions
 --                                    canje había reiniciado la tarjeta, devuelve
 --                                    el ciclo y descarta lo cobrado en la
 --                                    tarjeta que ya había arrancado.
+--
+--   loyalty_set_stamps_staff(placa, sellos)
+--                                  → deja la tarjeta con esos sellos y abre un
+--                                    ciclo nuevo. Hace falta porque el sistema
+--                                    solo cuenta desde que se registran tickets:
+--                                    la tarjeta de papel del cliente manda.

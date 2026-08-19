@@ -404,6 +404,18 @@ export default function Presupuesto() {
   // la lista paño por paño no aporta nada y lo que interesa detallar es el
   // planchado, que es el trabajo que justifica el precio.
   const [agruparPintura, setAgruparPintura] = useState(false)
+  // Descuento fijo de bienvenida para vehiculos nuevos en cotizaciones de
+  // ceramico. Va aparte de los descuentos por porcentaje porque es un monto
+  // cerrado que se concede o no, no una negociacion.
+  const DESC_VEHICULO_NUEVO = 100
+  const [ceramicoVehiculoNuevo, setCeramicoVehiculoNuevo] = useState(false)
+
+  // Se anade como linea negativa dentro de la seccion de ceramico: asi viaja
+  // sola al PDF, al WhatsApp y al ticket, y el cliente ve el porque del monto.
+  const lineaVehiculoNuevo = (items) =>
+    ceramicoVehiculoNuevo && items.length > 0
+      ? [...items, { label: 'Descuento vehículo nuevo', price: -DESC_VEHICULO_NUEVO }]
+      : items
   const [editingPrices, setEditingPrices] = useState(false)
   const [pricesDraft, setPricesDraft] = useState(config.basePrices)
   const [showBrands, setShowBrands] = useState(false)
@@ -1062,7 +1074,7 @@ export default function Presupuesto() {
     const manualSel = manualItems.map(r => ({ label: r.titulo + (r.descripcion ? ` — ${r.descripcion}` : ''), price: r.monto }))
     const sections = [
       { title: 'Planchado & Pintura', items: planchadoSel, sectKey: 'planchado' },
-      { title: 'Cerám/PPF', items: ceramicoSel, sectKey: 'ceramico' },
+      { title: 'Cerám/PPF', items: lineaVehiculoNuevo(ceramicoSel), sectKey: 'ceramico' },
       { title: 'Polarizados', items: polSel, sectKey: 'polarizados' },
       { title: 'Lavados', items: lavSel, sectKey: 'lavados' },
       { title: 'Servicios', items: svSel, sectKey: 'servicios' },
@@ -2009,6 +2021,36 @@ export default function Presupuesto() {
               )}
             </div>}
 
+            {/* Descuento de bienvenida para vehiculos nuevos, solo en ceramico */}
+            {category === 'ceramico' && catRows.some(r => !r._divider) && (
+              <div className="card">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold text-gray-700 dark:text-gray-300">Vehículo nuevo</p>
+                    <p className="text-[11px] text-gray-400">
+                      Aplica un descuento de {formatMoney(DESC_VEHICULO_NUEVO)} al cerámico
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setCeramicoVehiculoNuevo(v => !v)}
+                    role="switch"
+                    aria-checked={ceramicoVehiculoNuevo}
+                    className={`relative w-12 h-6 rounded-full transition-colors shrink-0 ${
+                      ceramicoVehiculoNuevo ? 'bg-green-600' : 'bg-gray-300 dark:bg-gray-600'
+                    }`}>
+                    <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${
+                      ceramicoVehiculoNuevo ? 'translate-x-6' : 'translate-x-0.5'
+                    }`} />
+                  </button>
+                </div>
+                {ceramicoVehiculoNuevo && (
+                  <p className="text-xs text-green-600 font-semibold mt-2 pt-2 border-t border-gray-100 dark:border-gray-800">
+                    Descuento aplicado: −{formatMoney(DESC_VEHICULO_NUEVO)}
+                  </p>
+                )}
+              </div>
+            )}
+
             {/* Descuento */}
             {totalItemsSelected > 0 && (
               <div className="card">
@@ -2482,9 +2524,16 @@ export default function Presupuesto() {
           key: `p_${r.id}`, label: r.damageId !== 'none' ? `${r.label} + Planchado (${DAMAGE_LEVELS.find(d => d.id === r.damageId)?.label})` : `Pintado — ${r.label}`,
           price: r.price, onRemove: () => setSelected(s => ({ ...s, [r.id]: false })),
         }))
-        const ceramicoSel = catRows.filter(r => ceramicoIds.has(r.id) || ppfIds.has(r.id)).map(r => ({
+        const ceramicoBase = catRows.filter(r => ceramicoIds.has(r.id) || ppfIds.has(r.id)).map(r => ({
           key: `c_${r.id}`, label: r.label, price: r.price, onRemove: () => setCatSelected(s => ({ ...s, [r.id]: false })),
         }))
+        // El descuento se apaga desde su propio interruptor, de ahi el onRemove.
+        const ceramicoSel = ceramicoVehiculoNuevo && ceramicoBase.length > 0
+          ? [...ceramicoBase, {
+              key: 'c_veh_nuevo', label: 'Descuento vehículo nuevo',
+              price: -DESC_VEHICULO_NUEVO, onRemove: () => setCeramicoVehiculoNuevo(false),
+            }]
+          : ceramicoBase
         const polSel = catRows.filter(r => polIds.has(r.id)).map(r => ({
           key: `pol_${r.id}`, label: r.label, price: r.price, onRemove: () => setCatSelected(s => ({ ...s, [r.id]: false })),
         }))

@@ -640,7 +640,7 @@ export default function Configuracion() {
       </div>
 
       {/* Metas de servicios del mes (lo que ven los trabajadores) */}
-      <MetasConfig year={selYear} month={selMonth} />
+      <MetasConfig year={selYear} month={selMonth} costoFijo={fixedTotal + payrollTotal + casualTotal} />
 
       {/* Metas + Reparto unificado */}
       <div className="card">

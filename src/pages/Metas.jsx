@@ -1,15 +1,18 @@
 import { useEffect, useMemo, useState, useCallback } from 'react'
 import { useApp } from '../context/AppContext'
+import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import {
-  currentMonthYear, monthName, todayISO,
+  currentMonthYear, monthName, todayISO, formatMoney,
   getWorkingDaysInMonth, getWorkingDaysElapsed, getWorkingDaysRemaining,
 } from '../lib/utils'
 import {
-  GRUPOS, monthPrefix, resolveItems, computeProgress, estadoMeta,
+  GRUPOS, DEFAULT_BAYS, monthPrefix, resolveItems, computeProgress, estadoMeta,
+  computeEconomics, costoFijoMes,
   fetchMetasConfig, fetchMetasRows, rowsFromTickets, METAS_KEY,
 } from '../lib/metas'
-import { Target, RefreshCw, CalendarDays, Flame, TrendingUp } from 'lucide-react'
+import { Target, RefreshCw, CalendarDays, Flame, TrendingUp, Wallet, Link as LinkIcon } from 'lucide-react'
+import { Link } from 'react-router-dom'
 
 // Semáforo contra el ritmo del mes, no contra el 100%: al día 5 nadie va al 80%.
 const ESTADO = {
@@ -37,7 +40,7 @@ function Ring({ pct, size = 116, stroke = 11, className = 'stroke-white' }) {
   )
 }
 
-function MetaRow({ item, expectedPct, diasRestantes }) {
+function MetaRow({ item, expectedPct, diasRestantes, verDinero }) {
   const sinMeta = !item.goal
   const estado  = sinMeta ? 'sinmeta' : estadoMeta(item.pct, expectedPct)
   const C = ESTADO[estado]
@@ -73,6 +76,16 @@ function MetaRow({ item, expectedPct, diasRestantes }) {
         </div>
       </div>
 
+      {verDinero && (
+        <p className="text-[11px] text-gray-400 mt-1 tabular-nums">
+          {item.price > 0 || item.margin > 0
+            ? <>Meta: <span className="font-semibold text-gray-600 dark:text-gray-300">{formatMoney(item.goal * (item.price || 0))}</span>
+                {' '}· margen {formatMoney(item.goal * (item.margin || 0))}
+                {' '}· llevamos {formatMoney(item.done * (item.price || 0))}</>
+            : 'Sin precio cargado'}
+        </p>
+      )}
+
       {/* Barra con marca del ritmo esperado */}
       <div className="relative mt-2 h-2 rounded-full bg-gray-100 dark:bg-gray-800 overflow-hidden">
         <div
@@ -91,7 +104,7 @@ function MetaRow({ item, expectedPct, diasRestantes }) {
   )
 }
 
-function GrupoCard({ grupo, items, expectedPct, diasRestantes }) {
+function GrupoCard({ grupo, items, expectedPct, diasRestantes, verDinero }) {
   if (!items.length) return null
   const meta = items.reduce((s, i) => s + i.goal, 0)
   const hecho = items.reduce((s, i) => s + Math.min(i.done, i.goal || i.done), 0)
@@ -107,7 +120,7 @@ function GrupoCard({ grupo, items, expectedPct, diasRestantes }) {
       </div>
       <div className="divide-y divide-gray-100 dark:divide-gray-800">
         {items.map(item => (
-          <MetaRow key={item.id} item={item} expectedPct={expectedPct} diasRestantes={diasRestantes} />
+          <MetaRow key={item.id} item={item} expectedPct={expectedPct} diasRestantes={diasRestantes} verDinero={verDinero} />
         ))}
       </div>
     </div>
@@ -115,7 +128,9 @@ function GrupoCard({ grupo, items, expectedPct, diasRestantes }) {
 }
 
 export default function Metas() {
-  const { tickets, isDemo } = useApp()
+  const { tickets, isDemo, workers, monthlyCosts } = useApp()
+  const { isAdmin } = useAuth()
+  const verDinero = isAdmin || isDemo
   const { month, year } = currentMonthYear()
   const prefix = monthPrefix(year, month)
   const today  = todayISO()
@@ -191,6 +206,25 @@ export default function Metas() {
     const pct   = meta > 0 ? Math.round((hecho / meta) * 100) : 0
     return { meta, hecho, hoy, pct, faltan: Math.max(0, meta - hecho) }
   }, [progreso])
+
+  // El plan en dinero: lo mismo que el plan mensual en Excel, con los precios y
+  // márgenes que el admin carga en Configuración.
+  const costoFijo = useMemo(
+    () => costoFijoMes(monthlyCosts, workers),
+    [monthlyCosts, workers]
+  )
+  const econ = useMemo(
+    () => computeEconomics(progreso, {
+      costoFijo,
+      diasHabiles: diasTotal,
+      bays: Number(config?.bays ?? DEFAULT_BAYS),
+    }),
+    [progreso, costoFijo, diasTotal, config]
+  )
+  const topMargen = useMemo(
+    () => [...econ.porItem].filter(i => i.margenMeta > 0).sort((a, b) => b.margenMeta - a.margenMeta).slice(0, 5),
+    [econ]
+  )
 
   const estadoGlobal = ESTADO[total.meta ? estadoMeta(total.pct, expectedPct) : 'sinmeta']
   const ritmoDia = total.faltan > 0 && diasRestantes > 0 ? total.faltan / diasRestantes : 0
@@ -283,11 +317,102 @@ export default function Metas() {
         </div>
       </div>
 
+      {/* Cuánto genera el plan — solo el admin ve dinero */}
+      {verDinero && (
+        <div className="card p-0 overflow-hidden">
+          <div className="flex items-center gap-2 px-3.5 py-2.5 bg-gray-50 dark:bg-gray-800/50 border-b border-gray-100 dark:border-gray-800">
+            <Wallet className="w-4 h-4 text-gray-400" />
+            <p className="text-xs font-bold uppercase tracking-widest text-gray-500 flex-1">Cuánto genera el plan</p>
+            <Link to="/configuracion" className="flex items-center gap-1 text-[11px] font-semibold text-red-600 dark:text-red-400 hover:underline">
+              Editar <LinkIcon className="w-3 h-3" />
+            </Link>
+          </div>
+
+          <div className="p-3.5 space-y-3">
+            <div className="grid grid-cols-2 gap-2">
+              <div className="rounded-xl bg-gray-50 dark:bg-gray-800 px-3 py-2.5">
+                <p className="text-[10px] text-gray-400 uppercase tracking-wide">Ingreso si se cumple</p>
+                <p className="text-lg font-black text-gray-900 dark:text-white tabular-nums leading-tight">{formatMoney(econ.ingresoMeta)}</p>
+              </div>
+              <div className="rounded-xl bg-gray-50 dark:bg-gray-800 px-3 py-2.5">
+                <p className="text-[10px] text-gray-400 uppercase tracking-wide">Margen del plan</p>
+                <p className="text-lg font-black text-gray-900 dark:text-white tabular-nums leading-tight">{formatMoney(econ.margenMeta)}</p>
+              </div>
+              <div className="rounded-xl bg-gray-50 dark:bg-gray-800 px-3 py-2.5">
+                <p className="text-[10px] text-gray-400 uppercase tracking-wide">Costo fijo del mes</p>
+                <p className="text-lg font-black text-gray-900 dark:text-white tabular-nums leading-tight">{formatMoney(econ.costoFijo)}</p>
+              </div>
+              <div className={`rounded-xl px-3 py-2.5 ${econ.utilidadMeta >= 0 ? 'bg-emerald-50 dark:bg-emerald-900/20' : 'bg-red-50 dark:bg-red-900/20'}`}>
+                <p className="text-[10px] text-gray-400 uppercase tracking-wide">Utilidad proyectada</p>
+                <p className={`text-lg font-black tabular-nums leading-tight ${econ.utilidadMeta >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
+                  {formatMoney(econ.utilidadMeta)}
+                </p>
+              </div>
+            </div>
+
+            {/* Lo que ya se generó contra lo que promete el plan */}
+            <div>
+              <div className="flex items-center justify-between text-[11px] mb-1">
+                <span className="text-gray-500">Generado hasta hoy</span>
+                <span className="font-bold text-gray-700 dark:text-gray-200 tabular-nums">
+                  {formatMoney(econ.ingresoReal)}
+                  <span className="text-gray-400 font-semibold"> / {formatMoney(econ.ingresoMeta)}</span>
+                </span>
+              </div>
+              <div className="h-2 rounded-full bg-gray-100 dark:bg-gray-800 overflow-hidden">
+                <div className="h-full rounded-full bg-emerald-500"
+                  style={{ width: `${econ.ingresoMeta > 0 ? Math.min(100, (econ.ingresoReal / econ.ingresoMeta) * 100) : 0}%`, transition: 'width 800ms cubic-bezier(0.23,1,0.32,1)' }} />
+              </div>
+              <p className="text-[11px] text-gray-400 mt-1.5">
+                Margen generado: <span className="font-semibold text-gray-600 dark:text-gray-300">{formatMoney(econ.margenReal)}</span>
+                {' '}· falta {formatMoney(Math.max(0, econ.costoFijo - econ.margenReal))} para cubrir el costo fijo
+              </p>
+            </div>
+
+            {/* Capacidad del taller */}
+            <div className="rounded-xl bg-gray-50 dark:bg-gray-800 px-3 py-2.5">
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="text-gray-500">Días de bahía del plan</span>
+                <span className="font-bold text-gray-700 dark:text-gray-200 tabular-nums">
+                  {econ.diasMeta.toFixed(1)} / {econ.capacidad.toFixed(0)}
+                </span>
+              </div>
+              <div className="h-2 rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden mt-1.5">
+                <div className={`h-full rounded-full ${econ.capacidadPct > 100 ? 'bg-red-500' : 'bg-blue-500'}`}
+                  style={{ width: `${Math.min(100, econ.capacidadPct)}%` }} />
+              </div>
+              <p className="text-[11px] text-gray-400 mt-1.5">
+                {Math.round(econ.capacidadPct)}% de la capacidad del mes
+                ({diasTotal} días hábiles × {Number(config?.bays ?? DEFAULT_BAYS)} bahías).
+                {econ.capacidadPct > 100 && ' El plan no entra en el taller.'}
+              </p>
+            </div>
+
+            {/* De dónde sale el margen */}
+            {topMargen.length > 0 && (
+              <div>
+                <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">De dónde sale el margen</p>
+                <div className="space-y-1.5">
+                  {topMargen.map(i => (
+                    <div key={i.id} className="flex items-center gap-2">
+                      <span className="text-sm flex-none">{i.emoji}</span>
+                      <span className="text-xs text-gray-600 dark:text-gray-300 flex-1 truncate">{i.label}</span>
+                      <span className="text-xs font-bold text-gray-700 dark:text-gray-200 tabular-nums flex-none">{formatMoney(i.margenMeta)}</span>
+                      <span className="text-[11px] text-gray-400 w-10 text-right flex-none">{Math.round(i.pctMargen)}%</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Metas por grupo */}
       {GRUPOS.map(g => (
         <GrupoCard key={g.id} grupo={g}
           items={progreso.filter(i => (i.group || 'detailing') === g.id)}
-          expectedPct={expectedPct} diasRestantes={diasRestantes} />
+          expectedPct={expectedPct} diasRestantes={diasRestantes} verDinero={verDinero} />
       ))}
 
       {/* Leyenda */}

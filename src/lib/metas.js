@@ -6,6 +6,7 @@
 // que hace el dueño— se lleva con un contador manual.
 
 import { supabase } from './supabase'
+import { calcRealSalary } from './utils'
 
 export const METAS_KEY = 'metas_servicios'
 
@@ -38,6 +39,35 @@ export const DEFAULT_ITEMS = [
   { id: 'pano_gustavo',     emoji: '🎨', label: 'Paño pintura (lo hace Gustavo)', goal: 5, group: 'detailing', source: 'manual', vehicles: [], keywords: [] },
   { id: 'pano_pintor',      emoji: '🎨', label: 'Paño pintura (con pintor)',      goal: 5, group: 'detailing', source: 'manual', vehicles: [], keywords: [] },
 ]
+
+// ─── Economía de cada meta ───────────────────────────────────────────────────
+// Precio de lista, margen (lo que queda después del material y la mano de obra
+// del servicio) y días de bahía que ocupa una unidad. Son los mismos números del
+// plan mensual; el admin los edita en Configuración → Metas.
+export const DEFAULT_ECON = {
+  lavado_auto:     { price: 30,   margin: 22,    bayDays: 0.05 },
+  lavado_exterior: { price: 20,   margin: 12,    bayDays: 0.03 },
+  lavado_offroad:  { price: 70,   margin: 60,    bayDays: 0.25 },
+  lavado_moto:     { price: 15,   margin: 12,    bayDays: 0.06 },
+  pulido:          { price: 350,  margin: 325,   bayDays: 1 },
+  abrillantado:    { price: 130,  margin: 90,    bayDays: 0.5 },
+  desc_mecanica:   { price: 120,  margin: 90,    bayDays: 0.5 },
+  cer_carpro_3:    { price: 1199, margin: 919,   bayDays: 3 },
+  cer_carpro_2:    { price: 999,  margin: 739,   bayDays: 3 },
+  cer_miyavi_1:    { price: 550,  margin: 370,   bayDays: 2 },
+  cer_vonixx_3:    { price: 750,  margin: 490,   bayDays: 2 },
+  pol_3m:          { price: 1150, margin: 540,   bayDays: 0.5 },
+  pol_lexen_vp:    { price: 500,  margin: 230,   bayDays: 0.4 },
+  pol_lexen_full:  { price: 700,  margin: 302.5, bayDays: 0.5 },
+  ppf_zonas:       { price: 3500, margin: 1810,  bayDays: 2 },
+  ppf_zonas_cer:   { price: 4200, margin: 2250,  bayDays: 2.5 },
+  ppf_full:        { price: 6500, margin: 2750,  bayDays: 5 },
+  pano_gustavo:    { price: 250,  margin: 170,   bayDays: 0.5 },
+  pano_pintor:     { price: 250,  margin: 100,   bayDays: 0.5 },
+}
+
+// Bahías del taller: la capacidad del mes son los días hábiles por bahía.
+export const DEFAULT_BAYS = 4
 
 export function monthPrefix(year, month) {
   return `${year}-${String(month).padStart(2, '0')}`
@@ -88,11 +118,19 @@ export function resolveItems(config, prefix) {
   const items  = config?.items?.length ? config.items : DEFAULT_ITEMS
   const goals  = inherited(config?.goals, prefix)
   const manual = config?.manual?.[prefix] || {}
-  return items.map(it => ({
-    ...it,
-    goal:   Number(goals[it.id] ?? it.goal ?? 0),
-    manual: Number(manual[it.id] ?? 0),
-  }))
+  return items.map(it => {
+    // Las configuraciones guardadas antes de tener precios no traen estos campos:
+    // se completan con la economía de referencia del servicio.
+    const ref = DEFAULT_ECON[it.id] || {}
+    return {
+      ...it,
+      goal:    Number(goals[it.id] ?? it.goal ?? 0),
+      manual:  Number(manual[it.id] ?? 0),
+      price:   Number(it.price   ?? ref.price   ?? 0),
+      margin:  Number(it.margin  ?? ref.margin  ?? 0),
+      bayDays: Number(it.bayDays ?? ref.bayDays ?? 0),
+    }
+  })
 }
 
 // Avance de cada meta: lo que sale de los tickets + el ajuste manual.
@@ -120,6 +158,66 @@ export function estadoMeta(pct, expectedPct) {
   if (pct >= expectedPct * 0.9) return 'ritmo'
   if (pct >= expectedPct * 0.6) return 'cerca'
   return 'atrasado'
+}
+
+// ─── Dinero: qué genera el plan del mes ──────────────────────────────────────
+// Mismo cálculo del plan mensual en Excel: cada meta aporta su precio y su
+// margen, y ocupa días de bahía. `done` da lo que ya se generó; `goal`, lo que
+// se generaría si el mes cierra completo.
+export function computeEconomics(items, { costoFijo = 0, diasHabiles = 0, bays = DEFAULT_BAYS } = {}) {
+  const porItem = (items || []).map(it => {
+    const goal    = Number(it.goal) || 0
+    const done    = Number(it.done) || 0
+    const price   = Number(it.price) || 0
+    const margin  = Number(it.margin) || 0
+    const bayDays = Number(it.bayDays) || 0
+    return {
+      id: it.id, label: it.label, emoji: it.emoji, group: it.group,
+      goal, done, price, margin, bayDays,
+      ingresoMeta: goal * price,
+      margenMeta:  goal * margin,
+      ingresoReal: done * price,
+      margenReal:  done * margin,
+      diasMeta:    goal * bayDays,
+      diasReal:    done * bayDays,
+    }
+  })
+  const sum = k => porItem.reduce((s, i) => s + i[k], 0)
+  const ingresoMeta = sum('ingresoMeta')
+  const margenMeta  = sum('margenMeta')
+  const ingresoReal = sum('ingresoReal')
+  const margenReal  = sum('margenReal')
+  const diasMeta    = sum('diasMeta')
+  const diasReal    = sum('diasReal')
+  const capacidad   = (Number(diasHabiles) || 0) * (Number(bays) || 0)
+
+  return {
+    porItem: porItem.map(i => ({
+      ...i,
+      pctMargen: margenMeta > 0 ? (i.margenMeta / margenMeta) * 100 : 0,
+    })),
+    ingresoMeta, margenMeta, ingresoReal, margenReal,
+    diasMeta, diasReal, capacidad,
+    capacidadPct: capacidad > 0 ? (diasMeta / capacidad) * 100 : 0,
+    costoFijo,
+    utilidadMeta: margenMeta - costoFijo,
+    utilidadReal: margenReal - costoFijo,
+    cierra: margenMeta >= costoFijo && (capacidad === 0 || diasMeta <= capacidad),
+  }
+}
+
+// Costo fijo del mes con el que se compara el margen del plan: los ítems fijos
+// de Configuración más la planilla vigente. No incluye eventuales ni los gastos
+// del día a día — esos se ven en el Dashboard.
+export function costoFijoMes(monthlyCosts, workers) {
+  const items = monthlyCosts?.cost_items
+  const fijos = Array.isArray(items) && items.length > 0
+    ? items.reduce((s, i) => s + (Number(i.amount) || 0), 0)
+    : (Number(monthlyCosts?.rent) || 0) + (Number(monthlyCosts?.supplies) || 0)
+  const planilla = (workers || [])
+    .filter(w => w.active)
+    .reduce((s, w) => s + calcRealSalary(w.base_salary, w.weekly_hours), 0)
+  return fijos + planilla
 }
 
 // ─── Persistencia ────────────────────────────────────────────────────────────

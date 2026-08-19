@@ -2,11 +2,11 @@ import { useState, useEffect, useMemo, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { useApp } from '../../context/AppContext'
 import {
-  GRUPOS, DEFAULT_ITEMS, monthPrefix, resolveItems, computeProgress,
-  fetchMetasConfig, saveMetasConfig, fetchMetasRows, rowsFromTickets,
+  GRUPOS, DEFAULT_ITEMS, DEFAULT_BAYS, monthPrefix, resolveItems, computeProgress,
+  computeEconomics, fetchMetasConfig, saveMetasConfig, fetchMetasRows, rowsFromTickets,
 } from '../../lib/metas'
-import { monthName, todayISO } from '../../lib/utils'
-import { Plus, Save, Trash2, ChevronUp, ChevronDown, SlidersHorizontal, ExternalLink, RotateCcw } from 'lucide-react'
+import { monthName, todayISO, formatMoney, getWorkingDaysInMonth } from '../../lib/utils'
+import { Plus, Save, Trash2, ChevronUp, ChevronDown, SlidersHorizontal, ExternalLink, RotateCcw, Calculator } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 const FUENTES = [
@@ -19,7 +19,7 @@ function nuevoId() {
   return 'meta_' + Date.now().toString(36)
 }
 
-export default function MetasConfig({ year, month }) {
+export default function MetasConfig({ year, month, costoFijo = 0 }) {
   const { vehicleTypes, tickets, isDemo } = useApp()
   const prefix = monthPrefix(year, month)
 
@@ -29,6 +29,7 @@ export default function MetasConfig({ year, month }) {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving]   = useState(false)
   const [abierto, setAbierto] = useState(null) // id del ítem con opciones avanzadas abiertas
+  const [bays, setBays]       = useState(DEFAULT_BAYS)
 
   const cargarAvance = useCallback(async () => {
     if (isDemo) { setRows(rowsFromTickets(tickets, prefix)); return }
@@ -46,6 +47,7 @@ export default function MetasConfig({ year, month }) {
         if (!vivo) return
         setConfig(cfg)
         setItems(resolveItems(cfg, prefix))
+        setBays(Number(cfg?.bays ?? DEFAULT_BAYS))
       })
       .finally(() => { if (vivo) setLoading(false) })
     return () => { vivo = false }
@@ -73,6 +75,7 @@ export default function MetasConfig({ year, month }) {
     setItems(list => [...list, {
       id: nuevoId(), emoji: '🎯', label: '', goal: 0, manual: 0,
       group: 'detailing', source: 'manual', vehicles: [], keywords: [],
+      price: 0, margin: 0, bayDays: 0,
     }])
   }
   function eliminar(id) {
@@ -88,15 +91,18 @@ export default function MetasConfig({ year, month }) {
     if (items.some(i => !i.label.trim())) { toast.error('Todos los servicios necesitan nombre'); return }
     setSaving(true)
     try {
-      const definiciones = items.map(({ id, emoji, label, group, source, vehicles, keywords, goal }) => ({
+      const definiciones = items.map(({ id, emoji, label, group, source, vehicles, keywords, goal, price, margin, bayDays }) => ({
         id, emoji, label: label.trim(), group, source,
         vehicles: vehicles || [], keywords: keywords || [],
         goal: Number(goal) || 0, // sirve de respaldo si el mes no tiene número propio
+        // La economía no cambia mes a mes: viaja con la definición del servicio.
+        price: Number(price) || 0, margin: Number(margin) || 0, bayDays: Number(bayDays) || 0,
       }))
       const goalsMes  = Object.fromEntries(items.map(i => [i.id, Number(i.goal) || 0]))
       const manualMes = Object.fromEntries(items.map(i => [i.id, Number(i.manual) || 0]))
       const nuevo = {
         ...(config || {}),
+        bays:   Number(bays) || 0,
         items:  definiciones,
         goals:  { ...(config?.goals  || {}), [prefix]: goalsMes },
         manual: { ...(config?.manual || {}), [prefix]: manualMes },
@@ -112,6 +118,8 @@ export default function MetasConfig({ year, month }) {
   const totalMeta  = items.reduce((s, i) => s + (Number(i.goal) || 0), 0)
   const totalHecho = progreso.reduce((s, i) => s + Math.min(i.done, i.goal), 0)
   const totalPct   = totalMeta > 0 ? Math.round((totalHecho / totalMeta) * 100) : 0
+  const diasHabiles = getWorkingDaysInMonth(year, month)
+  const econ = computeEconomics(progreso, { costoFijo, diasHabiles, bays })
   const activos    = (vehicleTypes || []).filter(v => v.active !== false)
 
   return (
@@ -141,6 +149,48 @@ export default function MetasConfig({ year, month }) {
               <span className="font-bold text-gray-800 dark:text-gray-100">{totalHecho} de {totalMeta}</span>
             </div>
             <span className="text-lg font-black text-red-600 dark:text-red-400">{totalPct}%</span>
+          </div>
+
+          {/* ¿Cuánto genera este plan? Se recalcula al tipear, sin guardar. */}
+          <div className="p-3 mb-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
+            <div className="flex items-center gap-2 mb-2">
+              <Calculator className="w-4 h-4 text-gray-400" />
+              <p className="text-xs font-bold uppercase tracking-widest text-gray-500 flex-1">Si se cumple el plan</p>
+              <label className="flex items-center gap-1.5 text-[11px] text-gray-500">
+                Bahías
+                <input type="number" min="0" step="1" value={bays}
+                  onChange={e => setBays(e.target.value === '' ? 0 : Number(e.target.value))}
+                  className="w-14 text-center text-xs font-bold bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 py-1 focus:outline-none focus:ring-2 focus:ring-red-500" />
+              </label>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <div className="bg-white dark:bg-gray-900 rounded-xl px-3 py-2">
+                <p className="text-[10px] text-gray-400">Ingreso proyectado</p>
+                <p className="text-sm font-black text-gray-800 dark:text-gray-100 tabular-nums">{formatMoney(econ.ingresoMeta)}</p>
+              </div>
+              <div className="bg-white dark:bg-gray-900 rounded-xl px-3 py-2">
+                <p className="text-[10px] text-gray-400">Margen proyectado</p>
+                <p className="text-sm font-black text-gray-800 dark:text-gray-100 tabular-nums">{formatMoney(econ.margenMeta)}</p>
+              </div>
+              <div className="bg-white dark:bg-gray-900 rounded-xl px-3 py-2">
+                <p className="text-[10px] text-gray-400">Costo fijo del mes</p>
+                <p className="text-sm font-black text-gray-800 dark:text-gray-100 tabular-nums">{formatMoney(econ.costoFijo)}</p>
+              </div>
+              <div className="bg-white dark:bg-gray-900 rounded-xl px-3 py-2">
+                <p className="text-[10px] text-gray-400">Utilidad proyectada</p>
+                <p className={`text-sm font-black tabular-nums ${econ.utilidadMeta >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
+                  {formatMoney(econ.utilidadMeta)}
+                </p>
+              </div>
+            </div>
+            <p className="text-[11px] text-gray-400 mt-2 leading-snug">
+              Días de bahía necesarios: <strong>{econ.diasMeta.toFixed(1)}</strong> de {econ.capacidad.toFixed(0)} disponibles
+              ({diasHabiles} días hábiles × {bays} bahías) — <strong>{Math.round(econ.capacidadPct)}%</strong> de capacidad.
+              {econ.capacidadPct > 100 && ' El plan no entra en el taller.'}
+            </p>
+            <p className="text-[11px] text-gray-400 mt-1 leading-snug">
+              Generado hasta hoy: <strong>{formatMoney(econ.ingresoReal)}</strong> · margen {formatMoney(econ.margenReal)}
+            </p>
           </div>
 
           {/* Cabecera de columnas */}
@@ -198,6 +248,14 @@ export default function MetasConfig({ year, month }) {
                     </div>
                   </div>
 
+                  {/* Lo que aporta esta meta al plan */}
+                  <p className="text-[11px] text-gray-400 pl-1 mt-0.5">
+                    {item.goal > 0 && (Number(item.price) || Number(item.margin))
+                      ? <>Genera <strong className="text-gray-600 dark:text-gray-300">{formatMoney((Number(item.goal) || 0) * (Number(item.price) || 0))}</strong>
+                          {' '}· margen {formatMoney((Number(item.goal) || 0) * (Number(item.margin) || 0))}</>
+                      : 'Sin precio cargado — no suma al plan'}
+                  </p>
+
                   {/* Acciones de la fila */}
                   <div className="flex items-center gap-1 mt-1 pl-1">
                     <button onClick={() => setAbierto(expandido ? null : item.id)}
@@ -241,6 +299,32 @@ export default function MetasConfig({ year, month }) {
 
                       <p className="text-[11px] text-gray-400 leading-snug">
                         {FUENTES.find(f => f.value === item.source)?.hint}
+                      </p>
+
+                      {/* Economía del servicio: lo que hace que el plan tenga monto */}
+                      <div className="grid grid-cols-3 gap-2">
+                        <div>
+                          <label className="label text-xs">Precio unitario</label>
+                          <input type="number" min="0" step="1" className="input text-sm py-1.5"
+                            value={item.price ?? 0}
+                            onChange={e => update(item.id, { price: e.target.value === '' ? 0 : Number(e.target.value) })} />
+                        </div>
+                        <div>
+                          <label className="label text-xs">Margen unitario</label>
+                          <input type="number" min="0" step="1" className="input text-sm py-1.5"
+                            value={item.margin ?? 0}
+                            onChange={e => update(item.id, { margin: e.target.value === '' ? 0 : Number(e.target.value) })} />
+                        </div>
+                        <div>
+                          <label className="label text-xs">Días de bahía</label>
+                          <input type="number" min="0" step="0.05" className="input text-sm py-1.5"
+                            value={item.bayDays ?? 0}
+                            onChange={e => update(item.id, { bayDays: e.target.value === '' ? 0 : Number(e.target.value) })} />
+                        </div>
+                      </div>
+                      <p className="text-[11px] text-gray-400 leading-snug">
+                        El <strong>margen</strong> es lo que queda del precio después del material y la mano de obra.
+                        Los <strong>días de bahía</strong> dicen cuánto ocupa el taller una unidad (0.05 = un rato; 3 = tres días).
                       </p>
 
                       {item.source === 'vehiculo' && (

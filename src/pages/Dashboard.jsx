@@ -12,7 +12,7 @@ import {
 import StatCard from '../components/ui/StatCard'
 import Badge from '../components/ui/Badge'
 import {
-  TrendingUp, Car, DollarSign, AlertTriangle, Clock,
+  TrendingUp, Car, DollarSign, AlertTriangle, Clock, Receipt,
   CreditCard, Smartphone, Calendar, Award, Trophy, Gift, Plus, Trash2, Banknote,
   ChevronLeft, ChevronRight, X, Pencil
 } from 'lucide-react'
@@ -780,6 +780,14 @@ export default function Dashboard() {
       ? (rangeWorkingDays > 0 ? incomeGoal / rangeWorkingDays : 0)
       : (monthWorkingDaysTotal > 0 ? incomeGoal / monthWorkingDaysTotal : 0)
     const totalCars = periodTickets.length
+    // Ticket promedio: lo que deja cada vehículo atendido. Solo entra el dinero
+    // de los tickets — los resúmenes diarios no traen vehículos y bajarían el
+    // promedio con ingresos que no corresponden a ningún carro contado.
+    const avgTicket = totalCars > 0 ? ticketIncome / totalCars : 0
+    const autoTickets = periodTickets.filter(t => (t.vehicle_type || '').startsWith('auto'))
+    const avgTicketAuto = autoTickets.length > 0
+      ? autoTickets.reduce((s, t) => s + (t.price_charged || 0), 0) / autoTickets.length
+      : 0
 
     const efectivo      = periodTickets.filter(t => t.payment_method === 'efectivo').reduce((s, t) => s + t.price_charged, 0)
     const yape          = periodTickets.filter(t => t.payment_method === 'yape').reduce((s, t) => s + t.price_charged, 0)
@@ -822,7 +830,8 @@ export default function Dashboard() {
     const proportionRatio = hasRange && monthWorkingDaysTotal > 0 ? rangeWorkingDays / monthWorkingDaysTotal : 1
     return {
       totalIncome, netProfit, totalCosts, displayCosts, payrollTotal, rent, supplies, utilityGoal,
-      incomeGoal, progressPct, semaforo, totalCars, avgDailyActual, avgDailyNeeded,
+      incomeGoal, progressPct, semaforo, totalCars, avgTicket, avgTicketAuto, autoCars: autoTickets.length,
+      avgDailyActual, avgDailyNeeded,
       workingDaysElapsed, workingDaysRemaining, workingDaysTotal,
       bestDay, efectivo, yape, transferencia, onTrack, projectedIncome, dailyData,
       workerRanking, monthBonusAmt, workerExpTotal, periodExpenses, costItemsData,
@@ -995,11 +1004,14 @@ export default function Dashboard() {
       {panelOrder.map((sectionId, sIdx) => {
         const sectionContent = (() => {
           if (sectionId === 'kpis') return (
-            <div key="kpis" className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <div key="kpis" className="grid grid-cols-2 lg:grid-cols-5 gap-3">
               <StatCard label={hasRange ? 'Ingresos del rango' : 'Ingresos del mes'}   value={formatMoney(data.totalIncome)}  sub={`${data.totalCars} vehículos`} icon={DollarSign} color="red" />
               <StatCard label="Ganancia neta est." value={formatMoney(data.netProfit)}    sub={hasRange ? `Costos prop. a ${data.workingDaysElapsed} días hábiles` : `Costos proporcionales al día ${data.workingDaysElapsed}`} icon={TrendingUp} color="green" />
               <StatCard label={hasRange ? 'Gastos del rango' : 'Total gastos'} value={formatMoney(data.displayCosts)} sub={hasRange ? `Fijos prop. + gastos` : `Planilla: ${formatMoney(data.payrollTotal)}`} icon={CreditCard} color="neutral" />
-              <StatCard label="Vehículos"          value={data.totalCars}                 sub={`Prom: ${formatMoney(data.totalCars ? data.totalIncome / data.totalCars : 0)}/carro`} icon={Car} color="neutral" />
+              <StatCard label="Vehículos"          value={data.totalCars}                 sub={`Prom: ${formatMoney(data.avgTicket)}/carro`} icon={Car} color="neutral" />
+              <StatCard label="Ticket promedio"    value={formatMoney(data.avgTicket)}
+                sub={data.autoCars > 0 ? `Solo autos: ${formatMoney(data.avgTicketAuto)} (${data.autoCars})` : 'Por vehículo atendido'}
+                icon={Receipt} color="neutral" />
             </div>
           )
           // Adelantos de servicios en curso: dinero ya cobrado y lo que falta.

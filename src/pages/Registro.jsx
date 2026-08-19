@@ -935,7 +935,8 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
               <div>
                 <p className="text-xs text-gray-500 mb-1.5">Porcentaje</p>
                 <div className="flex flex-wrap gap-2">
-                  {[5,10,15,20,25,30].map(p => (
+                  {/* 40% es el premio más alto de la tarjeta de fidelidad. */}
+                  {[5,10,15,20,25,30,40].map(p => (
                     <button key={p} type="button" onClick={() => setDiscountPct(discountPct === p ? 0 : p)}
                       className={`px-3 py-1.5 rounded-xl text-xs font-bold border-2 transition-all ${discountPct === p ? 'border-red-500 bg-red-500 text-white' : 'border-red-200 dark:border-red-700 text-red-600 dark:text-red-400 hover:bg-red-100'}`}>
                       {p}%

@@ -61,6 +61,9 @@ import Dashboard from './pages/Dashboard'
 import DashboardTrabajador from './pages/DashboardTrabajador'
 import Registro from './pages/Registro'
 import AuthCallback from './pages/AuthCallback'
+// Página pública de fidelización: la abren los clientes desde su celular, así
+// que no pasa por Layout ni por sesión.
+const Fidelidad = lazy(() => import('./pages/Fidelidad'))
 
 // Páginas secundarias — lazy load (solo se descargan cuando el usuario navega ahí)
 const Trabajadores  = lazy(() => import('./pages/Trabajadores'))
@@ -78,6 +81,7 @@ const AsistenciaReporte  = lazy(() => import('./pages/AsistenciaReporte'))
 const Horarios           = lazy(() => import('./pages/Horarios'))
 const Correos            = lazy(() => import('./pages/Correos'))
 const Facturas           = lazy(() => import('./pages/Facturas'))
+const Clientes           = lazy(() => import('./pages/Clientes'))
 
 function HomeRoute() {
   const { isAdmin, isDemo } = useAuth()
@@ -106,6 +110,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
             <Routes>
               <Route path="/login" element={<Login />} />
               <Route path="/auth/callback" element={<AuthCallback />} />
+              <Route path="/fidelidad" element={<Suspense fallback={PageFallback}><Fidelidad /></Suspense>} />
               <Route path="/*" element={
                 <Layout>
                   <Suspense fallback={PageFallback}>
@@ -127,6 +132,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
                       <Route path="/horarios"          element={<AdminOnly><Horarios /></AdminOnly>} />
                       <Route path="/correos"           element={<AdminOnly><Correos /></AdminOnly>} />
                       <Route path="/facturas"          element={<AdminOnly><Facturas /></AdminOnly>} />
+                      <Route path="/clientes"          element={<AdminOnly><Clientes /></AdminOnly>} />
                     </Routes>
                   </Suspense>
                 </Layout>

@@ -248,3 +248,53 @@ $$;
 
 revoke all on function public.metas_tickets_mes(text) from public;
 grant execute on function public.metas_tickets_mes(text) to authenticated;
+
+-- ============================================================
+-- FIDELIZACIÓN — tarjeta virtual de sellos por placa
+-- ============================================================
+-- El cliente entra a /fidelidad (público, sin login) con su placa y un PIN de
+-- 4 dígitos. Los sellos se cuentan solos: 1 ticket cerrado de esa placa = 1
+-- sello. Los niveles de premio y las promos se editan desde /clientes y viven
+-- en app_settings.key = 'fidelidad'.
+--
+-- Toda la lectura pública pasa por funciones security definer, así que el
+-- visitante nunca toca las tablas: no puede ver precios, gastos ni las placas
+-- de los demás.
+
+alter table public.vehicle_clients
+  add column if not exists pin         text,
+  add column if not exists stamps_used integer not null default 0,  -- sellos ya consumidos por tarjetas completadas
+  add column if not exists cycle_index integer not null default 0,  -- número de tarjeta actual
+  add column if not exists updated_at  timestamptz default now();
+
+-- Placa normalizada: "ABC-123", "abc123" y "ABC 123" son el mismo cliente.
+alter table public.vehicle_clients
+  add column if not exists plate_norm text
+  generated always as (upper(regexp_replace(coalesce(plate,''), '[^A-Za-z0-9]', '', 'g'))) stored;
+
+create unique index if not exists vehicle_clients_plate_norm_idx on public.vehicle_clients (plate_norm);
+
+create table if not exists public.loyalty_redemptions (
+  id           uuid primary key default gen_random_uuid(),
+  plate_norm   text not null,
+  plate        text not null,
+  tier_stamps  integer not null,
+  reward_label text not null default '',
+  pct          numeric not null default 0,
+  cycle_index  integer not null default 0,
+  note         text,
+  redeemed_at  timestamptz not null default now()
+);
+
+create index if not exists loyalty_redemptions_plate_idx on public.loyalty_redemptions (plate_norm, cycle_index);
+
+alter table public.loyalty_redemptions enable row level security;
+
+create policy vehicle_clients_auth on public.vehicle_clients
+  for all to authenticated using (true) with check (true);
+create policy loyalty_redemptions_auth on public.loyalty_redemptions
+  for all to authenticated using (true) with check (true);
+
+-- Funciones: loyalty_config, loyalty_public_config, loyalty_card,
+-- loyalty_activate y loyalty_redeem. El cuerpo completo está en la migración
+-- `loyalty_program` ya aplicada en Supabase (Dashboard > Database > Migrations).

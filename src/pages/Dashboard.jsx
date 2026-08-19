@@ -1013,20 +1013,20 @@ export default function Dashboard() {
       {panelOrder.map((sectionId, sIdx) => {
         const sectionContent = (() => {
           if (sectionId === 'kpis') return (
-            <div key="kpis" className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+            <div key="kpis" className="grid grid-cols-2 md:grid-cols-3 gap-3">
               <StatCard label={hasRange ? 'Ingresos del rango' : 'Ingresos del mes'}   value={formatMoney(data.totalIncome)}  sub={`${data.totalCars} vehículos`} icon={DollarSign} color="red" />
               <StatCard label="Ganancia neta est." value={formatMoney(data.netProfit)}    sub={hasRange ? `Costos prop. a ${data.workingDaysElapsed} días hábiles` : `Costos proporcionales al día ${data.workingDaysElapsed}`} icon={TrendingUp} color="green" />
               <StatCard label={hasRange ? 'Gastos del rango' : 'Total gastos'} value={formatMoney(data.displayCosts)} sub={hasRange ? `Fijos prop. + gastos` : `Planilla: ${formatMoney(data.payrollTotal)}`} icon={CreditCard} color="neutral" />
               <StatCard label="Vehículos"          value={data.totalCars}                 sub={`Prom: ${formatMoney(data.avgTicket)}/carro`} icon={Car} color="neutral" />
               <StatCard label="Ticket promedio"    value={formatMoney(data.avgTicket)}
-                sub={<>
-                  {data.totalCars} cerrados{data.autoCars > 0 && ` · autos ${formatMoney(data.avgTicketAuto)}`}
-                  <br />
-                  {data.ticketsAbiertos > 0
-                    ? <>Con {data.ticketsAbiertos} abiertos: <strong className="text-gray-500 dark:text-gray-400">{formatMoney(data.avgTicketConAbiertos)}</strong></>
-                    : 'Sin servicios abiertos'}
-                </>}
+                sub={`${data.totalCars} cerrados${data.autoCars > 0 ? ` · autos ${formatMoney(data.avgTicketAuto)}` : ''}`}
                 icon={Receipt} color="neutral" />
+              {/* El mismo promedio contando lo que dejarán los servicios en curso. */}
+              <StatCard label="Ticket prom. con abiertos" value={formatMoney(data.avgTicketConAbiertos)}
+                sub={data.ticketsAbiertos > 0
+                  ? `Incluye ${data.ticketsAbiertos} en curso · ${data.carsConAbiertos} vehículos`
+                  : 'Sin servicios abiertos'}
+                icon={Clock} color="neutral" />
             </div>
           )
           // Adelantos de servicios en curso: dinero ya cobrado y lo que falta.

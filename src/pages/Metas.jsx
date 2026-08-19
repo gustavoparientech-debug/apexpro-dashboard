@@ -108,7 +108,12 @@ function GrupoCard({ grupo, items, expectedPct, diasRestantes, verDinero }) {
   if (!items.length) return null
   const meta = items.reduce((s, i) => s + i.goal, 0)
   const hecho = items.reduce((s, i) => s + Math.min(i.done, i.goal || i.done), 0)
-  const pct = meta > 0 ? Math.round((hecho / meta) * 100) : 0
+  // El porcentaje del grupo pesa el dinero de cada meta, no cuántas son.
+  const metaMonto  = items.reduce((s, i) => s + i.goal * (i.price || 0), 0)
+  const hechoMonto = items.reduce((s, i) => s + Math.min(i.done, i.goal || i.done) * (i.price || 0), 0)
+  const pct = metaMonto > 0
+    ? Math.round((hechoMonto / metaMonto) * 100)
+    : (meta > 0 ? Math.round((hecho / meta) * 100) : 0)
 
   return (
     <div className="card p-0 overflow-hidden">
@@ -197,16 +202,6 @@ export default function Metas() {
     [config, rows, prefix, today]
   )
 
-  const total = useMemo(() => {
-    const meta  = progreso.reduce((s, i) => s + i.goal, 0)
-    // El avance global cuenta cada meta hasta su tope: 300 lavados no compensan
-    // un cerámico que no se hizo.
-    const hecho = progreso.reduce((s, i) => s + Math.min(i.done, i.goal), 0)
-    const hoy   = progreso.reduce((s, i) => s + i.hoy, 0)
-    const pct   = meta > 0 ? Math.round((hecho / meta) * 100) : 0
-    return { meta, hecho, hoy, pct, faltan: Math.max(0, meta - hecho) }
-  }, [progreso])
-
   // El plan en dinero: lo mismo que el plan mensual en Excel, con los precios y
   // márgenes que el admin carga en Configuración.
   const costoFijo = useMemo(
@@ -225,6 +220,20 @@ export default function Metas() {
     () => [...econ.porItem].filter(i => i.margenMeta > 0).sort((a, b) => b.margenMeta - a.margenMeta).slice(0, 5),
     [econ]
   )
+
+  const total = useMemo(() => {
+    const meta  = progreso.reduce((s, i) => s + i.goal, 0)
+    // El avance global cuenta cada meta hasta su tope: 300 lavados no compensan
+    // un cerámico que no se hizo.
+    const hecho = progreso.reduce((s, i) => s + Math.min(i.done, i.goal), 0)
+    const hoy   = progreso.reduce((s, i) => s + i.hoy, 0)
+    // Y se mide en dinero, no en cantidad: cien lavados no valen lo que un PPF.
+    // Sin precios cargados se cae al conteo, que es lo único que hay.
+    const pct = econ.ingresoMeta > 0
+      ? econ.pct
+      : (meta > 0 ? Math.round((hecho / meta) * 100) : 0)
+    return { meta, hecho, hoy, pct, faltan: Math.max(0, meta - hecho) }
+  }, [progreso, econ])
 
   const estadoGlobal = ESTADO[total.meta ? estadoMeta(total.pct, expectedPct) : 'sinmeta']
   const ritmoDia = total.faltan > 0 && diasRestantes > 0 ? total.faltan / diasRestantes : 0
@@ -262,7 +271,7 @@ export default function Metas() {
             <Ring pct={total.pct} className={estadoGlobal.ring} />
             <div className="absolute inset-0 flex flex-col items-center justify-center">
               <span className="text-white text-3xl font-black leading-none">{total.pct}%</span>
-              <span className="text-[10px] text-gray-400 uppercase tracking-wider mt-1">avance</span>
+              <span className="text-[10px] text-gray-400 uppercase tracking-wider mt-1">del plan</span>
             </div>
           </div>
 
@@ -429,6 +438,10 @@ export default function Metas() {
         <p className="text-[11px] text-gray-400 mt-2 leading-relaxed">
           La línea gris dentro de cada barra marca dónde deberíamos ir hoy ({expectedPct}% del mes).
           Si la barra pasa la línea, vamos adelantados.
+        </p>
+        <p className="text-[11px] text-gray-400 mt-1.5 leading-relaxed">
+          El porcentaje del mes pesa lo que vale cada servicio, no cuántos son: cien lavados
+          no equivalen a un PPF.
         </p>
       </div>
     </div>

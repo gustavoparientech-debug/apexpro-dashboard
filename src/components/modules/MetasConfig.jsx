@@ -117,9 +117,12 @@ export default function MetasConfig({ year, month, costoFijo = 0 }) {
 
   const totalMeta  = items.reduce((s, i) => s + (Number(i.goal) || 0), 0)
   const totalHecho = progreso.reduce((s, i) => s + Math.min(i.done, i.goal), 0)
-  const totalPct   = totalMeta > 0 ? Math.round((totalHecho / totalMeta) * 100) : 0
   const diasHabiles = getWorkingDaysInMonth(year, month)
   const econ = computeEconomics(progreso, { costoFijo, diasHabiles, bays })
+  // El avance se mide en dinero: cien lavados no equivalen a un PPF.
+  const totalPct   = econ.ingresoMeta > 0
+    ? econ.pct
+    : (totalMeta > 0 ? Math.round((totalHecho / totalMeta) * 100) : 0)
   const activos    = (vehicleTypes || []).filter(v => v.active !== false)
 
   return (
@@ -146,7 +149,8 @@ export default function MetasConfig({ year, month, costoFijo = 0 }) {
           <div className="flex items-center justify-between gap-3 p-3 my-3 rounded-xl bg-red-50 dark:bg-red-900/10 border border-red-100 dark:border-red-900/30">
             <div className="text-sm">
               <span className="text-gray-500">Avance del mes: </span>
-              <span className="font-bold text-gray-800 dark:text-gray-100">{totalHecho} de {totalMeta}</span>
+              <span className="font-bold text-gray-800 dark:text-gray-100">{formatMoney(econ.ingresoLogrado)} de {formatMoney(econ.ingresoMeta)}</span>
+              <span className="text-gray-400 text-xs"> · {totalHecho} de {totalMeta} servicios</span>
             </div>
             <span className="text-lg font-black text-red-600 dark:text-red-400">{totalPct}%</span>
           </div>

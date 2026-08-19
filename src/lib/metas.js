@@ -178,6 +178,9 @@ export function computeEconomics(items, { costoFijo = 0, diasHabiles = 0, bays =
       margenMeta:  goal * margin,
       ingresoReal: done * price,
       margenReal:  done * margin,
+      // Tope en la meta: 300 lavados de más no tapan un cerámico que no se hizo.
+      ingresoLogrado: Math.min(done, goal || done) * price,
+      margenLogrado:  Math.min(done, goal || done) * margin,
       diasMeta:    goal * bayDays,
       diasReal:    done * bayDays,
     }
@@ -187,6 +190,8 @@ export function computeEconomics(items, { costoFijo = 0, diasHabiles = 0, bays =
   const margenMeta  = sum('margenMeta')
   const ingresoReal = sum('ingresoReal')
   const margenReal  = sum('margenReal')
+  const ingresoLogrado = sum('ingresoLogrado')
+  const margenLogrado  = sum('margenLogrado')
   const diasMeta    = sum('diasMeta')
   const diasReal    = sum('diasReal')
   const capacidad   = (Number(diasHabiles) || 0) * (Number(bays) || 0)
@@ -197,6 +202,10 @@ export function computeEconomics(items, { costoFijo = 0, diasHabiles = 0, bays =
       pctMargen: margenMeta > 0 ? (i.margenMeta / margenMeta) * 100 : 0,
     })),
     ingresoMeta, margenMeta, ingresoReal, margenReal,
+    ingresoLogrado, margenLogrado,
+    // El avance del mes se mide en dinero, no en cantidad de servicios: cien
+    // lavados no equivalen a un PPF.
+    pct: ingresoMeta > 0 ? Math.round((ingresoLogrado / ingresoMeta) * 100) : 0,
     diasMeta, diasReal, capacidad,
     capacidadPct: capacidad > 0 ? (diasMeta / capacidad) * 100 : 0,
     costoFijo,

@@ -2459,26 +2459,28 @@ export default function Registro() {
                 {canAdmin ? (hasRange ? 'Total rango' : fechaLabel.split(',')[0]) : new Date().toLocaleDateString('es-PE', { weekday: 'long' }).toUpperCase()}
                 {canAdmin && !hasRange && selectedDate !== today && <span className="ml-1.5 text-amber-400">· Lectura</span>}
               </p>
-              <p className={`text-3xl font-black leading-none tracking-tight ${dayTotal >= 0 ? 'text-white' : 'text-red-400'}`}>
-                {hideTotal && canAdmin ? '•••••' : formatMoney(dayTotal)}
-              </p>
-              {expensesTodayTotal > 0 && (
-                <div className="flex items-center gap-3 mt-2">
-                  <div className="flex items-center gap-1">
-                    <span className="text-[10px] text-white/40 uppercase tracking-widest">Ingresos</span>
-                    <span className="text-xs font-bold text-white/70">{hideTotal && canAdmin ? '•••' : formatMoney(dayGross)}</span>
-                  </div>
-                  <div className="w-px h-3 bg-white/20" />
-                  <div className="flex items-center gap-1">
-                    <span className="text-[10px] text-white/40 uppercase tracking-widest">Gastos</span>
-                    <span className="text-xs font-bold text-amber-400">-{hideTotal && canAdmin ? '•••' : formatMoney(expensesTodayTotal)}</span>
-                  </div>
+              {/* Los dos montos que importan: lo que entró y lo que queda después
+                  de los gastos del día. Antes el grande era solo el neto y el
+                  bruto quedaba en letra chica. */}
+              <div className="flex items-end gap-3 flex-wrap">
+                <div>
+                  <p className="text-[10px] font-bold text-white/40 uppercase tracking-widest leading-none mb-1">Ingresó</p>
+                  <p className="text-2xl sm:text-3xl font-black leading-none tracking-tight text-white">
+                    {hideTotal && canAdmin ? '•••••' : formatMoney(dayGross)}
+                  </p>
                 </div>
-              )}
-              {expensesTodayTotal === 0 && dayGross > 0 && (
+                <div className="w-px h-7 bg-white/20 mb-1" />
+                <div>
+                  <p className="text-[10px] font-bold text-white/40 uppercase tracking-widest leading-none mb-1">Queda</p>
+                  <p className={`text-2xl sm:text-3xl font-black leading-none tracking-tight ${dayTotal >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                    {hideTotal && canAdmin ? '•••••' : formatMoney(dayTotal)}
+                  </p>
+                </div>
+              </div>
+              {expensesTodayTotal > 0 && (
                 <div className="flex items-center gap-1 mt-2">
-                  <span className="text-[10px] text-white/40 uppercase tracking-widest">Ingresos</span>
-                  <span className="text-xs font-bold text-white/70">{hideTotal && canAdmin ? '•••' : formatMoney(dayGross)}</span>
+                  <span className="text-[10px] text-white/40 uppercase tracking-widest">Gastos descontados</span>
+                  <span className="text-xs font-bold text-amber-400">-{hideTotal && canAdmin ? '•••' : formatMoney(expensesTodayTotal)}</span>
                 </div>
               )}
             </div>

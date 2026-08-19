@@ -761,9 +761,11 @@ export default function Presupuesto() {
   const tierBrand = BRANDS.find(b => b.tier === selectedTier)
   const vtLabel = VEHICLE_TYPES.find(v => v.id === vehicleType)
 
-  // Descuento proporcional: 0% con 1 paño, sube linealmente hasta 25% con todos los paños
+  // Descuento proporcional: 0% con 1 paño, sube linealmente hasta 15% con todos
+  // los paños. El techo era 25% y en un vehiculo completo se regalaba demasiado.
+  const AUTO_DISCOUNT_MAX_PCT = 15
   const totalPanels = config.panels.length
-  const autoDiscountPct = selectedCount >= 2 ? Math.max(3, Math.round((selectedCount / totalPanels) * 25)) : 0
+  const autoDiscountPct = selectedCount >= 2 ? Math.max(3, Math.round((selectedCount / totalPanels) * AUTO_DISCOUNT_MAX_PCT)) : 0
   const [manualDiscountPct, setManualDiscountPct] = useState(null) // null = usar automático
   const discountPct = manualDiscountPct !== null ? manualDiscountPct : autoDiscountPct
   const discountAmt = Math.round(total * discountPct / 100)

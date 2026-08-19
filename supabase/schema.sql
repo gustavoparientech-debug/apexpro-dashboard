@@ -319,3 +319,9 @@ create policy loyalty_redemptions_auth on public.loyalty_redemptions
 --
 -- El cuerpo completo está en las migraciones `loyalty_staff_lookup` y
 -- `loyalty_redeem_staff`, ya aplicadas en Supabase.
+--
+--   loyalty_undo_staff(placa, nivel)
+--                                  → deshace un bono cobrado por error. Si ese
+--                                    canje había reiniciado la tarjeta, devuelve
+--                                    el ciclo y descarta lo cobrado en la
+--                                    tarjeta que ya había arrancado.

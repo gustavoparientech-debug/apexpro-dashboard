@@ -20,7 +20,7 @@ import ConfirmDialog from '../components/ui/ConfirmDialog'
 import { Plus, Camera, Search, X, Clock, CheckCircle, Trash2, PenLine, Zap, Save, ChevronLeft, ChevronRight, Eye, EyeOff, AlertCircle, TrendingDown, Gift } from 'lucide-react'
 import {
   cardState, cardsFromTickets, fetchStaffCards, loadConfig as loadFidelidadConfig,
-  normPlate, redeemTier, REDEEM_ERRORS, DEFAULT_CONFIG as FIDELIDAD_DEFAULT,
+  normPlate, redeemTier, undoTier, REDEEM_ERRORS, DEFAULT_CONFIG as FIDELIDAD_DEFAULT,
 } from '../lib/fidelidad'
 import { IncidentForm } from './Trabajadores'
 import toast from 'react-hot-toast'
@@ -765,6 +765,29 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
     } finally { setCobrandoBono(false) }
   }
 
+  // El bono se cobró por error: se borra el canje y, si ese canje había
+  // reiniciado la tarjeta, vuelve el ciclo anterior. El descuento del ticket se
+  // limpia solo si es el del bono.
+  async function handleDeshacerBono(tier) {
+    setCobrandoBono(true)
+    try {
+      const res = await undoTier(ticket.plate, tier.sellos)
+      if (res?.status && res.status !== 'ok') {
+        toast.error(REDEEM_ERRORS[res.status] || 'No se pudo deshacer')
+        return
+      }
+      setConfirmTier(null)
+      if (Number(discountPct) === Number(tier.pct)) {
+        setDiscountPct(0)
+        await onUpdate(ticket.id, { discount_pct: 0 })
+      }
+      await onLoyaltyChange?.()
+      toast.success(`Bono ${tier.pct}% devuelto a la tarjeta`)
+    } catch {
+      toast.error('No se pudo deshacer')
+    } finally { setCobrandoBono(false) }
+  }
+
   async function handleClose() {
     if (isMixto && !mixtoOk) {
       toast.error(`La suma debe ser ${formatMoney(total)} (falta ${formatMoney(total - mixtoSum)})`)
@@ -947,7 +970,7 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
 
         {/* Tarjeta de fidelidad del cliente */}
         <LoyaltyPanel plate={ticket.plate} card={loyaltyCard} config={loyaltyConfig}
-          onCobrar={handleCobrarBono} cobrando={cobrandoBono}
+          onCobrar={handleCobrarBono} onDeshacer={handleDeshacerBono} cobrando={cobrandoBono}
           confirmTier={confirmTier} setConfirmTier={setConfirmTier} />
 
         {/* Descuento */}
@@ -1410,7 +1433,7 @@ function LoyaltyBadge({ card, config }) {
 // Panel del ticket: el check que cobra el bono. Al marcarlo se registra el
 // canje y se aplica el descuento; si es el último nivel, la tarjeta se
 // reinicia sola y arranca la siguiente.
-function LoyaltyPanel({ plate, card, config, onCobrar, cobrando, confirmTier, setConfirmTier }) {
+function LoyaltyPanel({ plate, card, config, onCobrar, onDeshacer, cobrando, confirmTier, setConfirmTier }) {
   if (!plate || normPlate(plate).length < 4) return null
   const est = cardState(card || { sellos: 0, canjeados: [] }, config)
 
@@ -1471,6 +1494,16 @@ function LoyaltyPanel({ plate, card, config, onCobrar, cobrando, confirmTier, se
                     <p className="text-[10px] text-gray-400">Faltan {t.sellos - est.sellos} para desbloquearlo</p>
                   )}
                 </div>
+                {t.canjeado && (
+                  <button type="button" disabled={cobrando}
+                    onClick={() => confirmando ? onDeshacer(t) : setConfirmTier(t.sellos)}
+                    title="Si lo cobraste por error, esto lo devuelve"
+                    className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold flex-none transition-colors ${
+                      confirmando ? 'bg-red-600 text-white' : 'bg-white dark:bg-gray-900 text-gray-500 border border-gray-300 dark:border-gray-600 hover:text-gray-700'
+                    } disabled:opacity-50`}>
+                    {confirmando ? 'Confirmar' : 'Deshacer'}
+                  </button>
+                )}
                 {t.disponible && (
                   <button type="button" disabled={cobrando}
                     onClick={() => confirmando ? onCobrar(t) : setConfirmTier(t.sellos)}

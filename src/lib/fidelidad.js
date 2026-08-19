@@ -133,6 +133,15 @@ export async function redeemTier(plate, tier, note) {
   return data
 }
 
+// Deshacer un bono cobrado por error: borra el canje y, si ese canje había
+// reiniciado la tarjeta, devuelve el ciclo.
+export async function undoTier(plate, tier) {
+  if (IS_DEMO) return { status: 'ok' }
+  const { data, error } = await supabase.rpc('loyalty_undo_staff', { p_plate: plate, p_tier: tier })
+  if (error) throw error
+  return data
+}
+
 export const REDEEM_ERRORS = {
   no_autorizado:        'Inicia sesión para canjear',
   no_encontrada:        'Esa placa todavía no tiene servicios cerrados',
@@ -140,6 +149,7 @@ export const REDEEM_ERRORS = {
   nivel_invalido:       'Ese premio ya no existe en la configuración',
   sellos_insuficientes: 'Todavía no llega a ese premio',
   ya_canjeado:          'Ese premio ya fue canjeado en esta tarjeta',
+  no_canjeado:          'Ese bono no figura como cobrado',
 }
 
 // ─── Estado derivado de la tarjeta ──────────────────────────────────────────

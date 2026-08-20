@@ -12,9 +12,16 @@ class ErrorBoundary extends Component {
           <div style={{ fontSize:'3rem', marginBottom:'1rem' }}>⚠️</div>
           <h2 style={{ fontSize:'1.2rem', fontWeight:'bold', marginBottom:'0.5rem', color:'#dc2626' }}>Ocurrió un error</h2>
           <p style={{ color:'#666', fontSize:'0.9rem', marginBottom:'1.5rem' }}>{this.state.error?.message || 'Error desconocido'}</p>
-          <button onClick={() => { this.setState({ hasError: false, error: null }); window.location.reload() }} style={{ background:'#dc2626', color:'#fff', border:'none', borderRadius:'8px', padding:'0.75rem 2rem', fontSize:'1rem', cursor:'pointer' }}>
-            Recargar
-          </button>
+          {/* Con solo "Recargar" la pantalla quedaba trabada en el error: si la
+              página que falla es la que se recarga, vuelve a fallar. */}
+          <div style={{ display:'flex', gap:'0.75rem', justifyContent:'center', flexWrap:'wrap' }}>
+            <button onClick={() => { this.setState({ hasError: false, error: null }); window.location.reload() }} style={{ background:'#dc2626', color:'#fff', border:'none', borderRadius:'8px', padding:'0.75rem 2rem', fontSize:'1rem', cursor:'pointer' }}>
+              Recargar
+            </button>
+            <button onClick={() => { this.setState({ hasError: false, error: null }); window.location.href = '/' }} style={{ background:'#fff', color:'#374151', border:'1px solid #d1d5db', borderRadius:'8px', padding:'0.75rem 2rem', fontSize:'1rem', cursor:'pointer' }}>
+              Ir al inicio
+            </button>
+          </div>
         </div>
       </div>
     )

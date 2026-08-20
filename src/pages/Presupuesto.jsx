@@ -3308,7 +3308,7 @@ export default function Presupuesto() {
                 if (!citaForm.client.trim()) { toast.error('Falta el cliente'); return }
                 setSavingCita(true)
                 try {
-                  await addCita({ ...citaForm, status: 'pendiente' })
+                  await addCita({ ...citaForm, status: 'pending' })
                   toast.success('Cita agendada ✓')
                   setCitaModal(null)
                   navigate('/citas')

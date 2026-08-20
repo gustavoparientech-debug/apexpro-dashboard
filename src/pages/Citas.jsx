@@ -245,7 +245,9 @@ function CitaCard({ cita, canAdmin, onEdit, onDelete, onStatus }) {
     arrived:  { label: 'Llegó',     icon: CheckCircle2,  cls: 'text-emerald-500' },
     no_show:  { label: 'No llegó',  icon: XCircle,       cls: 'text-red-500' },
   }
-  const sc = statusCfg[status]
+  // Una cita guardada con otro estado (o desde otra pantalla) no puede tumbar
+  // la página entera: si no se reconoce, se muestra como pendiente.
+  const sc = statusCfg[status] || statusCfg.pending
 
   // Borde especial según estado
   const cardBorder = status === 'arrived'

@@ -1125,14 +1125,30 @@ export function AppProvider({ children }) {
   // Cerámico, PPF, polarizado y planchado salen de Presupuesto para no mantener
   // dos listas de precios.
   const [presupuestoServices, setPresupuestoServices] = useState([])
-  useEffect(() => {
+  const [presupuestoConfig, setPresupuestoConfig]     = useState(null)
+  const reloadPresupuestoServices = useCallback(async () => {
     if (IS_DEMO) return
-    let vivo = true
-    fetchCatalogoOverrides()
-      .then(ov => { if (vivo) setPresupuestoServices(serviciosDePresupuesto(ov)) })
-      .catch(() => {})
-    return () => { vivo = false }
+    try {
+      const ov = await fetchCatalogoOverrides()
+      setPresupuestoServices(serviciosDePresupuesto(ov))
+      setPresupuestoConfig(ov.config)
+    } catch { /* si falla, el ticket sigue con lo que ya tenía */ }
   }, [])
+
+  useEffect(() => {
+    reloadPresupuestoServices()
+    if (IS_DEMO) return
+    // Lo que el admin cambia en Presupuesto tiene que verse al toque al abrir
+    // un ticket, aunque sea desde otro dispositivo.
+    const ch = supabase
+      .channel('catalogo-presupuesto')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'app_settings' }, payload => {
+        const key = payload.new?.key || payload.old?.key
+        if (['cat_meta', 'cat_prices', 'presupuesto_config'].includes(key)) reloadPresupuestoServices()
+      })
+      .subscribe()
+    return () => { supabase.removeChannel(ch) }
+  }, [reloadPresupuestoServices])
 
   return (
     <AppContext.Provider value={{
@@ -1142,6 +1158,8 @@ export function AppProvider({ children }) {
       // edita `vehicleTypes`; los de Presupuesto se editan en su pantalla.
       serviciosTicket: [...state.vehicleTypes, ...presupuestoServices],
       presupuestoServices,
+      presupuestoConfig,
+      reloadPresupuestoServices,
       isDemo: IS_DEMO,
       loadData,
       invalidateAllCache,

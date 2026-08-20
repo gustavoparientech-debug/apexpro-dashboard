@@ -18,6 +18,7 @@ import { supabase } from '../lib/supabase'
 import { formatMoney, todayISO, compressImage } from '../lib/utils'
 import ConfirmDialog from '../components/ui/ConfirmDialog'
 import { CATEGORIAS, catInfo, porCategoria } from '../lib/servicios'
+import { planchadoConfig, precioPanel, PLANCHADO_GAMAS, PLANCHADO_VEHICULOS } from '../lib/catalogoPresupuesto'
 import { Plus, Camera, Search, X, Clock, CheckCircle, Trash2, PenLine, Zap, Save, ChevronLeft, ChevronRight, Eye, EyeOff, AlertCircle, TrendingDown, Gift, RotateCcw } from 'lucide-react'
 import {
   cardState, cardsFromTickets, fetchStaffCards, loadConfig as loadFidelidadConfig,
@@ -255,7 +256,119 @@ function PresupuestoResumen({ defaultExtras, form, vehicleTypes, discountPct, pr
 }
 
 // ─── Formulario nuevo ticket (simplificado) ───────────────────────────────────
+// ─── Planchado y pintura ─────────────────────────────────────────────────────
+// Se cotiza igual que en Presupuesto: gama de la marca × vehículo × paneles.
+// El ticket se abre con el total y el detalle de los paneles en las notas.
+function PlanchadoPicker({ config, onConfirm, onClose }) {
+  const { basePrices, panels } = useMemo(() => planchadoConfig(config), [config])
+  const [gama, setGama]       = useState('standard')
+  const [vehiculo, setVehiculo] = useState('auto')
+  const [sel, setSel]         = useState({})
+
+  const elegidos = panels.filter(p => sel[p.id])
+  const total = elegidos.reduce((s, p) => s + precioPanel(p, gama, vehiculo, basePrices), 0)
+
+  return (
+    <div className="fixed inset-0 z-50 flex flex-col justify-end" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/40" />
+      <div className="relative bg-white dark:bg-gray-900 rounded-t-3xl shadow-2xl max-h-[88vh] flex flex-col"
+        onClick={e => e.stopPropagation()}>
+        <div className="px-5 pt-3 pb-2 border-b border-gray-100 dark:border-gray-800">
+          <div className="flex justify-center mb-3">
+            <div className="w-10 h-1 rounded-full bg-gray-300 dark:bg-gray-600" />
+          </div>
+          <p className="text-sm font-bold text-gray-800 dark:text-gray-100">🔨 Planchado y pintura</p>
+          <p className="text-[11px] text-gray-400 mt-0.5">Los precios salen de Presupuesto</p>
+
+          <div className="mt-3 space-y-2">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">Gama de la marca</p>
+              <div className="grid grid-cols-3 gap-1.5">
+                {PLANCHADO_GAMAS.map(g => (
+                  <button key={g.value} type="button" onClick={() => setGama(g.value)}
+                    className={`px-2 py-1.5 rounded-xl border text-xs font-bold transition-all ${
+                      gama === g.value ? 'border-red-500 bg-red-600 text-white' : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300'
+                    }`}>
+                    {g.label}
+                    <span className="block text-[9px] font-normal opacity-70 leading-tight">S/ {basePrices[g.value]}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">Vehículo</p>
+              <div className="grid grid-cols-3 gap-1.5">
+                {PLANCHADO_VEHICULOS.map(v => (
+                  <button key={v.value} type="button" onClick={() => setVehiculo(v.value)}
+                    className={`px-2 py-1.5 rounded-xl border text-xs font-bold transition-all ${
+                      vehiculo === v.value ? 'border-red-500 bg-red-600 text-white' : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300'
+                    }`}>
+                    {v.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-5 py-3">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1.5">Paneles a trabajar</p>
+          <div className="space-y-1">
+            {panels.map(p => {
+              const precio = precioPanel(p, gama, vehiculo, basePrices)
+              const marcado = !!sel[p.id]
+              return (
+                <button key={p.id} type="button"
+                  onClick={() => setSel(m => ({ ...m, [p.id]: !m[p.id] }))}
+                  className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl border text-left transition-all ${
+                    marcado ? 'border-red-300 bg-red-50 dark:bg-red-900/20' : 'border-gray-100 dark:border-gray-800'
+                  }`}>
+                  <span className={`w-4 h-4 rounded border-2 flex-none flex items-center justify-center ${
+                    marcado ? 'bg-red-600 border-red-600' : 'border-gray-300 dark:border-gray-600'
+                  }`}>
+                    {marcado && <span className="text-white text-[10px] leading-none">✓</span>}
+                  </span>
+                  <span className="flex-1 text-sm text-gray-700 dark:text-gray-200">{p.label}</span>
+                  <span className={`text-xs font-bold ${marcado ? 'text-red-600' : 'text-gray-400'}`}>{formatMoney(precio)}</span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        <div className="px-5 py-3 border-t border-gray-100 dark:border-gray-800 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-gray-500">
+              {elegidos.length} panel{elegidos.length === 1 ? '' : 'es'} · {PLANCHADO_GAMAS.find(g => g.value === gama)?.label} · {PLANCHADO_VEHICULOS.find(v => v.value === vehiculo)?.label}
+            </span>
+            <span className="text-lg font-black text-gray-900 dark:text-white">{formatMoney(total)}</span>
+          </div>
+          <div className="flex gap-2">
+            <button type="button" onClick={onClose}
+              className="px-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 text-sm text-gray-500">
+              Cancelar
+            </button>
+            <button type="button" disabled={elegidos.length === 0}
+              onClick={() => onConfirm({
+                total,
+                resumen: `${elegidos.length} panel${elegidos.length === 1 ? '' : 'es'} · ${PLANCHADO_GAMAS.find(g => g.value === gama)?.label} · ${PLANCHADO_VEHICULOS.find(v => v.value === vehiculo)?.label}`,
+                detalle: elegidos.map(p => `${p.label} ${formatMoney(precioPanel(p, gama, vehiculo, basePrices))}`).join(' · '),
+              })}
+              className="flex-1 py-2.5 rounded-xl bg-red-600 text-white text-sm font-bold disabled:opacity-40">
+              Usar {formatMoney(total)}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function NewTicketForm({ onSave, onClose, workers, vehicleTypes, lockedWorkerId, canAdmin, defaultDate, allTickets, defaultExtras, defaultStatus, defaultPriceCharged, defaultDiscountPct, defaultVehicleType, defaultVehicleSubtype, presupuestoSections }) {
+  // Al abrir el ticket se recarga el catálogo de Presupuesto: si el admin acaba
+  // de cambiar un precio ahí, tiene que estar acá sin recargar la página.
+  const { presupuestoConfig, reloadPresupuestoServices } = useApp()
+  useEffect(() => { reloadPresupuestoServices?.() }, [])
   const [form, setForm] = useState({
     date:           defaultDate || todayISO(),
     worker_id:      lockedWorkerId || '',
@@ -305,6 +418,7 @@ export function NewTicketForm({ onSave, onClose, workers, vehicleTypes, lockedWo
   }
 
   const [vehicleVariantPicker, setVehicleVariantPicker] = useState(null) // vt object
+  const [planchadoPicker, setPlanchadoPicker] = useState(null)
 
   // Primer nivel del ticket: la categoría. El segundo son los servicios de esa
   // categoría y el tercero la variante con su precio.
@@ -314,6 +428,10 @@ export function NewTicketForm({ onSave, onClose, workers, vehicleTypes, lockedWo
   const serviciosCat = grupos.find(g => g.value === catActiva)?.servicios || []
 
   function handleVehicle(vt) {
+    if (vt.planchado) {
+      setPlanchadoPicker(vt)
+      return
+    }
     if (vt.variants?.length > 0) {
       setVehicleVariantPicker(vt)
     } else {
@@ -325,6 +443,20 @@ export function NewTicketForm({ onSave, onClose, workers, vehicleTypes, lockedWo
   function handleVehicleVariant(vt, variant) {
     setForm(f => ({ ...f, vehicle_type: vt.value, price_charged: variant.price, vehicle_subtype: variant.label, service_cat: vt.category || '' }))
     setVehicleVariantPicker(null)
+  }
+
+  // El planchado se arma en su ventana: paneles, gama y vehículo. El detalle de
+  // los paneles queda en las notas del ticket.
+  function handlePlanchado(vt, { total, resumen, detalle }) {
+    setForm(f => ({
+      ...f,
+      vehicle_type: vt.value,
+      vehicle_subtype: resumen,
+      price_charged: total,
+      service_cat: vt.category || '',
+      notes: [f.notes, `Planchado: ${detalle}`].filter(Boolean).join(' · '),
+    }))
+    setPlanchadoPicker(null)
   }
 
   const missing = []
@@ -469,7 +601,7 @@ export function NewTicketForm({ onSave, onClose, workers, vehicleTypes, lockedWo
                     </span>
                   )}
                   {hasVariants && (
-                    <span className="text-[10px] font-semibold text-indigo-400 shrink-0">{v.variants.length} precios</span>
+                    <span className="text-[10px] font-semibold text-indigo-400 shrink-0">{v.variants.length} precio{v.variants.length === 1 ? '' : 's'}</span>
                   )}
                 </button>
               )
@@ -501,7 +633,12 @@ export function NewTicketForm({ onSave, onClose, workers, vehicleTypes, lockedWo
               </div>
             </div>
           )}
-          {form.vehicle_type && !vehicleVariantPicker && (
+          {planchadoPicker && (
+            <PlanchadoPicker config={presupuestoConfig}
+              onConfirm={datos => handlePlanchado(planchadoPicker, datos)}
+              onClose={() => setPlanchadoPicker(null)} />
+          )}
+          {form.vehicle_type && !vehicleVariantPicker && !planchadoPicker && (
             <p className="text-xs text-gray-400 mt-1.5">
               Precio sugerido: S/ {form.price_charged} (editable al cerrar)
             </p>

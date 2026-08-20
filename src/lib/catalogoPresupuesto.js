@@ -48,6 +48,56 @@ const TAMANIOS = [
 // ajusta al cerrar, con el detalle en la cotización.
 const PLANCHADO_BASE = { economy: 250, standard: 290, premium: 350 }
 
+// Paneles y multiplicadores: el precio de un panel es la base de la gama por el
+// multiplicador del panel según el vehículo. Es el mismo cálculo de Presupuesto.
+export const PLANCHADO_PANELES = [
+  { id: 'guardafango_del_izq', label: 'Guardafango Del. Izq.', mult: { auto: 1,   suv: 1.2, pickup: 1.3 } },
+  { id: 'guardafango_del_der', label: 'Guardafango Del. Der.', mult: { auto: 1,   suv: 1.2, pickup: 1.3 } },
+  { id: 'guardafango_tra_izq', label: 'Guardafango Tra. Izq.', mult: { auto: 1,   suv: 1.2, pickup: 1.3 } },
+  { id: 'guardafango_tra_der', label: 'Guardafango Tra. Der.', mult: { auto: 1,   suv: 1.2, pickup: 1.3 } },
+  { id: 'capot',               label: 'Capot',                 mult: { auto: 2.5, suv: 3,   pickup: 3.5 } },
+  { id: 'techo',               label: 'Techo',                 mult: { auto: 2.5, suv: 3.5, pickup: 3   } },
+  { id: 'maletero',            label: 'Maletero / Tapa caja',  mult: { auto: 2,   suv: 2.5, pickup: 2   } },
+  { id: 'puerta_del_izq',      label: 'Puerta Del. Izq.',      mult: { auto: 1.5, suv: 1.8, pickup: 1.8 } },
+  { id: 'puerta_del_der',      label: 'Puerta Del. Der.',      mult: { auto: 1.5, suv: 1.8, pickup: 1.8 } },
+  { id: 'puerta_tra_izq',      label: 'Puerta Tra. Izq.',      mult: { auto: 1.5, suv: 1.8, pickup: 1.8 } },
+  { id: 'puerta_tra_der',      label: 'Puerta Tra. Der.',      mult: { auto: 1.5, suv: 1.8, pickup: 1.8 } },
+  { id: 'parachoque_del',      label: 'Parachoque Delantero',  mult: { auto: 1.5, suv: 1.8, pickup: 2   } },
+  { id: 'parachoque_tra',      label: 'Parachoque Trasero',    mult: { auto: 1.5, suv: 1.8, pickup: 2   } },
+  { id: 'aleta_tra_izq',       label: 'Aleta Izquierda',       mult: { auto: 1,   suv: 1.3, pickup: 1.4 } },
+  { id: 'aleta_tra_der',       label: 'Aleta Derecha',         mult: { auto: 1,   suv: 1.3, pickup: 1.4 } },
+  { id: 'estribo_izq',         label: 'Estribo Izq.',          mult: { auto: 0.5, suv: 0.7, pickup: 0.8 } },
+  { id: 'estribo_der',         label: 'Estribo Der.',          mult: { auto: 0.5, suv: 0.7, pickup: 0.8 } },
+]
+
+export const PLANCHADO_GAMAS = [
+  { value: 'economy',  label: 'Economy',  hint: 'Toyota, Hyundai, Kia, Nissan…' },
+  { value: 'standard', label: 'Standard', hint: 'Honda, Mazda, Ford, VW…' },
+  { value: 'premium',  label: 'Premium',  hint: 'BMW, Mercedes, Audi, Lexus…' },
+]
+
+export const PLANCHADO_VEHICULOS = [
+  { value: 'auto',   label: 'Auto' },
+  { value: 'suv',    label: 'SUV' },
+  { value: 'pickup', label: 'Pickup' },
+]
+
+// Config de planchado ya mezclada con lo que el admin guardó en Presupuesto.
+export function planchadoConfig(config) {
+  const basePrices = { ...PLANCHADO_BASE, ...(config?.basePrices || {}) }
+  const panels = PLANCHADO_PANELES.map(p => {
+    const sp = (config?.panels || []).find(x => x.id === p.id)
+    return sp ? { ...p, mult: { ...p.mult, ...sp.mult } } : p
+  })
+  return { basePrices, panels }
+}
+
+export function precioPanel(panel, gama, vehiculo, basePrices) {
+  const base = Number(basePrices?.[gama]) || 0
+  const mult = Number(panel?.mult?.[vehiculo]) || 0
+  return Math.round(base * mult * 100) / 100
+}
+
 const EMOJI_CAT = {
   ceramico:   '💎',
   ppf:        '🛡️',
@@ -120,29 +170,32 @@ export function serviciosDePresupuesto({ meta, precios, config }) {
     }
   }
 
-  // Polarizado: el nombre es marca + cobertura y el precio es único.
+  // Polarizado: la marca es el servicio y sus coberturas son las variantes, que
+  // es como se elige en el mostrador: primero la lámina, después qué se polariza.
+  const porMarca = {}
   for (const s of conMeta(POLARIZADOS_DATA, 'polarizados')) {
-    const label = s.brand ? `${s.brand} — ${s.cobertura || s.name || ''}`.trim() : (s.name || s.cobertura || 'Polarizado')
-    salida.push(comoServicio({
-      id: s.id, label, category: 'polarizado',
+    const marca = s.brand || 'Sin marca'
+    if (!porMarca[marca]) porMarca[marca] = []
+    porMarca[marca].push({
+      label: s.cobertura || s.name || 'Completo',
       price: precioCon(precios, s.id, null, s.price ?? 0),
-      sort: orden++,
+    })
+  }
+  for (const [marca, coberturas] of Object.entries(porMarca)) {
+    salida.push(comoServicio({
+      id: `pol_${marca.toLowerCase().replace(/[^a-z0-9]+/g, '_')}`,
+      label: marca, category: 'polarizado',
+      variants: coberturas, sort: orden++,
     }))
   }
 
   // Planchado y pintura: una entrada por gama, con el precio del panel base.
-  const base = { ...PLANCHADO_BASE, ...(config?.basePrices || {}) }
-  salida.push(comoServicio({
-    id: 'planchado_panel',
-    label: 'Planchado y pintura (por panel)',
-    category: 'planchado',
-    variants: [
-      { label: 'Economy',  price: Number(base.economy)  || 0 },
-      { label: 'Standard', price: Number(base.standard) || 0 },
-      { label: 'Premium',  price: Number(base.premium)  || 0 },
-    ],
-    sort: orden++,
-  }))
+  // Planchado: no tiene variantes fijas — se eligen paneles, gama y vehículo en
+  // una ventana igual a la de Presupuesto, que arma el precio.
+  salida.push({
+    ...comoServicio({ id: 'planchado_panel', label: 'Planchado y pintura', category: 'planchado', price: 0, sort: orden++ }),
+    planchado: true,
+  })
 
   return salida
 }

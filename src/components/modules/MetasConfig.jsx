@@ -6,13 +6,15 @@ import {
   computeEconomics, fetchMetasConfig, saveMetasConfig, fetchMetasRows, rowsFromTickets,
 } from '../../lib/metas'
 import { monthName, todayISO, formatMoney, getWorkingDaysInMonth } from '../../lib/utils'
+import { CATEGORIAS, porCategoria } from '../../lib/servicios'
 import { Plus, Save, Trash2, ChevronUp, ChevronDown, SlidersHorizontal, ExternalLink, RotateCcw, Calculator } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 const FUENTES = [
-  { value: 'vehiculo', label: 'Por tipo de vehículo', hint: 'Cuenta los tickets del mes cuyo vehículo sea uno de los marcados.' },
-  { value: 'palabras', label: 'Por palabras del adicional', hint: 'Cuenta los adicionales del ticket que contengan alguna de estas palabras. Sin tildes ni mayúsculas.' },
-  { value: 'manual',   label: 'Solo manual', hint: 'No se cuenta solo: el avance se escribe a mano en la columna “Manual”.' },
+  { value: 'vehiculo',  label: 'Por servicio del catálogo', hint: 'Cuenta los tickets del mes cuyo servicio sea uno de los marcados. Es el conteo directo: no depende de cómo se escriba nada.' },
+  { value: 'categoria', label: 'Por categoría del catálogo', hint: 'Cuenta todos los tickets de esa categoría. Solo aplica a los tickets abiertos con el catálogo nuevo — los anteriores no tienen categoría guardada.' },
+  { value: 'palabras',  label: 'Por palabras del adicional', hint: 'Cuenta los adicionales del ticket que contengan alguna de estas palabras. Sin tildes ni mayúsculas.' },
+  { value: 'manual',    label: 'Solo manual', hint: 'No se cuenta solo: el avance se escribe a mano en la columna “Manual”.' },
 ]
 
 function nuevoId() {
@@ -74,7 +76,7 @@ export default function MetasConfig({ year, month, costoFijo = 0 }) {
   function agregar() {
     setItems(list => [...list, {
       id: nuevoId(), emoji: '🎯', label: '', goal: 0, manual: 0,
-      group: 'detailing', source: 'manual', vehicles: [], keywords: [],
+      group: 'detailing', source: 'manual', vehicles: [], keywords: [], categories: [], variants: [],
       price: 0, margin: 0, bayDays: 0,
     }])
   }
@@ -82,6 +84,28 @@ export default function MetasConfig({ year, month, costoFijo = 0 }) {
     setItems(list => list.filter(i => i.id !== id))
     if (abierto === id) setAbierto(null)
   }
+  // Metas directas desde el catálogo: una por servicio, contadas por el servicio
+  // del ticket y no por palabras. Es la conexión entre el catálogo y las metas.
+  function agregarDelCatalogo() {
+    const yaEstan = new Set(items.flatMap(i => i.vehicles || []))
+    const nuevos = (vehicleTypes || [])
+      .filter(v => v.active !== false && !yaEstan.has(v.value))
+      .map(v => ({
+        id: `svc_${v.value}`,
+        emoji: v.emoji || '🎯',
+        label: v.label,
+        goal: 0, manual: 0,
+        group: (v.category === 'lavados' ? 'lavados' : 'detailing'),
+        source: 'vehiculo',
+        vehicles: [v.value], keywords: [], categories: [], variants: [],
+        price: Number(v.default_price) || Number(v.variants?.[0]?.price) || 0,
+        margin: 0, bayDays: 0,
+      }))
+    if (!nuevos.length) { toast('Todos los servicios del catálogo ya tienen meta', { icon: '👌' }); return }
+    setItems(list => [...list, ...nuevos])
+    toast(`${nuevos.length} servicio${nuevos.length === 1 ? '' : 's'} del catálogo — pon las metas y guarda`, { icon: '📋' })
+  }
+
   function restaurar() {
     setItems(DEFAULT_ITEMS.map(i => ({ ...i, manual: 0 })))
     toast('Lista de referencia cargada — recuerda guardar', { icon: '↩️' })
@@ -91,9 +115,10 @@ export default function MetasConfig({ year, month, costoFijo = 0 }) {
     if (items.some(i => !i.label.trim())) { toast.error('Todos los servicios necesitan nombre'); return }
     setSaving(true)
     try {
-      const definiciones = items.map(({ id, emoji, label, group, source, vehicles, keywords, goal, price, margin, bayDays }) => ({
+      const definiciones = items.map(({ id, emoji, label, group, source, vehicles, keywords, categories, variants, goal, price, margin, bayDays }) => ({
         id, emoji, label: label.trim(), group, source,
         vehicles: vehicles || [], keywords: keywords || [],
+        categories: categories || [], variants: variants || [],
         goal: Number(goal) || 0, // sirve de respaldo si el mes no tiene número propio
         // La economía no cambia mes a mes: viaja con la definición del servicio.
         price: Number(price) || 0, margin: Number(margin) || 0, bayDays: Number(bayDays) || 0,
@@ -332,22 +357,57 @@ export default function MetasConfig({ year, month, costoFijo = 0 }) {
                       </p>
 
                       {item.source === 'vehiculo' && (
+                        <div className="space-y-2">
+                          {porCategoria(activos).map(grupo => (
+                            <div key={grupo.value}>
+                              <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">
+                                {grupo.emoji} {grupo.label}
+                              </p>
+                              <div className="flex flex-wrap gap-1.5">
+                                {grupo.servicios.map(v => {
+                                  const sel = (item.vehicles || []).includes(v.value)
+                                  return (
+                                    <button key={v.id || v.value}
+                                      onClick={() => update(item.id, {
+                                        vehicles: sel
+                                          ? item.vehicles.filter(x => x !== v.value)
+                                          : [...(item.vehicles || []), v.value],
+                                      })}
+                                      className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-colors ${
+                                        sel
+                                          ? 'bg-red-600 border-red-600 text-white'
+                                          : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300'
+                                      }`}>
+                                      {v.emoji} {v.label}
+                                    </button>
+                                  )
+                                })}
+                              </div>
+                            </div>
+                          ))}
+                          <p className="text-[11px] text-gray-400">
+                            La meta suma todas las variantes del servicio (Auto, SUV, Pick-Up…).
+                          </p>
+                        </div>
+                      )}
+
+                      {item.source === 'categoria' && (
                         <div className="flex flex-wrap gap-1.5">
-                          {activos.map(v => {
-                            const sel = (item.vehicles || []).includes(v.value)
+                          {CATEGORIAS.map(c => {
+                            const sel = (item.categories || []).includes(c.value)
                             return (
-                              <button key={v.id || v.value}
+                              <button key={c.value}
                                 onClick={() => update(item.id, {
-                                  vehicles: sel
-                                    ? item.vehicles.filter(x => x !== v.value)
-                                    : [...(item.vehicles || []), v.value],
+                                  categories: sel
+                                    ? item.categories.filter(x => x !== c.value)
+                                    : [...(item.categories || []), c.value],
                                 })}
                                 className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-colors ${
                                   sel
                                     ? 'bg-red-600 border-red-600 text-white'
                                     : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300'
                                 }`}>
-                                {v.emoji} {v.label}
+                                {c.emoji} {c.label}
                               </button>
                             )
                           })}
@@ -375,10 +435,16 @@ export default function MetasConfig({ year, month, costoFijo = 0 }) {
             })}
           </div>
 
-          <button onClick={agregar}
-            className="w-full flex items-center justify-center gap-2 py-2.5 mt-3 rounded-xl border-2 border-dashed border-gray-200 dark:border-gray-700 text-sm text-gray-400 hover:text-gray-600 hover:border-gray-400 dark:hover:border-gray-500 transition-colors">
-            <Plus className="w-4 h-4" /> Agregar servicio
-          </button>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3">
+            <button onClick={agregarDelCatalogo}
+              className="flex items-center justify-center gap-2 py-2.5 rounded-xl border-2 border-dashed border-red-200 dark:border-red-800 text-sm font-semibold text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+              <Plus className="w-4 h-4" /> Traer servicios del catálogo
+            </button>
+            <button onClick={agregar}
+              className="flex items-center justify-center gap-2 py-2.5 rounded-xl border-2 border-dashed border-gray-200 dark:border-gray-700 text-sm text-gray-400 hover:text-gray-600 hover:border-gray-400 dark:hover:border-gray-500 transition-colors">
+              <Plus className="w-4 h-4" /> Meta suelta
+            </button>
+          </div>
 
           <p className="text-[11px] text-gray-400 mt-3 leading-relaxed">
             <strong>Meta</strong> es lo que hay que hacer este mes. <strong>Manual</strong> suma trabajos que no

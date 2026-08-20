@@ -91,8 +91,19 @@ export function matchCount(item, row) {
   if (row.status === 'abierto') return 0
   if (item.source === 'manual') return 0
 
-  if (item.source === 'vehiculo') {
-    return (item.vehicles || []).includes(row.vehicle_type) ? 1 : 0
+  // Servicio del catálogo: se cuenta directo por el servicio del ticket, sin
+  // adivinar con palabras. Si la meta fija variantes, solo cuentan esas.
+  if (item.source === 'vehiculo' || item.source === 'servicio') {
+    if (!(item.vehicles || []).includes(row.vehicle_type)) return 0
+    const vars = item.variants || []
+    if (vars.length && !vars.includes(row.vehicle_subtype)) return 0
+    return 1
+  }
+
+  // Categoría entera del catálogo. Solo cuentan los tickets abiertos con el
+  // catálogo nuevo: los anteriores no tienen categoría guardada.
+  if (item.source === 'categoria') {
+    return (item.categories || []).includes(row.service_cat) ? 1 : 0
   }
 
   const kws = (item.keywords || []).map(normalize).filter(Boolean)
@@ -126,6 +137,8 @@ export function resolveItems(config, prefix) {
       ...it,
       goal:    Number(goals[it.id] ?? it.goal ?? 0),
       manual:  Number(manual[it.id] ?? 0),
+      variants:   it.variants   || [],
+      categories: it.categories || [],
       price:   Number(it.price   ?? ref.price   ?? 0),
       margin:  Number(it.margin  ?? ref.margin  ?? 0),
       bayDays: Number(it.bayDays ?? ref.bayDays ?? 0),
@@ -284,6 +297,7 @@ export function rowsFromTickets(tickets, prefix) {
       fecha: t.date,
       vehicle_type: t.vehicle_type || '',
       vehicle_subtype: t.vehicle_subtype || '',
+      service_cat: t.service_cat || '',
       extras_names: (t.extras || []).map(e => e?.name).filter(Boolean),
       status: t.status || 'cerrado',
     }))

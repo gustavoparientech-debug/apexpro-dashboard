@@ -17,6 +17,7 @@ import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { formatMoney, todayISO, compressImage } from '../lib/utils'
 import ConfirmDialog from '../components/ui/ConfirmDialog'
+import { CATEGORIAS, catInfo, porCategoria } from '../lib/servicios'
 import { Plus, Camera, Search, X, Clock, CheckCircle, Trash2, PenLine, Zap, Save, ChevronLeft, ChevronRight, Eye, EyeOff, AlertCircle, TrendingDown, Gift, RotateCcw } from 'lucide-react'
 import {
   cardState, cardsFromTickets, fetchStaffCards, loadConfig as loadFidelidadConfig,
@@ -261,6 +262,7 @@ export function NewTicketForm({ onSave, onClose, workers, vehicleTypes, lockedWo
     price_charged:  defaultVehicleSubtype && defaultPriceCharged ? String(defaultPriceCharged) : '',
     vehicle_type:   defaultVehicleType || '',
     vehicle_subtype: defaultVehicleSubtype || '',
+    service_cat:    '',
     notes:          '',
     plate:          '',
     photo_url:      '',
@@ -304,17 +306,24 @@ export function NewTicketForm({ onSave, onClose, workers, vehicleTypes, lockedWo
 
   const [vehicleVariantPicker, setVehicleVariantPicker] = useState(null) // vt object
 
+  // Primer nivel del ticket: la categoría. El segundo son los servicios de esa
+  // categoría y el tercero la variante con su precio.
+  const grupos = useMemo(() => porCategoria(activeVehicles), [activeVehicles])
+  const [catSel, setCatSel] = useState(null)
+  const catActiva = catSel || grupos[0]?.value || null
+  const serviciosCat = grupos.find(g => g.value === catActiva)?.servicios || []
+
   function handleVehicle(vt) {
     if (vt.variants?.length > 0) {
       setVehicleVariantPicker(vt)
     } else {
-      setForm(f => ({ ...f, vehicle_type: vt.value, price_charged: vt.default_price || f.price_charged, vehicle_subtype: '' }))
+      setForm(f => ({ ...f, vehicle_type: vt.value, price_charged: vt.default_price || f.price_charged, vehicle_subtype: '', service_cat: vt.category || '' }))
       setVehicleVariantPicker(null)
     }
   }
 
   function handleVehicleVariant(vt, variant) {
-    setForm(f => ({ ...f, vehicle_type: vt.value, price_charged: variant.price, vehicle_subtype: variant.label }))
+    setForm(f => ({ ...f, vehicle_type: vt.value, price_charged: variant.price, vehicle_subtype: variant.label, service_cat: vt.category || '' }))
     setVehicleVariantPicker(null)
   }
 
@@ -416,11 +425,25 @@ export function NewTicketForm({ onSave, onClose, workers, vehicleTypes, lockedWo
           </div>
         )}
 
-        {/* Tipo de vehículo */}
+        {/* Servicio: categoría → servicio → variante */}
         <div>
-          <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-2">Tipo de vehículo</p>
+          <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-2">Servicio</p>
+          {grupos.length > 1 && (
+            <div className="flex gap-1.5 overflow-x-auto pb-2 -mx-1 px-1">
+              {grupos.map(g => (
+                <button key={g.value} type="button" onClick={() => setCatSel(g.value)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold whitespace-nowrap transition-all ${
+                    catActiva === g.value
+                      ? 'border-red-500 bg-red-600 text-white'
+                      : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300'
+                  }`}>
+                  <span className="text-sm">{g.emoji}</span> {g.label}
+                </button>
+              ))}
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-2">
-            {activeVehicles.map(v => {
+            {serviciosCat.map(v => {
               const isSelected = form.vehicle_type === v.value
               const isPicking = vehicleVariantPicker?.value === v.value
               const hasVariants = v.variants?.length > 0
@@ -437,7 +460,7 @@ export function NewTicketForm({ onSave, onClose, workers, vehicleTypes, lockedWo
                     <span className="text-lg">{v.emoji}</span>
                     <span className="text-left leading-tight">
                       {v.label}
-                      {hasVariants && <span className="block text-[10px] font-normal text-indigo-400 leading-none mt-0.5">▾ elegir tipo</span>}
+                      {hasVariants && <span className="block text-[10px] font-normal text-indigo-400 leading-none mt-0.5">▾ elegir variante</span>}
                     </span>
                   </span>
                   {!hasVariants && v.default_price > 0 && (
@@ -446,7 +469,7 @@ export function NewTicketForm({ onSave, onClose, workers, vehicleTypes, lockedWo
                     </span>
                   )}
                   {hasVariants && (
-                    <span className="text-[10px] font-semibold text-indigo-400 shrink-0">{v.variants.length} tipos</span>
+                    <span className="text-[10px] font-semibold text-indigo-400 shrink-0">{v.variants.length} precios</span>
                   )}
                 </button>
               )
@@ -460,7 +483,7 @@ export function NewTicketForm({ onSave, onClose, workers, vehicleTypes, lockedWo
                   <div className="w-10 h-1 rounded-full bg-gray-300 dark:bg-gray-600" />
                 </div>
                 <p className="text-sm font-bold text-gray-800 dark:text-gray-100 mb-4">
-                  {vehicleVariantPicker.emoji} {vehicleVariantPicker.label} — elige subcategoría
+                  {vehicleVariantPicker.emoji} {vehicleVariantPicker.label} — elige la variante
                 </p>
                 <div className="grid grid-cols-2 gap-3">
                   {vehicleVariantPicker.variants.map((v, i) => (
@@ -2301,6 +2324,9 @@ function EditClosedTicket({ ticket, workers, vehicleTypes, onSave, onClose }) {
     plate:            ticket.plate || '',
     vehicle_type:     ticket.vehicle_type || '',
     vehicle_subtype:  ticket.vehicle_subtype || '',
+    // Los tickets viejos no tienen categoría: si se les cambia el servicio, se
+    // les pone la del servicio nuevo; si no se toca, quedan como estaban.
+    service_cat:      ticket.service_cat || '',
     worker_id:        ticket.worker_id || '',
     price_charged:    ticket.price_charged || '',
     payment_method:   ticket.payment_method || 'yape',
@@ -2313,14 +2339,14 @@ function EditClosedTicket({ ticket, workers, vehicleTypes, onSave, onClose }) {
   function selectVehicle(v) {
     if (v.variants?.length > 0) {
       setSubtypePicker(v)
-      setForm(f => ({ ...f, vehicle_type: v.value, price_charged: f.price_charged || v.default_price, vehicle_subtype: '' }))
+      setForm(f => ({ ...f, vehicle_type: v.value, price_charged: f.price_charged || v.default_price, vehicle_subtype: '', service_cat: v.category || '' }))
     } else {
-      setForm(f => ({ ...f, vehicle_type: v.value, price_charged: f.price_charged || v.default_price, vehicle_subtype: '' }))
+      setForm(f => ({ ...f, vehicle_type: v.value, price_charged: f.price_charged || v.default_price, vehicle_subtype: '', service_cat: v.category || '' }))
     }
   }
 
   function selectVariant(vt, variant) {
-    setForm(f => ({ ...f, vehicle_type: vt.value, price_charged: variant.price, vehicle_subtype: variant.label }))
+    setForm(f => ({ ...f, vehicle_type: vt.value, price_charged: variant.price, vehicle_subtype: variant.label, service_cat: vt.category || '' }))
     setSubtypePicker(null)
   }
 

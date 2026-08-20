@@ -348,3 +348,17 @@ create policy loyalty_redemptions_auth on public.loyalty_redemptions
 -- Ojo: editar las horas de un horario existente sí afecta al pasado de todos
 -- los que lo tienen. Para cambiarle el turno a alguien conviene asignarle otro
 -- horario con fecha de vigencia, no reescribir el que ya usaba.
+
+-- ============================================================
+-- CATÁLOGO DE SERVICIOS DEL TICKET (tres niveles)
+-- ============================================================
+-- categoría → servicio → variante con precio.
+--   vehicle_types.category  → categoría (lavados, detailing, ceramico, …)
+--   vehicle_types.label     → servicio (Lavado Estándar, Off-Road FULL, …)
+--   vehicle_types.variants  → variantes con su precio (Auto, SUV, Pick-Up, XL)
+--   tickets.service_cat     → categoría copiada al abrir el ticket
+--
+-- Los tickets anteriores quedan con service_cat en null a propósito: el
+-- catálogo de tres niveles rige desde que se activó y el pasado no se toca.
+-- Las metas pueden contar por servicio (vehicle_type) o por categoría
+-- (service_cat), directo, sin adivinar por palabras.

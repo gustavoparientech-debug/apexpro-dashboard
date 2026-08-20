@@ -48,6 +48,7 @@ import { useApp } from '../context/AppContext'
 import { supabase } from '../lib/supabase'
 import { formatMoney, calcRealSalary, currentMonthYear, getWorkingDaysInMonth, monthName } from '../lib/utils'
 import MetasConfig from '../components/modules/MetasConfig'
+import { CATEGORIAS, CATEGORIA_DEFAULT, catInfo, porCategoria } from '../lib/servicios'
 import Modal from '../components/ui/Modal'
 import ConfirmDialog from '../components/ui/ConfirmDialog'
 import Badge from '../components/ui/Badge'
@@ -123,7 +124,7 @@ function ServiceForm({ initial, onSave, onClose }) {
 function VehicleTypeRow({ vt, onSave, onDelete }) {
   const [editing, setEditing] = useState(false)
   const [editingVariants, setEditingVariants] = useState(false)
-  const [form, setForm] = useState({ emoji: vt.emoji, label: vt.label, default_price: vt.default_price })
+  const [form, setForm] = useState({ emoji: vt.emoji, label: vt.label, default_price: vt.default_price, category: vt.category || CATEGORIA_DEFAULT })
   const [variants, setVariants] = useState(vt.variants || [])
 
   // Sync variants cuando el contexto actualiza vt
@@ -149,6 +150,10 @@ function VehicleTypeRow({ vt, onSave, onDelete }) {
         </select>
         <input className="input py-1 flex-1 text-sm" placeholder="Nombre" value={form.label}
           onChange={e => setForm(f => ({ ...f, label: e.target.value }))} />
+        <select className="input py-1 text-xs w-36" value={form.category}
+          onChange={e => setForm(f => ({ ...f, category: e.target.value }))}>
+          {CATEGORIAS.map(c => <option key={c.value} value={c.value}>{c.emoji} {c.label}</option>)}
+        </select>
         <div className="flex items-center gap-1">
           <span className="text-xs text-gray-500 whitespace-nowrap">S/</span>
           <input type="number" min="0" step="1" className="input py-1 w-20 text-sm text-right"
@@ -323,7 +328,7 @@ export default function Configuracion() {
   const [savingCosts, setSavingCosts] = useState(false)
   const [workerMonthlyConfigs, setWorkerMonthlyConfigs] = useState([])
   const [activeCategory, setActiveCategory] = useState('all')
-  const [newVehicle, setNewVehicle] = useState({ emoji: '🚗', label: '', default_price: '' })
+  const [newVehicle, setNewVehicle] = useState({ emoji: '🚗', label: '', default_price: '', category: CATEGORIA_DEFAULT })
   const [showNewVehicle, setShowNewVehicle] = useState(false)
   const [deleteVehicleTarget, setDeleteVehicleTarget] = useState(null)
   const [newExtra, setNewExtra] = useState({ name: '', price: '' })
@@ -509,13 +514,13 @@ export default function Configuracion() {
   }
 
   async function handleAddVehicle() {
-    if (!newVehicle.label) { toast.error('Escribe el nombre del tipo'); return }
+    if (!newVehicle.label) { toast.error('Escribe el nombre del servicio'); return }
     try {
       const value = newVehicle.label.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '')
       await addVehicleType({ ...newVehicle, value, default_price: parseFloat(newVehicle.default_price) || 0, sort_order: (vehicleTypes?.length || 0) + 1 })
-      setNewVehicle({ emoji: '🚗', label: '', default_price: '' })
+      setNewVehicle({ emoji: '🚗', label: '', default_price: '', category: CATEGORIA_DEFAULT })
       setShowNewVehicle(false)
-      toast.success('Tipo agregado')
+      toast.success('Servicio agregado')
     } catch (err) { toast.error('Error: ' + err.message) }
   }
 
@@ -735,8 +740,8 @@ export default function Configuracion() {
       <div className="card">
         <div className="flex items-center justify-between mb-3">
           <div>
-            <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">Tipos de vehículo</p>
-            <p className="text-xs text-gray-400 mt-0.5">Precios base al abrir un ticket</p>
+            <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">Servicios del ticket</p>
+            <p className="text-xs text-gray-400 mt-0.5">Categoría → servicio → precios por variante</p>
           </div>
           <button className="btn-primary text-sm flex items-center gap-1" onClick={() => setShowNewVehicle(v => !v)}>
             <Plus className="w-4 h-4" /> Agregar
@@ -749,8 +754,12 @@ export default function Configuracion() {
               onChange={e => setNewVehicle(v => ({ ...v, emoji: e.target.value }))}>
               {EMOJI_OPTIONS.map(e => <option key={e} value={e}>{e}</option>)}
             </select>
-            <input className="input py-1 flex-1 text-sm" placeholder="Nombre (ej: Van)"
+            <input className="input py-1 flex-1 text-sm" placeholder="Nombre (ej: Lavado Express)"
               value={newVehicle.label} onChange={e => setNewVehicle(v => ({ ...v, label: e.target.value }))} />
+            <select className="input py-1 text-xs w-36" value={newVehicle.category}
+              onChange={e => setNewVehicle(v => ({ ...v, category: e.target.value }))}>
+              {CATEGORIAS.map(c => <option key={c.value} value={c.value}>{c.emoji} {c.label}</option>)}
+            </select>
             <div className="flex items-center gap-1">
               <span className="text-xs text-gray-500">S/</span>
               <input type="number" min="0" step="1" placeholder="0" className="input py-1 w-20 text-sm text-right"
@@ -760,8 +769,20 @@ export default function Configuracion() {
           </div>
         )}
 
-        <div className="space-y-2">
-          {[...(vehicleTypes || [])].sort((a, b) => a.sort_order - b.sort_order).map((vt, idx, arr) => (
+        {/* Agrupados por categoría: el primer nivel del ticket. */}
+        <div className="space-y-4">
+          {porCategoria(vehicleTypes, { soloActivos: false }).map(grupo => {
+            const arr = [...(vehicleTypes || [])].sort((a, b) => (a.sort_order ?? 999) - (b.sort_order ?? 999))
+            return (
+          <div key={grupo.value} className="space-y-2">
+            <div className="flex items-center gap-2 px-1">
+              <span className="text-base">{grupo.emoji}</span>
+              <p className="text-xs font-bold uppercase tracking-widest text-gray-500 flex-1">{grupo.label}</p>
+              <span className="text-[11px] text-gray-400">{grupo.servicios.length} servicio{grupo.servicios.length === 1 ? '' : 's'}</span>
+            </div>
+          {grupo.servicios.map(vt => {
+            const idx = arr.findIndex(x => x.id === vt.id)
+            return (
             <div key={vt.id} className="flex items-center gap-1">
               <div className="flex flex-col gap-0.5">
                 <button onClick={() => handleMoveVehicle(idx, -1)} disabled={idx === 0}
@@ -781,9 +802,11 @@ export default function Configuracion() {
                 <VehicleTypeRow vt={vt} onSave={handleUpdateVehicle} onDelete={id => setDeleteVehicleTarget(id)} />
               </div>
             </div>
-          ))}
+          )})}
+          </div>
+          )})}
           {(vehicleTypes || []).length === 0 && (
-            <p className="text-sm text-gray-400 text-center py-4">Sin tipos. Agrega el primero.</p>
+            <p className="text-sm text-gray-400 text-center py-4">Sin servicios. Agrega el primero.</p>
           )}
         </div>
       </div>

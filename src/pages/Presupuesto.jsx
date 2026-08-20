@@ -333,10 +333,15 @@ function TimeRow({ id, label, defaultMin, overrides, setOverrides }) {
 
 function EditableTextCell({ label, value, onSave }) {
   const [editing, setEditing] = useState(false)
-  const [val, setVal] = useState(value)
-  function handleSave() { if (val.trim()) { onSave(val.trim()); setEditing(false) } }
+  // Un servicio recién agregado no tiene el campo todavía: sin el String() el
+  // guardado reventaba al editar un valor vacío.
+  const [val, setVal] = useState(String(value ?? ''))
+  function handleSave() {
+    const limpio = String(val ?? '').trim()
+    if (limpio) { onSave(limpio); setEditing(false) }
+  }
   if (!editing) return (
-    <button onClick={() => { setVal(value); setEditing(true) }}
+    <button onClick={() => { setVal(String(value ?? '')); setEditing(true) }}
       className="flex items-center gap-1 text-xs text-gray-400 hover:text-blue-500 transition-colors text-left">
       <Edit2 className="w-2.5 h-2.5 flex-shrink-0" /><span className="truncate max-w-[180px]">{label}</span>
     </button>
@@ -444,7 +449,7 @@ export default function Presupuesto() {
   // catMeta: { overrides: { [id]: { name?, desc? } }, added: [{ id, category, name, desc, price?, prices? }], deleted: [id] }
   const [catMeta, setCatMeta] = useState({ overrides: {}, added: [], deleted: [] })
   const [addingService, setAddingService] = useState(null) // { category } cuando está abierto el form
-  const [addForm, setAddForm] = useState({ name: '', desc: '', price: '' })
+  const [addForm, setAddForm] = useState({ name: '', desc: '', price: '', brand: '' })
 
   // Cargar config desde Supabase
   useEffect(() => {
@@ -699,11 +704,17 @@ export default function Presupuesto() {
     const vehicles = CAT_VEHICLES[cat] || []
     const prices = vehicles.length > 0 ? Object.fromEntries(vehicles.map(v => [v.id, parseFloat(addForm.price) || 0])) : undefined
     const price = vehicles.length === 0 ? parseFloat(addForm.price) || 0 : undefined
-    const newSvc = { id, category: cat, name: addForm.name, desc: addForm.desc, ...(prices ? { prices } : { price }) }
+    // En polarizados el nombre visible es marca + cobertura, no `name`.
+    const esPol = cat === 'polarizados'
+    const newSvc = {
+      id, category: cat, name: addForm.name, desc: addForm.desc,
+      ...(esPol ? { brand: addForm.brand.trim() || 'Otros', cobertura: addForm.name } : {}),
+      ...(prices ? { prices } : { price }),
+    }
     const next = { ...catMeta, added: [...catMeta.added, newSvc] }
     saveCatMeta(next)
     setAddingService(null)
-    setAddForm({ name: '', desc: '', price: '' })
+    setAddForm({ name: '', desc: '', price: '', brand: '' })
   }
 
   async function persistConfig(cfg) {
@@ -793,7 +804,11 @@ export default function Presupuesto() {
     const base = services
       .filter(s => !catMeta.deleted.includes(s.id))
       .map(s => ({ ...s, ...(catMeta.overrides[s.id] || {}) }))
-    const extras = catMeta.added.filter(a => a.category === cat)
+    // Los servicios agregados a mano también aceptan ediciones: sin esto, el
+    // lápiz de un servicio nuevo no cambiaba nada.
+    const extras = catMeta.added
+      .filter(a => a.category === cat)
+      .map(a => ({ ...a, ...(catMeta.overrides[a.id] || {}) }))
     const all = [...base, ...extras]
     const order = catMeta.order?.[cat]
     if (!order?.length) return all
@@ -1757,8 +1772,10 @@ export default function Presupuesto() {
                   // `data` ya trae los overrides aplicados (nombre, stock, precio);
                   // agrupar desde POLARIZADOS_DATA los ignoraría.
                   data.reduce((acc, s) => {
-                    if (!acc[s.brand]) acc[s.brand] = []
-                    acc[s.brand].push(s)
+                    // Un servicio agregado sin marca caía en el grupo "undefined".
+                    const marca = s.brand || 'Sin marca'
+                    if (!acc[marca]) acc[marca] = []
+                    acc[marca].push(s)
                     return acc
                   }, {})
                 ).map(([brand, items]) => (
@@ -1779,7 +1796,7 @@ export default function Presupuesto() {
                         </div>
                         <div className="flex-1">
                           <div className="flex items-center gap-1.5 flex-wrap">
-                            <p className="text-sm font-medium text-gray-800 dark:text-gray-200">{s.cobertura}</p>
+                            <p className="text-sm font-medium text-gray-800 dark:text-gray-200">{s.cobertura || s.name || 'Sin nombre'}</p>
                             <StockBadge item={s} />
                           </div>
                           <p className="text-xs text-gray-500 dark:text-gray-400">{s.desc}</p>
@@ -2024,7 +2041,11 @@ export default function Presupuesto() {
                 addingService === category ? (
                   <div className="border-2 border-dashed border-red-300 dark:border-red-700 rounded-xl p-3 space-y-2" onClick={e => e.stopPropagation()}>
                     <p className="text-xs font-bold text-red-600">Nuevo servicio</p>
-                    <input placeholder="Nombre del servicio" value={addForm.name} onChange={e => setAddForm(f => ({ ...f, name: e.target.value }))}
+                    {isPol && (
+                      <input placeholder="Marca (ej: 3M, Lexen)" value={addForm.brand} onChange={e => setAddForm(f => ({ ...f, brand: e.target.value }))}
+                        className="w-full text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 dark:bg-gray-800 dark:text-white" />
+                    )}
+                    <input placeholder={isPol ? 'Nombre / cobertura (ej: Completo)' : 'Nombre del servicio'} value={addForm.name} onChange={e => setAddForm(f => ({ ...f, name: e.target.value }))}
                       className="w-full text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 dark:bg-gray-800 dark:text-white" />
                     <input placeholder="Descripción breve" value={addForm.desc} onChange={e => setAddForm(f => ({ ...f, desc: e.target.value }))}
                       className="w-full text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 dark:bg-gray-800 dark:text-white" />
@@ -2033,12 +2054,12 @@ export default function Presupuesto() {
                     <div className="flex gap-2">
                       <button onClick={() => { if (!addForm.name || !addForm.price) { toast.error('Nombre y precio requeridos'); return } addNewService(category) }}
                         className="flex-1 py-2 rounded-xl bg-red-600 text-white text-sm font-bold">Agregar</button>
-                      <button onClick={() => { setAddingService(null); setAddForm({ name: '', desc: '', price: '' }) }}
+                      <button onClick={() => { setAddingService(null); setAddForm({ name: '', desc: '', price: '', brand: '' }) }}
                         className="px-4 py-2 rounded-xl border border-gray-200 dark:border-gray-600 text-sm text-gray-500">Cancelar</button>
                     </div>
                   </div>
                 ) : (
-                  <button onClick={() => { setAddingService(category); setAddForm({ name: '', desc: '', price: '' }) }}
+                  <button onClick={() => { setAddingService(category); setAddForm({ name: '', desc: '', price: '', brand: '' }) }}
                     className="w-full py-2.5 rounded-xl border-2 border-dashed border-gray-200 dark:border-gray-700 text-gray-400 text-sm hover:border-red-300 hover:text-red-500 transition-colors flex items-center justify-center gap-1.5">
                     <span className="text-lg leading-none">+</span> Agregar servicio
                   </button>

@@ -22,7 +22,7 @@ function nuevoId() {
 }
 
 export default function MetasConfig({ year, month, costoFijo = 0 }) {
-  const { vehicleTypes, tickets, isDemo } = useApp()
+  const { serviciosTicket: vehicleTypes, tickets, isDemo } = useApp()
   const prefix = monthPrefix(year, month)
 
   const [config, setConfig]   = useState(null)

@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase'
 import { Edit2, Check, X, ChevronDown, ChevronUp, FileText, MessageCircle, PlusCircle, Save, Clock, Trash2 } from 'lucide-react'
 import { NewTicketForm } from './Registro'
 import toast from 'react-hot-toast'
+import { CERAMICO_DATA, PPF_DATA, POLARIZADOS_DATA } from '../lib/catalogoPresupuesto'
 import jsPDF from 'jspdf'
 
 // ─── Configuración por defecto ────────────────────────────────────────────────
@@ -233,35 +234,8 @@ const LAVADOS_DATA = [
   { id: 'pro_detallado',name: 'Apex Pro Detallado',   tag: 'Ultra Premium',  time: '2 días', desc: 'Todos los servicios Off-Road Full (AluMax y Removex) · Retirado de llantas, asientos y piso · Limpieza de piso · Limpieza de techo · Limpieza de asientos · Detallado interior · Cera, elixir o berniz', prices: { auto: 490, suv: 540, suv_xl: 615, pickup: 615, pickup_xl: 615 } },
 ]
 
-const CERAMICO_DATA = [
-  { id: 'desc_quimica',     name: 'Descontaminación Química',   tag: 'Prep', timeMin: 120,  desc: 'Elimina impurezas invisibles adheridas a la pintura',           prices: { auto: 60,  suv: 70,  pickup: 80  } },
-  { id: 'desc_mecanica',    name: 'Descontaminación Mecánica',  tag: 'Prep', timeMin: 180,  desc: 'Pintura completamente lisa al tacto, mejora brillo y acabado',  prices: { auto: 120, suv: 140, pickup: 160 } },
-  { id: 'abrillantado',     name: 'Abrillantado Apex Pro',      tag: 'Prep', timeMin: 180,  desc: 'Aumenta brillo, reduce micro-rayones, elimina opacidad',        prices: { auto: 130, suv: 150, pickup: 170 } },
-  { id: 'correccion',       name: 'Corrección Apex Pro',        tag: 'Prep', timeMin: 240,  desc: 'Elimina 90-95% de imperfecciones, acabado tipo espejo',         prices: { auto: 260, suv: 280, pickup: 300 } },
-  { id: 'cer_miyavi_1a',    name: 'Cerámico Miyavi 1 Año',      tag: 'Paq',  timeMin: 480,  desc: 'Descontam. + pulido 3 pasos + cerámico + aspirado interior',    prices: { auto: 350, suv: 400, pickup: 450 } },
-  { id: 'cer_miyavi_1b',    name: 'Cerámico Miyavi 1 Año Plus', tag: 'Paq',  timeMin: 480,  desc: 'Versión premium — pulido avanzado + cerámico 1 año',           prices: { auto: 400, suv: 450, pickup: 500 } },
-  { id: 'cer_3a',           name: 'Cerámico 3 Años',            tag: 'Paq',  timeMin: 960,  desc: 'Paquete completo con cerámico de larga duración 3 años',       prices: { auto: 599, suv: 699, pickup: 799 } },
-  { id: 'cer_2a_premium',   name: 'Cerámico 2 Años Premium',    tag: 'Paq',  timeMin: 960,  desc: 'Paquete premium con cerámico de 2 años',                       prices: { auto: 899, suv: 999, pickup: 1099} },
-  { id: 'cer_carpro_3a',    name: 'Cerámico Carpro 3 Años',     tag: 'Paq',  timeMin: 960,  desc: 'Cerámico Carpro alta gama, 3 años de garantía del producto',   prices: { auto: 999, suv: 1099,pickup: 1199} },
-]
 
-const PPF_DATA = [
-  { id: 'ppf_full',     name: 'PPF Full Body',           timeMin: 1920, desc: 'Todo el vehículo. Lavado premium + descontam. + pulido 3 pasos + PPF autoregenerativo. Regalo: PPF en radio o faros. Tiempo: 4 días', prices: { auto: 4700, suv: 5400, pickup: 5900 } },
-  { id: 'ppf_zonas',    name: 'PPF Zonas de Impacto',    timeMin: 960,  desc: 'Capot, parachoque delantero, guardabarros y faros. Regalo: PPF en manijas. Tiempo: 2 días',                                            prices: { auto: 2700, suv: 3100, pickup: 3400 } },
-  { id: 'ppf_ceramico', name: 'PPF Zonas + Cerámico',    timeMin: 1440, desc: 'PPF en zonas de impacto + cerámico Carpro 2 años en las demás zonas. Tiempo: 3 días',                                                  prices: { auto: 3200, suv: 3700, pickup: 3900 } },
-]
 
-const POLARIZADOS_DATA = [
-  { id: 'appfilm_v',  brand: 'APPfilm Basic',          cobertura: 'Ventanas + Posterior', timeMin: 120, desc: 'Instalación profesional. Niveles: 5%, 20%, 35%, 50%, 70%',              price: 299  },
-  { id: 'appfilm_f',  brand: 'APPfilm Basic',          cobertura: '+ Parabrisas',         timeMin: 150, desc: 'Instalación profesional. Niveles: 5%, 20%, 35%, 50%, 70%',              price: 350  },
-  { id: 'lexen_v',    brand: 'Nanocerámico Lexen',     cobertura: 'Ventanas + Posterior', timeMin: 120, desc: 'Bloqueo UV, reducción de calor, garantía. Niveles: 5%–70%',            price: 440  },
-  { id: 'lexen_f',    brand: 'Nanocerámico Lexen',     cobertura: '+ Parabrisas',         timeMin: 150, desc: 'Bloqueo UV, reducción de calor, garantía. Niveles: 5%–70%',            price: 640  },
-  { id: 'protec_v',   brand: 'Nanocerámico Protec',    cobertura: 'Ventanas + Posterior', timeMin: 120, desc: 'UV, calor, garantía del producto premium. Niveles: 5%–70%',            price: 480  },
-  { id: 'protec_f',   brand: 'Nanocerámico Protec',    cobertura: '+ Parabrisas',         timeMin: 150, desc: 'UV, calor, garantía del producto premium. Niveles: 5%–70%',            price: 680  },
-  { id: '3m_v',       brand: '3M Coreano',             cobertura: 'Ventanas + Posterior', timeMin: 120, desc: 'Alta gama. Niveles: 5%–70%',                                           price: 700  },
-  { id: '3m_f',       brand: '3M Coreano',             cobertura: '+ Parabrisas',         timeMin: 150, desc: 'Alta gama. Niveles: 5%–70%',                                           price: 900  },
-  { id: '3m_usa_v',   brand: '3M Americano',           cobertura: 'Ventanas + Posterior', timeMin: 120, desc: 'Máxima calidad importado USA. Niveles: 5%–70%',                        price: 1400 },
-]
 
 function mergeConfig(saved) {
   if (!saved) return DEFAULT_CONFIG

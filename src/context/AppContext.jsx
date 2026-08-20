@@ -1,5 +1,6 @@
-import { createContext, useContext, useReducer, useEffect, useCallback, useRef, useMemo } from 'react'
+import { createContext, useContext, useReducer, useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
+import { fetchCatalogoOverrides, serviciosDePresupuesto } from '../lib/catalogoPresupuesto'
 import {
   DEMO_WORKERS, DEMO_SERVICES, DEMO_TICKETS, DEMO_INCIDENTS, DEMO_MONTHLY_COSTS
 } from '../lib/demoData'
@@ -1121,9 +1122,26 @@ export function AppProvider({ children }) {
     loadData()
   }
 
+  // Cerámico, PPF, polarizado y planchado salen de Presupuesto para no mantener
+  // dos listas de precios.
+  const [presupuestoServices, setPresupuestoServices] = useState([])
+  useEffect(() => {
+    if (IS_DEMO) return
+    let vivo = true
+    fetchCatalogoOverrides()
+      .then(ov => { if (vivo) setPresupuestoServices(serviciosDePresupuesto(ov)) })
+      .catch(() => {})
+    return () => { vivo = false }
+  }, [])
+
   return (
     <AppContext.Provider value={{
       ...state,
+      // Servicios que ve el ticket: los del catálogo propio más los de
+      // Presupuesto (cerámico, PPF, polarizado, planchado). Configuración solo
+      // edita `vehicleTypes`; los de Presupuesto se editan en su pantalla.
+      serviciosTicket: [...state.vehicleTypes, ...presupuestoServices],
+      presupuestoServices,
       isDemo: IS_DEMO,
       loadData,
       invalidateAllCache,

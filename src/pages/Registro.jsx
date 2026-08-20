@@ -2508,11 +2508,14 @@ const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto
 // ─── Página principal ─────────────────────────────────────────────────────────
 export default function Registro() {
   const {
-    tickets, dailySummaries, workers, vehicleTypes, extrasCatalog, expenses,
+    tickets, dailySummaries, workers, serviciosTicket, extrasCatalog, expenses,
     addTicket, updateTicket, deleteTicket, addDailySummary, deleteDailySummary, updateExpense, deleteExpense, addIncident, loadData,
     fetchAdvances,
   } = useApp()
   const { profile, isAdmin, isDemo } = useAuth()
+  // El ticket ofrece el catálogo propio más los servicios de Presupuesto
+  // (cerámico, PPF, polarizado, planchado), que se editan en esa pantalla.
+  const vehicleTypes = serviciosTicket
 
   // Adelantos del mes: la tarjeta del ticket los muestra sin abrirlo.
   const [advances, setAdvances] = useState([])

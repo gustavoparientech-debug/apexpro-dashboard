@@ -2,21 +2,12 @@ import { useState, useEffect, useMemo } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import toast from 'react-hot-toast'
+import { SERVICIOS_CITA as SERVICIOS, CITAS_KEY, fetchCitas as fetchCitasLib, saveCitas as saveCitasLib } from '../lib/citas'
 import {
   CalendarDays, Clock, Wrench, User, Plus, X, Trash2,
   ChevronRight, Car, Sparkles, AlertCircle, Edit3, Check, CheckCircle2, XCircle, Circle
 } from 'lucide-react'
 
-const SERVICIOS = [
-  { id: 'lavado_estandar',  label: 'Lavado Estándar',     emoji: '🚿', color: 'blue' },
-  { id: 'lavado_offroad',   label: 'Lavado Off-Road',     emoji: '🚙', color: 'orange' },
-  { id: 'lavado_detailing', label: 'Detailing Completo',  emoji: '✨', color: 'purple' },
-  { id: 'ceramico',         label: 'Recubrimiento Cerámico', emoji: '💎', color: 'cyan' },
-  { id: 'ppf',              label: 'PPF',                 emoji: '🛡️', color: 'gray' },
-  { id: 'polarizado',       label: 'Polarizado',          emoji: '🕶️', color: 'indigo' },
-  { id: 'planchado',        label: 'Planchado y Pintura', emoji: '🎨', color: 'red' },
-  { id: 'otro',             label: 'Otro',                emoji: '🔧', color: 'green' },
-]
 
 const COLOR_MAP = {
   blue:   { bg: 'bg-blue-100 dark:bg-blue-900/30',   text: 'text-blue-600 dark:text-blue-400',   border: 'border-blue-200 dark:border-blue-800',   dot: 'bg-blue-500' },
@@ -385,22 +376,14 @@ export default function Citas() {
   async function fetchCitas() {
     setLoading(true)
     try {
-      const { data, error } = await supabase
-        .from('app_settings')
-        .select('value')
-        .eq('key', 'citas')
-        .maybeSingle()
-      if (!error && data?.value) setCitas(data.value)
+      setCitas(await fetchCitasLib())
     } catch {}
     setLoading(false)
   }
 
   async function saveCitas(next) {
     setCitas(next)
-    await supabase.from('app_settings').upsert(
-      { key: 'citas', value: next, updated_at: new Date().toISOString() },
-      { onConflict: 'key' }
-    )
+    await saveCitasLib(next)
   }
 
   async function handleSave(form) {

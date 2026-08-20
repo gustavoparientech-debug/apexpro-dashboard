@@ -2,7 +2,9 @@ import { useState, useMemo, useEffect, Fragment } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { useApp } from '../context/AppContext'
 import { supabase } from '../lib/supabase'
-import { Edit2, Check, X, ChevronDown, ChevronUp, FileText, MessageCircle, PlusCircle, Save, Clock, Trash2 } from 'lucide-react'
+import { Edit2, Check, X, ChevronDown, ChevronUp, FileText, MessageCircle, PlusCircle, Save, Clock, Trash2, CalendarPlus } from 'lucide-react'
+import { addCita, servicioDeCategoria, SERVICIOS_CITA, franjasHorarias } from '../lib/citas'
+import { useNavigate } from 'react-router-dom'
 import { NewTicketForm } from './Registro'
 import toast from 'react-hot-toast'
 import { CERAMICO_DATA, PPF_DATA, POLARIZADOS_DATA } from '../lib/catalogoPresupuesto'
@@ -959,7 +961,12 @@ export default function Presupuesto() {
 
   const [exportModal, setExportModal] = useState(false)
   const [exportTarget, setExportTarget] = useState(null)
+  const navigate = useNavigate()
   const [ticketModal, setTicketModal] = useState(false)
+  // Agendar la cotización: se abre con el cliente y el resumen ya cargados.
+  const [citaModal, setCitaModal] = useState(null)
+  const [citaForm, setCitaForm] = useState({ date: '', time: '', service: 'otro', client: '', notes: '', adelanto: '', adelantoMetodo: '' })
+  const [savingCita, setSavingCita] = useState(false)
   const [savedQuotes, setSavedQuotes] = useState([])
   const [saveQuoteModal, setSaveQuoteModal] = useState(false)
   const [loadedQuoteId, setLoadedQuoteId] = useState(null)
@@ -2717,7 +2724,7 @@ export default function Presupuesto() {
                     <X className="w-3 h-3" />Limpiar
                   </button>
                 </div>
-                <div className="grid grid-cols-4 gap-1.5">
+                <div className="grid grid-cols-3 sm:grid-cols-5 gap-1.5">
                   <button onClick={() => openExportModal('whatsapp')}
                     className="flex items-center justify-center gap-1 py-2.5 rounded-xl bg-green-500 hover:bg-green-600 active:scale-95 text-white font-bold text-sm transition-all">
                     <MessageCircle className="w-4 h-4" />WA
@@ -2764,6 +2771,26 @@ export default function Presupuesto() {
                   }}
                     className="flex items-center justify-center gap-1 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-bold text-sm transition-all">
                     <PlusCircle className="w-4 h-4" />Ticket
+                  </button>
+                  <button onClick={() => {
+                    // La cita nace de la cotización: cliente, servicio y detalle
+                    // ya vienen puestos, solo falta el día y la hora.
+                    const cliente = [exportForm.nombre || saveQuoteForm.nombre, (exportForm.placa || saveQuoteForm.placa)]
+                      .filter(Boolean).join(' · ')
+                    const detalle = allSelected.map(i => `${i.label} ${formatMoney(i.price)}`).join(' · ')
+                    setCitaForm({
+                      date: new Date().toISOString().slice(0, 10),
+                      time: '',
+                      service: servicioDeCategoria(category),
+                      client: cliente,
+                      notes: `Cotización ${formatMoney(grandTotal)} — ${detalle}`,
+                      adelanto: exportForm.adelanto || '',
+                      adelantoMetodo: '',
+                    })
+                    setCitaModal({ grandTotal })
+                  }}
+                    className="flex items-center justify-center gap-1 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 active:scale-95 text-white font-bold text-sm transition-all">
+                    <CalendarPlus className="w-4 h-4" />Cita
                   </button>
                   <button onClick={() => {
                     // Si ya se llenaron los datos del cliente para exportar, se
@@ -3199,6 +3226,100 @@ export default function Presupuesto() {
             defaultPriceCharged={ticketModal.price_charged}
             presupuestoSections={ticketModal.ticketSections}
           />
+        </div>
+      )}
+
+      {/* ── Agendar cita desde la cotización ── */}
+      {citaModal && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 px-3 pb-6 sm:pb-0"
+          onClick={() => setCitaModal(null)}>
+          <div className="w-full max-w-lg bg-white dark:bg-gray-900 rounded-2xl p-5 space-y-3 max-h-[85vh] overflow-y-auto"
+            onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-bold text-base text-gray-900 dark:text-white">Agendar cita</p>
+                <p className="text-xs text-gray-400">Queda en la página de Citas con el detalle de esta cotización</p>
+              </div>
+              <button onClick={() => setCitaModal(null)} className="p-1.5 rounded-full text-gray-400 hover:text-gray-700">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-xs text-gray-500 mb-0.5 block">Día</label>
+                <input type="date" className="input w-full" value={citaForm.date}
+                  onChange={e => setCitaForm(f => ({ ...f, date: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 mb-0.5 block">Hora</label>
+                <select className="input w-full" value={citaForm.time}
+                  onChange={e => setCitaForm(f => ({ ...f, time: e.target.value }))}>
+                  <option value="">Elegir hora</option>
+                  {franjasHorarias().map(h => <option key={h} value={h}>{h}</option>)}
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className="text-xs text-gray-500 mb-0.5 block">Servicio</label>
+              <div className="flex flex-wrap gap-1.5">
+                {SERVICIOS_CITA.map(sv => (
+                  <button key={sv.id} type="button" onClick={() => setCitaForm(f => ({ ...f, service: sv.id }))}
+                    className={`px-2.5 py-1.5 rounded-xl border text-xs font-semibold transition-all ${
+                      citaForm.service === sv.id
+                        ? 'border-sky-500 bg-sky-600 text-white'
+                        : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300'
+                    }`}>
+                    {sv.emoji} {sv.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="text-xs text-gray-500 mb-0.5 block">Cliente</label>
+              <input className="input w-full" placeholder="Nombre · placa"
+                value={citaForm.client} onChange={e => setCitaForm(f => ({ ...f, client: e.target.value }))} />
+            </div>
+
+            <div>
+              <label className="text-xs text-gray-500 mb-0.5 block">Detalle</label>
+              <textarea className="input w-full resize-none text-xs" rows={3}
+                value={citaForm.notes} onChange={e => setCitaForm(f => ({ ...f, notes: e.target.value }))} />
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-500 shrink-0">Adelanto S/</span>
+              <input type="number" min="0" step="0.01" className="input text-sm flex-1" placeholder="0.00"
+                value={citaForm.adelanto} onChange={e => setCitaForm(f => ({ ...f, adelanto: e.target.value }))} />
+              <select className="input text-sm w-32" value={citaForm.adelantoMetodo}
+                onChange={e => setCitaForm(f => ({ ...f, adelantoMetodo: e.target.value }))}>
+                <option value="">Método</option>
+                <option value="efectivo">Efectivo</option>
+                <option value="yape">Yape</option>
+                <option value="transferencia">Transferencia</option>
+              </select>
+            </div>
+
+            <button disabled={savingCita}
+              onClick={async () => {
+                if (!citaForm.date || !citaForm.time) { toast.error('Elige el día y la hora'); return }
+                if (!citaForm.client.trim()) { toast.error('Falta el cliente'); return }
+                setSavingCita(true)
+                try {
+                  await addCita({ ...citaForm, status: 'pendiente' })
+                  toast.success('Cita agendada ✓')
+                  setCitaModal(null)
+                  navigate('/citas')
+                } catch {
+                  toast.error('No se pudo agendar la cita')
+                } finally { setSavingCita(false) }
+              }}
+              className="w-full py-3 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-sm disabled:opacity-50">
+              {savingCita ? 'Agendando…' : 'Agendar y ver en Citas'}
+            </button>
+          </div>
         </div>
       )}
 

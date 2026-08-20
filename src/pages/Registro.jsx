@@ -1939,6 +1939,13 @@ function ActiveTicketCard({ ticket, workers, vehicleTypes, onClick, onToggleHide
   )
 }
 
+// Lo que se escribió al registrar el gasto. Los gastos que nacen dentro de un
+// ticket guardan `description` y los sueltos `notes`; en la lista importa el
+// texto, no de qué campo salió.
+function descripcionGasto(exp) {
+  return [exp?.description, exp?.notes].filter(Boolean).join(' · ')
+}
+
 // ─── Duración de servicio ─────────────────────────────────────────────────────
 function serviceDuration(ticket) {
   const start = ticket.opened_at ? new Date(ticket.opened_at) : null
@@ -3441,7 +3448,9 @@ export default function Registro() {
           <div className="space-y-2">
             {expensesToday.map(exp => {
               const worker = workers.find(w => w.id === exp.worker_id)
-              const catLabels = { insumos: '🧴 Insumos', herramientas: '🔧 Herramientas', transporte: '🚌 Transporte', comida: '🍱 Comida', otro: '📦 Otro' }
+              // Las mismas categorías que usa el Dashboard: sin pintura ni
+              // repuestos, esos gastos salían con la clave cruda.
+              const catLabels = { insumos: '🧴 Insumos', pintura: '🎨 Pintura', repuestos: '⚙️ Repuestos', herramientas: '🔧 Herramientas', transporte: '🚌 Transporte', comida: '🍱 Comida', adelanto: '💵 Adelanto', otro: '📦 Otro' }
               const isEditing = editingExpense?.id === exp.id
 
               if (isEditing && canAdmin) return (
@@ -3462,15 +3471,35 @@ export default function Registro() {
                     </div>
                   </div>
                   <div className="grid grid-cols-3 gap-1.5">
-                    {Object.entries({ insumos: '🧴', herramientas: '🔧', transporte: '🚌', comida: '🍱', otro: '📦' }).map(([v, emoji]) => (
+                    {Object.entries({ insumos: '🧴', pintura: '🎨', repuestos: '⚙️', herramientas: '🔧', transporte: '🚌', comida: '🍱', otro: '📦' }).map(([v, emoji]) => (
                       <button key={v} type="button" onClick={() => setEditingExpense(f => ({ ...f, category: v }))}
                         className={`py-1.5 px-2 rounded-xl border text-xs font-medium transition-all ${editingExpense.category === v ? 'border-red-500 bg-red-50 text-red-600' : 'border-gray-200 text-gray-600'}`}>
                         {emoji} {v.charAt(0).toUpperCase() + v.slice(1)}
                       </button>
                     ))}
                   </div>
-                  <input className="input text-sm" placeholder="Notas" value={editingExpense.notes || ''}
-                    onChange={e => setEditingExpense(f => ({ ...f, notes: e.target.value }))} />
+                  <input className="input text-sm" placeholder="Descripción (ej: pago al polarizador)"
+                    value={editingExpense.description ?? editingExpense.notes ?? ''}
+                    onChange={e => setEditingExpense(f => (
+                      // Los gastos del ticket guardan `description` y los sueltos
+                      // `notes`: se edita el campo que ya trae el gasto.
+                      f.description !== undefined && f.description !== null
+                        ? { ...f, description: e.target.value }
+                        : { ...f, notes: e.target.value }
+                    ))} />
+                  {/* Servicio al que pertenece el gasto */}
+                  <select className="input text-sm" value={editingExpense.ticket_id || ''}
+                    onChange={e => setEditingExpense(f => ({ ...f, ticket_id: e.target.value || null }))}>
+                    <option value="">Sin servicio — gasto del día</option>
+                    {openTickets.map(t => (
+                      <option key={t.id} value={t.id}>🔧 {t.plate || 'Sin placa'}{t.vehicle_subtype ? ` · ${t.vehicle_subtype}` : ''}</option>
+                    ))}
+                    {editingExpense.ticket_id && !openTickets.some(t => t.id === editingExpense.ticket_id) && (
+                      <option value={editingExpense.ticket_id}>
+                        ✓ {tickets.find(t => t.id === editingExpense.ticket_id)?.plate || 'Servicio actual'} (cerrado)
+                      </option>
+                    )}
+                  </select>
                   <div className="flex gap-2">
                     <button onClick={async () => {
                       try {
@@ -3491,10 +3520,23 @@ export default function Registro() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">
-                      {catLabels[exp.category] || exp.category || 'Gasto'}
+                      {/* Manda lo que se escribió: "Otro" solo no dice nada. */}
+                      {descripcionGasto(exp) || catLabels[exp.category] || exp.category || 'Gasto'}
                     </p>
-                    {exp.notes && <p className="text-xs text-gray-400 truncate">{exp.notes}</p>}
-                    {worker && <p className="text-xs text-gray-400">{worker.name}</p>}
+                    <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                      <span className="text-xs text-gray-400">{catLabels[exp.category] || exp.category || 'Gasto'}</span>
+                      {worker && <span className="text-xs text-gray-400">· {worker.name}</span>}
+                      {exp.paid === false && (
+                        <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300">
+                          ⏳ Por pagar
+                        </span>
+                      )}
+                      {exp.ticket_id && (
+                        <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400">
+                          🎫 {tickets.find(t => t.id === exp.ticket_id)?.plate || 'De un servicio'}
+                        </span>
+                      )}
+                    </div>
                   </div>
                   <span className={`text-sm font-bold ${exp.hidden_from_workers ? 'text-gray-400' : 'text-amber-600'}`}>-{formatMoney(exp.amount)}</span>
                   {canAdmin && (

@@ -1779,9 +1779,15 @@ export default function Presupuesto() {
                     return acc
                   }, {})
                 ).map(([brand, items]) => (
-                  <div key={brand} className="border border-gray-100 dark:border-gray-700 rounded-xl overflow-hidden">
-                    <div className="bg-gray-50 dark:bg-gray-800 px-3 py-1.5">
-                      <p className="text-xs font-bold text-gray-700 dark:text-gray-300">{brand}</p>
+                  // Cada marca es una tarjeta aparte con cabecera oscura: con el
+                  // gris claro anterior las marcas se perdían entre sus opciones.
+                  <div key={brand} className="border-2 border-gray-200 dark:border-gray-700 rounded-2xl overflow-hidden shadow-sm mb-3 last:mb-0">
+                    <div className="bg-gray-900 dark:bg-gray-800 px-3 py-2.5 flex items-center gap-2">
+                      <span className="w-1.5 h-4 rounded-full bg-red-500 flex-none" />
+                      <p className="text-sm font-black text-white uppercase tracking-wider flex-1 leading-none">{brand}</p>
+                      <span className="text-[10px] font-bold text-white/50 flex-none">
+                        {items.length} opci{items.length === 1 ? 'ón' : 'ones'}
+                      </span>
                     </div>
                     {items.map(s => (
                       <Fragment key={s.id}>

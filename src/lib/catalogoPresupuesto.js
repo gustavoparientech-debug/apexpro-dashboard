@@ -199,3 +199,21 @@ export function serviciosDePresupuesto({ meta, precios, config }) {
 
   return salida
 }
+
+// Niveles de planchado por paño, igual que en Presupuesto: el planchado se
+// cobra como un porcentaje del pintado del mismo paño.
+export const PLANCHADO_NIVELES = [
+  { id: 'none',     label: 'Solo pintura', short: '—',      pct: 0   },
+  { id: 'leve',     label: 'Leve',         short: 'Leve',   pct: 0.4 },
+  { id: 'moderado', label: 'Moderado',     short: 'Mod.',   pct: 0.8 },
+  { id: 'severo',   label: 'Severo',       short: 'Severo', pct: 1.2 },
+]
+
+// Descuento automático por cantidad de paños: 0% con uno, sube hasta 15% con
+// el vehículo completo. Mismo cálculo que la cotización.
+export const PLANCHADO_DESC_MAX_PCT = 15
+
+export function descuentoPlanchado(elegidos, totalPanales) {
+  if (elegidos < 2 || !totalPanales) return 0
+  return Math.max(3, Math.round((elegidos / totalPanales) * PLANCHADO_DESC_MAX_PCT))
+}

@@ -18,7 +18,7 @@ import { supabase } from '../lib/supabase'
 import { formatMoney, todayISO, compressImage } from '../lib/utils'
 import ConfirmDialog from '../components/ui/ConfirmDialog'
 import { CATEGORIAS, catInfo, porCategoria, nombreServicio } from '../lib/servicios'
-import { planchadoConfig, precioPanel, PLANCHADO_GAMAS, PLANCHADO_VEHICULOS } from '../lib/catalogoPresupuesto'
+import { planchadoConfig, precioPanel, PLANCHADO_GAMAS, PLANCHADO_VEHICULOS, PLANCHADO_NIVELES, descuentoPlanchado } from '../lib/catalogoPresupuesto'
 import { Plus, Camera, Search, X, Clock, CheckCircle, Trash2, PenLine, Zap, Save, ChevronLeft, ChevronRight, Eye, EyeOff, AlertCircle, TrendingDown, Gift, RotateCcw } from 'lucide-react'
 import {
   cardState, cardsFromTickets, fetchStaffCards, loadConfig as loadFidelidadConfig,
@@ -261,24 +261,40 @@ function PresupuestoResumen({ defaultExtras, form, vehicleTypes, discountPct, pr
 // El ticket se abre con el total y el detalle de los paneles en las notas.
 function PlanchadoPicker({ config, onConfirm, onClose }) {
   const { basePrices, panels } = useMemo(() => planchadoConfig(config), [config])
-  const [gama, setGama]       = useState('standard')
+  const [gama, setGama]         = useState('standard')
   const [vehiculo, setVehiculo] = useState('auto')
-  const [sel, setSel]         = useState({})
+  const [sel, setSel]           = useState({})   // panelId → true
+  const [nivel, setNivel]       = useState({})   // panelId → nivel de planchado
+  const [descManual, setDescManual] = useState(null)
 
-  const elegidos = panels.filter(p => sel[p.id])
-  const total = elegidos.reduce((s, p) => s + precioPanel(p, gama, vehiculo, basePrices), 0)
+  // Mismo cálculo que la cotización: pintado = base de la gama × multiplicador
+  // del paño, y el planchado es un porcentaje de ese pintado según el daño.
+  const filas = panels.map(p => {
+    const pintura = precioPanel(p, gama, vehiculo, basePrices)
+    const niv = PLANCHADO_NIVELES.find(n => n.id === (nivel[p.id] || 'none'))
+    const planchado = Math.round(pintura * (niv?.pct || 0))
+    return { ...p, pintura, planchado, precio: pintura + planchado, nivel: niv }
+  })
+  const elegidas  = filas.filter(f => sel[f.id])
+  const subtotal  = elegidas.reduce((s, f) => s + f.precio, 0)
+  const descAuto  = descuentoPlanchado(elegidas.length, panels.length)
+  const descPct   = descManual !== null ? descManual : descAuto
+  const descMonto = Math.round(subtotal * descPct / 100)
+  const total     = subtotal - descMonto
+
+  const resumen = `${elegidas.length} paño${elegidas.length === 1 ? '' : 's'} · ${PLANCHADO_GAMAS.find(g => g.value === gama)?.label} · ${PLANCHADO_VEHICULOS.find(v => v.value === vehiculo)?.label}`
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col justify-end" onClick={onClose}>
       <div className="absolute inset-0 bg-black/40" />
-      <div className="relative bg-white dark:bg-gray-900 rounded-t-3xl shadow-2xl max-h-[88vh] flex flex-col"
+      <div className="relative bg-white dark:bg-gray-900 rounded-t-3xl shadow-2xl max-h-[90vh] flex flex-col"
         onClick={e => e.stopPropagation()}>
         <div className="px-5 pt-3 pb-2 border-b border-gray-100 dark:border-gray-800">
           <div className="flex justify-center mb-3">
             <div className="w-10 h-1 rounded-full bg-gray-300 dark:bg-gray-600" />
           </div>
           <p className="text-sm font-bold text-gray-800 dark:text-gray-100">🔨 Planchado y pintura</p>
-          <p className="text-[11px] text-gray-400 mt-0.5">Los precios salen de Presupuesto</p>
+          <p className="text-[11px] text-gray-400 mt-0.5">Mismos precios y descuentos que la cotización</p>
 
           <div className="mt-3 space-y-2">
             <div>
@@ -312,35 +328,75 @@ function PlanchadoPicker({ config, onConfirm, onClose }) {
         </div>
 
         <div className="flex-1 overflow-y-auto px-5 py-3">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1.5">Paneles a trabajar</p>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1.5">
+            Paños · toca para elegir y asigna el nivel de planchado
+          </p>
           <div className="space-y-1">
-            {panels.map(p => {
-              const precio = precioPanel(p, gama, vehiculo, basePrices)
-              const marcado = !!sel[p.id]
+            {filas.map(f => {
+              const marcado = !!sel[f.id]
               return (
-                <button key={p.id} type="button"
-                  onClick={() => setSel(m => ({ ...m, [p.id]: !m[p.id] }))}
-                  className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl border text-left transition-all ${
-                    marcado ? 'border-red-300 bg-red-50 dark:bg-red-900/20' : 'border-gray-100 dark:border-gray-800'
-                  }`}>
-                  <span className={`w-4 h-4 rounded border-2 flex-none flex items-center justify-center ${
-                    marcado ? 'bg-red-600 border-red-600' : 'border-gray-300 dark:border-gray-600'
-                  }`}>
-                    {marcado && <span className="text-white text-[10px] leading-none">✓</span>}
-                  </span>
-                  <span className="flex-1 text-sm text-gray-700 dark:text-gray-200">{p.label}</span>
-                  <span className={`text-xs font-bold ${marcado ? 'text-red-600' : 'text-gray-400'}`}>{formatMoney(precio)}</span>
-                </button>
+                <div key={f.id} className={`rounded-xl border transition-all ${
+                  marcado ? 'border-red-300 bg-red-50 dark:bg-red-900/20' : 'border-gray-100 dark:border-gray-800'
+                }`}>
+                  <button type="button"
+                    onClick={() => setSel(m => ({ ...m, [f.id]: !m[f.id] }))}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 text-left">
+                    <span className={`w-4 h-4 rounded border-2 flex-none flex items-center justify-center ${
+                      marcado ? 'bg-red-600 border-red-600' : 'border-gray-300 dark:border-gray-600'
+                    }`}>
+                      {marcado && <span className="text-white text-[10px] leading-none">✓</span>}
+                    </span>
+                    <span className="flex-1 text-sm text-gray-700 dark:text-gray-200">
+                      {f.label}
+                      {marcado && f.planchado > 0 && (
+                        <span className="block text-[10px] text-gray-400 leading-tight">
+                          Pintura {formatMoney(f.pintura)} + planchado {f.nivel.label.toLowerCase()} {formatMoney(f.planchado)}
+                        </span>
+                      )}
+                    </span>
+                    <span className={`text-xs font-bold ${marcado ? 'text-red-600' : 'text-gray-400'}`}>{formatMoney(f.precio)}</span>
+                  </button>
+                  {marcado && (
+                    <div className="flex gap-1 px-3 pb-2 pl-9">
+                      {PLANCHADO_NIVELES.map(n => (
+                        <button key={n.id} type="button"
+                          onClick={() => setNivel(m => ({ ...m, [f.id]: n.id }))}
+                          className={`px-2 py-0.5 rounded-lg text-[10px] font-bold border transition-colors ${
+                            (nivel[f.id] || 'none') === n.id
+                              ? 'bg-gray-900 dark:bg-gray-100 border-gray-900 dark:border-gray-100 text-white dark:text-gray-900'
+                              : 'border-gray-200 dark:border-gray-700 text-gray-500'
+                          }`}>
+                          {n.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               )
             })}
           </div>
         </div>
 
         <div className="px-5 py-3 border-t border-gray-100 dark:border-gray-800 space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-gray-500">
-              {elegidos.length} panel{elegidos.length === 1 ? '' : 'es'} · {PLANCHADO_GAMAS.find(g => g.value === gama)?.label} · {PLANCHADO_VEHICULOS.find(v => v.value === vehiculo)?.label}
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-gray-500">{resumen}</span>
+            <span className="font-semibold text-gray-700 dark:text-gray-200">{formatMoney(subtotal)}</span>
+          </div>
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-gray-500 flex items-center gap-1.5">
+              Descuento
+              <input type="number" min="0" max="100" value={descPct}
+                onChange={e => setDescManual(e.target.value === '' ? null : Number(e.target.value))}
+                className="w-12 text-center font-bold bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 py-0.5" />
+              %
+              {descManual === null
+                ? <span className="text-[10px] text-gray-400">automático</span>
+                : <button type="button" onClick={() => setDescManual(null)} className="text-[10px] text-red-500">volver al automático</button>}
             </span>
+            <span className="font-semibold text-green-600">−{formatMoney(descMonto)}</span>
+          </div>
+          <div className="flex items-center justify-between border-t border-gray-100 dark:border-gray-800 pt-2">
+            <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">Total</span>
             <span className="text-lg font-black text-gray-900 dark:text-white">{formatMoney(total)}</span>
           </div>
           <div className="flex gap-2">
@@ -348,11 +404,14 @@ function PlanchadoPicker({ config, onConfirm, onClose }) {
               className="px-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 text-sm text-gray-500">
               Cancelar
             </button>
-            <button type="button" disabled={elegidos.length === 0}
+            <button type="button" disabled={elegidas.length === 0}
               onClick={() => onConfirm({
-                total,
-                resumen: `${elegidos.length} panel${elegidos.length === 1 ? '' : 'es'} · ${PLANCHADO_GAMAS.find(g => g.value === gama)?.label} · ${PLANCHADO_VEHICULOS.find(v => v.value === vehiculo)?.label}`,
-                detalle: elegidos.map(p => `${p.label} ${formatMoney(precioPanel(p, gama, vehiculo, basePrices))}`).join(' · '),
+                subtotal, descPct, descMonto, total, resumen,
+                lineas: elegidas.map(f => ({
+                  label: f.label,
+                  nivel: f.nivel.id === 'none' ? 'Solo pintura' : `Planchado ${f.nivel.label.toLowerCase()}`,
+                  precio: f.precio,
+                })),
               })}
               className="flex-1 py-2.5 rounded-xl bg-red-600 text-white text-sm font-bold disabled:opacity-40">
               Usar {formatMoney(total)}
@@ -448,15 +507,24 @@ export function NewTicketForm({ onSave, onClose, workers, vehicleTypes, lockedWo
 
   // El planchado se arma en su ventana: paneles, gama y vehículo. El detalle de
   // los paneles queda en las notas del ticket.
-  function handlePlanchado(vt, { total, resumen, detalle }) {
+  // El planchado entra al ticket con el mismo desglose de la cotización: el
+  // precio es el subtotal sin descuento y el descuento va al campo del ticket,
+  // así se ve de dónde sale el monto.
+  const [planchadoDetalle, setPlanchadoDetalle] = useState(null)
+  function handlePlanchado(vt, datos) {
+    const detalle = datos.lineas
+      .map(l => `${l.label} (${l.nivel}) ${formatMoney(l.precio)}`)
+      .join(' · ')
+    setPlanchadoDetalle({ ...datos, vt })
+    setFormDiscountPct(datos.descPct || 0)
     setForm(f => ({
       ...f,
       vehicle_type: vt.value,
-      vehicle_subtype: resumen,
-      price_charged: total,
+      vehicle_subtype: datos.resumen,
+      price_charged: datos.subtotal,
       service_cat: vt.category || '',
       service_name: vt.label || '',
-      notes: [f.notes, `Planchado: ${detalle}`].filter(Boolean).join(' · '),
+      notes: [f.notes, `Planchado — ${datos.resumen}: ${detalle}`].filter(Boolean).join(' · '),
     }))
     setPlanchadoPicker(null)
   }
@@ -640,7 +708,44 @@ export function NewTicketForm({ onSave, onClose, workers, vehicleTypes, lockedWo
               onConfirm={datos => handlePlanchado(planchadoPicker, datos)}
               onClose={() => setPlanchadoPicker(null)} />
           )}
-          {form.vehicle_type && !vehicleVariantPicker && !planchadoPicker && (
+          {planchadoDetalle && (
+            <div className="mt-2 rounded-2xl border border-amber-200 dark:border-amber-800 bg-amber-50/70 dark:bg-amber-900/15 overflow-hidden">
+              <div className="flex items-center gap-2 px-3 py-2 border-b border-amber-200/70 dark:border-amber-800/60">
+                <span className="text-sm">🔨</span>
+                <p className="text-xs font-bold text-amber-700 dark:text-amber-300 flex-1">{planchadoDetalle.resumen}</p>
+                <button type="button" onClick={() => setPlanchadoPicker(planchadoDetalle.vt)}
+                  className="text-[11px] font-semibold text-amber-700 dark:text-amber-300 hover:underline">
+                  Cambiar
+                </button>
+              </div>
+              <div className="px-3 py-2 space-y-1">
+                {planchadoDetalle.lineas.map((l, i) => (
+                  <div key={i} className="flex items-center gap-2 text-[11px]">
+                    <span className="flex-1 text-gray-600 dark:text-gray-300 leading-tight">
+                      {l.label} <span className="text-gray-400">· {l.nivel}</span>
+                    </span>
+                    <span className="font-semibold text-gray-700 dark:text-gray-200 tabular-nums">{formatMoney(l.precio)}</span>
+                  </div>
+                ))}
+                <div className="flex justify-between text-[11px] pt-1 border-t border-amber-200/70 dark:border-amber-800/60">
+                  <span className="text-gray-500">Suma de los paños</span>
+                  <span className="font-semibold text-gray-700 dark:text-gray-200 tabular-nums">{formatMoney(planchadoDetalle.subtotal)}</span>
+                </div>
+                {planchadoDetalle.descMonto > 0 && (
+                  <div className="flex justify-between text-[11px]">
+                    <span className="text-gray-500">Descuento {planchadoDetalle.descPct}%</span>
+                    <span className="font-semibold text-green-600 tabular-nums">−{formatMoney(planchadoDetalle.descMonto)}</span>
+                  </div>
+                )}
+                <div className="flex justify-between text-xs pt-1 border-t border-amber-200/70 dark:border-amber-800/60">
+                  <span className="font-semibold text-gray-700 dark:text-gray-200">Total del servicio</span>
+                  <span className="font-black text-gray-900 dark:text-white tabular-nums">{formatMoney(planchadoDetalle.total)}</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {form.vehicle_type && !vehicleVariantPicker && !planchadoPicker && !planchadoDetalle && (
             <p className="text-xs text-gray-400 mt-1.5">
               Precio sugerido: S/ {form.price_charged} (editable al cerrar)
             </p>

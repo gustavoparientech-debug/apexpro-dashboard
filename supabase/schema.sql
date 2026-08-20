@@ -331,3 +331,20 @@ create policy loyalty_redemptions_auth on public.loyalty_redemptions
 --                                    ciclo nuevo. Hace falta porque el sistema
 --                                    solo cuenta desde que se registran tickets:
 --                                    la tarjeta de papel del cliente manda.
+
+-- ============================================================
+-- HISTORIAL DE HORARIOS POR TRABAJADOR
+-- ============================================================
+-- Un trabajador puede cambiar de turno. Sin historial, recalcular un día viejo
+-- lo medía contra el horario de hoy y las tardanzas del mes pasado cambiaban
+-- solas. Cada fila dice desde qué día rige un horario; los cálculos de
+-- Asistencia buscan el vigente en la fecha del marcaje.
+--
+--   worker_schedule_history (worker_id, schedule_id, start_date)
+--
+-- Los horarios que ya estaban asignados se cargaron con start_date 2000-01-01
+-- ("desde siempre"), así el pasado se sigue calculando igual que antes.
+--
+-- Ojo: editar las horas de un horario existente sí afecta al pasado de todos
+-- los que lo tienen. Para cambiarle el turno a alguien conviene asignarle otro
+-- horario con fecha de vigencia, no reescribir el que ya usaba.

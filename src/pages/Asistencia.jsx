@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { useApp } from '../context/AppContext'
 import { supabase } from '../lib/supabase'
+import { scheduleForDate } from '../lib/horarios'
 import { calcLatenessDiscount, calcOvertimePay } from '../lib/utils'
 import {
   Camera, MapPin, Clock, LogIn, Coffee, LogOut, CheckCircle,
@@ -350,14 +351,9 @@ export default function Asistencia() {
   async function recalcIncidents(workerId, dateStr, logType, loggedAt) {
     function timeToMin(t) { const [h, m] = (t || '').split(':').map(Number); return h * 60 + (m || 0) }
 
-    const { data: fw } = await supabase.from('workers').select('*').eq('id', workerId).single()
-    let sched = null
-    if (fw?.schedule_id) {
-      const { data: fs } = await supabase.from('work_schedules').select('*').eq('id', fw.schedule_id).single()
-      sched = fs
-    } else if (fw?.schedule_start) {
-      sched = { start_time: fw.schedule_start, end_time: fw.schedule_end, tolerance_min: fw.schedule_tolerance_min ?? 0 }
-    }
+    // El horario que regía ESE día, no el de hoy: cambiarle el turno a alguien
+    // no puede reescribir las tardanzas del mes pasado.
+    const sched = await scheduleForDate(workerId, dateStr)
     if (!sched) return
 
     const tolerance = sched.tolerance_min ?? 0
@@ -415,15 +411,8 @@ export default function Asistencia() {
         photo_b64: photo || null,
       })
 
-      // Fetch fresco del worker para evitar caché stale
-      const { data: freshWorker } = await supabase.from('workers').select('*').eq('id', selectedWorkerId).single()
-      let sched = null
-      if (freshWorker?.schedule_id) {
-        const { data: freshSched } = await supabase.from('work_schedules').select('*').eq('id', freshWorker.schedule_id).single()
-        sched = freshSched
-      } else if (freshWorker?.schedule_start) {
-        sched = { start_time: freshWorker.schedule_start, end_time: freshWorker.schedule_end, tolerance_min: freshWorker.schedule_tolerance_min ?? 0 }
-      }
+      // Horario vigente hoy para ese trabajador (sin caché stale).
+      const sched = await scheduleForDate(selectedWorkerId, today)
 
       // Convierte "HH:MM:SS" a minutos del día (sin depender de timezone)
       function timeToMin(t) {
@@ -497,15 +486,8 @@ export default function Asistencia() {
         }
       }
 
-      // Fetch horario del trabajador
-      const { data: fw } = await supabase.from('workers').select('*').eq('id', editingLog.worker_id).single()
-      let sched = null
-      if (fw?.schedule_id) {
-        const { data: fs } = await supabase.from('work_schedules').select('*').eq('id', fw.schedule_id).single()
-        sched = fs
-      } else if (fw?.schedule_start) {
-        sched = { start_time: fw.schedule_start, end_time: fw.schedule_end, tolerance_min: fw.schedule_tolerance_min ?? 0 }
-      }
+      // Horario que regía el día del marcaje, no el de hoy.
+      const sched = await scheduleForDate(editingLog.worker_id, adminDate)
       if (!sched) return
 
       function timeToMin(t) {

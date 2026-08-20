@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useApp } from '../context/AppContext'
 import { supabase } from '../lib/supabase'
+import { assignSchedule, fetchScheduleHistory } from '../lib/horarios'
 import { Plus, Pencil, Trash2, Clock, Check, X, Users } from 'lucide-react'
 import Modal from '../components/ui/Modal'
 import toast from 'react-hot-toast'
@@ -61,6 +62,10 @@ export default function Horarios() {
   const [showForm, setShowForm]       = useState(false)
   const [editing, setEditing]         = useState(null)
   const [selected, setSelected]       = useState(null) // schedule being viewed
+  // Desde qué día rige el cambio de turno. Las incidencias anteriores a esta
+  // fecha se siguen midiendo con el horario viejo.
+  const [desde, setDesde]             = useState(new Date().toLocaleDateString('en-CA'))
+  const [historial, setHistorial]     = useState({}) // worker_id → cambios
   const [confirmDel, setConfirmDel]   = useState(null)
 
   async function load() {
@@ -101,8 +106,36 @@ export default function Horarios() {
 
   async function toggleWorkerSchedule(worker, scheduleId) {
     const newId = worker.schedule_id === scheduleId ? null : scheduleId
-    await updateWorker(worker.id, { schedule_id: newId })
-    toast.success(newId ? 'Trabajador asignado' : 'Trabajador desasignado')
+    try {
+      // El historial es lo que usan los cálculos de tardanza: sin él, cambiar
+      // el turno reescribiría las incidencias de los días ya pasados.
+      await assignSchedule(worker.id, newId, desde)
+      await updateWorker(worker.id, { schedule_id: newId })
+      await cargarHistorial(worker.id)
+      const fecha = desde.split('-').reverse().join('/')
+      toast.success(newId ? `Asignado desde el ${fecha}` : `Sin horario desde el ${fecha}`)
+    } catch (e) {
+      toast.error('No se pudo guardar el cambio de horario')
+    }
+  }
+
+  async function cargarHistorial(workerId) {
+    const rows = await fetchScheduleHistory(workerId)
+    setHistorial(h => ({ ...h, [workerId]: rows }))
+  }
+
+  // El historial de los trabajadores visibles, para mostrar desde cuándo rige
+  // el horario de cada uno.
+  useEffect(() => {
+    if (!selected) return
+    workers.filter(w => w.active).forEach(w => { if (!historial[w.id]) cargarHistorial(w.id) })
+  }, [selected, workers])
+
+  function desdeCuando(worker) {
+    const rows = historial[worker.id] || []
+    const actual = rows.find(r => r.schedule_id === worker.schedule_id)
+    if (!actual || actual.start_date <= '2000-01-01') return null
+    return actual.start_date.split('-').reverse().join('/')
   }
 
   function fmtTime(t) {
@@ -208,9 +241,20 @@ export default function Horarios() {
 
             {/* Asignación de personas */}
             <div className="card">
-              <h4 className="font-semibold text-gray-800 dark:text-gray-200 mb-3 flex items-center gap-2">
-                <Users className="w-4 h-4 text-red-500" /> Personas asignadas
-              </h4>
+              <div className="flex items-center gap-2 flex-wrap mb-3">
+                <h4 className="font-semibold text-gray-800 dark:text-gray-200 flex items-center gap-2 flex-1">
+                  <Users className="w-4 h-4 text-red-500" /> Personas asignadas
+                </h4>
+                <label className="flex items-center gap-1.5 text-xs text-gray-500">
+                  Vigente desde
+                  <input type="date" value={desde} onChange={e => setDesde(e.target.value)}
+                    className="text-xs border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-red-500" />
+                </label>
+              </div>
+              <p className="text-[11px] text-gray-400 mb-3 leading-snug">
+                Lo que pasó antes de esa fecha se sigue midiendo con el horario anterior:
+                las tardanzas y horas extra ya registradas no cambian.
+              </p>
               <div className="space-y-2">
                 {activeWorkers.map(w => {
                   const assigned = w.schedule_id === selSchedule.id
@@ -222,6 +266,9 @@ export default function Horarios() {
                           <p className="text-sm font-medium text-gray-900 dark:text-white">{w.name}</p>
                           {w.schedule_id && w.schedule_id !== selSchedule.id && (
                             <p className="text-xs text-gray-400">Tiene otro horario asignado</p>
+                          )}
+                          {assigned && desdeCuando(w) && (
+                            <p className="text-xs text-gray-400">Desde el {desdeCuando(w)}</p>
                           )}
                         </div>
                       </div>

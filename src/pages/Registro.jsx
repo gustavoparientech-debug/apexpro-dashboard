@@ -1085,7 +1085,8 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
       discount_pct:   discountPct || 0,
       discount_fixed: parseFloat(discountFixed) || 0,
       payment_method: effectivePayment,
-      closed_at:      new Date().toISOString(),
+      // Un ticket reabierto conserva su primer cierre.
+      closed_at:      ticket.closed_at || new Date().toISOString(),
       ...(paymentPhoto && { payment_photo: paymentPhoto }),
       ...(isMixto && { mixto_yape: parseFloat(mixtoYape) || 0, mixto_efectivo: parseFloat(mixtoEfectivo) || 0 }),
     })
@@ -2560,6 +2561,21 @@ function TicketSummaryModal({ ticket, workers, vehicleTypes, onClose, canAdmin }
   )
 }
 
+// ISO ↔ valor de un <input type="datetime-local">, en hora local. Sin esto el
+// input muestra UTC y el admin corrige una hora que no es la que ve.
+function isoALocal(iso) {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (isNaN(d)) return ''
+  const p = n => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`
+}
+function localAIso(valor) {
+  if (!valor) return null
+  const d = new Date(valor)
+  return isNaN(d) ? null : d.toISOString()
+}
+
 // ─── Modal edición ticket cerrado (admin) ────────────────────────────────────
 function EditClosedTicket({ ticket, workers, vehicleTypes, onSave, onClose }) {
   const activeWorkers  = workers.filter(w => w.active)
@@ -2577,6 +2593,10 @@ function EditClosedTicket({ ticket, workers, vehicleTypes, onSave, onClose }) {
     payment_method:   ticket.payment_method || 'yape',
     date:             ticket.date || todayISO(),
     notes:            ticket.notes || '',
+    // Horas del servicio: a veces el ticket se abre o se cierra tarde y la
+    // duración queda mal. El admin las corrige acá.
+    opened_at:        isoALocal(ticket.opened_at),
+    closed_at:        isoALocal(ticket.closed_at),
   })
   const [busy, setBusy] = useState(false)
   const [subtypePicker, setSubtypePicker] = useState(null)
@@ -2599,7 +2619,19 @@ function EditClosedTicket({ ticket, workers, vehicleTypes, onSave, onClose }) {
     e.preventDefault()
     setBusy(true)
     try {
-      await onSave(ticket.id, { ...form, price_charged: parseFloat(form.price_charged) || 0 })
+      const abierto = localAIso(form.opened_at)
+      const cerrado = localAIso(form.closed_at)
+      if (abierto && cerrado && new Date(cerrado) < new Date(abierto)) {
+        toast.error('La hora de cierre no puede ser anterior a la de inicio')
+        setBusy(false)
+        return
+      }
+      await onSave(ticket.id, {
+        ...form,
+        price_charged: parseFloat(form.price_charged) || 0,
+        opened_at: abierto,
+        closed_at: cerrado,
+      })
       toast.success('Ticket actualizado')
       onClose()
     } catch (err) { toast.error('Error: ' + err.message) }
@@ -2621,8 +2653,34 @@ function EditClosedTicket({ ticket, workers, vehicleTypes, onSave, onClose }) {
         </div>
       </div>
 
+      {/* Horas del servicio — la duración sale de estas dos. */}
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="label">Inicio del servicio</label>
+          <input type="datetime-local" className="input text-sm" value={form.opened_at}
+            onChange={e => setForm(f => ({ ...f, opened_at: e.target.value }))} />
+        </div>
+        <div>
+          <label className="label">Cierre del servicio</label>
+          <input type="datetime-local" className="input text-sm" value={form.closed_at}
+            onChange={e => setForm(f => ({ ...f, closed_at: e.target.value }))} />
+        </div>
+      </div>
+      {form.opened_at && form.closed_at && (
+        <p className="text-[11px] text-gray-400 -mt-2">
+          Duración: {(() => {
+            // Se trunca igual que la duración de la tarjeta, para que no bailen
+            // por un minuto entre una vista y la otra.
+            const min = Math.floor((new Date(form.closed_at) - new Date(form.opened_at)) / 60000)
+            if (isNaN(min) || min < 0) return '—'
+            const h = Math.floor(min / 60)
+            return h > 0 ? `${h}h ${min % 60}min` : `${min} min`
+          })()}
+        </p>
+      )}
+
       <div>
-        <label className="label">Tipo de vehículo{form.vehicle_subtype ? <span className="ml-2 text-indigo-500 font-semibold">· {form.vehicle_subtype}</span> : null}</label>
+        <label className="label">Servicio{form.vehicle_subtype ? <span className="ml-2 text-indigo-500 font-semibold">· {form.vehicle_subtype}</span> : null}</label>
         <div className="grid grid-cols-2 gap-2">
           {activeVehicles.map(v => {
             const hasVariants = v.variants?.length > 0
@@ -2985,7 +3043,9 @@ export default function Registro() {
     const bruto = pct >= 100 ? extrasTotal : (sinComision + (Number(ticket.discount_fixed) || 0)) / (1 - pct / 100)
     const base = Math.max(0, Math.round((bruto - extrasTotal) * 100) / 100)
     try {
-      await updateTicket(ticket.id, { status: 'abierto', closed_at: null, price_charged: base })
+      // La hora de cierre original no se toca: si el servicio se vuelve a
+      // cerrar, la duración sigue siendo la del trabajo real.
+      await updateTicket(ticket.id, { status: 'abierto', price_charged: base })
       toast.success('Servicio abierto de nuevo')
       setActiveTicket(ticket.id)
     } catch { toast.error('No se pudo abrir el servicio') }

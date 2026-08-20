@@ -17,7 +17,7 @@ import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { formatMoney, todayISO, compressImage } from '../lib/utils'
 import ConfirmDialog from '../components/ui/ConfirmDialog'
-import { Plus, Camera, Search, X, Clock, CheckCircle, Trash2, PenLine, Zap, Save, ChevronLeft, ChevronRight, Eye, EyeOff, AlertCircle, TrendingDown, Gift } from 'lucide-react'
+import { Plus, Camera, Search, X, Clock, CheckCircle, Trash2, PenLine, Zap, Save, ChevronLeft, ChevronRight, Eye, EyeOff, AlertCircle, TrendingDown, Gift, RotateCcw } from 'lucide-react'
 import {
   cardState, cardsFromTickets, fetchStaffCards, loadConfig as loadFidelidadConfig,
   normPlate, redeemTier, undoTier, setStamps, REDEEM_ERRORS, DEFAULT_CONFIG as FIDELIDAD_DEFAULT,
@@ -1678,12 +1678,13 @@ function serviceDuration(ticket) {
 }
 
 // ─── Tarjeta ticket cerrado ───────────────────────────────────────────────────
-function ClosedTicketCard({ ticket, workers, vehicleTypes, onDelete, onEdit, onSummary, onToggleHide,
+function ClosedTicketCard({ ticket, workers, vehicleTypes, onDelete, onEdit, onSummary, onToggleHide, onReopen,
                             loyaltyCard, loyaltyConfig }) {
   const worker  = workers.find(w => w.id === ticket.worker_id)
   const vehicle = (vehicleTypes || []).find(v => v.value === ticket.vehicle_type)
   const extras  = ticket.extras || []
   const [deleteConfirm, setDeleteConfirm] = useState(false)
+  const [reopenConfirm, setReopenConfirm] = useState(false)
 
   const closedAt  = ticket.closed_at  ? new Date(ticket.closed_at)  : (ticket.created_at ? new Date(ticket.created_at) : null)
   const timeStr   = closedAt ? closedAt.toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' }) : ''
@@ -1751,6 +1752,13 @@ function ClosedTicketCard({ ticket, workers, vehicleTypes, onDelete, onEdit, onS
               }
             </button>
           )}
+          {onReopen && (
+            <button onClick={e => { e.stopPropagation(); setReopenConfirm(true) }}
+              title="Volver a abrir el servicio"
+              className="p-1.5 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg mt-0.5">
+              <RotateCcw className="w-3.5 h-3.5 text-amber-500" />
+            </button>
+          )}
           {onEdit && (
             <button onClick={e => { e.stopPropagation(); onEdit(ticket) }}
               className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg mt-0.5">
@@ -1769,6 +1777,11 @@ function ClosedTicketCard({ ticket, workers, vehicleTypes, onDelete, onEdit, onS
         onConfirm={() => onDelete(ticket.id)}
         title="¿Eliminar registro?" message="Esta acción no se puede deshacer."
         confirmLabel="Eliminar" />
+      <ConfirmDialog open={reopenConfirm} onClose={() => setReopenConfirm(false)}
+        onConfirm={() => onReopen(ticket)}
+        title="¿Volver a abrir el servicio?"
+        message="Vuelve a tickets activos con su precio, adicionales y descuento. Deja de contar como ingreso del día hasta que se cierre otra vez."
+        confirmLabel="Abrir de nuevo" />
     </>
   )
 }
@@ -2648,6 +2661,24 @@ export default function Registro() {
     } catch { toast.error('Error al actualizar') }
   }
 
+  // Reabrir un servicio cerrado. Al cerrar, `price_charged` pasa a ser el total
+  // cobrado (con adicionales, descuento y la comisión de transferencia), así
+  // que hay que deshacer esa cuenta para devolverle al ticket su precio base:
+  // si no, los adicionales se sumarían dos veces al reabrirlo.
+  async function handleReopenTicket(ticket) {
+    const extrasTotal = (ticket.extras || []).reduce((s, e) => s + (e.price || 0), 0)
+    const cobrado  = Number(ticket.price_charged) || 0
+    const sinComision = ticket.payment_method === 'transferencia' ? cobrado / (1 - 0.04) : cobrado
+    const pct = Number(ticket.discount_pct) || 0
+    const bruto = pct >= 100 ? extrasTotal : (sinComision + (Number(ticket.discount_fixed) || 0)) / (1 - pct / 100)
+    const base = Math.max(0, Math.round((bruto - extrasTotal) * 100) / 100)
+    try {
+      await updateTicket(ticket.id, { status: 'abierto', closed_at: null, price_charged: base })
+      toast.success('Servicio abierto de nuevo')
+      setActiveTicket(ticket.id)
+    } catch { toast.error('No se pudo abrir el servicio') }
+  }
+
   async function handleSaveSummary(data) {
     try { await addDailySummary(data); toast.success('Registrado') }
     catch { toast.error('Error al guardar') }
@@ -2996,6 +3027,7 @@ export default function Registro() {
               <ClosedTicketCard key={t.id} ticket={t} workers={workers} vehicleTypes={vehicleTypes}
                 loyaltyCard={cardOf(t)} loyaltyConfig={fidelidadConfig}
                 onDelete={canAdmin ? handleDeleteTicket : null}
+                onReopen={canAdmin ? handleReopenTicket : null}
                 onEdit={canAdmin ? (tk) => setEditingTicket(tk) : null}
                 onSummary={(tk) => setSummaryTicket(tk)}
                 onToggleHide={canAdmin ? handleToggleHideTicket : null} />

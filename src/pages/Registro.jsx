@@ -1635,6 +1635,17 @@ function ActiveTicketCard({ ticket, workers, vehicleTypes, onClick, onToggleHide
                   ⏳ Por pagar {formatMoney(gastoPend)}
                 </span>
               )}
+              {/* Lo que queda del servicio después de sus gastos, incluidos los
+                  que todavía no se pagaron: es la cifra que importa al cerrar. */}
+              {(gastoPagado > 0 || gastoPend > 0) && (
+                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${
+                  total - gastoPagado - gastoPend >= 0
+                    ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400'
+                    : 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400'
+                }`}>
+                  Ganancia {formatMoney(total - gastoPagado - gastoPend)}
+                </span>
+              )}
             </div>
           )}
           {extras.length > 0 && (
@@ -1679,12 +1690,18 @@ function serviceDuration(ticket) {
 
 // ─── Tarjeta ticket cerrado ───────────────────────────────────────────────────
 function ClosedTicketCard({ ticket, workers, vehicleTypes, onDelete, onEdit, onSummary, onToggleHide, onReopen,
-                            loyaltyCard, loyaltyConfig }) {
+                            loyaltyCard, loyaltyConfig, expenses = [] }) {
   const worker  = workers.find(w => w.id === ticket.worker_id)
   const vehicle = (vehicleTypes || []).find(v => v.value === ticket.vehicle_type)
   const extras  = ticket.extras || []
   const [deleteConfirm, setDeleteConfirm] = useState(false)
   const [reopenConfirm, setReopenConfirm] = useState(false)
+
+  // Gastos del servicio: lo cobrado menos lo que costó hacerlo.
+  const gastos       = expenses.filter(e => e.ticket_id === ticket.id)
+  const gastoPagado  = gastos.filter(e => e.paid !== false).reduce((s, e) => s + Number(e.amount || 0), 0)
+  const gastoPend    = gastos.filter(e => e.paid === false).reduce((s, e) => s + Number(e.amount || 0), 0)
+  const ganancia     = (Number(ticket.price_charged) || 0) - gastoPagado - gastoPend
 
   const closedAt  = ticket.closed_at  ? new Date(ticket.closed_at)  : (ticket.created_at ? new Date(ticket.created_at) : null)
   const timeStr   = closedAt ? closedAt.toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' }) : ''
@@ -1720,8 +1737,29 @@ function ClosedTicketCard({ ticket, workers, vehicleTypes, onDelete, onEdit, onS
             )}
           </div>
           <p className="text-xs text-gray-500">{vehicle?.label || ticket.vehicle_type}{ticket.vehicle_subtype ? ` · ${ticket.vehicle_subtype}` : ''} · {worker?.name || '—'}</p>
-          {loyaltyCard && (
-            <div className="mt-1"><LoyaltyBadge card={loyaltyCard} config={loyaltyConfig} /></div>
+          {(loyaltyCard || gastos.length > 0) && (
+            <div className="mt-1 flex items-center gap-1.5 flex-wrap">
+              <LoyaltyBadge card={loyaltyCard} config={loyaltyConfig} />
+              {gastoPagado > 0 && (
+                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400">
+                  Gasto {formatMoney(gastoPagado)}
+                </span>
+              )}
+              {gastoPend > 0 && (
+                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700">
+                  ⏳ Por pagar {formatMoney(gastoPend)}
+                </span>
+              )}
+              {gastos.length > 0 && (
+                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${
+                  ganancia >= 0
+                    ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400'
+                    : 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400'
+                }`}>
+                  Ganancia {formatMoney(ganancia)}
+                </span>
+              )}
+            </div>
           )}
         </div>
         <div className="flex items-start gap-1.5 flex-none">
@@ -3025,7 +3063,7 @@ export default function Registro() {
           <div className="space-y-2">
             {closedToday.map(t => (
               <ClosedTicketCard key={t.id} ticket={t} workers={workers} vehicleTypes={vehicleTypes}
-                loyaltyCard={cardOf(t)} loyaltyConfig={fidelidadConfig}
+                loyaltyCard={cardOf(t)} loyaltyConfig={fidelidadConfig} expenses={expenses}
                 onDelete={canAdmin ? handleDeleteTicket : null}
                 onReopen={canAdmin ? handleReopenTicket : null}
                 onEdit={canAdmin ? (tk) => setEditingTicket(tk) : null}

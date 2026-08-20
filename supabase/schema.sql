@@ -362,3 +362,8 @@ create policy loyalty_redemptions_auth on public.loyalty_redemptions
 -- catálogo de tres niveles rige desde que se activó y el pasado no se toca.
 -- Las metas pueden contar por servicio (vehicle_type) o por categoría
 -- (service_cat), directo, sin adivinar por palabras.
+--
+--   tickets.service_name → nombre del servicio copiado al abrir el ticket.
+--     El precio ya quedaba congelado en price_charged; con el nombre, cambiar o
+--     dar de baja un servicio en Presupuesto tampoco toca los tickets que ya
+--     existen: siguen mostrando lo que se vendió ese día.

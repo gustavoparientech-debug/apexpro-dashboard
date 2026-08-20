@@ -17,7 +17,7 @@ import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { formatMoney, todayISO, compressImage } from '../lib/utils'
 import ConfirmDialog from '../components/ui/ConfirmDialog'
-import { CATEGORIAS, catInfo, porCategoria } from '../lib/servicios'
+import { CATEGORIAS, catInfo, porCategoria, nombreServicio } from '../lib/servicios'
 import { planchadoConfig, precioPanel, PLANCHADO_GAMAS, PLANCHADO_VEHICULOS } from '../lib/catalogoPresupuesto'
 import { Plus, Camera, Search, X, Clock, CheckCircle, Trash2, PenLine, Zap, Save, ChevronLeft, ChevronRight, Eye, EyeOff, AlertCircle, TrendingDown, Gift, RotateCcw } from 'lucide-react'
 import {
@@ -376,6 +376,7 @@ export function NewTicketForm({ onSave, onClose, workers, vehicleTypes, lockedWo
     vehicle_type:   defaultVehicleType || '',
     vehicle_subtype: defaultVehicleSubtype || '',
     service_cat:    '',
+    service_name:   '',
     notes:          '',
     plate:          '',
     photo_url:      '',
@@ -435,13 +436,13 @@ export function NewTicketForm({ onSave, onClose, workers, vehicleTypes, lockedWo
     if (vt.variants?.length > 0) {
       setVehicleVariantPicker(vt)
     } else {
-      setForm(f => ({ ...f, vehicle_type: vt.value, price_charged: vt.default_price || f.price_charged, vehicle_subtype: '', service_cat: vt.category || '' }))
+      setForm(f => ({ ...f, vehicle_type: vt.value, price_charged: vt.default_price || f.price_charged, vehicle_subtype: '', service_cat: vt.category || '', service_name: vt.label || '' }))
       setVehicleVariantPicker(null)
     }
   }
 
   function handleVehicleVariant(vt, variant) {
-    setForm(f => ({ ...f, vehicle_type: vt.value, price_charged: variant.price, vehicle_subtype: variant.label, service_cat: vt.category || '' }))
+    setForm(f => ({ ...f, vehicle_type: vt.value, price_charged: variant.price, vehicle_subtype: variant.label, service_cat: vt.category || '', service_name: vt.label || '' }))
     setVehicleVariantPicker(null)
   }
 
@@ -454,6 +455,7 @@ export function NewTicketForm({ onSave, onClose, workers, vehicleTypes, lockedWo
       vehicle_subtype: resumen,
       price_charged: total,
       service_cat: vt.category || '',
+      service_name: vt.label || '',
       notes: [f.notes, `Planchado: ${detalle}`].filter(Boolean).join(' · '),
     }))
     setPlanchadoPicker(null)
@@ -1009,7 +1011,7 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
               </span>
             </div>
             <p className="text-sm text-gray-600 dark:text-gray-400">
-              {vehicle?.emoji} {vehicle?.label || ticket.vehicle_type}{ticket.vehicle_subtype ? ` · ${ticket.vehicle_subtype}` : ''} · {worker?.name || '—'}
+              {vehicle?.emoji} {nombreServicio(ticket, vehicleTypes)}{ticket.vehicle_subtype ? ` · ${ticket.vehicle_subtype}` : ''} · {worker?.name || '—'}
             </p>
             <TimerBadge openedAt={ticket.opened_at} />
           </div>
@@ -1022,7 +1024,7 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
         {/* Precio base */}
         <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-800">
           <div className="flex items-center justify-between">
-            <span className="text-sm text-gray-600 dark:text-gray-400">Precio base ({vehicle?.label || ticket.vehicle_type}{ticket.vehicle_subtype ? ` · ${ticket.vehicle_subtype}` : ''})</span>
+            <span className="text-sm text-gray-600 dark:text-gray-400">Precio base ({nombreServicio(ticket, vehicleTypes)}{ticket.vehicle_subtype ? ` · ${ticket.vehicle_subtype}` : ''})</span>
             {editPrice ? (
               <div className="flex items-center gap-2">
                 <input type="number" min="0" step="0.5"
@@ -1774,7 +1776,7 @@ function ActiveTicketCard({ ticket, workers, vehicleTypes, onClick, onToggleHide
               <span className="text-xs bg-gray-100 dark:bg-gray-800 text-gray-500 px-1.5 py-0.5 rounded-full">Oculto</span>
             )}
           </div>
-          <p className="text-xs text-gray-500">{vehicle?.label || ticket.vehicle_type}{ticket.vehicle_subtype ? ` · ${ticket.vehicle_subtype}` : ''} · {worker?.name || '—'}</p>
+          <p className="text-xs text-gray-500">{nombreServicio(ticket, vehicleTypes)}{ticket.vehicle_subtype ? ` · ${ticket.vehicle_subtype}` : ''} · {worker?.name || '—'}</p>
           {loyaltyCard && (
             <div className="mt-1"><LoyaltyBadge card={loyaltyCard} config={loyaltyConfig} /></div>
           )}
@@ -1896,7 +1898,7 @@ function ClosedTicketCard({ ticket, workers, vehicleTypes, onDelete, onEdit, onS
               </span>
             )}
           </div>
-          <p className="text-xs text-gray-500">{vehicle?.label || ticket.vehicle_type}{ticket.vehicle_subtype ? ` · ${ticket.vehicle_subtype}` : ''} · {worker?.name || '—'}</p>
+          <p className="text-xs text-gray-500">{nombreServicio(ticket, vehicleTypes)}{ticket.vehicle_subtype ? ` · ${ticket.vehicle_subtype}` : ''} · {worker?.name || '—'}</p>
           {(loyaltyCard || gastos.length > 0) && (
             <div className="mt-1 flex items-center gap-1.5 flex-wrap">
               <LoyaltyBadge card={loyaltyCard} config={loyaltyConfig} />
@@ -2089,7 +2091,7 @@ function TicketSummaryModal({ ticket, workers, vehicleTypes, onClose, canAdmin }
       sep,
       `🚘 *Placa:* ${ticket.plate || 'Sin placa'}`,
       ticket.vehicle_subtype ? `🚗 *Vehículo:* ${ticket.vehicle_subtype}` : null,
-      `🧹 *Servicio:* ${vehicle?.label || ticket.vehicle_type}`,
+      `🧹 *Servicio:* ${nombreServicio(ticket, vehicleTypes)}`,
       `👷 *Técnico:* ${worker?.name || '—'}`,
       sep,
       `🧾 *Detalle:*`,
@@ -2148,7 +2150,7 @@ function TicketSummaryModal({ ticket, workers, vehicleTypes, onClose, canAdmin }
     if (ticket.vehicle_subtype) {
       doc.text(`Vehiculo: ${ticket.vehicle_subtype}`, mid, y, { align: 'center' }); y += 4
     }
-    doc.text(`Servicio: ${vehicle?.label || ticket.vehicle_type}`, mid, y, { align: 'center' }); y += 4
+    doc.text(`Servicio: ${nombreServicio(ticket, vehicleTypes)}`, mid, y, { align: 'center' }); y += 4
     doc.text(`Tecnico: ${worker?.name || '—'}`, mid, y, { align: 'center' }); y += 5
     doc.setDrawColor(180,180,180).line(lm, y, rm, y); y += 4
 
@@ -2160,7 +2162,7 @@ function TicketSummaryModal({ ticket, workers, vehicleTypes, onClose, canAdmin }
     // Precio base
     doc.setFontSize(8)
     if (basePrice > 0) {
-      row(`Lavado (${vehicle?.label || ticket.vehicle_type})`, formatMoney(basePrice))
+      row(`Servicio (${nombreServicio(ticket, vehicleTypes)})`, formatMoney(basePrice))
     }
 
     // Extras
@@ -2291,7 +2293,7 @@ function TicketSummaryModal({ ticket, workers, vehicleTypes, onClose, canAdmin }
 
         {/* Info */}
         <div className="px-5 py-4 space-y-0">
-          <p className="text-sm text-gray-500 mb-4">{worker?.name || '—'} · {vehicle?.label || ticket.vehicle_type}</p>
+          <p className="text-sm text-gray-500 mb-4">{worker?.name || '—'} · {nombreServicio(ticket, vehicleTypes)}</p>
 
           {/* Detalle servicios */}
           <div className="space-y-1.5 text-sm">
@@ -2464,6 +2466,7 @@ function EditClosedTicket({ ticket, workers, vehicleTypes, onSave, onClose }) {
     // Los tickets viejos no tienen categoría: si se les cambia el servicio, se
     // les pone la del servicio nuevo; si no se toca, quedan como estaban.
     service_cat:      ticket.service_cat || '',
+    service_name:     ticket.service_name || '',
     worker_id:        ticket.worker_id || '',
     price_charged:    ticket.price_charged || '',
     payment_method:   ticket.payment_method || 'yape',
@@ -2476,14 +2479,14 @@ function EditClosedTicket({ ticket, workers, vehicleTypes, onSave, onClose }) {
   function selectVehicle(v) {
     if (v.variants?.length > 0) {
       setSubtypePicker(v)
-      setForm(f => ({ ...f, vehicle_type: v.value, price_charged: f.price_charged || v.default_price, vehicle_subtype: '', service_cat: v.category || '' }))
+      setForm(f => ({ ...f, vehicle_type: v.value, price_charged: f.price_charged || v.default_price, vehicle_subtype: '', service_cat: v.category || '', service_name: v.label || '' }))
     } else {
-      setForm(f => ({ ...f, vehicle_type: v.value, price_charged: f.price_charged || v.default_price, vehicle_subtype: '', service_cat: v.category || '' }))
+      setForm(f => ({ ...f, vehicle_type: v.value, price_charged: f.price_charged || v.default_price, vehicle_subtype: '', service_cat: v.category || '', service_name: v.label || '' }))
     }
   }
 
   function selectVariant(vt, variant) {
-    setForm(f => ({ ...f, vehicle_type: vt.value, price_charged: variant.price, vehicle_subtype: variant.label, service_cat: vt.category || '' }))
+    setForm(f => ({ ...f, vehicle_type: vt.value, price_charged: variant.price, vehicle_subtype: variant.label, service_cat: vt.category || '', service_name: vt.label || '' }))
     setSubtypePicker(null)
   }
 

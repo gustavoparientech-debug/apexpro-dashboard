@@ -49,3 +49,19 @@ export function precioServicio(servicio, variantLabel) {
   if (v) return Number(v.price) || 0
   return Number(servicio.default_price) || 0
 }
+
+// Nombre del servicio para mostrar en un ticket. Manda lo que se guardó al
+// abrirlo: si el servicio cambió de nombre o se dio de baja en Presupuesto, el
+// ticket viejo sigue diciendo lo que se vendió ese día.
+export function nombreServicio(ticket, servicios) {
+  if (!ticket) return ''
+  if (ticket.service_name) return ticket.service_name
+  const s = (servicios || []).find(v => v.value === ticket.vehicle_type)
+  return s?.label || ticket.vehicle_type || ''
+}
+
+// Igual que arriba pero con el emoji del servicio, si todavía existe.
+export function emojiServicio(ticket, servicios) {
+  const s = (servicios || []).find(v => v.value === ticket?.vehicle_type)
+  return s?.emoji || '🚗'
+}

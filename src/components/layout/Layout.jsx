@@ -100,8 +100,13 @@ const GASTO_CATS = [
 ]
 
 function GastoSheet({ onClose, fixedWorkerId, isAdmin }) {
-  const { addExpense, workers } = useApp()
-  const [form, setForm] = useState({ date: todayISO(), amount: '', category: '', notes: '', worker_id: fixedWorkerId || '', method: '' })
+  const { addExpense, workers, tickets } = useApp()
+  const [form, setForm] = useState({ date: todayISO(), amount: '', category: '', notes: '', worker_id: fixedWorkerId || '', method: '', ticket_id: '' })
+  // Un gasto puede colgarse del servicio que lo generó: así entra en la
+  // ganancia de ese ticket y no solo en los gastos sueltos del día.
+  const openTickets = (tickets || [])
+    .filter(t => t.status === 'abierto')
+    .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
   const [busy, setBusy] = useState(false)
   const [mounted, setMounted] = useState(false)
   const [closing, setClosing] = useState(false)
@@ -120,7 +125,7 @@ function GastoSheet({ onClose, fixedWorkerId, isAdmin }) {
     if (!form.amount) { toast.error('Ingresa el monto'); return }
     setBusy(true)
     try {
-      await addExpense({ ...form, amount: parseFloat(form.amount), hidden_from_workers: !!isAdmin })
+      await addExpense({ ...form, amount: parseFloat(form.amount), ticket_id: form.ticket_id || null, hidden_from_workers: !!isAdmin })
       toast.success('Gasto registrado')
       handleClose()
     } catch { toast.error('Error al guardar') }
@@ -167,6 +172,16 @@ function GastoSheet({ onClose, fixedWorkerId, isAdmin }) {
             </button>
           ))}
         </div>
+        {isAdmin && openTickets.length > 0 && (
+          <select className="input" value={form.ticket_id} onChange={e => setForm(f => ({ ...f, ticket_id: e.target.value }))}>
+            <option value="">Sin servicio — gasto del día</option>
+            {openTickets.map(t => (
+              <option key={t.id} value={t.id}>
+                🔧 {t.plate || 'Sin placa'}{t.vehicle_subtype ? ` · ${t.vehicle_subtype}` : ''}
+              </option>
+            ))}
+          </select>
+        )}
         <input className="input" placeholder="Notas (opcional)" value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
         <button onClick={handleSave} disabled={busy}
           className="w-full py-3 rounded-2xl bg-red-600 hover:bg-red-700 text-white font-bold transition-transform duration-150 ease-out active:scale-[0.97]">

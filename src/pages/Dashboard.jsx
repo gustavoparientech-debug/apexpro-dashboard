@@ -135,7 +135,7 @@ const SORT_OPTIONS = [
 ]
 
 function ExpensesPanel({ expenses, workers }) {
-  const { updateExpense, deleteExpense, addExpense } = useApp()
+  const { updateExpense, deleteExpense, addExpense, tickets } = useApp()
   const { isAdmin, isDemo } = useAuth()
   const canAdmin = isAdmin || isDemo
   const [expanded,     setExpanded]     = useState(false)
@@ -146,15 +146,24 @@ function ExpensesPanel({ expenses, workers }) {
   const [sortBy,       setSortBy]       = useState('date_desc')
   const [editingExp,   setEditingExp]   = useState(null)
   const [showAdd,      setShowAdd]      = useState(false)
-  const [addForm,      setAddForm]      = useState({ amount: '', category: 'insumos', worker_id: '', notes: '', date: new Date().toISOString().slice(0, 10) })
+  const [addForm,      setAddForm]      = useState({ amount: '', category: 'insumos', worker_id: '', notes: '', date: new Date().toISOString().slice(0, 10), ticket_id: '' })
+  // Servicios abiertos: un gasto se puede colgar del ticket que lo generó y así
+  // entra en la ganancia de ese servicio, no solo en los gastos del día.
+  const openTickets = useMemo(
+    () => (tickets || []).filter(t => t.status === 'abierto')
+      .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0)),
+    [tickets]
+  )
+  const ticketLabel = t => `${t.plate || 'Sin placa'}${t.vehicle_subtype ? ` · ${t.vehicle_subtype}` : ''}`
+  const ticketById = id => (tickets || []).find(t => t.id === id)
   const [saving,       setSaving]       = useState(false)
 
   async function handleAdd() {
     if (!addForm.amount || isNaN(addForm.amount)) { toast.error('Ingresa un monto válido'); return }
     setSaving(true)
     try {
-      await addExpense({ ...addForm, amount: parseFloat(addForm.amount), worker_id: addForm.worker_id || null })
-      setAddForm({ amount: '', category: 'insumos', worker_id: '', notes: '', date: new Date().toISOString().slice(0, 10) })
+      await addExpense({ ...addForm, amount: parseFloat(addForm.amount), worker_id: addForm.worker_id || null, ticket_id: addForm.ticket_id || null })
+      setAddForm({ amount: '', category: 'insumos', worker_id: '', notes: '', date: new Date().toISOString().slice(0, 10), ticket_id: '' })
       setShowAdd(false)
       toast.success('Gasto registrado')
     } catch { toast.error('Error al registrar') } finally { setSaving(false) }
@@ -247,6 +256,14 @@ function ExpensesPanel({ expenses, workers }) {
               <input type="date" className="input text-sm py-1.5" value={addForm.date}
                 onChange={e => setAddForm(f => ({ ...f, date: e.target.value }))} />
             </div>
+          </div>
+          <div>
+            <p className="text-xs text-gray-400 mb-0.5">Servicio (opcional)</p>
+            <select className="input text-sm py-1.5" value={addForm.ticket_id}
+              onChange={e => setAddForm(f => ({ ...f, ticket_id: e.target.value }))}>
+              <option value="">Sin servicio — gasto del día</option>
+              {openTickets.map(t => <option key={t.id} value={t.id}>🔧 {ticketLabel(t)}</option>)}
+            </select>
           </div>
           <div>
             <p className="text-xs text-gray-400 mb-0.5">Descripción</p>
@@ -344,6 +361,22 @@ function ExpensesPanel({ expenses, workers }) {
                 </div>
                 <input className="input text-xs py-1" placeholder="Notas" value={editingExp.notes || ''}
                   onChange={e => setEditingExp(f => ({ ...f, notes: e.target.value }))} />
+                {/* Servicio al que pertenece el gasto */}
+                <div>
+                  <p className="text-xs text-gray-400 mb-0.5">Servicio (opcional)</p>
+                  <select className="input text-xs py-1" value={editingExp.ticket_id || ''}
+                    onChange={e => setEditingExp(f => ({ ...f, ticket_id: e.target.value || null }))}>
+                    <option value="">Sin servicio — gasto del día</option>
+                    {openTickets.map(t => <option key={t.id} value={t.id}>🔧 {ticketLabel(t)}</option>)}
+                    {/* Si ya estaba colgado de un servicio cerrado, no se pierde al editar. */}
+                    {editingExp.ticket_id && !openTickets.some(t => t.id === editingExp.ticket_id) && (
+                      <option value={editingExp.ticket_id}>
+                        {ticketById(editingExp.ticket_id) ? `✓ ${ticketLabel(ticketById(editingExp.ticket_id))} (cerrado)` : 'Servicio actual'}
+                      </option>
+                    )}
+                  </select>
+                </div>
+
                 {/* Estado de pago: un pendiente no descuenta hasta marcarse pagado. */}
                 <div className="flex items-center gap-1">
                   <span className="text-[10px] text-gray-400 mr-0.5">Estado:</span>
@@ -360,7 +393,7 @@ function ExpensesPanel({ expenses, workers }) {
                 <div className="flex gap-2">
                   <button onClick={async () => {
                     try {
-                      await updateExpense(exp.id, { ...editingExp, amount: parseFloat(editingExp.amount), paid: editingExp.paid !== false })
+                      await updateExpense(exp.id, { ...editingExp, amount: parseFloat(editingExp.amount), paid: editingExp.paid !== false, ticket_id: editingExp.ticket_id || null })
                       toast.success('Gasto actualizado')
                       setEditingExp(null)
                     } catch { toast.error('Error al actualizar') }
@@ -389,7 +422,7 @@ function ExpensesPanel({ expenses, workers }) {
                         conviene distinguirlos de los generales del taller. */}
                     {exp.ticket_id && (
                       <span className="text-xs font-medium text-orange-600 bg-orange-50 dark:bg-orange-900/20 px-1.5 py-0.5 rounded-md">
-                        🎫 De un servicio
+                        🎫 {ticketById(exp.ticket_id)?.plate || 'De un servicio'}
                       </span>
                     )}
                     {exp.paid === false && (

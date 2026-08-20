@@ -1,0 +1,22 @@
+{
+  "id": "session-1787201662742",
+  "startedAt": "2026-08-20T04:54:22.742Z",
+  "cwd": "/Users/gustavopariente/Downloads/Apexproweb",
+  "context": {
+    "lastMatchedPatterns": [
+      "insight-1787166228207-9yqn",
+      "insight-1787166228207-8afa",
+      "insight-1787166228207-ejlb",
+      "mem-deploy-siempre-----0"
+    ]
+  },
+  "metrics": {
+    "edits": 2,
+    "commands": 0,
+    "tasks": 0,
+    "errors": 0
+  },
+  "updatedAt": "2026-08-20T05:46:41.056Z",
+  "endedAt": "2026-08-20T06:25:26.776Z",
+  "duration": 5464035
+}

@@ -6,7 +6,7 @@ import { useApp } from '../../context/AppContext'
 import {
   LayoutDashboard, ClipboardList, Users, Wallet, TrendingUp,
   Settings, History, BarChart2, Sun, Moon, Menu, X, ChevronRight, UserCog, LogOut,
-  Plus, TrendingDown, AlertCircle, Calculator, CalendarDays, Fingerprint, Clock, AlarmClock, Mail, Target, Gift
+  Plus, TrendingDown, AlertCircle, Calculator, CalendarDays, Fingerprint, Clock, AlarmClock, Stethoscope, Target, Gift
 } from 'lucide-react'
 import { cn, todayISO } from '../../lib/utils'
 import { IncidentForm } from '../../pages/Trabajadores'
@@ -295,7 +295,7 @@ const ADMIN_NAV = [
   { to: '/clientes',      label: 'Clientes',  icon: Gift },
   { to: '/reportes',      label: 'Reportes',  icon: BarChart2 },
   { to: '/usuarios',      label: 'Usuarios',    icon: UserCog },
-  { to: '/correos',       label: 'Correos',     icon: Mail },
+  { to: '/diagnostico',   label: 'Diagnóstico', icon: Stethoscope },
   // { to: '/facturas', label: 'Facturas', icon: FileText }, // oculto hasta conectar el PSE
   { to: '/citas',         label: 'Citas',       icon: CalendarDays },
   { to: '/presupuesto',   label: 'Presupuesto', icon: Calculator },

@@ -1,0 +1,14 @@
+{
+  "id": "session-1786558346565",
+  "startedAt": "2026-08-12T18:12:26.565Z",
+  "cwd": "/Users/gustavopariente/Downloads/Apexproweb",
+  "context": {},
+  "metrics": {
+    "edits": 0,
+    "commands": 0,
+    "tasks": 0,
+    "errors": 0
+  },
+  "endedAt": "2026-08-12T18:12:27.010Z",
+  "duration": 448
+}

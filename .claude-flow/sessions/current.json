@@ -1,12 +1,21 @@
 {
-  "id": "session-1783301248365",
-  "startedAt": "2026-07-06T01:27:28.365Z",
+  "id": "session-1787243833502",
+  "startedAt": "2026-08-20T16:37:13.502Z",
   "cwd": "/Users/gustavopariente/Downloads/Apexproweb",
-  "context": {},
+  "context": {
+    "lastMatchedPatterns": [
+      "insight-1787166228207-9yqn",
+      "insight-1787166228207-8afa",
+      "insight-1787166228207-xst0",
+      "insight-1787166228207-ejlb",
+      "mem-deploy-siempre-----0"
+    ]
+  },
   "metrics": {
-    "edits": 33,
+    "edits": 2,
     "commands": 0,
     "tasks": 0,
     "errors": 0
-  }
+  },
+  "updatedAt": "2026-08-20T16:45:57.411Z"
 }

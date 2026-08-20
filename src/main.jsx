@@ -79,7 +79,7 @@ const Citas         = lazy(() => import('./pages/Citas'))
 const Asistencia         = lazy(() => import('./pages/Asistencia'))
 const AsistenciaReporte  = lazy(() => import('./pages/AsistenciaReporte'))
 const Horarios           = lazy(() => import('./pages/Horarios'))
-const Correos            = lazy(() => import('./pages/Correos'))
+const Diagnostico        = lazy(() => import('./pages/Diagnostico'))
 const Facturas           = lazy(() => import('./pages/Facturas'))
 const Clientes           = lazy(() => import('./pages/Clientes'))
 
@@ -130,7 +130,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
                       <Route path="/asistencia"    element={<Asistencia />} />
                       <Route path="/asistencia/reporte" element={<AdminOnly><AsistenciaReporte /></AdminOnly>} />
                       <Route path="/horarios"          element={<AdminOnly><Horarios /></AdminOnly>} />
-                      <Route path="/correos"           element={<AdminOnly><Correos /></AdminOnly>} />
+                      <Route path="/diagnostico"       element={<AdminOnly><Diagnostico /></AdminOnly>} />
                       <Route path="/facturas"          element={<AdminOnly><Facturas /></AdminOnly>} />
                       <Route path="/clientes"          element={<AdminOnly><Clientes /></AdminOnly>} />
                     </Routes>

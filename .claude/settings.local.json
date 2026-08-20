@@ -106,7 +106,25 @@
       "Bash(curl -s http://localhost:5173/)",
       "Bash(kill %1)",
       "mcp__cd9adf0c-c65c-445c-85d4-0d3028ac18d7__deploy_to_vercel",
-      "Bash(grep -n \"const { profile, isAdmin\" /Users/gustavopariente/Downloads/Apexproweb/src/pages/Asistencia.jsx)"
+      "Bash(grep -n \"const { profile, isAdmin\" /Users/gustavopariente/Downloads/Apexproweb/src/pages/Asistencia.jsx)",
+      "Bash(identify /Users/gustavopariente/Downloads/Apexproweb/public/icon-192.png /Users/gustavopariente/Downloads/Apexproweb/public/icon-512.png /Users/gustavopariente/Downloads/Apexproweb/public/apple-touch-icon.png)",
+      "Bash(python3 -)",
+      "Bash(node --input-type=module -e ' *)",
+      "Bash(grep -n \"const prefix\\\\|}, \\\\[.*monthlyCosts.*\\\\]\\\\|useMemo\\(\\(\\) => {\" src/pages/Dashboard.jsx)",
+      "Bash(sed -n '/export function calcOvertimePay/,/^}/p' src/lib/utils.js)",
+      "Bash(sed -n '/export function calcRealSalary/,/^}/p;/export function calcLatenessDiscount/,/^}/p' src/lib/utils.js)",
+      "mcp__ab92daa0-c140-4666-a141-6569cd0d51ce__list_edge_functions",
+      "Bash(curl -s -o /dev/null -w \"raw.githubusercontent: %{http_code}\\\\n\" \"https://raw.githubusercontent.com/gustavoparientech-debug/apexpro-dashboard/main/public/icon-192.png\")",
+      "Bash(grep -o 'la mitad fácil.\\\\{0,2500\\\\}' 0e507df5-def9-4147-8d36-0f1f7e4f5ed0.jsonl)",
+      "mcp__ab92daa0-c140-4666-a141-6569cd0d51ce__get_edge_function",
+      "Bash(deno --version)",
+      "Bash(node /private/tmp/claude-501/-Users-gustavopariente-Downloads-Apexproweb/cf5631f0-0328-4975-8c6f-b9842787f1f9/scratchpad/mime-test.mjs)",
+      "Bash(node mime-test.mjs)",
+      "Bash(npm ls *)",
+      "Bash(grep -iE \"^sharp$|^jimp$|^pngjs$\")",
+      "Bash(npm i *)",
+      "Bash(node -)",
+      "Bash(file public/logo-*.png)"
     ]
   }
 }

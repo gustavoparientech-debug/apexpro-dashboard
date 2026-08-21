@@ -137,7 +137,9 @@ const SORT_OPTIONS = [
 // ─── Afluencia: qué días y a qué horas entra el trabajo ──────────────────────
 // Con el promedio por día de semana y por hora se decide a qué hora conviene
 // almorzar, cuándo hace falta más gente y hasta qué hora tiene sentido abrir.
-const DIAS_SEMANA = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
+// El domingo no se trabaja: si aparece un ticket es porque entró a destajo y
+// ensucia el promedio, así que queda fuera de la estadística.
+const DIAS_SEMANA = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado']
 const RANGOS_AFLUENCIA = [
   { dias: 30,  label: '30 días' },
   { dias: 90,  label: '3 meses' },
@@ -162,12 +164,17 @@ function AfluenciaPanel() {
   }, [dias])
 
   const analisis = useMemo(() => {
-    const lista = (rows || []).filter(t => t.date)
+    const esDomingo = fecha => {
+      const [y, m, d] = fecha.split('-').map(Number)
+      return new Date(y, m - 1, d).getDay() === 0
+    }
+    const lista = (rows || []).filter(t => t.date && !esDomingo(t.date))
     if (!lista.length) return null
 
     // Por día de la semana: se divide entre cuántas veces cayó ese día en el
     // período, si no un mes con cinco sábados parece mejor que uno con cuatro.
     const porDia = DIAS_SEMANA.map(nombre => ({ dia: nombre, autos: 0, ingresos: 0, fechas: new Set() }))
+    const domingos = (rows || []).filter(t => t.date && esDomingo(t.date)).length
     const porHora = Array.from({ length: 24 }, (_, h) => ({ hora: h, autos: 0, ingresos: 0 }))
 
     for (const t of lista) {
@@ -184,11 +191,12 @@ function AfluenciaPanel() {
       }
     }
 
-    // Cuántas veces ocurrió cada día de la semana en el período.
-    const vecesPorDia = Array(7).fill(0)
+    // Cuántas veces ocurrió cada día laborable en el período (sin domingos).
+    const vecesPorDia = Array(6).fill(0)
     const hoy = new Date()
     for (let i = 0; i < dias; i++) {
       const d = new Date(hoy); d.setDate(hoy.getDate() - i)
+      if (d.getDay() === 0) continue
       vecesPorDia[(d.getDay() + 6) % 7] += 1
     }
 
@@ -232,7 +240,7 @@ function AfluenciaPanel() {
       if (!cierre && conMarca > 0 && acumulado >= conMarca * 0.9) cierre = h.hora
     }
 
-    return { dataDias, dataHoras, mejorDia, peorDia, horaPico, almuerzo, cierre, total: lista.length, conMarca }
+    return { dataDias, dataHoras, mejorDia, peorDia, horaPico, almuerzo, cierre, total: lista.length, conMarca, domingos }
   }, [rows, dias])
 
   return (
@@ -241,7 +249,7 @@ function AfluenciaPanel() {
         <span className="text-base">📊</span>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-bold text-gray-900 dark:text-white">Afluencia por día y hora</p>
-          <p className="text-xs text-gray-400">Cuándo entra el trabajo, para organizar turnos y almuerzos</p>
+          <p className="text-xs text-gray-400">Cuándo entra el trabajo, para organizar turnos y almuerzos · sin domingos</p>
         </div>
         <div className="flex gap-1">
           {RANGOS_AFLUENCIA.map(r => (
@@ -267,7 +275,10 @@ function AfluenciaPanel() {
           <div>
             <div className="flex items-baseline justify-between mb-1">
               <p className="text-xs font-bold uppercase tracking-widest text-gray-400">Promedio de autos por día</p>
-              <p className="text-[11px] text-gray-400">{analisis.total} servicios</p>
+              <p className="text-[11px] text-gray-400">
+                {analisis.total} servicios
+                {analisis.domingos > 0 && <span className="text-gray-300 dark:text-gray-600"> · {analisis.domingos} de domingo fuera</span>}
+              </p>
             </div>
             <div className="h-52">
               <ResponsiveContainer width="100%" height="100%">

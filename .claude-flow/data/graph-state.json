@@ -1,159 +1,159 @@
 {
   "version": 1,
-  "updatedAt": 1787243833506,
+  "updatedAt": 1787285750587,
   "nodeCount": 22,
   "nodes": {
     "mem-deploy-siempre-----0": {
       "id": "mem-deploy-siempre-----0",
       "category": "deploy-siempre",
-      "confidence": 0.55,
-      "accessCount": 1,
+      "confidence": 0.5750000000000001,
+      "accessCount": 2,
       "createdAt": 1787166227725
     },
     "insight-1787166228207-cugh": {
       "id": "insight-1787166228207-cugh",
       "category": "insights",
-      "confidence": 0.5,
+      "confidence": 0.495,
       "accessCount": 0,
       "createdAt": 1787166228207
     },
     "insight-1787166228207-nwa4": {
       "id": "insight-1787166228207-nwa4",
       "category": "insights",
-      "confidence": 0.5,
+      "confidence": 0.495,
       "accessCount": 0,
       "createdAt": 1787166228207
     },
     "insight-1787166228207-oob7": {
       "id": "insight-1787166228207-oob7",
       "category": "insights",
-      "confidence": 0.5,
+      "confidence": 0.495,
       "accessCount": 0,
       "createdAt": 1787166228207
     },
     "insight-1787166228207-oel7": {
       "id": "insight-1787166228207-oel7",
       "category": "insights",
-      "confidence": 0.5,
+      "confidence": 0.495,
       "accessCount": 0,
       "createdAt": 1787166228207
     },
     "insight-1787166228207-xpj8": {
       "id": "insight-1787166228207-xpj8",
       "category": "insights",
-      "confidence": 0.5,
+      "confidence": 0.495,
       "accessCount": 0,
       "createdAt": 1787166228207
     },
     "insight-1787166228207-y374": {
       "id": "insight-1787166228207-y374",
       "category": "insights",
-      "confidence": 0.5,
+      "confidence": 0.495,
       "accessCount": 0,
       "createdAt": 1787166228207
     },
     "insight-1787166228207-28p4": {
       "id": "insight-1787166228207-28p4",
       "category": "insights",
-      "confidence": 0.5,
+      "confidence": 0.495,
       "accessCount": 0,
       "createdAt": 1787166228207
     },
     "insight-1787166228207-z42g": {
       "id": "insight-1787166228207-z42g",
       "category": "insights",
-      "confidence": 0.5,
+      "confidence": 0.495,
       "accessCount": 0,
       "createdAt": 1787166228207
     },
     "insight-1787166228207-3ykx": {
       "id": "insight-1787166228207-3ykx",
       "category": "insights",
-      "confidence": 0.5,
+      "confidence": 0.495,
       "accessCount": 0,
       "createdAt": 1787166228207
     },
     "insight-1787166228207-w0yi": {
       "id": "insight-1787166228207-w0yi",
       "category": "insights",
-      "confidence": 0.5,
+      "confidence": 0.495,
       "accessCount": 0,
       "createdAt": 1787166228207
     },
     "insight-1787166228207-c4iv": {
       "id": "insight-1787166228207-c4iv",
       "category": "insights",
-      "confidence": 0.5800000000000001,
-      "accessCount": 2,
+      "confidence": 0.495,
+      "accessCount": 0,
       "createdAt": 1787166228207
     },
     "insight-1787166228207-wta1": {
       "id": "insight-1787166228207-wta1",
       "category": "insights",
-      "confidence": 0.5,
+      "confidence": 0.495,
       "accessCount": 0,
       "createdAt": 1787166228207
     },
     "insight-1787166228207-vcl2": {
       "id": "insight-1787166228207-vcl2",
       "category": "insights",
-      "confidence": 0.5,
+      "confidence": 0.495,
       "accessCount": 0,
       "createdAt": 1787166228207
     },
     "insight-1787166228207-yk57": {
       "id": "insight-1787166228207-yk57",
       "category": "insights",
-      "confidence": 0.5,
+      "confidence": 0.495,
       "accessCount": 0,
       "createdAt": 1787166228207
     },
     "insight-1787166228207-y5oc": {
       "id": "insight-1787166228207-y5oc",
       "category": "insights",
-      "confidence": 0.5,
+      "confidence": 0.495,
       "accessCount": 0,
       "createdAt": 1787166228207
     },
     "insight-1787166228207-2c97": {
       "id": "insight-1787166228207-2c97",
       "category": "insights",
-      "confidence": 0.5,
+      "confidence": 0.495,
       "accessCount": 0,
       "createdAt": 1787166228207
     },
     "insight-1787166228207-xst0": {
       "id": "insight-1787166228207-xst0",
       "category": "insights",
-      "confidence": 0.5,
+      "confidence": 0.495,
       "accessCount": 0,
       "createdAt": 1787166228207
     },
     "insight-1787166228207-26mh": {
       "id": "insight-1787166228207-26mh",
       "category": "insights",
-      "confidence": 0.5,
-      "accessCount": 0,
+      "confidence": 0.5750000000000001,
+      "accessCount": 2,
       "createdAt": 1787166228207
     },
     "insight-1787166228207-ejlb": {
       "id": "insight-1787166228207-ejlb",
       "category": "insights",
-      "confidence": 0.55,
-      "accessCount": 1,
+      "confidence": 0.5750000000000001,
+      "accessCount": 2,
       "createdAt": 1787166228207
     },
     "insight-1787166228207-8afa": {
       "id": "insight-1787166228207-8afa",
       "category": "insights",
-      "confidence": 0.55,
+      "confidence": 0.545,
       "accessCount": 1,
       "createdAt": 1787166228207
     },
     "insight-1787166228207-9yqn": {
       "id": "insight-1787166228207-9yqn",
       "category": "insights",
-      "confidence": 0.55,
+      "confidence": 0.545,
       "accessCount": 1,
       "createdAt": 1787166228207
     }

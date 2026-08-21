@@ -1,13 +1,13 @@
 {
   "version": 1,
-  "computedAt": 1787243833507,
+  "computedAt": 1787285750588,
   "entries": [
     {
       "id": "insight-1787166228207-9yqn",
       "content": "File /Users/gustavopariente/Downloads/Apexproweb/src/components/modules/MetasConfig.jsx was edited 3 times this session — likely a hot path worth monitoring.",
       "summary": "Frequently edited: MetasConfig.jsx (3x)",
       "category": "insights",
-      "confidence": 0.55,
+      "confidence": 0.545,
       "pageRank": 0.22790784132028524,
       "accessCount": 1,
       "words": [
@@ -40,7 +40,7 @@
       "content": "File /Users/gustavopariente/Downloads/Apexproweb/src/pages/Metas.jsx was edited 4 times this session — likely a hot path worth monitoring.",
       "summary": "Frequently edited: Metas.jsx (4x)",
       "category": "insights",
-      "confidence": 0.55,
+      "confidence": 0.545,
       "pageRank": 0.12319341802587819,
       "accessCount": 1,
       "words": [
@@ -72,9 +72,9 @@
       "content": "File /Users/gustavopariente/Downloads/Apexproweb/src/lib/metas.js was edited 6 times this session — likely a hot path worth monitoring.",
       "summary": "Frequently edited: metas.js (6x)",
       "category": "insights",
-      "confidence": 0.55,
+      "confidence": 0.5750000000000001,
       "pageRank": 0.0864515303999742,
-      "accessCount": 1,
+      "accessCount": 2,
       "words": [
         "file",
         "users",
@@ -102,9 +102,9 @@
       "content": "File /Users/gustavopariente/Downloads/Apexproweb/src/pages/Facturas.jsx was edited 15 times this session — likely a hot path worth monitoring.",
       "summary": "Frequently edited: Facturas.jsx (15x)",
       "category": "insights",
-      "confidence": 0.5,
+      "confidence": 0.5750000000000001,
       "pageRank": 0.06736483866724975,
-      "accessCount": 0,
+      "accessCount": 2,
       "words": [
         "file",
         "users",
@@ -135,7 +135,7 @@
       "content": "File /Users/gustavopariente/Downloads/Apexproweb/src/components/correos/ComposeForm.jsx was edited 12 times this session — likely a hot path worth monitoring.",
       "summary": "Frequently edited: ComposeForm.jsx (12x)",
       "category": "insights",
-      "confidence": 0.5,
+      "confidence": 0.495,
       "pageRank": 0.05555863780299764,
       "accessCount": 0,
       "words": [
@@ -169,7 +169,7 @@
       "content": "File /Users/gustavopariente/Downloads/Apexproweb/src/pages/Correos.jsx was edited 16 times this session — likely a hot path worth monitoring.",
       "summary": "Frequently edited: Correos.jsx (16x)",
       "category": "insights",
-      "confidence": 0.5,
+      "confidence": 0.495,
       "pageRank": 0.04748602127229291,
       "accessCount": 0,
       "words": [
@@ -202,7 +202,7 @@
       "content": "File /private/tmp/claude-501/-Users-gustavopariente-Downloads-Apexproweb/cf5631f0-0328-4975-8c6f-b9842787f1f9/scratchpad/mime-test.mjs was edited 3 times this session — likely a hot path worth monitoring.",
       "summary": "Frequently edited: mime-test.mjs (3x)",
       "category": "insights",
-      "confidence": 0.5,
+      "confidence": 0.495,
       "pageRank": 0.04159359974678054,
       "accessCount": 0,
       "words": [
@@ -234,7 +234,7 @@
       "content": "File /Users/gustavopariente/Downloads/Apexproweb/supabase/functions/leer-correo/index.ts was edited 13 times this session — likely a hot path worth monitoring.",
       "summary": "Frequently edited: index.ts (13x)",
       "category": "insights",
-      "confidence": 0.5,
+      "confidence": 0.495,
       "pageRank": 0.03708983741185832,
       "accessCount": 0,
       "words": [
@@ -266,7 +266,7 @@
       "content": "File /Users/gustavopariente/Downloads/Apexproweb/src/pages/AsistenciaReporte.jsx was edited 23 times this session — likely a hot path worth monitoring.",
       "summary": "Frequently edited: AsistenciaReporte.jsx (23x)",
       "category": "insights",
-      "confidence": 0.5,
+      "confidence": 0.495,
       "pageRank": 0.03352753895079359,
       "accessCount": 0,
       "words": [
@@ -299,7 +299,7 @@
       "content": "File /Users/gustavopariente/Downloads/Apexproweb/src/pages/Asistencia.jsx was edited 114 times this session — likely a hot path worth monitoring.",
       "summary": "Frequently edited: Asistencia.jsx (114x)",
       "category": "insights",
-      "confidence": 0.5,
+      "confidence": 0.495,
       "pageRank": 0.030634301147735313,
       "accessCount": 0,
       "words": [
@@ -333,9 +333,9 @@
       "content": "File /Users/gustavopariente/Downloads/Apexproweb/src/pages/Presupuesto.jsx was edited 220 times this session — likely a hot path worth monitoring.",
       "summary": "Frequently edited: Presupuesto.jsx (220x)",
       "category": "insights",
-      "confidence": 0.5800000000000001,
+      "confidence": 0.495,
       "pageRank": 0.02823438000014111,
-      "accessCount": 2,
+      "accessCount": 0,
       "words": [
         "file",
         "users",
@@ -367,7 +367,7 @@
       "content": "File /Users/gustavopariente/Downloads/Apexproweb/src/main.jsx was edited 27 times this session — likely a hot path worth monitoring.",
       "summary": "Frequently edited: main.jsx (27x)",
       "category": "insights",
-      "confidence": 0.5,
+      "confidence": 0.495,
       "pageRank": 0.026209129769167346,
       "accessCount": 0,
       "words": [
@@ -399,7 +399,7 @@
       "content": "File /Users/gustavopariente/Downloads/Apexproweb/vite.config.js was edited 4 times this session — likely a hot path worth monitoring.",
       "summary": "Frequently edited: vite.config.js (4x)",
       "category": "insights",
-      "confidence": 0.5,
+      "confidence": 0.495,
       "pageRank": 0.024475452270593244,
       "accessCount": 0,
       "words": [
@@ -429,7 +429,7 @@
       "content": "File /Users/gustavopariente/Downloads/Apexproweb/src/pages/DashboardTrabajador.jsx was edited 8 times this session — likely a hot path worth monitoring.",
       "summary": "Frequently edited: DashboardTrabajador.jsx (8x)",
       "category": "insights",
-      "confidence": 0.5,
+      "confidence": 0.495,
       "pageRank": 0.022973348813119854,
       "accessCount": 0,
       "words": [
@@ -461,7 +461,7 @@
       "content": "File /Users/gustavopariente/Downloads/Apexproweb/src/components/layout/Layout.jsx was edited 25 times this session — likely a hot path worth monitoring.",
       "summary": "Frequently edited: Layout.jsx (25x)",
       "category": "insights",
-      "confidence": 0.5,
+      "confidence": 0.495,
       "pageRank": 0.02165837591917513,
       "accessCount": 0,
       "words": [
@@ -495,7 +495,7 @@
       "content": "File /Users/gustavopariente/Downloads/Apexproweb/src/context/AppContext.jsx was edited 27 times this session — likely a hot path worth monitoring.",
       "summary": "Frequently edited: AppContext.jsx (27x)",
       "category": "insights",
-      "confidence": 0.5,
+      "confidence": 0.495,
       "pageRank": 0.020496885527613477,
       "accessCount": 0,
       "words": [
@@ -528,7 +528,7 @@
       "content": "File /Users/gustavopariente/Downloads/Apexproweb/src/pages/Nomina.jsx was edited 3 times this session — likely a hot path worth monitoring.",
       "summary": "Frequently edited: Nomina.jsx (3x)",
       "category": "insights",
-      "confidence": 0.5,
+      "confidence": 0.495,
       "pageRank": 0.019462917707783443,
       "accessCount": 0,
       "words": [
@@ -560,7 +560,7 @@
       "content": "File /Users/gustavopariente/Downloads/Apexproweb/src/pages/Trabajadores.jsx was edited 77 times this session — likely a hot path worth monitoring.",
       "summary": "Frequently edited: Trabajadores.jsx (77x)",
       "category": "insights",
-      "confidence": 0.5,
+      "confidence": 0.495,
       "pageRank": 0.01853611172786834,
       "accessCount": 0,
       "words": [
@@ -593,7 +593,7 @@
       "content": "File /Users/gustavopariente/Downloads/Apexproweb/src/pages/Dashboard.jsx was edited 41 times this session — likely a hot path worth monitoring.",
       "summary": "Frequently edited: Dashboard.jsx (41x)",
       "category": "insights",
-      "confidence": 0.5,
+      "confidence": 0.495,
       "pageRank": 0.017700265412382905,
       "accessCount": 0,
       "words": [
@@ -626,7 +626,7 @@
       "content": "File /Users/gustavopariente/Downloads/Apexproweb/src/pages/Registro.jsx was edited 106 times this session — likely a hot path worth monitoring.",
       "summary": "Frequently edited: Registro.jsx (106x)",
       "category": "insights",
-      "confidence": 0.5,
+      "confidence": 0.495,
       "pageRank": 0.016942319071895143,
       "accessCount": 0,
       "words": [
@@ -660,9 +660,9 @@
       "content": "name: deploy-siempre\ndescription: Gustavo quiere que cada cambio terminado se commitee y se pushee a main sin pedirlo\nmetadata:\n  type: feedback\n---\n\nDespués de terminar y verificar un cambio en Apexproweb, commitear y hacer `git push origin main` sin esperar a que lo pida. El push a `main` dispara el deploy automático en Vercel (proyecto `apexpro-dashboard`).\n\n**Why:** lo pidió explícitamente el 2026-08-19 tras varias tandas en las que tuvo que decir \"subelo en línea\" cada vez.\n\n**How to apply…",
       "summary": "---",
       "category": "deploy-siempre",
-      "confidence": 0.55,
+      "confidence": 0.5750000000000001,
       "pageRank": 0.0162516245172071,
-      "accessCount": 1,
+      "accessCount": 2,
       "words": [
         "name",
         "deploy-siempre",
@@ -733,7 +733,7 @@
       "content": "File /Users/gustavopariente/Downloads/Apexproweb/src/pages/Configuracion.jsx was edited 34 times this session — likely a hot path worth monitoring.",
       "summary": "Frequently edited: Configuracion.jsx (34x)",
       "category": "insights",
-      "confidence": 0.5,
+      "confidence": 0.495,
       "pageRank": 0.0162516245172071,
       "accessCount": 0,
       "words": [

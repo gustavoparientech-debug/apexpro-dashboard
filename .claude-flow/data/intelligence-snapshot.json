@@ -1258,5 +1258,257 @@
         "accessCount": 0
       }
     ]
+  },
+  {
+    "timestamp": 1787248701722,
+    "nodes": 22,
+    "edges": 210,
+    "pageRankSum": 1,
+    "confidences": [
+      0.6300000000000001,
+      0.5,
+      0.5,
+      0.5,
+      0.5,
+      0.5,
+      0.5,
+      0.5,
+      0.5,
+      0.5,
+      0.5,
+      0.5800000000000001,
+      0.5,
+      0.5,
+      0.5,
+      0.5,
+      0.5,
+      0.5800000000000001,
+      0.5,
+      0.6300000000000001,
+      0.6500000000000001,
+      0.6500000000000001
+    ],
+    "accessCounts": [
+      3,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      2,
+      0,
+      0,
+      0,
+      0,
+      0,
+      2,
+      0,
+      3,
+      3,
+      3
+    ],
+    "topPatterns": [
+      {
+        "id": "insight-1787166228207-9yqn",
+        "summary": "Frequently edited: MetasConfig.jsx (3x)",
+        "confidence": 0.6500000000000001,
+        "pageRank": 0.22790784132028524,
+        "accessCount": 3
+      },
+      {
+        "id": "insight-1787166228207-8afa",
+        "summary": "Frequently edited: Metas.jsx (4x)",
+        "confidence": 0.6500000000000001,
+        "pageRank": 0.12319341802587819,
+        "accessCount": 3
+      },
+      {
+        "id": "insight-1787166228207-ejlb",
+        "summary": "Frequently edited: metas.js (6x)",
+        "confidence": 0.6300000000000001,
+        "pageRank": 0.0864515303999742,
+        "accessCount": 3
+      },
+      {
+        "id": "insight-1787166228207-xst0",
+        "summary": "Frequently edited: ComposeForm.jsx (12x)",
+        "confidence": 0.5800000000000001,
+        "pageRank": 0.05555863780299764,
+        "accessCount": 2
+      },
+      {
+        "id": "mem-deploy-siempre-----0",
+        "summary": "---",
+        "confidence": 0.6300000000000001,
+        "pageRank": 0.0162516245172071,
+        "accessCount": 3
+      },
+      {
+        "id": "insight-1787166228207-c4iv",
+        "summary": "Frequently edited: Presupuesto.jsx (220x)",
+        "confidence": 0.5800000000000001,
+        "pageRank": 0.02823438000014111,
+        "accessCount": 2
+      },
+      {
+        "id": "insight-1787166228207-26mh",
+        "summary": "Frequently edited: Facturas.jsx (15x)",
+        "confidence": 0.5,
+        "pageRank": 0.06736483866724975,
+        "accessCount": 0
+      },
+      {
+        "id": "insight-1787166228207-2c97",
+        "summary": "Frequently edited: Correos.jsx (16x)",
+        "confidence": 0.5,
+        "pageRank": 0.04748602127229291,
+        "accessCount": 0
+      },
+      {
+        "id": "insight-1787166228207-y5oc",
+        "summary": "Frequently edited: mime-test.mjs (3x)",
+        "confidence": 0.5,
+        "pageRank": 0.04159359974678054,
+        "accessCount": 0
+      },
+      {
+        "id": "insight-1787166228207-yk57",
+        "summary": "Frequently edited: index.ts (13x)",
+        "confidence": 0.5,
+        "pageRank": 0.03708983741185832,
+        "accessCount": 0
+      }
+    ]
+  },
+  {
+    "timestamp": 1787285750588,
+    "nodes": 22,
+    "edges": 210,
+    "pageRankSum": 1,
+    "confidences": [
+      0.495,
+      0.495,
+      0.495,
+      0.495,
+      0.495,
+      0.495,
+      0.495,
+      0.495,
+      0.495,
+      0.495,
+      0.495,
+      0.495,
+      0.495,
+      0.495,
+      0.495,
+      0.495,
+      0.495,
+      0.495,
+      0.495,
+      0.495,
+      0.495,
+      0.495
+    ],
+    "accessCounts": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "topPatterns": [
+      {
+        "id": "insight-1787166228207-9yqn",
+        "summary": "Frequently edited: MetasConfig.jsx (3x)",
+        "confidence": 0.495,
+        "pageRank": 0.22790784132028524,
+        "accessCount": 0
+      },
+      {
+        "id": "insight-1787166228207-8afa",
+        "summary": "Frequently edited: Metas.jsx (4x)",
+        "confidence": 0.495,
+        "pageRank": 0.12319341802587819,
+        "accessCount": 0
+      },
+      {
+        "id": "insight-1787166228207-ejlb",
+        "summary": "Frequently edited: metas.js (6x)",
+        "confidence": 0.495,
+        "pageRank": 0.0864515303999742,
+        "accessCount": 0
+      },
+      {
+        "id": "insight-1787166228207-26mh",
+        "summary": "Frequently edited: Facturas.jsx (15x)",
+        "confidence": 0.495,
+        "pageRank": 0.06736483866724975,
+        "accessCount": 0
+      },
+      {
+        "id": "insight-1787166228207-xst0",
+        "summary": "Frequently edited: ComposeForm.jsx (12x)",
+        "confidence": 0.495,
+        "pageRank": 0.05555863780299764,
+        "accessCount": 0
+      },
+      {
+        "id": "insight-1787166228207-2c97",
+        "summary": "Frequently edited: Correos.jsx (16x)",
+        "confidence": 0.495,
+        "pageRank": 0.04748602127229291,
+        "accessCount": 0
+      },
+      {
+        "id": "insight-1787166228207-y5oc",
+        "summary": "Frequently edited: mime-test.mjs (3x)",
+        "confidence": 0.495,
+        "pageRank": 0.04159359974678054,
+        "accessCount": 0
+      },
+      {
+        "id": "insight-1787166228207-yk57",
+        "summary": "Frequently edited: index.ts (13x)",
+        "confidence": 0.495,
+        "pageRank": 0.03708983741185832,
+        "accessCount": 0
+      },
+      {
+        "id": "insight-1787166228207-vcl2",
+        "summary": "Frequently edited: AsistenciaReporte.jsx (23x)",
+        "confidence": 0.495,
+        "pageRank": 0.03352753895079359,
+        "accessCount": 0
+      },
+      {
+        "id": "insight-1787166228207-wta1",
+        "summary": "Frequently edited: Asistencia.jsx (114x)",
+        "confidence": 0.495,
+        "pageRank": 0.030634301147735313,
+        "accessCount": 0
+      }
+    ]
   }
 ]

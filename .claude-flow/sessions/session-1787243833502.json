@@ -1,6 +1,6 @@
 {
-  "id": "session-1787285753515",
-  "startedAt": "2026-08-21T04:15:53.515Z",
+  "id": "session-1787243833502",
+  "startedAt": "2026-08-20T16:37:13.502Z",
   "cwd": "/Users/gustavopariente/Downloads/Apexproweb",
   "context": {
     "lastMatchedPatterns": [
@@ -9,10 +9,12 @@
     ]
   },
   "metrics": {
-    "edits": 0,
+    "edits": 2,
     "commands": 0,
     "tasks": 0,
     "errors": 0
   },
-  "updatedAt": "2026-08-21T04:28:19.243Z"
+  "updatedAt": "2026-08-20T16:55:06.356Z",
+  "endedAt": "2026-08-20T17:58:21.724Z",
+  "duration": 4868222
 }

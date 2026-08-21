@@ -134,6 +134,243 @@ const SORT_OPTIONS = [
   { value: 'amount_asc',  label: 'Menor monto' },
 ]
 
+// ─── Afluencia: qué días y a qué horas entra el trabajo ──────────────────────
+// Con el promedio por día de semana y por hora se decide a qué hora conviene
+// almorzar, cuándo hace falta más gente y hasta qué hora tiene sentido abrir.
+const DIAS_SEMANA = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
+const RANGOS_AFLUENCIA = [
+  { dias: 30,  label: '30 días' },
+  { dias: 90,  label: '3 meses' },
+  { dias: 180, label: '6 meses' },
+]
+
+function AfluenciaPanel() {
+  const [dias, setDias]   = useState(90)
+  const [rows, setRows]   = useState(null)
+  const [cargando, setCargando] = useState(true)
+
+  useEffect(() => {
+    let vivo = true
+    setCargando(true)
+    const desde = new Date()
+    desde.setDate(desde.getDate() - dias)
+    supabase.from('tickets')
+      .select('date, opened_at, created_at, price_charged, status')
+      .gte('date', desde.toISOString().slice(0, 10))
+      .then(({ data }) => { if (vivo) { setRows(data || []); setCargando(false) } })
+    return () => { vivo = false }
+  }, [dias])
+
+  const analisis = useMemo(() => {
+    const lista = (rows || []).filter(t => t.date)
+    if (!lista.length) return null
+
+    // Por día de la semana: se divide entre cuántas veces cayó ese día en el
+    // período, si no un mes con cinco sábados parece mejor que uno con cuatro.
+    const porDia = DIAS_SEMANA.map(nombre => ({ dia: nombre, autos: 0, ingresos: 0, fechas: new Set() }))
+    const porHora = Array.from({ length: 24 }, (_, h) => ({ hora: h, autos: 0, ingresos: 0 }))
+
+    for (const t of lista) {
+      const [y, m, d] = t.date.split('-').map(Number)
+      const idx = (new Date(y, m - 1, d).getDay() + 6) % 7   // 0 = lunes
+      porDia[idx].autos += 1
+      porDia[idx].ingresos += Number(t.price_charged) || 0
+      porDia[idx].fechas.add(t.date)
+
+      const marca = t.opened_at || t.created_at
+      if (marca) {
+        const h = new Date(marca).getHours()
+        if (!isNaN(h)) { porHora[h].autos += 1; porHora[h].ingresos += Number(t.price_charged) || 0 }
+      }
+    }
+
+    // Cuántas veces ocurrió cada día de la semana en el período.
+    const vecesPorDia = Array(7).fill(0)
+    const hoy = new Date()
+    for (let i = 0; i < dias; i++) {
+      const d = new Date(hoy); d.setDate(hoy.getDate() - i)
+      vecesPorDia[(d.getDay() + 6) % 7] += 1
+    }
+
+    const dataDias = porDia.map((p, i) => ({
+      dia: p.dia,
+      corto: p.dia.slice(0, 3),
+      autos: p.autos,
+      ingresos: Math.round(p.ingresos),
+      promedio: vecesPorDia[i] > 0 ? Math.round((p.autos / vecesPorDia[i]) * 10) / 10 : 0,
+      promIngreso: vecesPorDia[i] > 0 ? Math.round(p.ingresos / vecesPorDia[i]) : 0,
+    }))
+
+    // Solo el horario en que de verdad entra trabajo, para que el gráfico no
+    // sea una fila de barras vacías.
+    const conAutos = porHora.filter(h => h.autos > 0)
+    const desdeH = Math.min(7, ...conAutos.map(h => h.hora))
+    const hastaH = Math.max(19, ...conAutos.map(h => h.hora))
+    const dataHoras = porHora
+      .filter(h => h.hora >= desdeH && h.hora <= hastaH)
+      .map(h => ({ ...h, label: `${String(h.hora).padStart(2, '0')}:00`, ingresos: Math.round(h.ingresos) }))
+
+    const conMarca = dataHoras.reduce((s, h) => s + h.autos, 0)
+    const mejorDia  = [...dataDias].sort((a, b) => b.promedio - a.promedio)[0]
+    const peorDia   = [...dataDias].filter(d => d.autos > 0).sort((a, b) => a.promedio - b.promedio)[0]
+    const horaPico  = [...dataHoras].sort((a, b) => b.autos - a.autos)[0]
+
+    // Ventana de almuerzo: las dos horas más flojas entre las 11 y las 16.
+    const mediodia = dataHoras.filter(h => h.hora >= 11 && h.hora <= 15)
+    let almuerzo = null
+    for (let i = 0; i < mediodia.length - 1; i++) {
+      const suma = mediodia[i].autos + mediodia[i + 1].autos
+      if (!almuerzo || suma < almuerzo.suma) almuerzo = { desde: mediodia[i].hora, suma }
+    }
+
+    // Hasta qué hora llega el 90% de los autos: lo que pasa después no justifica
+    // tener el taller abierto.
+    let acumulado = 0
+    let cierre = null
+    for (const h of dataHoras) {
+      acumulado += h.autos
+      if (!cierre && conMarca > 0 && acumulado >= conMarca * 0.9) cierre = h.hora
+    }
+
+    return { dataDias, dataHoras, mejorDia, peorDia, horaPico, almuerzo, cierre, total: lista.length, conMarca }
+  }, [rows, dias])
+
+  return (
+    <div className="card">
+      <div className="flex items-center gap-2 flex-wrap mb-1">
+        <span className="text-base">📊</span>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-bold text-gray-900 dark:text-white">Afluencia por día y hora</p>
+          <p className="text-xs text-gray-400">Cuándo entra el trabajo, para organizar turnos y almuerzos</p>
+        </div>
+        <div className="flex gap-1">
+          {RANGOS_AFLUENCIA.map(r => (
+            <button key={r.dias} onClick={() => setDias(r.dias)}
+              className={`text-xs font-semibold px-2.5 py-1 rounded-lg transition-colors ${
+                dias === r.dias
+                  ? 'bg-red-600 text-white'
+                  : 'bg-gray-100 dark:bg-gray-800 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
+              }`}>
+              {r.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {cargando ? (
+        <p className="text-xs text-gray-400 text-center py-8">Cargando…</p>
+      ) : !analisis ? (
+        <p className="text-xs text-gray-400 text-center py-8">Sin servicios en este período</p>
+      ) : (
+        <div className="space-y-5 mt-3">
+          {/* Días de la semana */}
+          <div>
+            <div className="flex items-baseline justify-between mb-1">
+              <p className="text-xs font-bold uppercase tracking-widest text-gray-400">Promedio de autos por día</p>
+              <p className="text-[11px] text-gray-400">{analisis.total} servicios</p>
+            </div>
+            <div className="h-52">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={analisis.dataDias} margin={{ top: 16, right: 4, left: -22, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
+                  <XAxis dataKey="corto" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+                  <Tooltip cursor={{ fill: 'rgba(0,0,0,0.04)', radius: 6 }}
+                    contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.12)', fontSize: 12 }}
+                    labelFormatter={(_, p) => p?.[0]?.payload?.dia || ''}
+                    formatter={(v, n, p) => n === 'promedio'
+                      ? [`${v} autos/día · ${formatMoney(p.payload.promIngreso)}`, 'Promedio']
+                      : [v, n]} />
+                  <Bar dataKey="promedio" radius={[6, 6, 2, 2]} maxBarSize={44}>
+                    <LabelList dataKey="promedio" position="top" offset={5}
+                      style={{ fontSize: 10, fontWeight: 700, fill: '#6b7280' }} />
+                    {analisis.dataDias.map(d => (
+                      <Cell key={d.dia} fill={d.dia === analisis.mejorDia?.dia ? '#dc2626' : '#fca5a5'} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* Horas del día */}
+          <div>
+            <div className="flex items-baseline justify-between mb-1">
+              <p className="text-xs font-bold uppercase tracking-widest text-gray-400">Autos que entran por hora</p>
+              <p className="text-[11px] text-gray-400">{analisis.conMarca} con hora registrada</p>
+            </div>
+            <div className="h-52">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={analisis.dataHoras} margin={{ top: 16, right: 4, left: -22, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
+                  <XAxis dataKey="label" tick={{ fontSize: 9 }} axisLine={false} tickLine={false} interval={0} />
+                  <YAxis tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+                  <Tooltip cursor={{ fill: 'rgba(0,0,0,0.04)', radius: 6 }}
+                    contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.12)', fontSize: 12 }}
+                    formatter={(v, n, p) => [`${v} autos · ${formatMoney(p.payload.ingresos)}`, 'Entradas']} />
+                  <Bar dataKey="autos" radius={[6, 6, 2, 2]} maxBarSize={30}>
+                    <LabelList dataKey="autos" position="top" offset={5}
+                      style={{ fontSize: 9, fontWeight: 700, fill: '#6b7280' }} />
+                    {analisis.dataHoras.map(h => (
+                      <Cell key={h.hora}
+                        fill={h.hora === analisis.horaPico?.hora ? '#dc2626'
+                          : (analisis.almuerzo && (h.hora === analisis.almuerzo.desde || h.hora === analisis.almuerzo.desde + 1)) ? '#93c5fd'
+                          : '#fca5a5'} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="flex items-center gap-4 mt-1.5">
+              <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-red-600" /><span className="text-[11px] text-gray-400">Hora pico</span></div>
+              <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-blue-300" /><span className="text-[11px] text-gray-400">Mejor rato para almorzar</span></div>
+            </div>
+          </div>
+
+          {/* Qué hacer con esto */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+            <div className="rounded-xl bg-gray-50 dark:bg-gray-800/50 px-3 py-2">
+              <p className="text-[10px] text-gray-400 uppercase tracking-wide">Día más cargado</p>
+              <p className="text-sm font-black text-gray-900 dark:text-white">{analisis.mejorDia?.dia || '—'}</p>
+              <p className="text-[11px] text-gray-400">{analisis.mejorDia?.promedio} autos · {formatMoney(analisis.mejorDia?.promIngreso || 0)}</p>
+            </div>
+            <div className="rounded-xl bg-gray-50 dark:bg-gray-800/50 px-3 py-2">
+              <p className="text-[10px] text-gray-400 uppercase tracking-wide">Día más flojo</p>
+              <p className="text-sm font-black text-gray-900 dark:text-white">{analisis.peorDia?.dia || '—'}</p>
+              <p className="text-[11px] text-gray-400">{analisis.peorDia?.promedio} autos · {formatMoney(analisis.peorDia?.promIngreso || 0)}</p>
+            </div>
+            <div className="rounded-xl bg-gray-50 dark:bg-gray-800/50 px-3 py-2">
+              <p className="text-[10px] text-gray-400 uppercase tracking-wide">Hora pico</p>
+              <p className="text-sm font-black text-gray-900 dark:text-white">
+                {analisis.horaPico ? `${String(analisis.horaPico.hora).padStart(2, '0')}:00` : '—'}
+              </p>
+              <p className="text-[11px] text-gray-400">{analisis.horaPico?.autos || 0} autos entraron a esa hora</p>
+            </div>
+            <div className="rounded-xl bg-blue-50 dark:bg-blue-900/20 px-3 py-2">
+              <p className="text-[10px] text-blue-400 uppercase tracking-wide">Almuerzo sugerido</p>
+              <p className="text-sm font-black text-blue-700 dark:text-blue-300">
+                {analisis.almuerzo
+                  ? `${String(analisis.almuerzo.desde).padStart(2, '0')}:00 – ${String(analisis.almuerzo.desde + 2).padStart(2, '0')}:00`
+                  : '—'}
+              </p>
+              <p className="text-[11px] text-blue-400">Las dos horas más tranquilas del mediodía</p>
+            </div>
+          </div>
+
+          {analisis.cierre != null && (
+            <p className="text-[11px] text-gray-400 leading-relaxed">
+              El 90% de los autos entra antes de las {String(analisis.cierre + 1).padStart(2, '0')}:00.
+              Después de esa hora casi no llega trabajo nuevo: sirve para decidir hasta cuándo tener gente en el taller.
+              La hora es la de apertura del ticket en la app, así que un ticket cargado de noche aparece a esa hora
+              aunque el auto haya entrado antes.
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function ExpensesPanel({ expenses, workers }) {
   const { updateExpense, deleteExpense, addExpense, tickets } = useApp()
   const { isAdmin, isDemo } = useAuth()
@@ -564,7 +801,7 @@ export default function Dashboard() {
     localStorage.setItem('apexpro_avgtime_hidden', JSON.stringify(hidden))
   }
 
-  const DEFAULT_PANEL_ORDER = ['kpis','adelantos','tendencia','mix','clientes','tiempos','progreso','estadisticas','cobros','gastos','gastos_personal','ranking','bonos','grafico']
+  const DEFAULT_PANEL_ORDER = ['kpis','adelantos','tendencia','afluencia','mix','clientes','tiempos','progreso','estadisticas','cobros','gastos','gastos_personal','ranking','bonos','grafico']
   const [panelOrder, setPanelOrder] = useState(() => {
     try {
       const saved = JSON.parse(localStorage.getItem('apexpro_panel_order') || 'null')
@@ -1194,6 +1431,9 @@ export default function Dashboard() {
           })() : null
 
           // Dónde está el dinero: ticket promedio por tipo de servicio
+          // Afluencia: días y horas con más movimiento.
+          if (sectionId === 'afluencia') return <AfluenciaPanel key="afluencia" />
+
           if (sectionId === 'mix') return insights && insights.mix.length > 0 ? (
             <div key="mix" className="card">
               <p className="text-sm font-bold text-gray-900 dark:text-white mb-1">Rentabilidad por servicio</p>
@@ -1465,7 +1705,7 @@ export default function Dashboard() {
 
         if (!sectionContent) return null
 
-        const SECTION_LABELS = { kpis: 'KPIs', adelantos: 'Adelantos por cobrar', tendencia: 'Evolución mensual', mix: 'Rentabilidad por servicio', clientes: 'Clientes nuevos vs. recurrentes', tiempos: 'Tiempos promedio', progreso: 'Meta mensual', estadisticas: 'Estadísticas', cobros: 'Métodos de cobro', gastos: 'Desglose gastos', gastos_personal: 'Gastos personal', ranking: 'Ranking', bonos: 'Bonos', grafico: 'Gráfico diario' }
+        const SECTION_LABELS = { kpis: 'KPIs', adelantos: 'Adelantos por cobrar', tendencia: 'Evolución mensual', afluencia: 'Afluencia por día y hora', mix: 'Rentabilidad por servicio', clientes: 'Clientes nuevos vs. recurrentes', tiempos: 'Tiempos promedio', progreso: 'Meta mensual', estadisticas: 'Estadísticas', cobros: 'Métodos de cobro', gastos: 'Desglose gastos', gastos_personal: 'Gastos personal', ranking: 'Ranking', bonos: 'Bonos', grafico: 'Gráfico diario' }
 
         return (
           <div key={sectionId} className="relative group">

@@ -4,9 +4,8 @@ import { fetchCatalogoOverrides, serviciosDePresupuesto } from '../lib/catalogoP
 import {
   DEMO_WORKERS, DEMO_SERVICES, DEMO_TICKETS, DEMO_INCIDENTS, DEMO_MONTHLY_COSTS
 } from '../lib/demoData'
-import { calcRealSalary, calcLatenessDiscount, calcAbsenceDiscount, calcOvertimePay, currentMonthYear } from '../lib/utils'
+import { calcRealSalary, calcLatenessDiscount, calcAbsenceDiscount, calcOvertimePay, currentMonthYear, salarioDelMes, montoIncidencia, NO_MARCACION_COST } from '../lib/utils'
 
-const NO_MARCACION_COST = 5
 
 const IS_DEMO = !import.meta.env.VITE_SUPABASE_URL || import.meta.env.VITE_SUPABASE_URL === 'https://placeholder.supabase.co'
 
@@ -151,28 +150,9 @@ function reducer(state, action) {
 function enrichIncident(incident, workers) {
   const worker = workers.find(w => w.id === incident.worker_id)
   if (!worker) return incident
-  let discount = 0
-  if (incident.apply_discount) {
-    if (incident.type === 'tardanza' || incident.type === 'permiso_horas') {
-      discount = calcLatenessDiscount(worker.base_salary, worker.weekly_hours, incident.hours_late || 0)
-    } else if (incident.type === 'hora_extra') {
-      discount = calcOvertimePay(worker.base_salary, worker.weekly_hours, incident.hours_late || 0)
-    } else if (incident.type === 'no_marcacion') {
-      discount = NO_MARCACION_COST * (incident.no_marcacion_count || 1)
-    } else if (incident.type === 'multa' || incident.type === 'adelanto' || incident.type === 'vacaciones') {
-      discount = Number(incident.discount_amount) || 0
-    } else if (incident.type === 'falta' || incident.type === 'permiso') {
-      // Faltas y permisos se guardan ya calculados sobre el horario real del
-      // trabajador y pueden abarcar varios días. Recalcularlos aquí los reducía
-      // a un día plano: un permiso de 47h aparecía como si fuera de 5h.
-      const guardado = Number(incident.discount_amount)
-      discount = Number.isFinite(guardado) && guardado > 0
-        ? guardado
-        : calcAbsenceDiscount(worker.base_salary, worker.weekly_hours)
-    } else {
-      discount = calcAbsenceDiscount(worker.base_salary, worker.weekly_hours)
-    }
-  }
+  // El monto ya viene congelado desde que se registro la incidencia; leerlo no
+  // debe recalcularlo con el sueldo actual (ver montoIncidencia en utils).
+  const discount = montoIncidencia(incident, worker)
   // Las vacaciones se abonan (el importe legal) y los días no trabajados se
   // descuentan aparte en la nómina; forzarlas a descuento las cobraba dos veces.
   const is_addition = incident.type === 'hora_extra' || incident.type === 'vacaciones'
@@ -697,8 +677,20 @@ export function AppProvider({ children }) {
   }
 
   // ─── CRUD Incidents ─────────────────────────────────────────────────────────
+  // Sueldo con el que debe valorarse una incidencia: el vigente en SU mes, no el
+  // de hoy. Registrar hoy una tardanza de junio debe costar lo que costaba en
+  // junio, para que cada mes quede cerrado e independiente.
+  const workerEnFecha = async (worker, fecha) => {
+    if (!worker || IS_DEMO || !fecha) return worker
+    const d = new Date(`${String(fecha).slice(0, 10)}T12:00:00`)
+    if (Number.isNaN(d.getTime())) return worker
+    const year = d.getFullYear(), month = d.getMonth() + 1
+    const configs = await fetchWorkerConfigsUpTo(year, month)
+    return { ...worker, ...salarioDelMes(worker, configs, year, month) }
+  }
+
   const addIncident = async (data) => {
-    const worker = state.workers.find(w => w.id === data.worker_id)
+    const worker = await workerEnFecha(state.workers.find(w => w.id === data.worker_id), data.date)
     const discount = calcIncidentDiscount(data, worker)
     // eslint-disable-next-line no-unused-vars
     const { multa_amount, ...dbData } = data
@@ -716,7 +708,7 @@ export function AppProvider({ children }) {
   }
 
   const updateIncident = async (id, data) => {
-    const worker = state.workers.find(w => w.id === data.worker_id)
+    const worker = await workerEnFecha(state.workers.find(w => w.id === data.worker_id), data.date)
     const discount = calcIncidentDiscount(data, worker)
     // eslint-disable-next-line no-unused-vars
     const { multa_amount, ...dbData } = data

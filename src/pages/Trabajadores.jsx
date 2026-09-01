@@ -3,7 +3,7 @@ import { useApp } from '../context/AppContext'
 import { supabase } from '../lib/supabase'
 import {
   formatMoney, formatDate, calcRealSalary, calcDailySalary, calcProratedSalary,
-  calcAbsenceDiscount, calcLatenessDiscount, calcOvertimePay, calcLeaveDiscount, calcHourlyRate, salarioDelMes, fmtHours, getRatioColor, currentMonthYear, monthName, todayISO
+  calcAbsenceDiscount, calcLatenessDiscount, calcOvertimePay, calcLeaveDiscount, calcHourlyRate, salarioDelMes, montoIncidencia, fmtHours, getRatioColor, currentMonthYear, monthName, todayISO
 } from '../lib/utils'
 import Modal from '../components/ui/Modal'
 import ConfirmDialog from '../components/ui/ConfirmDialog'
@@ -518,17 +518,9 @@ export default function Trabajadores() {
     ]).then(([{ data: t }, { data: i }]) => {
       const enriched = (i || []).map(inc => {
         const w = wks.find(x => x.id === inc.worker_id)
-        if (!inc.apply_discount || !w) return { ...inc, discount_amount: inc.discount_amount || 0 }
-        let discount = 0
-        // Falta y permiso ya vienen calculados sobre el horario real del
-        // trabajador (y pueden abarcar varios días): se respeta lo guardado.
-        if (inc.type === 'falta' || inc.type === 'permiso')
-          discount = inc.discount_amount ?? calcAbsenceDiscount(w.base_salary, w.weekly_hours)
-        else if (inc.type === 'tardanza' || inc.type === 'permiso_horas') discount = calcLatenessDiscount(w.base_salary, w.weekly_hours, inc.hours_late || 0)
-        else if (inc.type === 'hora_extra') discount = calcOvertimePay(w.base_salary, w.weekly_hours, inc.hours_late || 0)
-        else if (inc.type === 'multa' || inc.type === 'adelanto') discount = inc.multa_amount || inc.discount_amount || 0
-        else if (inc.type === 'no_marcacion') discount = 5 * (inc.no_marcacion_count || 1)
-        return { ...inc, discount_amount: discount }
+        // Se respeta el monto congelado al registrar la incidencia. Recalcularlo
+        // con el sueldo de hoy alteraba los importes de los meses pasados.
+        return { ...inc, discount_amount: montoIncidencia(inc, w) }
       })
       setPastMonthData({ tickets: t || [], incidents: enriched })
     })

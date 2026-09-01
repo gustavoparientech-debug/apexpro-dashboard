@@ -238,3 +238,25 @@ export function salarioDelMes(worker, configs, year, month) {
     weekly_hours: mc?.weekly_hours ?? worker.weekly_hours,
   }
 }
+
+export const NO_MARCACION_COST = 5
+
+// Monto de una incidencia. El importe se congela cuando se registra y NUNCA se
+// recalcula al leerlo. El sueldo de un trabajador cambia con los meses, y
+// recalcular reescribia las incidencias pasadas con el sueldo de hoy: una hora
+// extra de Gabriela de junio valia S/13.46 y en septiembre aparecia como
+// S/23.09. Solo se calcula cuando la fila no trae monto guardado.
+export function montoIncidencia(inc, worker) {
+  const guardado = Number(inc.discount_amount)
+  const tieneMonto = Number.isFinite(guardado) && guardado > 0
+  if (!inc.apply_discount || !worker) return tieneMonto ? guardado : 0
+  if (tieneMonto) return guardado
+  if (inc.type === 'tardanza' || inc.type === 'permiso_horas')
+    return calcLatenessDiscount(worker.base_salary, worker.weekly_hours, inc.hours_late || 0)
+  if (inc.type === 'hora_extra')
+    return calcOvertimePay(worker.base_salary, worker.weekly_hours, inc.hours_late || 0)
+  if (inc.type === 'no_marcacion') return NO_MARCACION_COST * (inc.no_marcacion_count || 1)
+  if (inc.type === 'multa' || inc.type === 'adelanto' || inc.type === 'vacaciones')
+    return Number(inc.multa_amount) || 0
+  return calcAbsenceDiscount(worker.base_salary, worker.weekly_hours)
+}

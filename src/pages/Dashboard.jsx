@@ -7,8 +7,7 @@ const IS_DEMO = !import.meta.env.VITE_SUPABASE_URL || import.meta.env.VITE_SUPAB
 import {
   formatMoney, formatDate, getSemaforoColor, calcRealSalary, calcTicketProfit,
   getWorkingDaysInMonth, getWorkingDaysElapsed, getWorkingDaysRemaining, getWorkingDaysInRange,
-  currentMonthYear, monthName
-} from '../lib/utils'
+  currentMonthYear, monthName, salarioDelMes } from '../lib/utils'
 import StatCard from '../components/ui/StatCard'
 import Badge from '../components/ui/Badge'
 import {
@@ -789,7 +788,7 @@ function RankingPanel({ ranking, workingDaysElapsed }) {
 }
 
 export default function Dashboard() {
-  const { tickets, dailySummaries, expenses, workers, services, incidents, monthlyCosts, bonuses, addBonus, deleteBonus, loading, loadData, invalidateAllCache, vehicleTypes, fetchCasualPayments, fetchBusinessTrend, fetchWorkerMonthlyConfigs, fetchMonthlyCosts, fetchAdvances } = useApp()
+  const { tickets, dailySummaries, expenses, workers, services, incidents, monthlyCosts, bonuses, addBonus, deleteBonus, loading, loadData, invalidateAllCache, vehicleTypes, fetchCasualPayments, fetchBusinessTrend, fetchWorkerMonthlyConfigs, fetchWorkerConfigsUpTo, fetchMonthlyCosts, fetchAdvances } = useApp()
   const { month: cm, year: cy } = currentMonthYear()
   const [selMonth, setSelMonth] = useState(cm)
   const [selYear,  setSelYear]  = useState(cy)
@@ -907,8 +906,10 @@ export default function Dashboard() {
   // Sueldos congelados del mes: sin esto la planilla del dashboard usaría el
   // sueldo vigente y no cuadraría con la pestaña Nómina.
   const [workerMonthlyConfigs, setWorkerMonthlyConfigs] = useState([])
+  const [workerConfigsHasta, setWorkerConfigsHasta] = useState([])
   useEffect(() => {
     fetchWorkerMonthlyConfigs(selYear, selMonth).then(setWorkerMonthlyConfigs)
+    fetchWorkerConfigsUpTo(selYear, selMonth).then(setWorkerConfigsHasta)
   }, [selMonth, selYear])
 
   // ── Serie histórica para los gráficos de avance ──────────────────────────
@@ -1022,8 +1023,9 @@ export default function Dashboard() {
       : (selectedCosts?.rent || 0) + (selectedCosts?.supplies || 0)
     const payrollTotal = workers.filter(w => w.active).reduce((s, w) => {
       // Sueldo del mes seleccionado, no el vigente en `workers`.
-      const cfg = workerMonthlyConfigs.find(c => c.worker_id === w.id)
-      const real = calcRealSalary(cfg?.base_salary ?? w.base_salary, cfg?.weekly_hours ?? w.weekly_hours)
+      // Mismo criterio que Nomina: hereda del mes anterior si este no tiene fila.
+      const { base_salary, weekly_hours } = salarioDelMes(w, workerConfigsHasta, selYear, selMonth)
+      const real = calcRealSalary(base_salary, weekly_hours)
       // Descuentos reales (sin hora_extra que suma). Adelanto sí se resta porque ya aparece como expense
       const disc = incidents.filter(i => i.worker_id === w.id && i.apply_discount && !i.is_addition && i.date?.startsWith(prefix))
         .reduce((d, i) => d + (i.discount_amount || 0), 0)
@@ -1128,7 +1130,7 @@ export default function Dashboard() {
       adelantosAbiertos, ticketsConAdelanto, ticketsAbiertos, saldoPorCobrar, gastosPendTotal,
       proportionalFixed, proportionRatio, avgTimeByType,
     }
-  }, [tickets, dailySummaries, expenses, pastTickets, pastSummaries, pastExpenses, workers, services, incidents, selectedCosts, bonuses, casualPayments, advances, workerMonthlyConfigs, prefix, selMonth, selYear, isCurrentMonth, rangeFrom, rangeTo, hasRange])
+  }, [tickets, dailySummaries, expenses, pastTickets, pastSummaries, pastExpenses, workers, services, incidents, selectedCosts, bonuses, casualPayments, advances, workerMonthlyConfigs, workerConfigsHasta, prefix, selMonth, selYear, isCurrentMonth, rangeFrom, rangeTo, hasRange])
 
 
   const semaforoClass = {

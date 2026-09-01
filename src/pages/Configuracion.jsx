@@ -46,7 +46,7 @@ function VariantEditor({ extra, onSave }) {
 }
 import { useApp } from '../context/AppContext'
 import { supabase } from '../lib/supabase'
-import { formatMoney, calcRealSalary, currentMonthYear, getWorkingDaysInMonth, monthName } from '../lib/utils'
+import { formatMoney, calcRealSalary, salarioDelMes, currentMonthYear, getWorkingDaysInMonth, monthName } from '../lib/utils'
 import MetasConfig from '../components/modules/MetasConfig'
 import { CATEGORIAS, CATEGORIA_DEFAULT, catInfo, porCategoria } from '../lib/servicios'
 import Modal from '../components/ui/Modal'
@@ -242,7 +242,7 @@ function VehicleTypeRow({ vt, onSave, onDelete }) {
 export default function Configuracion() {
   const { services, vehicleTypes, monthlyCosts, workers, incidents, extrasCatalog,
           addService, updateService, saveMonthlyCosts, fetchMonthlyCosts, fetchCasualPayments,
-          saveWorkerMonthlyConfig, fetchWorkerMonthlyConfigs, updateWorker,
+          saveWorkerMonthlyConfig, fetchWorkerMonthlyConfigs, fetchWorkerConfigsUpTo, updateWorker,
           addVehicleType, updateVehicleType, deleteVehicleType,
           addExtra, updateExtra, deleteExtra } = useApp()
   const { month: curMonth, year: curYear } = currentMonthYear()
@@ -321,12 +321,14 @@ export default function Configuracion() {
       // Cargar worker_monthly_config del mes seleccionado
       const configs = await fetchWorkerMonthlyConfigs(selYear, selMonth)
       setWorkerMonthlyConfigs(configs)
+      setConfigsHasta(await fetchWorkerConfigsUpTo(selYear, selMonth))
       setLoadingMonthData(false)
     }
     loadMonthData()
   }, [selMonth, selYear, monthlyCosts])
   const [savingCosts, setSavingCosts] = useState(false)
   const [workerMonthlyConfigs, setWorkerMonthlyConfigs] = useState([])
+  const [configsHasta, setConfigsHasta] = useState([])
   const [activeCategory, setActiveCategory] = useState('all')
   const [newVehicle, setNewVehicle] = useState({ emoji: '🚗', label: '', default_price: '', category: CATEGORIA_DEFAULT })
   const [showNewVehicle, setShowNewVehicle] = useState(false)
@@ -445,13 +447,14 @@ export default function Configuracion() {
   // Recalcular meta en tiempo real
   const payrollTotal = useMemo(() => {
     return workers.filter(w => w.active).reduce((s, w) => {
-      const cfg = workerMonthlyConfigs.find(c => c.worker_id === w.id)
-      const realSalary = calcRealSalary(cfg?.base_salary ?? w.base_salary, cfg?.weekly_hours ?? w.weekly_hours)
+      // Mismo criterio que Nomina: hereda del mes anterior si este no tiene fila.
+      const { base_salary, weekly_hours } = salarioDelMes(w, configsHasta, selYear, selMonth)
+      const realSalary = calcRealSalary(base_salary, weekly_hours)
       const discounts = incidents.filter(i => i.worker_id === w.id && i.apply_discount && !i.is_addition).reduce((d, i) => d + (i.discount_amount || 0), 0)
       const overtime  = incidents.filter(i => i.worker_id === w.id && i.apply_discount && i.is_addition).reduce((d, i) => d + (i.discount_amount || 0), 0)
       return s + realSalary - discounts + overtime
     }, 0)
-  }, [workers, incidents, workerMonthlyConfigs])
+  }, [workers, incidents, configsHasta, selYear, selMonth])
 
   // Los pagos a eventuales son mano de obra del mes: cuentan en la planilla y
   // por tanto en la meta de ingresos.

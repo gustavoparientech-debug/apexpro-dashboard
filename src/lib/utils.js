@@ -223,3 +223,18 @@ export function fmtHours(h) {
   if (!min) return `${horas}h`
   return horas ? `${horas}h ${min}m` : `${min}m`
 }
+
+// Sueldo vigente de un trabajador en un mes: su propia fila, o la mas reciente
+// anterior, o el valor de la tabla `workers` si nunca se configuro. Cada mes
+// queda independiente: editar uno no altera los demas.
+export function salarioDelMes(worker, configs, year, month) {
+  const previas = (configs || [])
+    .filter(c => c.worker_id === worker.id && c.base_salary != null &&
+      (c.year < year || (c.year === year && c.month <= month)))
+    .sort((a, b) => (a.year - b.year) || (a.month - b.month))
+  const mc = previas[previas.length - 1]
+  return {
+    base_salary:  mc?.base_salary  ?? worker.base_salary,
+    weekly_hours: mc?.weekly_hours ?? worker.weekly_hours,
+  }
+}

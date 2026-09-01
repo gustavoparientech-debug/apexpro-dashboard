@@ -815,6 +815,18 @@ export function AppProvider({ children }) {
   }
 
   // ─── Worker Monthly Config ──────────────────────────────────────────────────
+  // Configuraciones hasta el mes indicado, para poder heredar del mes anterior
+  // cuando un mes no tiene la suya: sin esto un mes sin fila caia al sueldo
+  // global y cambiaba solo al ajustar cualquier otro mes.
+  const fetchWorkerConfigsUpTo = async (year, month) => {
+    if (IS_DEMO) return []
+    const { data } = await supabase.from('worker_monthly_config')
+      .select('*')
+      .or(`year.lt.${year},and(year.eq.${year},month.lte.${month})`)
+      .order('year').order('month')
+    return data || []
+  }
+
   const fetchWorkerMonthlyConfigs = async (year, month) => {
     if (IS_DEMO) return []
     const { data } = await supabase.from('worker_monthly_config').select('*').eq('year', year).eq('month', month)
@@ -1177,6 +1189,7 @@ export function AppProvider({ children }) {
       fetchMonthlyCosts, saveWorkerMonthlyConfig, fetchWorkerMonthlyConfigs,
       fetchBusinessTrend,
       fetchAdvances, fetchTicketAdvances, addAdvance, deleteAdvance,
+      fetchWorkerConfigsUpTo,
       fetchCasualWorkers, addCasualWorker, updateCasualWorker,
       fetchCasualPayments, addCasualPayment, deleteCasualPayment,
       resetDemoData,

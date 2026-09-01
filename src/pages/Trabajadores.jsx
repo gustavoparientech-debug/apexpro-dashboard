@@ -3,7 +3,7 @@ import { useApp } from '../context/AppContext'
 import { supabase } from '../lib/supabase'
 import {
   formatMoney, formatDate, calcRealSalary, calcDailySalary, calcProratedSalary,
-  calcAbsenceDiscount, calcLatenessDiscount, calcOvertimePay, calcLeaveDiscount, calcHourlyRate, fmtHours, getRatioColor, currentMonthYear, monthName, todayISO
+  calcAbsenceDiscount, calcLatenessDiscount, calcOvertimePay, calcLeaveDiscount, calcHourlyRate, salarioDelMes, fmtHours, getRatioColor, currentMonthYear, monthName, todayISO
 } from '../lib/utils'
 import Modal from '../components/ui/Modal'
 import ConfirmDialog from '../components/ui/ConfirmDialog'
@@ -395,7 +395,7 @@ const MONTHS_AHEAD = 12
 
 export default function Trabajadores() {
   const { workers, tickets, incidents, services, addWorker, updateWorker, addIncident, updateIncident, deleteIncident, addExpense,
-          fetchWorkerMonthlyConfigs, saveWorkerMonthlyConfig,
+          fetchWorkerMonthlyConfigs, fetchWorkerConfigsUpTo, saveWorkerMonthlyConfig,
           fetchCasualWorkers, addCasualWorker, fetchCasualPayments,
           addCasualPayment, deleteCasualPayment } = useApp()
   const { month: curMonth, year: curYear } = currentMonthYear()
@@ -498,9 +498,12 @@ export default function Trabajadores() {
     } catch { toast.error('Error al eliminar') }
   }
   const [pastMonthData, setPastMonthData] = useState(null) // { tickets, incidents } para meses anteriores
+  const [configsHasta, setConfigsHasta] = useState([])      // configs hasta el mes seleccionado
 
   useEffect(() => {
     fetchWorkerMonthlyConfigs(selYear, selMonth).then(setWorkerMonthlyConfigs)
+    // Tambien las de meses anteriores, para heredar cuando el mes no tenga fila.
+    fetchWorkerConfigsUpTo(selYear, selMonth).then(setConfigsHasta)
   }, [selMonth, selYear])
 
   function loadPastMonth(sMonth, sYear, wks) {
@@ -563,10 +566,11 @@ export default function Trabajadores() {
   }
 
   // Obtiene el salario efectivo de un trabajador para el mes seleccionado
-  function getWorkerSalary(w) {
-    const mc = workerMonthlyConfigs.find(c => c.worker_id === w.id)
-    return { base_salary: mc?.base_salary ?? w.base_salary, weekly_hours: mc?.weekly_hours ?? w.weekly_hours }
-  }
+  // El sueldo de un mes es el de su propia fila; si no tiene, hereda la fila
+  // mas reciente anterior. Solo cuando no existe ninguna se usa el valor de la
+  // tabla `workers`. Antes se caia directo al global, de modo que ajustar un
+  // mes movia todos los que no tenian fila propia.
+  const getWorkerSalary = (w) => salarioDelMes(w, configsHasta, selYear, selMonth)
 
   // Usar datos del mes seleccionado (pasado o actual)
   const activeTickets   = isCurrentMonth ? tickets   : (pastMonthData?.tickets   || [])
@@ -636,12 +640,17 @@ export default function Trabajadores() {
       const weekly_hours = parseFloat(editingNominaWorker.weekly_hours)
       // Si es mes actual y no hay config mensual previa, actualiza el trabajador globalmente
       // Si hay config mensual o es mes pasado, guarda solo en worker_monthly_config
+      // Solo se escribe la fila del mes editado. Tocar tambien `workers` hacia
+      // que el cambio se propagara a todos los meses sin fila propia.
       await saveWorkerMonthlyConfig({ worker_id: editingNominaWorker.id, year: selYear, month: selMonth, base_salary, weekly_hours })
-      if (isCurrentMonth) await updateWorker(editingNominaWorker.id, { base_salary, weekly_hours })
-      setWorkerMonthlyConfigs(prev => {
-        const filtered = prev.filter(c => c.worker_id !== editingNominaWorker.id)
-        return [...filtered, { worker_id: editingNominaWorker.id, year: selYear, month: selMonth, base_salary, weekly_hours }]
-      })
+      const fila = { worker_id: editingNominaWorker.id, year: selYear, month: selMonth, base_salary, weekly_hours }
+      setWorkerMonthlyConfigs(prev => [
+        ...prev.filter(c => c.worker_id !== editingNominaWorker.id), fila,
+      ])
+      setConfigsHasta(prev => [
+        ...prev.filter(c => !(c.worker_id === fila.worker_id && c.year === selYear && c.month === selMonth)),
+        fila,
+      ])
       toast.success(`Salario de ${monthName(selMonth)} ${selYear} actualizado`)
       setEditingNominaWorker(null)
     } catch { toast.error('Error al guardar') }
@@ -696,7 +705,7 @@ export default function Trabajadores() {
         // el del mes seleccionado, no el vigente en la tabla `workers`.
         return { ...w, base_salary, weekly_hours, realSalary, income, cars, workerIncidents, totalDiscounts, totalOvertime, finalPay, ratio, avgDaily, avgPerCar }
       })
-  }, [workers, activeTickets, activeIncidents, month, year, workerMonthlyConfigs])
+  }, [workers, activeTickets, activeIncidents, month, year, workerMonthlyConfigs, configsHasta])
 
   const chartData = workerStats.filter(w => w.active).map(w => ({ name: w.name, income: w.income, salario: w.realSalary }))
 
@@ -802,7 +811,7 @@ export default function Trabajadores() {
         // editor muestren el sueldo del mes y no el global.
         return { ...w, base_salary, weekly_hours, realSalary, workerIncidents, totalDiscounts, totalOvertime, finalPay }
       })
-  }, [workers, activeIncidents, month, year, workerMonthlyConfigs])
+  }, [workers, activeIncidents, month, year, workerMonthlyConfigs, configsHasta])
 
   // Filas ya filtradas, por trabajador, más los totales de lo que quedó a la
   // vista: sin ese resumen el filtro sirve para buscar pero no para decidir.

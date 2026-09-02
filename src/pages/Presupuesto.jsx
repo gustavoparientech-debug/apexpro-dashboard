@@ -31,6 +31,9 @@ const DEFAULT_CONFIG = {
     { id: 'aleta_tra_der',       label: 'Aleta Derecha',         mult: { auto: 1,   suv: 1.3, pickup: 1.4 } },
     { id: 'estribo_izq',         label: 'Estribo Izq.',          mult: { auto: 0.5, suv: 0.7, pickup: 0.8 } },
     { id: 'estribo_der',         label: 'Estribo Der.',          mult: { auto: 0.5, suv: 0.7, pickup: 0.8 } },
+    // Precio cerrado, no depende de la marca ni del tipo de vehiculo, y no es
+    // un paño de carroceria: no lleva planchado ni entra en el agrupado.
+    { id: 'pintura_interior',    label: 'Pintura Interior',      fixed: 500, mult: { auto: 1, suv: 1, pickup: 1 } },
   ],
 }
 
@@ -245,7 +248,10 @@ function mergeConfig(saved) {
     basePrices: { ...DEFAULT_CONFIG.basePrices, ...saved.basePrices },
     panels: DEFAULT_CONFIG.panels.map(p => {
       const sp = saved.panels?.find(x => x.id === p.id)
-      return sp ? { ...p, mult: { ...p.mult, ...sp.mult } } : p
+      if (!sp) return p
+      const merged = { ...p, mult: { ...p.mult, ...sp.mult } }
+      if (p.fixed != null && sp.fixed != null) merged.fixed = sp.fixed
+      return merged
     }),
   }
 }
@@ -716,6 +722,11 @@ export default function Presupuesto() {
     persistConfig({ ...config, panels: newPanels })
   }
 
+  function updatePrecioFijo(panelId, val) {
+    const newPanels = config.panels.map(p => p.id === panelId ? { ...p, fixed: val } : p)
+    persistConfig({ ...config, panels: newPanels })
+  }
+
   function saveBasePrices() {
     const e = parseFloat(pricesDraft.economy)
     const s = parseFloat(pricesDraft.standard)
@@ -733,10 +744,13 @@ export default function Presupuesto() {
   }
 
   function toggleAll() {
-    const allSelected = config.panels.every(p => selected[p.id])
-    const next = {}
+    // Solo la carroceria: "seleccionar todo" no debe añadir extras de precio
+    // cerrado como la pintura interior, que se elige aparte.
+    const panelesCarroceria = config.panels.filter(p => p.fixed == null)
+    const allSelected = panelesCarroceria.every(p => selected[p.id])
+    const next = { ...selected }
     const dmg = {}
-    config.panels.forEach(p => {
+    panelesCarroceria.forEach(p => {
       next[p.id] = !allSelected
       if (!allSelected) dmg[p.id] = damage[p.id] || 'none'
     })
@@ -750,6 +764,11 @@ export default function Presupuesto() {
 
   const rows = useMemo(() => config.panels.map(p => {
     const mult = p.mult[vehicleType]
+    // Un panel de precio fijo vale lo mismo en cualquier marca y vehiculo, y no
+    // admite niveles de planchado (no es chapa que se golpee).
+    if (p.fixed != null) {
+      return { ...p, mult, paintPrice: p.fixed, planchadoPrice: 0, price: p.fixed, damageId: 'none' }
+    }
     const paintPrice = Math.round(basePrice * mult)
     const dmgLevel = DAMAGE_LEVELS.find(d => d.id === (damage[p.id] || 'none'))
     const planchadoPrice = dmgLevel ? Math.round(paintPrice * dmgLevel.pct) : 0
@@ -769,7 +788,7 @@ export default function Presupuesto() {
   // Descuento proporcional: 0% con 1 paño, sube linealmente hasta 15% con todos
   // los paños. El techo era 25% y en un vehiculo completo se regalaba demasiado.
   const AUTO_DISCOUNT_MAX_PCT = 15
-  const totalPanels = config.panels.length
+  const totalPanels = config.panels.filter(p => p.fixed == null).length
   const autoDiscountPct = selectedCount >= 2 ? Math.max(3, Math.round((selectedCount / totalPanels) * AUTO_DISCOUNT_MAX_PCT)) : 0
   const [manualDiscountPct, setManualDiscountPct] = useState(null) // null = usar automático
   const discountPct = manualDiscountPct !== null ? manualDiscountPct : autoDiscountPct
@@ -1077,8 +1096,12 @@ export default function Presupuesto() {
     const planchadoRows = rows.filter(r => selected[r.id])
     const etiquetaPlanchado = r =>
       `${r.label} + Planchado (${DAMAGE_LEVELS.find(d => d.id === r.damageId)?.label})`
-    const soloPintura  = planchadoRows.filter(r => !r.damageId || r.damageId === 'none')
-    const conPlanchado = planchadoRows.filter(r =>  r.damageId && r.damageId !== 'none')
+    // Los extras de precio cerrado no son paños: no se agrupan ni se anuncian
+    // como "Pintado de ...", van con su propio nombre.
+    const extrasFijos  = planchadoRows.filter(r => r.fixed != null)
+    const paños        = planchadoRows.filter(r => r.fixed == null)
+    const soloPintura  = paños.filter(r => !r.damageId || r.damageId === 'none')
+    const conPlanchado = paños.filter(r =>  r.damageId && r.damageId !== 'none')
 
     const planchadoSel = agruparPintura
       // Los paños que solo llevan pintura se resumen en una linea; los que
@@ -1089,9 +1112,12 @@ export default function Presupuesto() {
             price: soloPintura.reduce((a, r) => a + r.price, 0),
           }] : []),
           ...conPlanchado.map(r => ({ label: etiquetaPlanchado(r), price: r.price })),
+          ...extrasFijos.map(r => ({ label: r.label, price: r.price })),
         ]
       : planchadoRows.map(r => ({
-          label: r.damageId !== 'none' ? etiquetaPlanchado(r) : `Pintado de ${r.label}`,
+          label: r.fixed != null
+            ? r.label
+            : r.damageId !== 'none' ? etiquetaPlanchado(r) : `Pintado de ${r.label}`,
           price: r.price,
         }))
     const ceramicoSel = catRows.filter(r => !r._divider && (ceramicoIds.has(r.id) || ppfIds.has(r.id))).map(r => ({ label: r.label, price: r.price }))
@@ -2336,7 +2362,7 @@ export default function Presupuesto() {
             )}
             <button onClick={toggleAll}
               className="text-xs text-red-600 dark:text-red-400 font-semibold px-3 py-1.5 rounded-lg bg-red-50 dark:bg-red-900/20">
-              {config.panels.every(p => selected[p.id]) ? 'Deseleccionar todo' : 'Seleccionar todo'}
+              {config.panels.filter(p => p.fixed == null).every(p => selected[p.id]) ? 'Deseleccionar todo' : 'Seleccionar todo'}
             </button>
           </div>
         </div>
@@ -2368,9 +2394,13 @@ export default function Presupuesto() {
                   )}
                 </div>
                 <div className="w-16 flex justify-center" onClick={e => e.stopPropagation()}>
-                  {canAdmin
-                    ? <EditableCell value={row.mult} onSave={val => updateMult(row.id, vehicleType, val)} />
-                    : <span className="text-sm font-semibold text-red-500">{row.mult}</span>
+                  {row.fixed != null
+                    ? (canAdmin
+                        ? <EditableCell value={row.fixed} onSave={val => updatePrecioFijo(row.id, val)} />
+                        : <span className="text-xs text-gray-400">fijo</span>)
+                    : canAdmin
+                      ? <EditableCell value={row.mult} onSave={val => updateMult(row.id, vehicleType, val)} />
+                      : <span className="text-sm font-semibold text-red-500">{row.mult}</span>
                   }
                 </div>
                 <span className="w-20 text-right text-sm font-bold text-gray-900 dark:text-white">
@@ -2385,8 +2415,9 @@ export default function Presupuesto() {
                 </div>
               </div>
 
-              {/* Selector de daño — solo si está seleccionado */}
-              {selected[row.id] && (
+              {/* Selector de daño — solo si está seleccionado. Un extra de precio
+                  cerrado no lleva planchado. */}
+              {selected[row.id] && row.fixed == null && (
                 <div className="flex items-center gap-1.5 px-4 pb-2.5" onClick={e => e.stopPropagation()}>
                   <span className="text-[10px] text-gray-400 mr-0.5">Planchado:</span>
                   {DAMAGE_LEVELS.map(lvl => (
@@ -2483,7 +2514,7 @@ export default function Presupuesto() {
                   {/* Agrupar pintura — solo tiene sentido si hay paños de solo pintura */}
                   {(() => {
                     const seleccionados = rows.filter(r => selected[r.id])
-                    const nPintura = seleccionados.filter(r => !r.damageId || r.damageId === 'none').length
+                    const nPintura = seleccionados.filter(r => r.fixed == null && (!r.damageId || r.damageId === 'none')).length
                     if (nPintura < 2) return null
                     return (
                       <div className="flex items-start gap-1 flex-wrap">
@@ -2582,7 +2613,7 @@ export default function Presupuesto() {
         const ppfIds = new Set(PPF_DATA.map(x => x.id))
         const polIds = new Set(POLARIZADOS_DATA.map(x => x.id))
         const planchadoSel = rows.filter(r => selected[r.id]).map(r => ({
-          key: `p_${r.id}`, label: r.damageId !== 'none' ? `${r.label} + Planchado (${DAMAGE_LEVELS.find(d => d.id === r.damageId)?.label})` : `Pintado — ${r.label}`,
+          key: `p_${r.id}`, label: r.fixed != null ? r.label : r.damageId !== 'none' ? `${r.label} + Planchado (${DAMAGE_LEVELS.find(d => d.id === r.damageId)?.label})` : `Pintado — ${r.label}`,
           price: r.price, onRemove: () => setSelected(s => ({ ...s, [r.id]: false })),
         }))
         const ceramicoBase = catRows.filter(r => ceramicoIds.has(r.id) || ppfIds.has(r.id)).map(r => ({
@@ -3018,7 +3049,7 @@ export default function Presupuesto() {
               const ppfIds = new Set(PPF_DATA.map(x => x.id))
               const polIds = new Set(POLARIZADOS_DATA.map(x => x.id))
               const planchadoItems = rows.filter(r => selected[r.id]).map(r => ({
-                label: r.damageId !== 'none' ? `${r.label} + Planchado` : `Pintado — ${r.label}`, price: r.price,
+                label: r.fixed != null ? r.label : r.damageId !== 'none' ? `${r.label} + Planchado` : `Pintado — ${r.label}`, price: r.price,
               }))
               const ceramicoItems = catRows.filter(r => ceramicoIds.has(r.id) || ppfIds.has(r.id)).map(r => ({ label: r.label, price: r.price }))
               const polItems = catRows.filter(r => polIds.has(r.id)).map(r => ({ label: r.label, price: r.price }))
@@ -3359,7 +3390,11 @@ export default function Presupuesto() {
         </div>
         <div className="divide-y divide-gray-50 dark:divide-gray-800/50">
           {VEHICLE_TYPES.map(vt => {
-            const vtTotal = config.panels.reduce((s, p) => s + Math.round(basePrice * p.mult[vt.id]), 0)
+            // Solo paños de carroceria: un extra de precio cerrado no se calcula
+            // con el multiplicador y no forma parte de "todos los paños".
+            const vtTotal = config.panels
+              .filter(p => p.fixed == null)
+              .reduce((s, p) => s + Math.round(basePrice * p.mult[vt.id]), 0)
             return (
               <div key={vt.id} className="flex items-center justify-between px-4 py-3">
                 <span className="text-sm text-gray-700 dark:text-gray-300">{vt.emoji} {vt.label}</span>

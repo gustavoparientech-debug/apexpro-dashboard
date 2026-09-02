@@ -56,14 +56,33 @@ const DAMAGE_LEVELS = [
   { id: 'severo',   label: 'Severo',       short: 'Severo',   pct: 1.2, color: 'border-red-500 text-red-700 dark:border-red-500 dark:text-red-400' },
 ]
 
+// Armado y desarmado. En una pintura general el vehiculo se desarma entero y se
+// vuelve a armar, y eso son dias que no aparecian en el plazo: el presupuesto
+// prometia entregas imposibles y el cliente apuraba. Los clientes ya dan estos
+// dias por descontados, asi que se suman siempre que el trabajo sea completo.
+const DIAS_ARMADO_CON_INTERIORES = 4  // 2 de armado + 1 de desarmado + 1 de detalles
+const DIAS_ARMADO_BANO           = 3  // sin interiores se desarma menos
+// Un vehiculo completo no se pule en menos de esto, por mucho que salga el calculo.
+const PULIDO_MIN_DIAS_COMPLETO   = 2
+// A partir de que proporcion de paños el trabajo cuenta como "vehiculo completo".
+// No se exige el 100%: un trabajo al que solo le faltan los estribos se desarma igual.
+const UMBRAL_VEHICULO_COMPLETO   = 0.8
+// Armado y desarmado de parachoques suelto, cuando no es un trabajo completo.
+const ARMADO_PARACHOQUE_PRECIO = 90
+const ARMADO_PARACHOQUE_HORAS  = 3
+
 // Estimación de tiempo de entrega basada en nivel de daño y cantidad de paños
-function estimateDays(selectedRows, teamSize = 2, withPulido = true) {
+function estimateDays(selectedRows, teamSize = 2, withPulido = true, opts = {}) {
   if (!selectedRows.length) return null
   const sev  = selectedRows.filter(r => r.damageId === 'severo').length
   const mod  = selectedRows.filter(r => r.damageId === 'moderado').length
   const lev  = selectedRows.filter(r => r.damageId === 'leve').length
   const none = selectedRows.filter(r => !r.damageId || r.damageId === 'none').length
   const total = selectedRows.length
+
+  const { totalPanels = 0, conInteriores = false, armadoParachoques = false } = opts
+  const panosCarroceria = selectedRows.filter(r => r.fixed == null).length
+  const esCompleto = totalPanels > 0 && panosCarroceria / totalPanels >= UMBRAL_VEHICULO_COMPLETO
 
   // Horas base por tipo de daño (referencia para mult=1, ej. guardafango):
   //   none = 1.5h (masking + raspones/abolladuras menores)
@@ -99,12 +118,20 @@ function estimateDays(selectedRows, teamSize = 2, withPulido = true) {
   const paintH  = selectedRows.reduce((s, r) => s + (r.mult || 1) * 1, 0)
   // Pulido: escala con el multiplicador de cada paño (capot mult=2.5 tarda más que guardafango mult=1)
   // Base: 0.8h por unidad de mult → guardafango≈0.8h, capot≈2h, techo≈2h
-  const pulidoH = withPulido
+  let pulidoH = withPulido
     ? selectedRows.reduce((s, r) => s + (r.mult || 1) * 0.8, 0)
     : 0
-  const totalH = activePerWorker + dryH + paintH + pulidoH
+  // Pulir un vehiculo entero lleva dos dias como minimo aunque el calculo por
+  // paño de menos.
+  if (withPulido && esCompleto) pulidoH = Math.max(pulidoH, PULIDO_MIN_DIAS_COMPLETO * WORK_H)
+  // El armado del parachoque solo se cobra aparte si el vehiculo no se desarma
+  // entero; en un trabajo completo ya va dentro de los dias de armado.
+  const armadoParachoqueH = (!esCompleto && armadoParachoques) ? ARMADO_PARACHOQUE_HORAS : 0
+
+  const totalH = activePerWorker + dryH + paintH + pulidoH + armadoParachoqueH
   // Redondeo a 0.5 días para evitar saltos bruscos de días enteros
-  const totalDays = Math.ceil(totalH / WORK_H * 2) / 2
+  const diasArmado = esCompleto ? (conInteriores ? DIAS_ARMADO_CON_INTERIORES : DIAS_ARMADO_BANO) : 0
+  const totalDays = Math.ceil(totalH / WORK_H * 2) / 2 + diasArmado
   const totalMin = totalDays
   const buffer = 0
   const totalMax = totalDays
@@ -132,8 +159,17 @@ function estimateDays(selectedRows, teamSize = 2, withPulido = true) {
   const prepLabel = `Planchado + prep (${teamLabel}): ${prepDays} día${prepDays !== 1 ? 's' : ''}`
   const paintLabel = `Base seca (5h) + pintura + barniz + pulido: ${paintDays} día${paintDays !== 1 ? 's' : ''}`
   const bufferLabel = null
+  // Se detalla para que el cliente vea que los dias de armado estan contados y
+  // no los tome como demora.
+  const armadoLabel = diasArmado
+    ? (conInteriores
+        ? `Desarmado (1d) + armado (2d) + detalles finales (1d): ${diasArmado} días`
+        : `Desarmado, armado y detalles finales: ${diasArmado} días`)
+    : armadoParachoqueH
+      ? 'Armado y desarmado de parachoques: 3h'
+      : null
 
-  return { text, color, panoLines, prepLabel, paintLabel, bufferLabel, totalDays }
+  return { text, color, panoLines, prepLabel, paintLabel, bufferLabel, armadoLabel, totalDays, esCompleto, diasArmado }
 }
 
 function parseTimeMin(str) {
@@ -391,6 +427,9 @@ export default function Presupuesto() {
   // la lista paño por paño no aporta nada y lo que interesa detallar es el
   // planchado, que es el trabajo que justifica el precio.
   const [agruparPintura, setAgruparPintura] = useState(false)
+  // Armado y desarmado del parachoque como servicio aparte. Solo aplica cuando
+  // el vehiculo no se desarma entero.
+  const [armadoParachoques, setArmadoParachoques] = useState(false)
   // Descuento fijo de bienvenida para vehiculos nuevos en cotizaciones de
   // ceramico. Va aparte de los descuentos por porcentaje porque es un monto
   // cerrado que se concede o no, no una negociacion.
@@ -552,7 +591,7 @@ export default function Presupuesto() {
       // reabrir la cotizacion los importes se recalculaban con lo que hubiera
       // seleccionado en ese momento y no coincidian con lo cotizado.
       vehicleType, selectedTier, selectedBrand,
-      teamSize, withPulido, agruparPintura,
+      teamSize, withPulido, agruparPintura, armadoParachoques,
       discountMode, sectionDiscounts, manualDiscountPct,
       created_at: Date.now(),
       expires_at: Date.now() + 7 * 24 * 60 * 60 * 1000,
@@ -618,6 +657,7 @@ export default function Presupuesto() {
     if (q.teamSize)   setTeamSize(q.teamSize)
     if (q.withPulido !== undefined)     setWithPulido(q.withPulido)
     if (q.agruparPintura !== undefined) setAgruparPintura(q.agruparPintura)
+    if (q.armadoParachoques !== undefined) setArmadoParachoques(q.armadoParachoques)
     if (q.discountMode)      setDiscountMode(q.discountMode)
     if (q.sectionDiscounts)  setSectionDiscounts(q.sectionDiscounts)
     if (q.manualDiscountPct !== undefined) setManualDiscountPct(q.manualDiscountPct)
@@ -762,6 +802,23 @@ export default function Presupuesto() {
     setDamage(d => ({ ...d, [id]: level }))
   }
 
+  // Contexto que necesita el calculo de plazo: si el trabajo cubre el vehiculo
+  // entero y si incluye interiores, que es lo que decide los dias de armado.
+  const totalPanosCarroceria = config.panels.filter(p => p.fixed == null).length
+  const panosCarroceriaSel = config.panels.filter(p => p.fixed == null && selected[p.id]).length
+  const trabajoCompleto = totalPanosCarroceria > 0 &&
+    panosCarroceriaSel / totalPanosCarroceria >= UMBRAL_VEHICULO_COMPLETO
+  const hayParachoque = !!(selected['parachoque_del'] || selected['parachoque_tra'])
+  // En un trabajo completo el parachoque se desarma igual dentro de los dias de
+  // armado del vehiculo: cobrarlo aparte seria cobrarlo dos veces.
+  const armadoParachoquesActivo = armadoParachoques && hayParachoque && !trabajoCompleto
+
+  const opcionesPlazo = useMemo(() => ({
+    totalPanels: totalPanosCarroceria,
+    conInteriores: !!selected['pintura_interior'],
+    armadoParachoques: armadoParachoquesActivo,
+  }), [totalPanosCarroceria, selected, armadoParachoquesActivo])
+
   const rows = useMemo(() => config.panels.map(p => {
     const mult = p.mult[vehicleType]
     // Un panel de precio fijo vale lo mismo en cualquier marca y vehiculo, y no
@@ -777,8 +834,9 @@ export default function Presupuesto() {
   }), [config, vehicleType, basePrice, damage])
 
   const total = useMemo(() =>
-    rows.filter(r => selected[r.id]).reduce((s, r) => s + r.price, 0),
-    [rows, selected]
+    rows.filter(r => selected[r.id]).reduce((s, r) => s + r.price, 0) +
+    (armadoParachoquesActivo ? ARMADO_PARACHOQUE_PRECIO : 0),
+    [rows, selected, armadoParachoquesActivo]
   )
 
   const selectedCount = Object.values(selected).filter(Boolean).length
@@ -1058,7 +1116,7 @@ export default function Presupuesto() {
   }
 
   const totalTimeMin = (() => {
-    const est = estimateDays(rows.filter(r => selected[r.id]), teamSize, withPulido)
+    const est = estimateDays(rows.filter(r => selected[r.id]), teamSize, withPulido, opcionesPlazo)
     const planchadoMin = est ? Math.round(est.totalDays * 480) : 0
     const catMin = catRows.reduce((s, r) => s + getItemTimeMin(r.id), 0)
     const svcMin = serviciosRows.reduce((s, r) => s + getItemTimeMin(r.id), 0)
@@ -1103,7 +1161,7 @@ export default function Presupuesto() {
     const soloPintura  = paños.filter(r => !r.damageId || r.damageId === 'none')
     const conPlanchado = paños.filter(r =>  r.damageId && r.damageId !== 'none')
 
-    const planchadoSel = agruparPintura
+    let planchadoSel = agruparPintura
       // Los paños que solo llevan pintura se resumen en una linea; los que
       // llevan planchado se siguen detallando uno por uno.
       ? [
@@ -1120,6 +1178,9 @@ export default function Presupuesto() {
             : r.damageId !== 'none' ? etiquetaPlanchado(r) : `Pintado de ${r.label}`,
           price: r.price,
         }))
+    if (armadoParachoquesActivo) {
+      planchadoSel.push({ label: 'Armado y desarmado de parachoques', price: ARMADO_PARACHOQUE_PRECIO })
+    }
     const ceramicoSel = catRows.filter(r => !r._divider && (ceramicoIds.has(r.id) || ppfIds.has(r.id))).map(r => ({ label: r.label, price: r.price }))
     const polSel = catRows.filter(r => polIds.has(r.id)).map(r => ({ label: r.label, price: r.price }))
     const lavSel = lavItems.map(r => ({ label: r.label, price: r.price }))
@@ -2511,6 +2572,27 @@ export default function Presupuesto() {
                     ))}
                   </div>
 
+                  {/* Armado de parachoques — no se ofrece en un trabajo completo,
+                      donde el desarmado del vehiculo ya lo incluye. */}
+                  {hayParachoque && !trabajoCompleto && (
+                    <div className="flex items-center gap-1 flex-wrap">
+                      <span className="text-[10px] text-gray-400 mr-1">🔧 Parachoques:</span>
+                      {[
+                        { v: false, label: 'Sin armado' },
+                        { v: true,  label: `Con armado y desarmado · S/${ARMADO_PARACHOQUE_PRECIO}` },
+                      ].map(({ v, label }) => (
+                        <button key={String(v)} onClick={() => setArmadoParachoques(v)}
+                          className={`text-[10px] px-2 py-0.5 rounded-full border transition-colors ${
+                            armadoParachoques === v
+                              ? 'bg-purple-600 text-white border-purple-600 font-semibold'
+                              : 'bg-white dark:bg-gray-800 text-gray-500 border-gray-300 dark:border-gray-600 hover:border-purple-400'
+                          }`}>
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
                   {/* Agrupar pintura — solo tiene sentido si hay paños de solo pintura */}
                   {(() => {
                     const seleccionados = rows.filter(r => selected[r.id])
@@ -2544,7 +2626,7 @@ export default function Presupuesto() {
                 </div>
               )}
               {(() => {
-                const est = estimateDays(rows.filter(r => selected[r.id]), teamSize, withPulido)
+                const est = estimateDays(rows.filter(r => selected[r.id]), teamSize, withPulido, opcionesPlazo)
                 if (!est) return null
                 const cls = est.color === 'red' ? 'text-red-600 bg-red-100 dark:bg-red-900/30 dark:text-red-400'
                   : est.color === 'orange' ? 'text-orange-600 bg-orange-100 dark:bg-orange-900/30 dark:text-orange-400'
@@ -2567,6 +2649,7 @@ export default function Presupuesto() {
                       <div className="border-t border-gray-200 dark:border-gray-700 pt-1 mt-1 space-y-0.5">
                         <p className="text-gray-500 dark:text-gray-400">⚙️ {est.prepLabel}</p>
                         <p className="text-gray-500 dark:text-gray-400">🎨 {est.paintLabel}</p>
+                        {est.armadoLabel && <p className="text-gray-500 dark:text-gray-400">🔧 {est.armadoLabel}</p>}
                         {est.bufferLabel && <p className="text-gray-400 dark:text-gray-500 italic">⏱ {est.bufferLabel}</p>}
                       </div>
                     </div>
@@ -2612,10 +2695,17 @@ export default function Presupuesto() {
         const ceramicoIds = new Set(CERAMICO_DATA.map(x => x.id))
         const ppfIds = new Set(PPF_DATA.map(x => x.id))
         const polIds = new Set(POLARIZADOS_DATA.map(x => x.id))
-        const planchadoSel = rows.filter(r => selected[r.id]).map(r => ({
+        const planchadoBase = rows.filter(r => selected[r.id]).map(r => ({
           key: `p_${r.id}`, label: r.fixed != null ? r.label : r.damageId !== 'none' ? `${r.label} + Planchado (${DAMAGE_LEVELS.find(d => d.id === r.damageId)?.label})` : `Pintado — ${r.label}`,
           price: r.price, onRemove: () => setSelected(s => ({ ...s, [r.id]: false })),
         }))
+        const planchadoSel = armadoParachoquesActivo
+          ? [...planchadoBase, {
+              key: 'p_armado_parachoques', label: 'Armado y desarmado de parachoques',
+              price: ARMADO_PARACHOQUE_PRECIO,
+              onRemove: () => setArmadoParachoques(false),
+            }]
+          : planchadoBase
         const ceramicoBase = catRows.filter(r => ceramicoIds.has(r.id) || ppfIds.has(r.id)).map(r => ({
           key: `c_${r.id}`, label: r.label, price: r.price, onRemove: () => setCatSelected(s => ({ ...s, [r.id]: false })),
         }))

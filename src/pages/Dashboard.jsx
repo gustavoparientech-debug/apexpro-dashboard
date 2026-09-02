@@ -150,8 +150,11 @@ const RANGOS_AFLUENCIA = [
 // un registro que se olvido y se metio despues.
 // Jornada util de un trabajador: 8:30 a 18:00 menos el almuerzo.
 const HORAS_EFECTIVAS_TRABAJADOR = 8.5
-// Un ticket que cruza la noche no son 20 horas de taller: se topa en una jornada.
+// Un ticket de un solo dia que cruza la noche no son 20 horas: se topa en una jornada.
 const TOPE_HORAS_TICKET = 9
+// Tope de dias que se le cuentan a un trabajo largo, para que un ticket que se
+// quedo sin cerrar por olvido no infle el promedio para siempre.
+const TOPE_DIAS_TRABAJO = 20
 
 const HORA_APERTURA = 8
 const HORA_CIERRE   = 17   // ultima franja; a las 18:00 ya se cerro
@@ -298,20 +301,54 @@ function AfluenciaPanel() {
     }
 
     // ── Carga de taller: cuanta gente pide el trabajo que entra ──────────────
-    // Se mide con el tiempo que el auto pasa en el taller (apertura a cierre del
-    // ticket). Un ticket que cruza la noche no son 20 horas de trabajo, asi que
-    // se topa en una jornada.
+    // Un lavado se mide por las horas que el auto esta en el taller. Un trabajo
+    // de varios dias (una pintura general) no: topar su duracion en una jornada
+    // convertia 20 dias de trabajo en 9 horas, justo en los trabajos que mas
+    // gente ocupan. Esos se reparten como una persona dedicada cada dia habil
+    // que duran, que es como se trabajan de verdad.
     const porFecha = new Map()
+    const sumar = (fechaISO, horas) => {
+      const [y, m, d] = fechaISO.split('-').map(Number)
+      const dow = new Date(y, m - 1, d).getDay()
+      if (dow === 0) return                       // domingo no se trabaja
+      const acc = porFecha.get(fechaISO) || { horas: 0, autos: 0, idx: (dow + 6) % 7 }
+      acc.horas += horas
+      porFecha.set(fechaISO, acc)
+    }
+    const hoyISO = new Date().toISOString().slice(0, 10)
     for (const t of lista) {
-      if (!t.opened_at || !t.closed_at) continue
-      const h = (new Date(t.closed_at) - new Date(t.opened_at)) / 3600000
-      if (!(h > 0)) continue
-      const [y, m, d] = t.date.split('-').map(Number)
-      const idx = (new Date(y, m - 1, d).getDay() + 6) % 7
-      const acc = porFecha.get(t.date) || { horas: 0, autos: 0, idx }
-      acc.horas += Math.min(h, TOPE_HORAS_TICKET)
-      acc.autos += 1
-      porFecha.set(t.date, acc)
+      if (!t.opened_at) continue
+      // Un trabajo realmente abierto sigue ocupando el taller y cuenta hasta
+      // hoy. Un ticket ya cerrado al que le falta la fecha de cierre es un dato
+      // incompleto, no un trabajo de meses: se cuenta como de un dia. Sin esta
+      // distincion seis tickets viejos sin cerrar sumaban seis personas fijas.
+      // El auto se cuenta el dia que entro, aunque su trabajo se reparta.
+      const [ay, am, ad] = t.date.split('-').map(Number)
+      const acc0 = porFecha.get(t.date) || { horas: 0, autos: 0, idx: (new Date(ay, am - 1, ad).getDay() + 6) % 7 }
+      porFecha.set(t.date, { ...acc0, autos: acc0.autos + 1 })
+
+      const abierto = t.status !== 'cerrado'
+      if (!t.closed_at && !abierto) { sumar(t.date, TOPE_HORAS_TICKET / 2); continue }
+      const ini = new Date(t.opened_at)
+      const fin = t.closed_at ? new Date(t.closed_at) : new Date()
+      const horas = (fin - ini) / 3600000
+      if (!(horas > 0)) continue
+
+      const iniISO = ini.toISOString().slice(0, 10)
+      const finISO = fin.toISOString().slice(0, 10)
+      if (iniISO === finISO) {
+        sumar(iniISO, Math.min(horas, TOPE_HORAS_TICKET))
+        continue
+      }
+      // Varios dias: una persona dedicada por cada dia habil que dura, hasta un
+      // tope para que un ticket olvidado sin cerrar no distorsione el promedio.
+      let cursor = new Date(ini)
+      let dias = 0
+      while (cursor.toISOString().slice(0, 10) <= finISO && dias < TOPE_DIAS_TRABAJO) {
+        const iso = cursor.toISOString().slice(0, 10)
+        if (iso <= hoyISO) { sumar(iso, HORAS_EFECTIVAS_TRABAJADOR); dias += 1 }
+        cursor.setDate(cursor.getDate() + 1)
+      }
     }
     const jornadas = [...porFecha.values()]
     let carga = null

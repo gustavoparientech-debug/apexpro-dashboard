@@ -260,36 +260,36 @@ const VT_LAVADOS_FILTER = {
 
 const SERVICIOS_DATA = [
   // ── Precio fijo (no varía por vehículo) ──────────────────────────────────
-  { id: 'sv_techo_g1',     name: 'Lavado de Techo G1',              timeMin: 60,  price: 80  },
-  { id: 'sv_techo_g2',     name: 'Lavado de Techo G2',              timeMin: 60,  price: 90  },
-  { id: 'sv_techo_g3',     name: 'Lavado de Techo G3',              timeMin: 60,  price: 100 },
-  { id: 'sv_ret_asientos', name: 'Retirada de asientos',            timeMin: 30,  price: 60  },
-  { id: 'sv_asientos_1f',  name: 'Lavado de asientos 1 Fila',       timeMin: 60,  price: 40  },
-  { id: 'sv_asientos_2f',  name: 'Lavado de asientos 2 Filas',      timeMin: 90,  price: 80  },
-  { id: 'sv_asientos_3f',  name: 'Lavado de asientos 3 Filas',      timeMin: 120, price: 110 },
-  { id: 'sv_ext_cam',      name: 'Lavado Exterior Camioneta',       timeMin: 30,  price: 25  },
-  { id: 'sv_chasis',       name: 'Lavado Chasis V-Mol',             timeMin: 30,  price: 50  },
-  { id: 'sv_alumax',       name: 'Alumax y Removex',                timeMin: 30,  price: 30  },
-  { id: 'sv_ret_llantas',  name: 'Retirado de llantas',             timeMin: 45,  price: 80  },
-  { id: 'sv_det_interior', name: 'Detallado interior',              timeMin: 120, price: 90  },
-  { id: 'sv_elixir',       name: 'Elixir CarPro',                   timeMin: 15,  price: 20  },
-  { id: 'sv_encerado',     name: 'Encerado Bleend 3 meses',         timeMin: 15,  price: 20  },
-  { id: 'sv_cer_g3',       name: 'Tratamiento Cerámico G3',         timeMin: 120, price: 100 },
-  { id: 'sv_gliss',        name: 'Aplicación de Gliss Car Pro',     timeMin: 60,  price: 100 },
-  { id: 'sv_lav_piso',     name: 'Lavado de Piso',                  timeMin: 60,  price: 80  },
-  { id: 'sv_ret_alfombra', name: 'Retirado de Alfombra',            timeMin: 30,  price: 40  },
-  { id: 'sv_motor_basico', name: 'Lavado de Motor (Básico)',        timeMin: 20,  price: 20  },
-  { id: 'sv_motor_det',    name: 'Lavado de Motor (Detallado)',     timeMin: 40,  price: 40  },
-  { id: 'sv_berniz',       name: 'Berniz de Motor',                 timeMin: 15,  price: 15  },
-  { id: 'sv_cera_vonixx',  name: 'Cera en pasta Vonixx',           timeMin: 15,  price: 20  },
+  { id: 'sv_techo_g1',     name: 'Lavado de Techo G1',              timeMin: 60,  price: 80  , grupo: 'Lavados' },
+  { id: 'sv_techo_g2',     name: 'Lavado de Techo G2',              timeMin: 60,  price: 90  , grupo: 'Lavados' },
+  { id: 'sv_techo_g3',     name: 'Lavado de Techo G3',              timeMin: 60,  price: 100 , grupo: 'Lavados' },
+  { id: 'sv_ret_asientos', name: 'Retirada de asientos',            timeMin: 30,  price: 60  , grupo: 'Detallado y desmontaje' },
+  { id: 'sv_asientos_1f',  name: 'Lavado de asientos 1 Fila',       timeMin: 60,  price: 40  , grupo: 'Lavados' },
+  { id: 'sv_asientos_2f',  name: 'Lavado de asientos 2 Filas',      timeMin: 90,  price: 80  , grupo: 'Lavados' },
+  { id: 'sv_asientos_3f',  name: 'Lavado de asientos 3 Filas',      timeMin: 120, price: 110 , grupo: 'Lavados' },
+  { id: 'sv_ext_cam',      name: 'Lavado Exterior Camioneta',       timeMin: 30,  price: 25  , grupo: 'Lavados' },
+  { id: 'sv_chasis',       name: 'Lavado Chasis V-Mol',             timeMin: 30,  price: 50  , grupo: 'Lavados' },
+  { id: 'sv_alumax',       name: 'Alumax y Removex',                timeMin: 30,  price: 30  , grupo: 'Detallado y desmontaje' },
+  { id: 'sv_ret_llantas',  name: 'Retirado de llantas',             timeMin: 45,  price: 80  , grupo: 'Detallado y desmontaje' },
+  { id: 'sv_det_interior', name: 'Detallado interior',              timeMin: 120, price: 90  , grupo: 'Detallado y desmontaje' },
+  { id: 'sv_elixir',       name: 'Elixir CarPro',                   timeMin: 15,  price: 20  , grupo: 'Protección y brillo' },
+  { id: 'sv_encerado',     name: 'Encerado Bleend 3 meses',         timeMin: 15,  price: 20  , grupo: 'Protección y brillo' },
+  { id: 'sv_cer_g3',       name: 'Tratamiento Cerámico G3',         timeMin: 120, price: 100 , grupo: 'Cerámicos' },
+  { id: 'sv_gliss',        name: 'Aplicación de Gliss Car Pro',     timeMin: 60,  price: 100 , grupo: 'Protección y brillo' },
+  { id: 'sv_lav_piso',     name: 'Lavado de Piso',                  timeMin: 60,  price: 80  , grupo: 'Lavados' },
+  { id: 'sv_ret_alfombra', name: 'Retirado de Alfombra',            timeMin: 30,  price: 40  , grupo: 'Detallado y desmontaje' },
+  { id: 'sv_motor_basico', name: 'Lavado de Motor (Básico)',        timeMin: 20,  price: 20  , grupo: 'Lavados' },
+  { id: 'sv_motor_det',    name: 'Lavado de Motor (Detallado)',     timeMin: 40,  price: 40  , grupo: 'Lavados' },
+  { id: 'sv_berniz',       name: 'Berniz de Motor',                 timeMin: 15,  price: 15  , grupo: 'Detallado y desmontaje' },
+  { id: 'sv_cera_vonixx',  name: 'Cera en pasta Vonixx',           timeMin: 15,  price: 20  , grupo: 'Protección y brillo' },
   // ── Precio según vehículo ─────────────────────────────────────────────────
-  { id: 'sv_ext_basico',   name: 'Lavado Exterior (Básico)',        timeMin: 30,  prices: { auto: 25, suv: 30, pickup: 35, xl: 40 } },
-  { id: 'sv_offroad',      name: 'Lavado OffRoad',                  timeMin: 45,  prices: { auto: 55, suv: 60, pickup: 65, xl: 70 } },
-  { id: 'sv_pul1',         name: 'Pulido 1 Paso',                   timeMin: 120, prices: { auto: 130, suv: 150, pickup: 170, xl: 170 } },
-  { id: 'sv_pul3',         name: 'Pulido 3 Pasos',                  timeMin: 240, prices: { auto: 260, suv: 280, pickup: 300, xl: 300 } },
-  { id: 'sv_desc',         name: 'Descontaminación',                timeMin: 90,  prices: { auto: 120, suv: 140, pickup: 160, xl: 160 } },
-  { id: 'sv_cer_cp2',      name: 'Cerámico CarPro 2 Años',          timeMin: 480, prices: { auto: 799, suv: 899, pickup: 999, xl: 999 } },
-  { id: 'sv_cer_ap3',      name: 'Cerámico AutoPremium 3 Años',     timeMin: 480, prices: { auto: 499, suv: 599, pickup: 699, xl: 699 } },
+  { id: 'sv_ext_basico',   name: 'Lavado Exterior (Básico)',        timeMin: 30,  prices: { auto: 25, suv: 30, pickup: 35, xl: 40 } , grupo: 'Lavados' },
+  { id: 'sv_offroad',      name: 'Lavado OffRoad',                  timeMin: 45,  prices: { auto: 55, suv: 60, pickup: 65, xl: 70 } , grupo: 'Lavados' },
+  { id: 'sv_pul1',         name: 'Pulido 1 Paso',                   timeMin: 120, prices: { auto: 130, suv: 150, pickup: 170, xl: 170 } , grupo: 'Pulidos' },
+  { id: 'sv_pul3',         name: 'Pulido 3 Pasos',                  timeMin: 240, prices: { auto: 260, suv: 280, pickup: 300, xl: 300 } , grupo: 'Pulidos' },
+  { id: 'sv_desc',         name: 'Descontaminación',                timeMin: 90,  prices: { auto: 120, suv: 140, pickup: 160, xl: 160 } , grupo: 'Pulidos' },
+  { id: 'sv_cer_cp2',      name: 'Cerámico CarPro 2 Años',          timeMin: 480, prices: { auto: 799, suv: 899, pickup: 999, xl: 999 } , grupo: 'Cerámicos' },
+  { id: 'sv_cer_ap3',      name: 'Cerámico AutoPremium 3 Años',     timeMin: 480, prices: { auto: 499, suv: 599, pickup: 699, xl: 699 } , grupo: 'Cerámicos' },
 ]
 
 const LAVADOS_DATA = [
@@ -885,6 +885,29 @@ export default function Presupuesto() {
   const discountAmt = Math.round(total * discountPct / 100)
   const totalFinal = total - discountAmt
 
+  // Titulos de seccion. Sin ellos la lista era un bloque continuo y no se veia
+  // donde empezaba cada familia de servicios.
+  function conTitulo(items, label) {
+    if (!items.length) return []
+    return [{ id: `__t_${label}__`, _divider: true, label, count: items.length }, ...items]
+  }
+
+  // Agrupa por el campo `grupo` respetando el orden en que aparecen, para no
+  // pelear con el orden que el admin haya configurado. Lo que no tiene grupo
+  // (servicios añadidos a mano) cae al final.
+  function porGrupos(items) {
+    const orden = []
+    const mapa = new Map()
+    items.forEach(s => {
+      const g = s.grupo || 'Otros'
+      if (!mapa.has(g)) { mapa.set(g, []); orden.push(g) }
+      mapa.get(g).push(s)
+    })
+    const otros = orden.filter(g => g === 'Otros')
+    return [...orden.filter(g => g !== 'Otros'), ...otros]
+      .flatMap(g => conTitulo(mapa.get(g), g))
+  }
+
   function applyMeta(services, cat) {
     const base = services
       .filter(s => !catMeta.deleted.includes(s.id))
@@ -917,13 +940,12 @@ export default function Presupuesto() {
   // ── Filas para otras categorías ──────────────────────────────────────────
   const catData = useMemo(() => {
     if (category === 'ceramico')    return [
-      ...applyMeta(CERAMICO_DATA, 'ceramico'),
-      { id: '__ppf_divider__', _divider: true, label: 'PPF' },
-      ...applyMeta(PPF_DATA, 'ppf'),
+      ...conTitulo(applyMeta(CERAMICO_DATA, 'ceramico'), 'Cerámicos'),
+      ...conTitulo(applyMeta(PPF_DATA, 'ppf'), 'PPF'),
     ]
     if (category === 'polarizados') return applyMeta(POLARIZADOS_DATA, 'polarizados')
     if (category === 'lavados')     return applyMeta(LAVADOS_DATA, 'lavados')
-    if (category === 'servicios')   return applyMeta(SERVICIOS_DATA, 'servicios')
+    if (category === 'servicios')   return porGrupos(applyMeta(SERVICIOS_DATA, 'servicios'))
     return []
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [category, catMeta])
@@ -1974,11 +1996,17 @@ export default function Presupuesto() {
                 ))
               ) : (
                 data.map(s => {
+                  // Mismo encabezado oscuro que las marcas de polarizados: la
+                  // linea fina anterior no se leia como titulo de seccion.
                   if (s._divider) return (
-                    <div key={s.id} className="flex items-center gap-2 py-1">
-                      <div className="flex-1 h-px bg-gray-200 dark:bg-gray-700" />
-                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{s.label}</span>
-                      <div className="flex-1 h-px bg-gray-200 dark:bg-gray-700" />
+                    <div key={s.id} className="bg-gray-900 dark:bg-gray-800 rounded-xl px-3 py-2.5 flex items-center gap-2 mt-3 first:mt-0">
+                      <span className="w-1.5 h-4 rounded-full bg-red-500 flex-none" />
+                      <p className="text-sm font-black text-white uppercase tracking-wider flex-1 leading-none">{s.label}</p>
+                      {s.count > 0 && (
+                        <span className="text-[10px] font-bold text-white/50 flex-none">
+                          {s.count} opci{s.count === 1 ? 'ón' : 'ones'}
+                        </span>
+                      )}
                     </div>
                   )
                   const hasVehiclePrices = !!s.prices && isSv

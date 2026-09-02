@@ -145,7 +145,64 @@ const RANGOS_AFLUENCIA = [
   { dias: 180, label: '6 meses' },
 ]
 
+// El taller abre 8:30 y cierra como maximo a las 18:00. Un ticket marcado a las
+// 01:00 o a las 23:00 no es un auto que entro a esa hora: es una carga tardia o
+// un registro que se olvido y se metio despues.
+// Jornada util de un trabajador: 8:30 a 18:00 menos el almuerzo.
+const HORAS_EFECTIVAS_TRABAJADOR = 8.5
+// Un ticket que cruza la noche no son 20 horas de taller: se topa en una jornada.
+const TOPE_HORAS_TICKET = 9
+
+const HORA_APERTURA = 8
+const HORA_CIERRE   = 17   // ultima franja; a las 18:00 ya se cerro
+
+// Reparte los autos marcados fuera del horario entre las horas de trabajo,
+// siguiendo la forma real del dia. Se reparten en vez de descartarlos porque el
+// auto si entro: lo que no sirve es su hora. Se usa resto mayor para que la
+// suma cuadre exactamente con el total y no se invente ni se pierda ningun auto.
+function repartirFueraDeHorario(porHora) {
+  const dentro = porHora.filter(h => h.hora >= HORA_APERTURA && h.hora <= HORA_CIERRE)
+  const fuera  = porHora.filter(h => h.hora <  HORA_APERTURA || h.hora >  HORA_CIERRE)
+  const autosFuera    = fuera.reduce((a, h) => a + h.autos, 0)
+  const ingresosFuera = fuera.reduce((a, h) => a + h.ingresos, 0)
+  if (!autosFuera && !ingresosFuera) return { dentro, autosFuera, ingresosFuera }
+
+  const baseAutos = dentro.reduce((a, h) => a + h.autos, 0)
+  // Sin ninguna hora valida no hay tendencia que seguir: se reparte parejo.
+  const pesos = dentro.map(h => baseAutos > 0 ? h.autos / baseAutos : 1 / dentro.length)
+
+  const repartir = (cantidad, entero) => {
+    const crudos = pesos.map(w => w * cantidad)
+    if (!entero) return crudos
+    const base = crudos.map(Math.floor)
+    let resto = Math.round(cantidad) - base.reduce((a, b) => a + b, 0)
+    const orden = crudos
+      .map((v, i) => ({ i, frac: v - Math.floor(v) }))
+      .sort((a, b) => b.frac - a.frac)
+    for (let k = 0; k < orden.length && resto > 0; k++, resto--) base[orden[k].i] += 1
+    return base
+  }
+
+  const addAutos    = repartir(autosFuera, true)
+  const addIngresos = repartir(ingresosFuera, false)
+  return {
+    dentro: dentro.map((h, i) => ({
+      ...h,
+      autos: h.autos + addAutos[i],
+      ingresos: h.ingresos + addIngresos[i],
+      reasignados: addAutos[i],
+    })),
+    autosFuera,
+    ingresosFuera,
+  }
+}
+
 function AfluenciaPanel() {
+  // La plantilla sale de los trabajadores activos, no de un numero fijo: si se
+  // contrata o sale alguien la tarjeta se ajusta sola. El admin queda fuera:
+  // lleva ceramicos, que es trabajo de tecnico aparte y no de equipo de taller.
+  const { workers } = useApp()
+  const plantilla = (workers || []).filter(w => w.active && w.role !== 'admin').length
   const [dias, setDias]   = useState(90)
   const [rows, setRows]   = useState(null)
   const [cargando, setCargando] = useState(true)
@@ -156,7 +213,7 @@ function AfluenciaPanel() {
     const desde = new Date()
     desde.setDate(desde.getDate() - dias)
     supabase.from('tickets')
-      .select('date, opened_at, created_at, price_charged, status')
+      .select('date, opened_at, closed_at, created_at, price_charged, status')
       .gte('date', desde.toISOString().slice(0, 10))
       .then(({ data }) => { if (vivo) { setRows(data || []); setCargando(false) } })
     return () => { vivo = false }
@@ -208,14 +265,15 @@ function AfluenciaPanel() {
       promIngreso: vecesPorDia[i] > 0 ? Math.round(p.ingresos / vecesPorDia[i]) : 0,
     }))
 
-    // Solo el horario en que de verdad entra trabajo, para que el gráfico no
-    // sea una fila de barras vacías.
-    const conAutos = porHora.filter(h => h.autos > 0)
-    const desdeH = Math.min(7, ...conAutos.map(h => h.hora))
-    const hastaH = Math.max(19, ...conAutos.map(h => h.hora))
-    const dataHoras = porHora
-      .filter(h => h.hora >= desdeH && h.hora <= hastaH)
-      .map(h => ({ ...h, label: `${String(h.hora).padStart(2, '0')}:00`, ingresos: Math.round(h.ingresos) }))
+    // Solo el horario de atencion: lo marcado fuera se reparte dentro siguiendo
+    // la tendencia, para que el grafico refleje cuando entra el trabajo de
+    // verdad y no cuando se registro el ticket.
+    const { dentro, autosFuera, ingresosFuera } = repartirFueraDeHorario(porHora)
+    const dataHoras = dentro.map(h => ({
+      ...h,
+      label: `${String(h.hora).padStart(2, '0')}:00`,
+      ingresos: Math.round(h.ingresos),
+    }))
 
     const conMarca = dataHoras.reduce((s, h) => s + h.autos, 0)
     const mejorDia  = [...dataDias].sort((a, b) => b.promedio - a.promedio)[0]
@@ -239,7 +297,51 @@ function AfluenciaPanel() {
       if (!cierre && conMarca > 0 && acumulado >= conMarca * 0.9) cierre = h.hora
     }
 
-    return { dataDias, dataHoras, mejorDia, peorDia, horaPico, almuerzo, cierre, total: lista.length, conMarca, domingos }
+    // ── Carga de taller: cuanta gente pide el trabajo que entra ──────────────
+    // Se mide con el tiempo que el auto pasa en el taller (apertura a cierre del
+    // ticket). Un ticket que cruza la noche no son 20 horas de trabajo, asi que
+    // se topa en una jornada.
+    const porFecha = new Map()
+    for (const t of lista) {
+      if (!t.opened_at || !t.closed_at) continue
+      const h = (new Date(t.closed_at) - new Date(t.opened_at)) / 3600000
+      if (!(h > 0)) continue
+      const [y, m, d] = t.date.split('-').map(Number)
+      const idx = (new Date(y, m - 1, d).getDay() + 6) % 7
+      const acc = porFecha.get(t.date) || { horas: 0, autos: 0, idx }
+      acc.horas += Math.min(h, TOPE_HORAS_TICKET)
+      acc.autos += 1
+      porFecha.set(t.date, acc)
+    }
+    const jornadas = [...porFecha.values()]
+    let carga = null
+    if (jornadas.length) {
+      const horas = jornadas.map(j => j.horas).sort((a, b) => a - b)
+      const media = horas.reduce((a, b) => a + b, 0) / horas.length
+      const p90 = horas[Math.min(horas.length - 1, Math.floor(horas.length * 0.9))]
+      // Por dia de la semana, que es lo que sirve para repartir a la gente.
+      const porDiaSemana = DIAS_SEMANA.map((nombre, i) => {
+        const dias = jornadas.filter(j => j.idx === i)
+        const prom = dias.length ? dias.reduce((a, j) => a + j.horas, 0) / dias.length : 0
+        return {
+          dia: nombre,
+          corto: nombre.slice(0, 3),
+          horas: Math.round(prom * 10) / 10,
+          personas: prom > 0 ? Math.max(1, Math.ceil(prom / HORAS_EFECTIVAS_TRABAJADOR)) : 0,
+        }
+      })
+      carga = {
+        horasProm: Math.round(media * 10) / 10,
+        horasPico: Math.round(p90 * 10) / 10,
+        autosProm: Math.round((jornadas.reduce((a, j) => a + j.autos, 0) / jornadas.length) * 10) / 10,
+        personasProm: Math.max(1, Math.ceil(media / HORAS_EFECTIVAS_TRABAJADOR)),
+        personasPico: Math.max(1, Math.ceil(p90 / HORAS_EFECTIVAS_TRABAJADOR)),
+        porDiaSemana,
+        jornadas: jornadas.length,
+      }
+    }
+
+    return { dataDias, dataHoras, mejorDia, peorDia, horaPico, almuerzo, cierre, total: lista.length, conMarca, domingos, autosFuera, ingresosFuera, carga }
   }, [rows, dias])
 
   return (
@@ -309,6 +411,12 @@ function AfluenciaPanel() {
               <p className="text-xs font-bold uppercase tracking-widest text-gray-400">Autos que entran por hora</p>
               <p className="text-[11px] text-gray-400">{analisis.conMarca} con hora registrada</p>
             </div>
+            {analisis.autosFuera > 0 && (
+              <p className="text-[10px] text-gray-400 mb-1">
+                Horario 8:30–18:00 · {analisis.autosFuera} auto{analisis.autosFuera === 1 ? '' : 's'} con
+                marca fuera de horario (registro tardío) repartido{analisis.autosFuera === 1 ? '' : 's'} según la tendencia del día
+              </p>
+            )}
             <div className="h-52">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={analisis.dataHoras} margin={{ top: 16, right: 4, left: -22, bottom: 0 }}>
@@ -371,9 +479,68 @@ function AfluenciaPanel() {
             <p className="text-[11px] text-gray-400 leading-relaxed">
               El 90% de los autos entra antes de las {String(analisis.cierre + 1).padStart(2, '0')}:00.
               Después de esa hora casi no llega trabajo nuevo: sirve para decidir hasta cuándo tener gente en el taller.
-              La hora es la de apertura del ticket en la app, así que un ticket cargado de noche aparece a esa hora
-              aunque el auto haya entrado antes.
             </p>
+          )}
+
+          {/* Cuánta gente pide el trabajo que entra */}
+          {analisis.carga && (
+            <div className="rounded-xl border border-gray-100 dark:border-gray-800 p-3">
+              <div className="flex items-baseline justify-between mb-2">
+                <p className="text-xs font-bold uppercase tracking-widest text-gray-400">Personal necesario</p>
+                <p className="text-[11px] text-gray-400">{analisis.carga.jornadas} días con trabajo</p>
+              </div>
+
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-2">
+                <div className="rounded-xl bg-gray-50 dark:bg-gray-800/50 px-3 py-2">
+                  <p className="text-[10px] text-gray-400 uppercase tracking-wide">Día promedio</p>
+                  <p className="text-sm font-black text-gray-900 dark:text-white">{analisis.carga.personasProm} {analisis.carga.personasProm === 1 ? 'persona' : 'personas'}</p>
+                  <p className="text-[11px] text-gray-400">{analisis.carga.horasProm} h de taller · {analisis.carga.autosProm} autos</p>
+                </div>
+                <div className="rounded-xl bg-amber-50 dark:bg-amber-900/20 px-3 py-2">
+                  <p className="text-[10px] text-amber-500 uppercase tracking-wide">Día cargado</p>
+                  <p className="text-sm font-black text-amber-700 dark:text-amber-300">{analisis.carga.personasPico} {analisis.carga.personasPico === 1 ? 'persona' : 'personas'}</p>
+                  <p className="text-[11px] text-amber-500">{analisis.carga.horasPico} h de taller</p>
+                </div>
+                <div className={`rounded-xl px-3 py-2 ${
+                  plantilla >= analisis.carga.personasPico
+                    ? 'bg-emerald-50 dark:bg-emerald-900/20'
+                    : 'bg-red-50 dark:bg-red-900/20'
+                }`}>
+                  <p className={`text-[10px] uppercase tracking-wide ${plantilla >= analisis.carga.personasPico ? 'text-emerald-500' : 'text-red-400'}`}>Tienes hoy</p>
+                  <p className={`text-sm font-black ${plantilla >= analisis.carga.personasPico ? 'text-emerald-700 dark:text-emerald-300' : 'text-red-700 dark:text-red-300'}`}>
+                    {plantilla} {plantilla === 1 ? 'persona' : 'personas'}
+                  </p>
+                  <p className={`text-[11px] ${plantilla >= analisis.carga.personasPico ? 'text-emerald-500' : 'text-red-400'}`}>
+                    {plantilla >= analisis.carga.personasPico
+                      ? 'Cubre hasta los días cargados'
+                      : `Faltan ${analisis.carga.personasPico - plantilla} en día cargado`}
+                  </p>
+                </div>
+                <div className="rounded-xl bg-gray-50 dark:bg-gray-800/50 px-3 py-2">
+                  <p className="text-[10px] text-gray-400 uppercase tracking-wide">Jornada usada</p>
+                  <p className="text-sm font-black text-gray-900 dark:text-white">{HORAS_EFECTIVAS_TRABAJADOR} h</p>
+                  <p className="text-[11px] text-gray-400">8:30–18:00 menos almuerzo</p>
+                </div>
+              </div>
+
+              {/* Por día de la semana: sirve para repartir a la gente */}
+              <div className="flex gap-1.5 flex-wrap">
+                {analisis.carga.porDiaSemana.map(d => (
+                  <div key={d.dia} className="flex-1 min-w-[62px] rounded-lg bg-gray-50 dark:bg-gray-800/50 px-2 py-1.5 text-center">
+                    <p className="text-[10px] text-gray-400 uppercase">{d.corto}</p>
+                    <p className="text-sm font-black text-gray-900 dark:text-white">{d.personas || '—'}</p>
+                    <p className="text-[10px] text-gray-400">{d.horas} h</p>
+                  </div>
+                ))}
+              </div>
+
+              <p className="text-[11px] text-gray-400 leading-relaxed mt-2">
+                Cuenta solo el equipo de taller. Planchado y cerámicos van con técnico aparte y no entran aquí.
+                Se mide con el tiempo que cada auto pasa en el taller, del alta al cierre del ticket, topado en
+                una jornada. Si dos personas trabajan el mismo auto a la vez, ese rato cuenta una sola vez: para
+                esos casos la cifra se queda corta.
+              </p>
+            </div>
           )}
         </div>
       )}

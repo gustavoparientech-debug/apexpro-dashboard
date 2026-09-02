@@ -60,8 +60,26 @@ const DAMAGE_LEVELS = [
 // vuelve a armar, y eso son dias que no aparecian en el plazo: el presupuesto
 // prometia entregas imposibles y el cliente apuraba. Los clientes ya dan estos
 // dias por descontados, asi que se suman siempre que el trabajo sea completo.
-const DIAS_ARMADO_CON_INTERIORES = 4  // 2 de armado + 1 de desarmado + 1 de detalles
-const DIAS_ARMADO_BANO           = 3  // sin interiores se desarma menos
+// Fases de un vehiculo completo, en dias de 8 a 5. El modelo por horas escalaba
+// el trabajo por paño e ignoraba que cada capa necesita su propio dia: daba 8
+// dias para un cambio de color que en el taller toma unas dos semanas. Estos
+// dias salen de como se trabaja de verdad, y son los unicos numeros que hay que
+// tocar si el taller cambia de ritmo.
+const FASES_COMPLETO = [
+  // El desarmado es mas corto en un baño: no se sacan los interiores.
+  { key: 'desarmado',   label: 'Desarmado',                      dias: 2, diasBano: 1 },
+  // Suelo: aunque no haya nada que planchar, preparar todas las piezas es una
+  // semana. Si el planchado calculado pide mas, manda el planchado.
+  { key: 'preparado',   label: 'Planchado y preparado de piezas', dias: 5, suelo: true },
+  { key: 'fondo',       label: 'Fondo',                          dias: 1 },
+  { key: 'secado',      label: 'Secado de la base',              dias: 1 },
+  { key: 'prep_fondo',  label: 'Preparado del fondo',            dias: 1 },
+  { key: 'empapelado',  label: 'Empapelado',                     dias: 1 },
+  { key: 'pintura',     label: 'Pintura y barniz',               dias: 1 },
+  { key: 'parachoques', label: 'Parachoques',                    dias: 1 },
+  { key: 'pulido',      label: 'Pulido',                         dias: 2, soloConPulido: true },
+  { key: 'armado',      label: 'Armado',                         dias: 2, diasBano: 1 },
+]
 // Un vehiculo completo no se pule en menos de esto, por mucho que salga el calculo.
 const PULIDO_MIN_DIAS_COMPLETO   = 2
 // A partir de que proporcion de paños el trabajo cuenta como "vehiculo completo".
@@ -118,37 +136,16 @@ function estimateDays(selectedRows, teamSize = 2, withPulido = true, opts = {}) 
   const paintH  = selectedRows.reduce((s, r) => s + (r.mult || 1) * 1, 0)
   // Pulido: escala con el multiplicador de cada paño (capot mult=2.5 tarda más que guardafango mult=1)
   // Base: 0.8h por unidad de mult → guardafango≈0.8h, capot≈2h, techo≈2h
-  let pulidoH = withPulido
+  const pulidoH = withPulido
     ? selectedRows.reduce((s, r) => s + (r.mult || 1) * 0.8, 0)
     : 0
-  // Pulir un vehiculo entero lleva dos dias como minimo aunque el calculo por
-  // paño de menos.
-  if (withPulido && esCompleto) pulidoH = Math.max(pulidoH, PULIDO_MIN_DIAS_COMPLETO * WORK_H)
   // El armado del parachoque solo se cobra aparte si el vehiculo no se desarma
-  // entero; en un trabajo completo ya va dentro de los dias de armado.
+  // entero; en un trabajo completo ya va dentro de las fases.
   const armadoParachoqueH = (!esCompleto && armadoParachoques) ? ARMADO_PARACHOQUE_HORAS : 0
-
-  const totalH = activePerWorker + dryH + paintH + pulidoH + armadoParachoqueH
-  // Redondeo a 0.5 días para evitar saltos bruscos de días enteros
-  const diasArmado = esCompleto ? (conInteriores ? DIAS_ARMADO_CON_INTERIORES : DIAS_ARMADO_BANO) : 0
-  const totalDays = Math.ceil(totalH / WORK_H * 2) / 2 + diasArmado
-  const totalMin = totalDays
-  const buffer = 0
-  const totalMax = totalDays
-
-  // Desglose para UI
-  const workDays  = Math.ceil(activePerWorker / WORK_H * 2) / 2
-  const prepDays  = workDays
-  const paintDays = Math.max(0.5, totalDays - workDays)
-
-  // Texto: si min < max mostrar rango; si son decimales usar piso/techo
-  const lo = Number.isInteger(totalMin) ? totalMin : Math.floor(totalMin)
-  const hi = Math.ceil(totalMax)
-  const text = lo === hi ? `${lo} días` : `${lo}-${hi} días`
 
   const color = sev > 0 ? 'red' : mod > 0 ? 'orange' : lev > 0 ? 'yellow' : 'blue'
 
-  // Desglose para mostrar en la UI
+  // Desglose de paños, comun a los dos modelos
   const panoLines = []
   if (sev > 0)  panoLines.push(`${sev} paño${sev > 1 ? 's' : ''} severo${sev > 1 ? 's' : ''}`)
   if (mod > 0)  panoLines.push(`${mod} paño${mod > 1 ? 's' : ''} moderado${mod > 1 ? 's' : ''}`)
@@ -156,20 +153,48 @@ function estimateDays(selectedRows, teamSize = 2, withPulido = true, opts = {}) 
   if (none > 0) panoLines.push(`${none} paño${none > 1 ? 's' : ''} solo pintura`)
 
   const teamLabel = workers === 1 ? 'solo maestro' : workers === 2 ? 'maestro + ayudante' : 'maestro + 2 ayudantes'
+
+  // ── Vehiculo completo: se calcula por fases, no por horas ──────────────────
+  // Cada capa necesita su dia (fondo, secado, preparado del fondo, pintura), y
+  // eso no se acelera poniendo mas gente ni escalando horas por paño.
+  if (esCompleto) {
+    const diasPlanchado = Math.ceil((planchadoH + prepH / workers) / WORK_H)
+    const fases = FASES_COMPLETO
+      .filter(f => !f.soloConPulido || withPulido)
+      .map(f => {
+        const base = (!conInteriores && f.diasBano != null) ? f.diasBano : f.dias
+        // El preparado nunca baja de su suelo, pero sube si hay planchado que hacer.
+        const dias = f.suelo ? Math.max(base, diasPlanchado) : base
+        return { ...f, diasCalc: dias }
+      })
+    const totalDays = fases.reduce((a, f) => a + f.diasCalc, 0)
+    const faseLines = fases.map(f => `${f.label}: ${f.diasCalc} día${f.diasCalc !== 1 ? 's' : ''}`)
+    return {
+      text: `${totalDays} días`,
+      color, panoLines, faseLines, totalDays, esCompleto: true,
+      prepLabel: null, paintLabel: null, bufferLabel: null, armadoLabel: null,
+      resumenLabel: `${conInteriores ? 'Pintura general (con interiores)' : 'Baño de pintura'} · ${teamLabel}`,
+    }
+  }
+
+  // ── Trabajo parcial: modelo por horas ──────────────────────────────────────
+  const totalH = activePerWorker + dryH + paintH + pulidoH + armadoParachoqueH
+  // Redondeo a 0.5 días para evitar saltos bruscos de días enteros
+  const totalDays = Math.ceil(totalH / WORK_H * 2) / 2
+
+  const workDays  = Math.ceil(activePerWorker / WORK_H * 2) / 2
+  const prepDays  = workDays
+  const paintDays = Math.max(0.5, totalDays - workDays)
+
+  const lo = Number.isInteger(totalDays) ? totalDays : Math.floor(totalDays)
+  const hi = Math.ceil(totalDays)
+  const text = lo === hi ? `${lo} días` : `${lo}-${hi} días`
+
   const prepLabel = `Planchado + prep (${teamLabel}): ${prepDays} día${prepDays !== 1 ? 's' : ''}`
   const paintLabel = `Base seca (5h) + pintura + barniz + pulido: ${paintDays} día${paintDays !== 1 ? 's' : ''}`
-  const bufferLabel = null
-  // Se detalla para que el cliente vea que los dias de armado estan contados y
-  // no los tome como demora.
-  const armadoLabel = diasArmado
-    ? (conInteriores
-        ? `Desarmado (1d) + armado (2d) + detalles finales (1d): ${diasArmado} días`
-        : `Desarmado, armado y detalles finales: ${diasArmado} días`)
-    : armadoParachoqueH
-      ? 'Armado y desarmado de parachoques: 3h'
-      : null
+  const armadoLabel = armadoParachoqueH ? 'Armado y desarmado de parachoques: 3h' : null
 
-  return { text, color, panoLines, prepLabel, paintLabel, bufferLabel, armadoLabel, totalDays, esCompleto, diasArmado }
+  return { text, color, panoLines, faseLines: null, prepLabel, paintLabel, bufferLabel: null, armadoLabel, totalDays, esCompleto: false, resumenLabel: null }
 }
 
 function parseTimeMin(str) {
@@ -2647,10 +2672,18 @@ export default function Presupuesto() {
                         <p key={i} className="text-gray-600 dark:text-gray-300 font-medium">• {l}</p>
                       ))}
                       <div className="border-t border-gray-200 dark:border-gray-700 pt-1 mt-1 space-y-0.5">
-                        <p className="text-gray-500 dark:text-gray-400">⚙️ {est.prepLabel}</p>
-                        <p className="text-gray-500 dark:text-gray-400">🎨 {est.paintLabel}</p>
-                        {est.armadoLabel && <p className="text-gray-500 dark:text-gray-400">🔧 {est.armadoLabel}</p>}
-                        {est.bufferLabel && <p className="text-gray-400 dark:text-gray-500 italic">⏱ {est.bufferLabel}</p>}
+                        {est.faseLines ? (<>
+                          {est.resumenLabel && (
+                            <p className="text-gray-600 dark:text-gray-300 font-semibold">🚗 {est.resumenLabel}</p>
+                          )}
+                          {est.faseLines.map((l, i) => (
+                            <p key={i} className="text-gray-500 dark:text-gray-400">· {l}</p>
+                          ))}
+                        </>) : (<>
+                          <p className="text-gray-500 dark:text-gray-400">⚙️ {est.prepLabel}</p>
+                          <p className="text-gray-500 dark:text-gray-400">🎨 {est.paintLabel}</p>
+                          {est.armadoLabel && <p className="text-gray-500 dark:text-gray-400">🔧 {est.armadoLabel}</p>}
+                        </>)}
                       </div>
                     </div>
                   </div>

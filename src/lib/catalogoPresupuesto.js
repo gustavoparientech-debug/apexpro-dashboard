@@ -7,10 +7,10 @@
 import { supabase } from './supabase'
 
 export const CERAMICO_DATA = [
-  { id: 'desc_quimica',     name: 'Descontaminación Química',   tag: 'Prep', timeMin: 120,  desc: 'Elimina impurezas invisibles adheridas a la pintura',           prices: { auto: 60,  suv: 70,  pickup: 80  } , grupo: 'Pulidos' },
-  { id: 'desc_mecanica',    name: 'Descontaminación Mecánica',  tag: 'Prep', timeMin: 180,  desc: 'Pintura completamente lisa al tacto, mejora brillo y acabado',  prices: { auto: 120, suv: 140, pickup: 160 } , grupo: 'Pulidos' },
-  { id: 'abrillantado',     name: 'Abrillantado Apex Pro',      tag: 'Prep', timeMin: 180,  desc: 'Aumenta brillo, reduce micro-rayones, elimina opacidad',        prices: { auto: 130, suv: 150, pickup: 170 } , grupo: 'Pulidos' },
-  { id: 'correccion',       name: 'Corrección Apex Pro',        tag: 'Prep', timeMin: 240,  desc: 'Elimina 90-95% de imperfecciones, acabado tipo espejo',         prices: { auto: 260, suv: 280, pickup: 300 } , grupo: 'Pulidos' },
+  { id: 'desc_quimica',     name: 'Descontaminación Química',   tag: 'Prep', timeMin: 120,  desc: 'Elimina impurezas invisibles adheridas a la pintura',           prices: { auto: 60,  suv: 70,  pickup: 80  } , grupo: 'Pulidos y Descontaminaciones' },
+  { id: 'desc_mecanica',    name: 'Descontaminación Mecánica',  tag: 'Prep', timeMin: 180,  desc: 'Pintura completamente lisa al tacto, mejora brillo y acabado',  prices: { auto: 120, suv: 140, pickup: 160 } , grupo: 'Pulidos y Descontaminaciones' },
+  { id: 'abrillantado',     name: 'Abrillantado Apex Pro',      tag: 'Prep', timeMin: 180,  desc: 'Aumenta brillo, reduce micro-rayones, elimina opacidad',        prices: { auto: 130, suv: 150, pickup: 170 } , grupo: 'Pulidos y Descontaminaciones' },
+  { id: 'correccion',       name: 'Corrección Apex Pro',        tag: 'Prep', timeMin: 240,  desc: 'Elimina 90-95% de imperfecciones, acabado tipo espejo',         prices: { auto: 260, suv: 280, pickup: 300 } , grupo: 'Pulidos y Descontaminaciones' },
   { id: 'cer_miyavi_1a',    name: 'Cerámico Miyavi 1 Año',      tag: 'Paq',  timeMin: 480,  desc: 'Descontam. + pulido 3 pasos + cerámico + aspirado interior',    prices: { auto: 350, suv: 400, pickup: 450 } , grupo: 'Cerámicos' },
   { id: 'cer_miyavi_1b',    name: 'Cerámico Miyavi 1 Año Plus', tag: 'Paq',  timeMin: 480,  desc: 'Versión premium — pulido avanzado + cerámico 1 año',           prices: { auto: 400, suv: 450, pickup: 500 } , grupo: 'Cerámicos' },
   { id: 'cer_3a',           name: 'Cerámico 3 Años',            tag: 'Paq',  timeMin: 960,  desc: 'Paquete completo con cerámico de larga duración 3 años',       prices: { auto: 599, suv: 699, pickup: 799 } , grupo: 'Cerámicos' },

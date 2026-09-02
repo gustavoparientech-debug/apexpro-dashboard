@@ -640,7 +640,10 @@ function AfluenciaPanel() {
                   <div key={d.dia} className="flex-1 min-w-[76px] rounded-lg bg-gray-50 dark:bg-gray-800/50 px-2 py-1.5 text-center">
                     <p className="text-[10px] text-gray-400 uppercase">{d.corto}</p>
                     <p className="text-sm font-black text-gray-900 dark:text-white">{d.autos || '—'}</p>
-                    <p className="text-[10px] text-gray-400 mb-1">de {d.capacidad} que caben</p>
+                    <p className="text-[10px] text-gray-400">de {d.capacidad} que caben</p>
+                    {/* El pico manda: dimensionar por el promedio deja corto el
+                        dia fuerte, que es cuando se pierde al cliente. */}
+                    <p className="text-[10px] text-gray-400 mb-1">máx. {d.maxAutos}</p>
                     {/* La barra dice de un vistazo cuanto del dia se llena. */}
                     <div className="h-1.5 rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden">
                       <div className={`h-full rounded-full ${

@@ -143,6 +143,10 @@ const RANGOS_AFLUENCIA = [
   { dias: 30,  label: '30 días' },
   { dias: 90,  label: '3 meses' },
   { dias: 180, label: '6 meses' },
+  // Dimensionar con el promedio de todos los meses deja corto el taller: los
+  // meses flojos tiran la media abajo y el equipo se define para el mes malo.
+  // Esta opcion mira el mes de mas trabajo, que es el que hay que poder cubrir.
+  { dias: 180, label: 'Mes pico', pico: true },
 ]
 
 // El taller abre 8:30 y cierra como maximo a las 18:00. Un ticket marcado a las
@@ -225,6 +229,25 @@ function repartirFueraDeHorario(porHora) {
   }
 }
 
+// Mes con mas servicios dentro del periodo traido. Es la referencia para
+// dimensionar: hay que poder con el mes bueno, no con el promedio.
+const MESES_NOMBRE = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre']
+const nombreMes = (iso) => {
+  const [y, m] = iso.split('-').map(Number)
+  return `${MESES_NOMBRE[m - 1]} ${y}`
+}
+
+function mesMasCargado(rows) {
+  const porMes = {}
+  for (const t of rows) {
+    if (!t.date) continue
+    const m = t.date.slice(0, 7)
+    porMes[m] = (porMes[m] || 0) + 1
+  }
+  const orden = Object.entries(porMes).sort((a, b) => b[1] - a[1])
+  return orden.length ? orden[0][0] : null
+}
+
 function AfluenciaPanel() {
   // La plantilla sale de los trabajadores activos, no de un numero fijo: si se
   // contrata o sale alguien la tarjeta se ajusta sola. El admin queda fuera:
@@ -254,6 +277,7 @@ function AfluenciaPanel() {
     })
   }, [horarios, equipoLavados])
   const [dias, setDias]   = useState(90)
+  const [soloPico, setSoloPico] = useState(false)
   const [rows, setRows]   = useState(null)
   const [cargando, setCargando] = useState(true)
 
@@ -274,7 +298,10 @@ function AfluenciaPanel() {
       const [y, m, d] = fecha.split('-').map(Number)
       return new Date(y, m - 1, d).getDay() === 0
     }
-    const lista = (rows || []).filter(t => t.date && !esDomingo(t.date))
+    let lista = (rows || []).filter(t => t.date && !esDomingo(t.date))
+    // Con "Mes pico" todo el panel se recalcula sobre ese mes, no sobre la media.
+    const mesPico = soloPico ? mesMasCargado(lista) : null
+    if (mesPico) lista = lista.filter(t => t.date.slice(0, 7) === mesPico)
     if (!lista.length) return null
 
     // Por día de la semana: se divide entre cuántas veces cayó ese día en el
@@ -444,8 +471,8 @@ function AfluenciaPanel() {
       }
     }
 
-    return { dataDias, dataHoras, mejorDia, peorDia, horaPico, almuerzo, cierre, total: lista.length, conMarca, domingos, autosFuera, ingresosFuera, carga }
-  }, [rows, dias])
+    return { mesPico, dataDias, dataHoras, mejorDia, peorDia, horaPico, almuerzo, cierre, total: lista.length, conMarca, domingos, autosFuera, ingresosFuera, carga }
+  }, [rows, dias, soloPico, horasPorDia])
 
   return (
     <div className="card">
@@ -453,19 +480,25 @@ function AfluenciaPanel() {
         <span className="text-base">📊</span>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-bold text-gray-900 dark:text-white">Afluencia por día y hora</p>
-          <p className="text-xs text-gray-400">Cuándo entra el trabajo, para organizar turnos y almuerzos · sin domingos</p>
+          <p className="text-xs text-gray-400">
+            Cuándo entra el trabajo, para organizar turnos y almuerzos · sin domingos
+            {analisis?.mesPico && ` · midiendo ${nombreMes(analisis.mesPico)}, el mes de más trabajo`}
+          </p>
         </div>
         <div className="flex gap-1">
-          {RANGOS_AFLUENCIA.map(r => (
-            <button key={r.dias} onClick={() => setDias(r.dias)}
-              className={`text-xs font-semibold px-2.5 py-1 rounded-lg transition-colors ${
-                dias === r.dias
-                  ? 'bg-red-600 text-white'
-                  : 'bg-gray-100 dark:bg-gray-800 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
-              }`}>
-              {r.label}
-            </button>
-          ))}
+          {RANGOS_AFLUENCIA.map(r => {
+            const activo = r.pico ? soloPico : (!soloPico && dias === r.dias)
+            return (
+              <button key={r.label} onClick={() => { setDias(r.dias); setSoloPico(!!r.pico) }}
+                className={`text-xs font-semibold px-2.5 py-1 rounded-lg transition-colors ${
+                  activo
+                    ? 'bg-red-600 text-white'
+                    : 'bg-gray-100 dark:bg-gray-800 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
+                }`}>
+                {r.label}
+              </button>
+            )
+          })}
         </div>
       </div>
 

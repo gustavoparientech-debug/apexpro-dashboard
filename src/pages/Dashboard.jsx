@@ -614,10 +614,10 @@ function AfluenciaPanel() {
                       ? 'bg-amber-50 dark:bg-amber-900/20'
                       : 'bg-emerald-50 dark:bg-emerald-900/20'
                 }`}>
-                  <p className="text-[10px] text-gray-400 uppercase tracking-wide">Ocupación</p>
-                  <p className="text-sm font-black text-gray-900 dark:text-white">{analisis.carga.ocupacionProm}%</p>
+                  <p className="text-[10px] text-gray-400 uppercase tracking-wide">Taller usado</p>
+                  <p className="text-sm font-black text-gray-900 dark:text-white">{analisis.carga.ocupacionProm} de cada 100</p>
                   <p className="text-[11px] text-gray-400">
-                    {analisis.carga.ocupacionProm >= 80 ? 'Al límite' : `Cabrían ${Math.max(0, Math.round(analisis.carga.capacidadProm - analisis.carga.autosProm))} autos más`}
+                    {analisis.carga.ocupacionProm >= 80 ? 'Al límite' : `Sobra sitio para ${Math.max(0, Math.round(analisis.carga.capacidadProm - analisis.carga.autosProm))} autos más`}
                   </p>
                 </div>
                 <div className="rounded-xl bg-gray-50 dark:bg-gray-800/50 px-3 py-2">
@@ -630,14 +630,23 @@ function AfluenciaPanel() {
               </div>
 
               {/* Por día de la semana: sirve para repartir a la gente */}
+              <p className="text-[11px] text-gray-500 dark:text-gray-400 mb-1.5">
+                Con {plantilla} {plantilla === 1 ? 'persona' : 'personas'} trabajando en pareja saldrían{' '}
+                <b>{analisis.carga.capacidadProm} autos al día</b>; entran <b>{analisis.carga.autosProm}</b>.
+                Eso llena <b>{analisis.carga.ocupacionProm} de cada 100</b> lugares.
+              </p>
               <div className="flex gap-1.5 flex-wrap">
                 {analisis.carga.porDiaSemana.map(d => (
-                  <div key={d.dia} className="flex-1 min-w-[62px] rounded-lg bg-gray-50 dark:bg-gray-800/50 px-2 py-1.5 text-center">
+                  <div key={d.dia} className="flex-1 min-w-[76px] rounded-lg bg-gray-50 dark:bg-gray-800/50 px-2 py-1.5 text-center">
                     <p className="text-[10px] text-gray-400 uppercase">{d.corto}</p>
-                    <p className={`text-sm font-black ${
-                      d.ocupacion >= 80 ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-white'
-                    }`}>{d.ocupacion ? `${d.ocupacion}%` : '—'}</p>
-                    <p className="text-[10px] text-gray-400">{d.autos} de {d.capacidad}</p>
+                    <p className="text-sm font-black text-gray-900 dark:text-white">{d.autos || '—'}</p>
+                    <p className="text-[10px] text-gray-400 mb-1">de {d.capacidad} que caben</p>
+                    {/* La barra dice de un vistazo cuanto del dia se llena. */}
+                    <div className="h-1.5 rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden">
+                      <div className={`h-full rounded-full ${
+                        d.ocupacion >= 80 ? 'bg-red-500' : d.ocupacion >= 50 ? 'bg-amber-500' : 'bg-emerald-500'
+                      }`} style={{ width: `${Math.min(100, d.ocupacion)}%` }} />
+                    </div>
                   </div>
                 ))}
               </div>

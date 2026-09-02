@@ -438,11 +438,18 @@ function AfluenciaPanel() {
         const maxAutos = dias.length ? Math.max(...dias.map(j => j.autos)) : 0
         const horasDia = horasPorDia[i] || 0
         const capacidad = horasDia / HORAS_AUTO_PAREJA
+        // La gente se pone para el dia que llega, no para la media: se
+        // dimensiona con el pico de ese dia de la semana.
+        const personas = maxAutos > 0
+          ? Math.max(PERSONAS_POR_SERVICIO,
+              Math.ceil(maxAutos * HORAS_AUTO_PAREJA / HORAS_EFECTIVAS_TRABAJADOR))
+          : 0
         return {
           dia: nombre,
           corto: nombre.slice(0, 3),
           autos: Math.round(autos * 10) / 10,
           maxAutos,
+          personas,
           horasDia: Math.round(horasDia * 10) / 10,
           capacidad: Math.round(capacidad * 10) / 10,
           ocupacion: capacidad > 0 ? Math.round((autos / capacidad) * 100) : 0,
@@ -666,7 +673,8 @@ function AfluenciaPanel() {
               <p className="text-[11px] text-gray-500 dark:text-gray-400 mb-1.5">
                 Con {plantilla} {plantilla === 1 ? 'persona' : 'personas'} trabajando en pareja saldrían{' '}
                 <b>{analisis.carga.capacidadProm} autos al día</b>; entran <b>{analisis.carga.autosProm}</b>.
-                Eso llena <b>{analisis.carga.ocupacionProm} de cada 100</b> lugares.
+                Eso llena <b>{analisis.carga.ocupacionProm} de cada 100</b> lugares. Abajo, por día: los autos que
+                entran, los que caben, el día más cargado que hubo y la gente que hace falta para cubrir ese día.
               </p>
               <div className="flex gap-1.5 flex-wrap">
                 {analisis.carga.porDiaSemana.map(d => (
@@ -676,7 +684,12 @@ function AfluenciaPanel() {
                     <p className="text-[10px] text-gray-400">de {d.capacidad} que caben</p>
                     {/* El pico manda: dimensionar por el promedio deja corto el
                         dia fuerte, que es cuando se pierde al cliente. */}
-                    <p className="text-[10px] text-gray-400 mb-1">máx. {d.maxAutos}</p>
+                    <p className="text-[10px] text-gray-400">máx. {d.maxAutos}</p>
+                    <p className={`text-[11px] font-bold mb-1 ${
+                      d.personas > plantilla ? 'text-red-600 dark:text-red-400' : 'text-gray-600 dark:text-gray-300'
+                    }`}>
+                      {d.personas ? `${d.personas} pers.` : '—'}
+                    </p>
                     {/* La barra dice de un vistazo cuanto del dia se llena. */}
                     <div className="h-1.5 rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden">
                       <div className={`h-full rounded-full ${

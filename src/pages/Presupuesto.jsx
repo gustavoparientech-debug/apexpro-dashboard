@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, Fragment } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { useApp } from '../context/AppContext'
 import { supabase } from '../lib/supabase'
-import { Edit2, Check, X, ChevronDown, ChevronUp, FileText, MessageCircle, PlusCircle, Save, Clock, Trash2, CalendarPlus } from 'lucide-react'
+import { Edit2, Check, X, ChevronDown, ChevronUp, ChevronRight, FileText, MessageCircle, PlusCircle, Save, Clock, Trash2, CalendarPlus } from 'lucide-react'
 import { addCita, servicioDeCategoria, SERVICIOS_CITA, franjasHorarias } from '../lib/citas'
 import { useNavigate } from 'react-router-dom'
 import { NewTicketForm } from './Registro'
@@ -909,6 +909,46 @@ export default function Presupuesto() {
   }
 
   const [searchQuery, setSearchQuery] = useState('')
+  const [highlightId, setHighlightId] = useState(null)
+
+  // Lleva la vista hasta el item marcado desde el buscador. No basta con un
+  // scroll unico: la pestaña destino se monta por partes y su catalogo puede
+  // seguir cargando, asi que el primer intento centraba el item en una pagina
+  // todavia corta y el contenido que llegaba despues lo empujaba fuera de la
+  // vista. Se reajusta durante ~1.5s y se abandona en cuanto el usuario mueve
+  // la pagina por su cuenta. Se usa un temporizador y no requestAnimationFrame
+  // porque este ultimo no corre con la pestaña en segundo plano. El resaltado
+  // se apaga solo: es una pista visual, no un estado del formulario.
+  useEffect(() => {
+    if (!highlightId) return
+    let intentos = 0
+    const soltar = () => clearInterval(iv)
+    const iv = setInterval(() => {
+      const el = document.getElementById(`it-${highlightId}`)
+      // 'smooth' se ignora en algunos navegadores: se salta directo.
+      if (el) el.scrollIntoView({ behavior: 'auto', block: 'center' })
+      if (++intentos >= 30) clearInterval(iv)
+    }, 50)
+    window.addEventListener('wheel', soltar, { passive: true })
+    window.addEventListener('touchstart', soltar, { passive: true })
+    window.addEventListener('keydown', soltar)
+    const t = setTimeout(() => setHighlightId(null), 3200)
+    return () => {
+      clearInterval(iv); clearTimeout(t)
+      window.removeEventListener('wheel', soltar)
+      window.removeEventListener('touchstart', soltar)
+      window.removeEventListener('keydown', soltar)
+    }
+  }, [highlightId])
+
+  // Ancla comun para poder localizar cualquier item desde el buscador.
+  const anclaItem = (id) => ({
+    id: `it-${id}`,
+    'data-resaltado': highlightId === id ? '1' : undefined,
+  })
+  const claseResaltado = (id) => highlightId === id
+    ? ' ring-2 ring-amber-400 ring-offset-2 dark:ring-offset-gray-900 scroll-mt-24'
+    : ' scroll-mt-24'
 
   // Catálogo global para búsqueda
   const searchCatalog = useMemo(() => {
@@ -934,29 +974,14 @@ export default function Presupuesto() {
     return searchCatalog.filter(i => i.label.toLowerCase().includes(q)).slice(0, 10)
   }, [searchQuery, searchCatalog])
 
-  function addFromSearch(item) {
-    if (item.cat === 'planchado') {
-      setSelected(s => ({ ...s, [item.id]: true }))
-      setDamage(d => ({ ...d, [item.id]: d[item.id] || 'none' }))
-      setCategory('planchado')
-    } else if (item.cat === 'ceramico' || item.cat === 'polarizados') {
-      setCatSelected(s => ({ ...s, [item.id]: true }))
-      setCategory(item.cat === 'polarizados' ? 'polarizados' : 'ceramico')
-    } else if (item.cat === 'lavados') {
-      const price = item.prices ? (item.prices['auto'] ?? 0) : (item.price ?? 0)
-      setLavItems(prev => prev.some(i => i.id === item.id) ? prev : [...prev, { id: item.id, label: item.label, price, vtValue: 'auto' }])
-      setCategory('lavados')
-    } else if (item.cat === 'servicios') {
-      if (item.prices) {
-        const key = `${item.id}_auto`
-        setServiciosSelected(s => ({ ...s, [key]: true }))
-      } else {
-        setServiciosSelected(s => ({ ...s, [item.id]: true }))
-      }
-      setCategory('servicios')
-    }
+  // El buscador ubica, no agrega. Al elegir un resultado se cambia a su
+  // pestaña, se hace scroll hasta el item y se resalta unos segundos, para que
+  // el usuario elija ahi mismo el tipo de vehiculo, subtipo o acabado. Antes se
+  // añadia con opciones por defecto ("auto") y luego habia que corregirlo.
+  function irAlItem(item) {
+    setCategory(item.cat)
     setSearchQuery('')
-    toast.success(`${item.label} añadido`)
+    setHighlightId(item.id)
   }
 
   const [exportModal, setExportModal] = useState(false)
@@ -1581,7 +1606,7 @@ export default function Presupuesto() {
             type="text"
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
-            placeholder="Buscar servicio y agregar rápido…"
+            placeholder="Buscar servicio y ubicarlo…"
             className="flex-1 text-sm bg-transparent outline-none text-gray-800 dark:text-gray-100 placeholder-gray-400"
           />
           {searchQuery && (
@@ -1595,13 +1620,15 @@ export default function Presupuesto() {
             {searchResults.map(item => {
               const price = item.prices ? (item.prices['auto'] ?? Object.values(item.prices)[0] ?? 0) : (item.price ?? 0)
               return (
-                <button key={item.id} onClick={() => addFromSearch(item)}
+                <button key={item.id} onClick={() => irAlItem(item)}
                   className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors text-left border-b border-gray-100 dark:border-gray-800 last:border-0">
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-gray-800 dark:text-gray-100 truncate">{item.label}</p>
                     <p className="text-xs text-gray-400">{item.catLabel}{price > 0 ? ` · desde S/ ${price}` : ''}</p>
                   </div>
-                  <span className="text-xs font-bold text-red-500 shrink-0">+ Añadir</span>
+                  <span className="flex items-center gap-1 text-xs font-bold text-red-500 shrink-0">
+                    Ir <ChevronRight className="w-3.5 h-3.5" />
+                  </span>
                 </button>
               )
             })}
@@ -1773,7 +1800,8 @@ export default function Presupuesto() {
                     {items.map(s => (
                       <Fragment key={s.id}>
                       <button onClick={() => setCatSelected(p => ({ ...p, [s.id]: !p[s.id] }))}
-                        className={`w-full flex items-center gap-3 px-3 py-2.5 border-t border-gray-100 dark:border-gray-700 text-left transition-all ${
+                        {...anclaItem(s.id)}
+                        className={`w-full flex items-center gap-3 px-3 py-2.5 border-t border-gray-100 dark:border-gray-700 text-left transition-all${claseResaltado(s.id)} ${
                           catSelected[s.id] ? 'bg-red-50 dark:bg-red-900/10' : 'bg-white dark:bg-gray-900'
                         }`}>
                         <div className={`w-4 h-4 rounded border-2 flex-shrink-0 flex items-center justify-center transition-all ${
@@ -1852,7 +1880,7 @@ export default function Presupuesto() {
                       : null
                   const isConfiguring = subcatConfigId === s.id
                   return (
-                    <div key={s.id} className={`rounded-xl border transition-all ${
+                    <div key={s.id} {...anclaItem(s.id)} className={`rounded-xl border transition-all${claseResaltado(s.id)} ${
                       isSelected
                         ? 'border-red-500 bg-red-50 dark:bg-red-900/10'
                         : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800'
@@ -2324,7 +2352,7 @@ export default function Presupuesto() {
         {/* Filas */}
         <div className="divide-y divide-gray-50 dark:divide-gray-800/50">
           {rows.map(row => (
-            <div key={row.id} className={`transition-colors ${selected[row.id] ? 'bg-red-50 dark:bg-red-900/10' : ''}`}>
+            <div key={row.id} {...anclaItem(row.id)} className={`transition-colors${claseResaltado(row.id)} ${selected[row.id] ? 'bg-red-50 dark:bg-red-900/10' : ''}`}>
               {/* Fila principal */}
               <div
                 onClick={() => togglePanel(row.id)}

@@ -364,7 +364,10 @@ function AfluenciaPanel() {
           dia: nombre,
           corto: nombre.slice(0, 3),
           horas: Math.round(prom * 10) / 10,
-          personas: prom > 0 ? Math.max(1, Math.ceil(prom / HORAS_EFECTIVAS_TRABAJADOR)) : 0,
+          // Con decimal, no redondeado hacia arriba: 2.2 y 1.8 son casi lo
+          // mismo, pero redondeados se leian como 3 contra 2 y parecia que un
+          // dia necesitaba una persona entera mas que otro.
+          personas: prom > 0 ? Math.round((prom / HORAS_EFECTIVAS_TRABAJADOR) * 10) / 10 : 0,
         }
       })
       carga = {
@@ -565,7 +568,9 @@ function AfluenciaPanel() {
                 {analisis.carga.porDiaSemana.map(d => (
                   <div key={d.dia} className="flex-1 min-w-[62px] rounded-lg bg-gray-50 dark:bg-gray-800/50 px-2 py-1.5 text-center">
                     <p className="text-[10px] text-gray-400 uppercase">{d.corto}</p>
-                    <p className="text-sm font-black text-gray-900 dark:text-white">{d.personas || '—'}</p>
+                    <p className={`text-sm font-black ${
+                      d.personas > plantilla ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-white'
+                    }`}>{d.personas || '—'}</p>
                     <p className="text-[10px] text-gray-400">{d.horas} h</p>
                   </div>
                 ))}
@@ -573,9 +578,10 @@ function AfluenciaPanel() {
 
               <p className="text-[11px] text-gray-400 leading-relaxed mt-2">
                 Cuenta solo el equipo de taller. Planchado y cerámicos van con técnico aparte y no entran aquí.
-                Se mide con el tiempo que cada auto pasa en el taller, del alta al cierre del ticket, topado en
-                una jornada. Si dos personas trabajan el mismo auto a la vez, ese rato cuenta una sola vez: para
-                esos casos la cifra se queda corta.
+                Un servicio del día se mide por las horas que el auto está en el taller; un trabajo de varios días
+                (una pintura general) cuenta como una persona dedicada cada día hábil que dura, y sigue contando
+                mientras el ticket esté abierto. Las cifras por día son personas con decimal: 2.2 y 1.8 son casi
+                lo mismo, aunque redondeados parezcan 3 y 2.
               </p>
             </div>
           )}

@@ -167,6 +167,13 @@ function esLavado(t) {
   return mismoDia && (Number(t.price_charged) || 0) < PRECIO_MAX_LAVADO
 }
 
+// Un lavado lo hacen dos personas a la vez, no una: asi sale mas rapido. El
+// reloj del ticket mide el rato que el auto estuvo ocupado, no el trabajo que
+// costo, asi que cada hora de reloj son dos horas-persona. Sin esto la carga
+// salia a la mitad. Tambien fija un piso: por debajo de dos personas no se
+// puede atender aunque sobre tiempo.
+const PERSONAS_POR_SERVICIO = 2
+
 // Un ticket de un solo dia que cruza la noche no son 20 horas: se topa en una jornada.
 const TOPE_HORAS_TICKET = 9
 // Tope de dias que se le cuentan a un trabajo largo, para que un ticket que se
@@ -372,13 +379,18 @@ function AfluenciaPanel() {
     const jornadas = [...porFecha.values()]
     let carga = null
     if (jornadas.length) {
-      const horas = jornadas.map(j => j.horas).sort((a, b) => a - b)
+      // De horas de reloj a horas-persona: es lo que de verdad hay que cubrir.
+      const horas = jornadas.map(j => j.horas * PERSONAS_POR_SERVICIO).sort((a, b) => a - b)
       const media = horas.reduce((a, b) => a + b, 0) / horas.length
       const p90 = horas[Math.min(horas.length - 1, Math.floor(horas.length * 0.9))]
+      // El equipo nunca baja del par que exige atender un servicio.
+      const equipo = h => Math.max(PERSONAS_POR_SERVICIO, Math.ceil(h / HORAS_EFECTIVAS_TRABAJADOR))
       // Por dia de la semana, que es lo que sirve para repartir a la gente.
       const porDiaSemana = DIAS_SEMANA.map((nombre, i) => {
         const dias = jornadas.filter(j => j.idx === i)
-        const prom = dias.length ? dias.reduce((a, j) => a + j.horas, 0) / dias.length : 0
+        const prom = dias.length
+          ? (dias.reduce((a, j) => a + j.horas, 0) / dias.length) * PERSONAS_POR_SERVICIO
+          : 0
         return {
           dia: nombre,
           corto: nombre.slice(0, 3),
@@ -393,8 +405,12 @@ function AfluenciaPanel() {
         horasProm: Math.round(media * 10) / 10,
         horasPico: Math.round(p90 * 10) / 10,
         autosProm: Math.round((jornadas.reduce((a, j) => a + j.autos, 0) / jornadas.length) * 10) / 10,
-        personasProm: Math.max(1, Math.ceil(media / HORAS_EFECTIVAS_TRABAJADOR)),
-        personasPico: Math.max(1, Math.ceil(p90 / HORAS_EFECTIVAS_TRABAJADOR)),
+        personasProm: equipo(media),
+        personasPico: equipo(p90),
+        // Cuanto de la jornada del equipo se llena de verdad. Es lo que dice si
+        // sobra tiempo para vender mas o si ya no cabe otro auto.
+        ocupacionProm: Math.round((media / (equipo(p90) * HORAS_EFECTIVAS_TRABAJADOR)) * 100),
+        ocupacionPico: Math.round((p90 / (equipo(p90) * HORAS_EFECTIVAS_TRABAJADOR)) * 100),
         porDiaSemana,
         jornadas: jornadas.length,
         otrosServicios,
@@ -557,12 +573,12 @@ function AfluenciaPanel() {
                 <div className="rounded-xl bg-gray-50 dark:bg-gray-800/50 px-3 py-2">
                   <p className="text-[10px] text-gray-400 uppercase tracking-wide">Día promedio</p>
                   <p className="text-sm font-black text-gray-900 dark:text-white">{analisis.carga.personasProm} {analisis.carga.personasProm === 1 ? 'persona' : 'personas'}</p>
-                  <p className="text-[11px] text-gray-400">{analisis.carga.horasProm} h de lavados · {analisis.carga.autosProm} autos</p>
+                  <p className="text-[11px] text-gray-400">{analisis.carga.horasProm} h‑persona · {analisis.carga.autosProm} autos</p>
                 </div>
                 <div className="rounded-xl bg-amber-50 dark:bg-amber-900/20 px-3 py-2">
                   <p className="text-[10px] text-amber-500 uppercase tracking-wide">Día cargado</p>
                   <p className="text-sm font-black text-amber-700 dark:text-amber-300">{analisis.carga.personasPico} {analisis.carga.personasPico === 1 ? 'persona' : 'personas'}</p>
-                  <p className="text-[11px] text-amber-500">{analisis.carga.horasPico} h de lavados</p>
+                  <p className="text-[11px] text-amber-500">{analisis.carga.horasPico} h‑persona</p>
                 </div>
                 <div className={`rounded-xl px-3 py-2 ${
                   plantilla >= analisis.carga.personasPico
@@ -580,9 +596,9 @@ function AfluenciaPanel() {
                   </p>
                 </div>
                 <div className="rounded-xl bg-gray-50 dark:bg-gray-800/50 px-3 py-2">
-                  <p className="text-[10px] text-gray-400 uppercase tracking-wide">Jornada usada</p>
-                  <p className="text-sm font-black text-gray-900 dark:text-white">{HORAS_EFECTIVAS_TRABAJADOR} h</p>
-                  <p className="text-[11px] text-gray-400">8:30–18:00 menos almuerzo</p>
+                  <p className="text-[10px] text-gray-400 uppercase tracking-wide">Ocupación</p>
+                  <p className="text-sm font-black text-gray-900 dark:text-white">{analisis.carga.ocupacionProm}%</p>
+                  <p className="text-[11px] text-gray-400">{analisis.carga.ocupacionPico}% en día cargado</p>
                 </div>
               </div>
 
@@ -601,10 +617,12 @@ function AfluenciaPanel() {
 
               <p className="text-[11px] text-gray-400 leading-relaxed mt-2">
                 Solo lavados: planchado, cerámicos, polarizados y pintura los cubren técnicos que vienen esos
-                días, así que no deben pesar al dimensionar la plantilla fija. Cada lavado se mide por las horas
-                que el auto está en el taller. Las cifras por día son personas con decimal: 2.2 y 1.8 son casi lo
-                mismo, aunque redondeados parezcan 3 y 2. Los tickets anteriores a agosto no guardaban categoría;
-                para esos se toma como lavado el trabajo del mismo día por debajo de S/{PRECIO_MAX_LAVADO}.
+                días, así que no deben pesar al dimensionar la plantilla fija. Cada servicio lo atienden
+                {PERSONAS_POR_SERVICIO} personas para que salga más rápido, así que cada hora de reloj del ticket
+                cuenta como {PERSONAS_POR_SERVICIO} horas‑persona, y el equipo nunca baja de {PERSONAS_POR_SERVICIO}
+                aunque sobre tiempo. Las cifras por día son personas con decimal: 2.2 y 1.8 son casi lo mismo,
+                aunque redondeados parezcan 3 y 2. Los tickets anteriores a agosto no guardaban categoría; para
+                esos se toma como lavado el trabajo del mismo día por debajo de S/{PRECIO_MAX_LAVADO}.
               </p>
             </div>
           )}

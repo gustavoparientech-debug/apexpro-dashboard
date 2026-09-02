@@ -167,11 +167,12 @@ function esLavado(t) {
   return mismoDia && (Number(t.price_charged) || 0) < PRECIO_MAX_LAVADO
 }
 
-// Un lavado lo hacen dos personas a la vez, no una: asi sale mas rapido. El
-// reloj del ticket mide el rato que el auto estuvo ocupado, no el trabajo que
-// costo, asi que cada hora de reloj son dos horas-persona. Sin esto la carga
-// salia a la mitad. Tambien fija un piso: por debajo de dos personas no se
-// puede atender aunque sobre tiempo.
+// Productividad real del taller, medida por el dueño: un trabajador solo saca
+// un auto por hora; dos juntos lo sacan en 45 minutos. Trabajar en pareja
+// entrega cada auto mas rapido pero cuesta mas trabajo por auto (1.5 h-persona
+// contra 1), asi que conviene cuando el cliente espera, no cuando hay cola.
+const HORAS_AUTO_SOLO   = 1
+const HORAS_AUTO_PAREJA = 2 * 0.75   // dos personas, 45 minutos = 1.5 h-persona
 const PERSONAS_POR_SERVICIO = 2
 
 // Un ticket de un solo dia que cruza la noche no son 20 horas: se topa en una jornada.
@@ -229,7 +230,29 @@ function AfluenciaPanel() {
   // contrata o sale alguien la tarjeta se ajusta sola. El admin queda fuera:
   // lleva ceramicos, que es trabajo de tecnico aparte y no de equipo de taller.
   const { workers } = useApp()
-  const plantilla = (workers || []).filter(w => w.active && w.role !== 'admin').length
+  const equipoLavados = (workers || []).filter(w => w.active && w.role !== 'admin')
+  const plantilla = equipoLavados.length
+  // Los horarios traen las horas reales de cada dia: Gabriela sale a las 2 y los
+  // demas hacen el dia completo, asi que la capacidad del sabado no es la del
+  // jueves. Sin esto habria que suponer una jornada pareja que no existe.
+  const [horarios, setHorarios] = useState([])
+  useEffect(() => {
+    supabase.from('work_schedules').select('id, weekday_hours').then(({ data }) => setHorarios(data || []))
+  }, [])
+
+  // Horas disponibles del equipo por dia de la semana (0 = lunes).
+  const horasPorDia = useMemo(() => {
+    const porId = Object.fromEntries(horarios.map(h => [h.id, h.weekday_hours || {}]))
+    return DIAS_SEMANA.map((_, i) => {
+      const dow = String(i + 1)          // weekday_hours usa 0=domingo
+      return equipoLavados.reduce((a, w) => {
+        const wh = porId[w.schedule_id]
+        const h = wh ? Number(wh[dow]) : null
+        // Sin horario asignado se asume jornada completa, que es lo habitual.
+        return a + (Number.isFinite(h) ? h : HORAS_EFECTIVAS_TRABAJADOR)
+      }, 0)
+    })
+  }, [horarios, equipoLavados])
   const [dias, setDias]   = useState(90)
   const [rows, setRows]   = useState(null)
   const [cargando, setCargando] = useState(true)
@@ -379,38 +402,42 @@ function AfluenciaPanel() {
     const jornadas = [...porFecha.values()]
     let carga = null
     if (jornadas.length) {
-      // De horas de reloj a horas-persona: es lo que de verdad hay que cubrir.
-      const horas = jornadas.map(j => j.horas * PERSONAS_POR_SERVICIO).sort((a, b) => a - b)
-      const media = horas.reduce((a, b) => a + b, 0) / horas.length
-      const p90 = horas[Math.min(horas.length - 1, Math.floor(horas.length * 0.9))]
-      // El equipo nunca baja del par que exige atender un servicio.
-      const equipo = h => Math.max(PERSONAS_POR_SERVICIO, Math.ceil(h / HORAS_EFECTIVAS_TRABAJADOR))
-      // Por dia de la semana, que es lo que sirve para repartir a la gente.
+      // Se dimensiona por autos y productividad real, no por el reloj del
+      // ticket: ese mide el rato que el auto estuvo ocupado, que depende de
+      // cuando lo atendieron y no del trabajo que costo.
       const porDiaSemana = DIAS_SEMANA.map((nombre, i) => {
         const dias = jornadas.filter(j => j.idx === i)
-        const prom = dias.length
-          ? (dias.reduce((a, j) => a + j.horas, 0) / dias.length) * PERSONAS_POR_SERVICIO
-          : 0
+        const autos = dias.length ? dias.reduce((a, j) => a + j.autos, 0) / dias.length : 0
+        const maxAutos = dias.length ? Math.max(...dias.map(j => j.autos)) : 0
+        const horasDia = horasPorDia[i] || 0
+        const capacidad = horasDia / HORAS_AUTO_PAREJA
         return {
           dia: nombre,
           corto: nombre.slice(0, 3),
-          horas: Math.round(prom * 10) / 10,
-          // Con decimal, no redondeado hacia arriba: 2.2 y 1.8 son casi lo
-          // mismo, pero redondeados se leian como 3 contra 2 y parecia que un
-          // dia necesitaba una persona entera mas que otro.
-          personas: prom > 0 ? Math.round((prom / HORAS_EFECTIVAS_TRABAJADOR) * 10) / 10 : 0,
+          autos: Math.round(autos * 10) / 10,
+          maxAutos,
+          horasDia: Math.round(horasDia * 10) / 10,
+          capacidad: Math.round(capacidad * 10) / 10,
+          ocupacion: capacidad > 0 ? Math.round((autos / capacidad) * 100) : 0,
         }
       })
+      const conDatos = porDiaSemana.filter(d => d.autos > 0)
+      const autosProm = conDatos.length
+        ? conDatos.reduce((a, d) => a + d.autos, 0) / conDatos.length : 0
+      const capacidadProm = conDatos.length
+        ? conDatos.reduce((a, d) => a + d.capacidad, 0) / conDatos.length : 0
+      const maxDia = jornadas.reduce((a, j) => Math.max(a, j.autos), 0)
+      // Cuanta gente pide de verdad el dia mas cargado que ya paso.
+      const horasNecesariasPico = maxDia * HORAS_AUTO_PAREJA
       carga = {
-        horasProm: Math.round(media * 10) / 10,
-        horasPico: Math.round(p90 * 10) / 10,
-        autosProm: Math.round((jornadas.reduce((a, j) => a + j.autos, 0) / jornadas.length) * 10) / 10,
-        personasProm: equipo(media),
-        personasPico: equipo(p90),
-        // Cuanto de la jornada del equipo se llena de verdad. Es lo que dice si
-        // sobra tiempo para vender mas o si ya no cabe otro auto.
-        ocupacionProm: Math.round((media / (equipo(p90) * HORAS_EFECTIVAS_TRABAJADOR)) * 100),
-        ocupacionPico: Math.round((p90 / (equipo(p90) * HORAS_EFECTIVAS_TRABAJADOR)) * 100),
+        autosProm: Math.round(autosProm * 10) / 10,
+        maxDia,
+        capacidadProm: Math.round(capacidadProm * 10) / 10,
+        ocupacionProm: capacidadProm > 0 ? Math.round((autosProm / capacidadProm) * 100) : 0,
+        personasProm: Math.max(PERSONAS_POR_SERVICIO,
+          Math.ceil(autosProm * HORAS_AUTO_PAREJA / HORAS_EFECTIVAS_TRABAJADOR)),
+        personasPico: Math.max(PERSONAS_POR_SERVICIO,
+          Math.ceil(horasNecesariasPico / HORAS_EFECTIVAS_TRABAJADOR)),
         porDiaSemana,
         jornadas: jornadas.length,
         otrosServicios,
@@ -571,34 +598,34 @@ function AfluenciaPanel() {
 
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-2">
                 <div className="rounded-xl bg-gray-50 dark:bg-gray-800/50 px-3 py-2">
-                  <p className="text-[10px] text-gray-400 uppercase tracking-wide">Día promedio</p>
-                  <p className="text-sm font-black text-gray-900 dark:text-white">{analisis.carga.personasProm} {analisis.carga.personasProm === 1 ? 'persona' : 'personas'}</p>
-                  <p className="text-[11px] text-gray-400">{analisis.carga.horasProm} h‑persona · {analisis.carga.autosProm} autos</p>
+                  <p className="text-[10px] text-gray-400 uppercase tracking-wide">Entran al día</p>
+                  <p className="text-sm font-black text-gray-900 dark:text-white">{analisis.carga.autosProm} autos</p>
+                  <p className="text-[11px] text-gray-400">máximo visto: {analisis.carga.maxDia}</p>
                 </div>
-                <div className="rounded-xl bg-amber-50 dark:bg-amber-900/20 px-3 py-2">
-                  <p className="text-[10px] text-amber-500 uppercase tracking-wide">Día cargado</p>
-                  <p className="text-sm font-black text-amber-700 dark:text-amber-300">{analisis.carga.personasPico} {analisis.carga.personasPico === 1 ? 'persona' : 'personas'}</p>
-                  <p className="text-[11px] text-amber-500">{analisis.carga.horasPico} h‑persona</p>
+                <div className="rounded-xl bg-gray-50 dark:bg-gray-800/50 px-3 py-2">
+                  <p className="text-[10px] text-gray-400 uppercase tracking-wide">Podrían salir</p>
+                  <p className="text-sm font-black text-gray-900 dark:text-white">{analisis.carga.capacidadProm} autos</p>
+                  <p className="text-[11px] text-gray-400">con {plantilla} en pareja · 45 min c/u</p>
                 </div>
                 <div className={`rounded-xl px-3 py-2 ${
-                  plantilla >= analisis.carga.personasPico
-                    ? 'bg-emerald-50 dark:bg-emerald-900/20'
-                    : 'bg-red-50 dark:bg-red-900/20'
+                  analisis.carga.ocupacionProm >= 80
+                    ? 'bg-red-50 dark:bg-red-900/20'
+                    : analisis.carga.ocupacionProm >= 50
+                      ? 'bg-amber-50 dark:bg-amber-900/20'
+                      : 'bg-emerald-50 dark:bg-emerald-900/20'
                 }`}>
-                  <p className={`text-[10px] uppercase tracking-wide ${plantilla >= analisis.carga.personasPico ? 'text-emerald-500' : 'text-red-400'}`}>Tienes hoy</p>
-                  <p className={`text-sm font-black ${plantilla >= analisis.carga.personasPico ? 'text-emerald-700 dark:text-emerald-300' : 'text-red-700 dark:text-red-300'}`}>
-                    {plantilla} {plantilla === 1 ? 'persona' : 'personas'}
-                  </p>
-                  <p className={`text-[11px] ${plantilla >= analisis.carga.personasPico ? 'text-emerald-500' : 'text-red-400'}`}>
-                    {plantilla >= analisis.carga.personasPico
-                      ? 'Cubre hasta los días cargados'
-                      : `Faltan ${analisis.carga.personasPico - plantilla} en día cargado`}
+                  <p className="text-[10px] text-gray-400 uppercase tracking-wide">Ocupación</p>
+                  <p className="text-sm font-black text-gray-900 dark:text-white">{analisis.carga.ocupacionProm}%</p>
+                  <p className="text-[11px] text-gray-400">
+                    {analisis.carga.ocupacionProm >= 80 ? 'Al límite' : `Cabrían ${Math.max(0, Math.round(analisis.carga.capacidadProm - analisis.carga.autosProm))} autos más`}
                   </p>
                 </div>
                 <div className="rounded-xl bg-gray-50 dark:bg-gray-800/50 px-3 py-2">
-                  <p className="text-[10px] text-gray-400 uppercase tracking-wide">Ocupación</p>
-                  <p className="text-sm font-black text-gray-900 dark:text-white">{analisis.carga.ocupacionProm}%</p>
-                  <p className="text-[11px] text-gray-400">{analisis.carga.ocupacionPico}% en día cargado</p>
+                  <p className="text-[10px] text-gray-400 uppercase tracking-wide">Hacen falta</p>
+                  <p className="text-sm font-black text-gray-900 dark:text-white">
+                    {analisis.carga.personasProm} <span className="font-normal text-gray-400">/ {analisis.carga.personasPico} en pico</span>
+                  </p>
+                  <p className="text-[11px] text-gray-400">tienes {plantilla}</p>
                 </div>
               </div>
 
@@ -608,21 +635,21 @@ function AfluenciaPanel() {
                   <div key={d.dia} className="flex-1 min-w-[62px] rounded-lg bg-gray-50 dark:bg-gray-800/50 px-2 py-1.5 text-center">
                     <p className="text-[10px] text-gray-400 uppercase">{d.corto}</p>
                     <p className={`text-sm font-black ${
-                      d.personas > plantilla ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-white'
-                    }`}>{d.personas || '—'}</p>
-                    <p className="text-[10px] text-gray-400">{d.horas} h</p>
+                      d.ocupacion >= 80 ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-white'
+                    }`}>{d.ocupacion ? `${d.ocupacion}%` : '—'}</p>
+                    <p className="text-[10px] text-gray-400">{d.autos} de {d.capacidad}</p>
                   </div>
                 ))}
               </div>
 
               <p className="text-[11px] text-gray-400 leading-relaxed mt-2">
                 Solo lavados: planchado, cerámicos, polarizados y pintura los cubren técnicos que vienen esos
-                días, así que no deben pesar al dimensionar la plantilla fija. Cada servicio lo atienden
-                {PERSONAS_POR_SERVICIO} personas para que salga más rápido, así que cada hora de reloj del ticket
-                cuenta como {PERSONAS_POR_SERVICIO} horas‑persona, y el equipo nunca baja de {PERSONAS_POR_SERVICIO}
-                aunque sobre tiempo. Las cifras por día son personas con decimal: 2.2 y 1.8 son casi lo mismo,
-                aunque redondeados parezcan 3 y 2. Los tickets anteriores a agosto no guardaban categoría; para
-                esos se toma como lavado el trabajo del mismo día por debajo de S/{PRECIO_MAX_LAVADO}.
+                días, así que no pesan al dimensionar la plantilla fija. Se calcula con la productividad real —un
+                trabajador saca un auto por hora, dos juntos lo sacan en 45 minutos— y con las horas que cada uno
+                hace ese día, tomadas de su horario: por eso el sábado tiene más capacidad que el jueves. Cada fila
+                de abajo es la ocupación del día y, debajo, los autos que entran de los que caben. Los tickets
+                anteriores a agosto no guardaban categoría; para esos se toma como lavado el trabajo del mismo día
+                por debajo de S/{PRECIO_MAX_LAVADO}.
               </p>
             </div>
           )}

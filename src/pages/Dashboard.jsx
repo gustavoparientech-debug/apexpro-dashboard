@@ -150,6 +150,23 @@ const RANGOS_AFLUENCIA = [
 // un registro que se olvido y se metio despues.
 // Jornada util de un trabajador: 8:30 a 18:00 menos el almuerzo.
 const HORAS_EFECTIVAS_TRABAJADOR = 8.5
+// El equipo fijo es el de lavados: planchado, ceramicos, polarizados y pintura
+// los cubren tecnicos que vienen solo esos dias, asi que su carga no debe pesar
+// al dimensionar la plantilla permanente.
+// `service_cat` empezo a guardarse en agosto de 2026. Para los tickets viejos
+// que no lo traen se deduce: un lavado se hace el mismo dia y es barato. Contra
+// los tickets que si tienen categoria, la regla acierta 25 de 26 lavados y deja
+// fuera ceramico y polarizado.
+const PRECIO_MAX_LAVADO = 150
+function esLavado(t) {
+  const cat = (t.service_cat || '').trim()
+  if (cat) return cat === 'lavados'
+  if (!t.opened_at) return false
+  const fin = t.closed_at ? new Date(t.closed_at) : new Date()
+  const mismoDia = new Date(t.opened_at).toDateString() === fin.toDateString()
+  return mismoDia && (Number(t.price_charged) || 0) < PRECIO_MAX_LAVADO
+}
+
 // Un ticket de un solo dia que cruza la noche no son 20 horas: se topa en una jornada.
 const TOPE_HORAS_TICKET = 9
 // Tope de dias que se le cuentan a un trabajo largo, para que un ticket que se
@@ -216,7 +233,7 @@ function AfluenciaPanel() {
     const desde = new Date()
     desde.setDate(desde.getDate() - dias)
     supabase.from('tickets')
-      .select('date, opened_at, closed_at, created_at, price_charged, status')
+      .select('date, opened_at, closed_at, created_at, price_charged, status, service_cat')
       .gte('date', desde.toISOString().slice(0, 10))
       .then(({ data }) => { if (vivo) { setRows(data || []); setCargando(false) } })
     return () => { vivo = false }
@@ -316,7 +333,9 @@ function AfluenciaPanel() {
       porFecha.set(fechaISO, acc)
     }
     const hoyISO = new Date().toISOString().slice(0, 10)
-    for (const t of lista) {
+    const lavados = lista.filter(esLavado)
+    const otrosServicios = lista.length - lavados.length
+    for (const t of lavados) {
       if (!t.opened_at) continue
       // Un trabajo realmente abierto sigue ocupando el taller y cuenta hasta
       // hoy. Un ticket ya cerrado al que le falta la fecha de cierre es un dato
@@ -378,6 +397,7 @@ function AfluenciaPanel() {
         personasPico: Math.max(1, Math.ceil(p90 / HORAS_EFECTIVAS_TRABAJADOR)),
         porDiaSemana,
         jornadas: jornadas.length,
+        otrosServicios,
       }
     }
 
@@ -526,20 +546,23 @@ function AfluenciaPanel() {
           {analisis.carga && (
             <div className="rounded-xl border border-gray-100 dark:border-gray-800 p-3">
               <div className="flex items-baseline justify-between mb-2">
-                <p className="text-xs font-bold uppercase tracking-widest text-gray-400">Personal necesario</p>
-                <p className="text-[11px] text-gray-400">{analisis.carga.jornadas} días con trabajo</p>
+                <p className="text-xs font-bold uppercase tracking-widest text-gray-400">Personal fijo de lavados</p>
+                <p className="text-[11px] text-gray-400">
+                  {analisis.carga.jornadas} días con trabajo
+                  {analisis.carga.otrosServicios > 0 && ` · ${analisis.carga.otrosServicios} servicios de técnico aparte, fuera`}
+                </p>
               </div>
 
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-2">
                 <div className="rounded-xl bg-gray-50 dark:bg-gray-800/50 px-3 py-2">
                   <p className="text-[10px] text-gray-400 uppercase tracking-wide">Día promedio</p>
                   <p className="text-sm font-black text-gray-900 dark:text-white">{analisis.carga.personasProm} {analisis.carga.personasProm === 1 ? 'persona' : 'personas'}</p>
-                  <p className="text-[11px] text-gray-400">{analisis.carga.horasProm} h de taller · {analisis.carga.autosProm} autos</p>
+                  <p className="text-[11px] text-gray-400">{analisis.carga.horasProm} h de lavados · {analisis.carga.autosProm} autos</p>
                 </div>
                 <div className="rounded-xl bg-amber-50 dark:bg-amber-900/20 px-3 py-2">
                   <p className="text-[10px] text-amber-500 uppercase tracking-wide">Día cargado</p>
                   <p className="text-sm font-black text-amber-700 dark:text-amber-300">{analisis.carga.personasPico} {analisis.carga.personasPico === 1 ? 'persona' : 'personas'}</p>
-                  <p className="text-[11px] text-amber-500">{analisis.carga.horasPico} h de taller</p>
+                  <p className="text-[11px] text-amber-500">{analisis.carga.horasPico} h de lavados</p>
                 </div>
                 <div className={`rounded-xl px-3 py-2 ${
                   plantilla >= analisis.carga.personasPico
@@ -577,11 +600,11 @@ function AfluenciaPanel() {
               </div>
 
               <p className="text-[11px] text-gray-400 leading-relaxed mt-2">
-                Cuenta solo el equipo de taller. Planchado y cerámicos van con técnico aparte y no entran aquí.
-                Un servicio del día se mide por las horas que el auto está en el taller; un trabajo de varios días
-                (una pintura general) cuenta como una persona dedicada cada día hábil que dura, y sigue contando
-                mientras el ticket esté abierto. Las cifras por día son personas con decimal: 2.2 y 1.8 son casi
-                lo mismo, aunque redondeados parezcan 3 y 2.
+                Solo lavados: planchado, cerámicos, polarizados y pintura los cubren técnicos que vienen esos
+                días, así que no deben pesar al dimensionar la plantilla fija. Cada lavado se mide por las horas
+                que el auto está en el taller. Las cifras por día son personas con decimal: 2.2 y 1.8 son casi lo
+                mismo, aunque redondeados parezcan 3 y 2. Los tickets anteriores a agosto no guardaban categoría;
+                para esos se toma como lavado el trabajo del mismo día por debajo de S/{PRECIO_MAX_LAVADO}.
               </p>
             </div>
           )}

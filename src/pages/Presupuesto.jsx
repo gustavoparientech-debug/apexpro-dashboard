@@ -292,9 +292,9 @@ const SERVICIOS_DATA = [
   // ── Precio según vehículo ─────────────────────────────────────────────────
   { id: 'sv_ext_basico',   name: 'Lavado Exterior (Básico)',        timeMin: 30,  prices: { auto: 25, suv: 30, pickup: 35, xl: 40 } , grupo: 'Lavados' },
   { id: 'sv_offroad',      name: 'Lavado OffRoad',                  timeMin: 45,  prices: { auto: 55, suv: 60, pickup: 65, xl: 70 } , grupo: 'Lavados' },
-  { id: 'sv_pul1',         name: 'Pulido 1 Paso',                   timeMin: 120, prices: { auto: 130, suv: 150, pickup: 170, xl: 170 } , grupo: 'Pulidos' },
-  { id: 'sv_pul3',         name: 'Pulido 3 Pasos',                  timeMin: 240, prices: { auto: 260, suv: 280, pickup: 300, xl: 300 } , grupo: 'Pulidos' },
-  { id: 'sv_desc',         name: 'Descontaminación',                timeMin: 90,  prices: { auto: 120, suv: 140, pickup: 160, xl: 160 } , grupo: 'Pulidos' },
+  { id: 'sv_pul1',         name: 'Pulido 1 Paso',                   timeMin: 120, prices: { auto: 130, suv: 150, pickup: 170, xl: 170 } , grupo: 'Pulidos y Descontaminaciones' },
+  { id: 'sv_pul3',         name: 'Pulido 3 Pasos',                  timeMin: 240, prices: { auto: 260, suv: 280, pickup: 300, xl: 300 } , grupo: 'Pulidos y Descontaminaciones' },
+  { id: 'sv_desc',         name: 'Descontaminación',                timeMin: 90,  prices: { auto: 120, suv: 140, pickup: 160, xl: 160 } , grupo: 'Pulidos y Descontaminaciones' },
   { id: 'sv_cer_cp2',      name: 'Cerámico CarPro 2 Años',          timeMin: 480, prices: { auto: 799, suv: 899, pickup: 999, xl: 999 } , grupo: 'Cerámicos' },
   { id: 'sv_cer_ap3',      name: 'Cerámico AutoPremium 3 Años',     timeMin: 480, prices: { auto: 499, suv: 599, pickup: 699, xl: 699 } , grupo: 'Cerámicos' },
 ]

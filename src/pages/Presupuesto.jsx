@@ -8,6 +8,13 @@ import { useNavigate } from 'react-router-dom'
 import { NewTicketForm } from './Registro'
 import toast from 'react-hot-toast'
 import { CERAMICO_DATA, PPF_DATA, POLARIZADOS_DATA } from '../lib/catalogoPresupuesto'
+
+// Titulo que le toca a un servicio que no trae grupo propio, por categoria.
+const GRUPO_SIN_ASIGNAR = 'Otros'
+const GRUPO_POR_DEFECTO = { ceramico: 'Cerámicos', ppf: 'PPF', servicios: GRUPO_SIN_ASIGNAR }
+const PPF_IDS = new Set(PPF_DATA.map(s => s.id))
+const POL_IDS = new Set(POLARIZADOS_DATA.map(s => s.id))
+const CER_IDS = new Set(CERAMICO_DATA.map(s => s.id))
 import jsPDF from 'jspdf'
 
 // ─── Configuración por defecto ────────────────────────────────────────────────
@@ -291,6 +298,15 @@ const SERVICIOS_DATA = [
   { id: 'sv_cer_cp2',      name: 'Cerámico CarPro 2 Años',          timeMin: 480, prices: { auto: 799, suv: 899, pickup: 999, xl: 999 } , grupo: 'Cerámicos' },
   { id: 'sv_cer_ap3',      name: 'Cerámico AutoPremium 3 Años',     timeMin: 480, prices: { auto: 499, suv: 599, pickup: 699, xl: 699 } , grupo: 'Cerámicos' },
 ]
+
+// De donde sale el catalogo de cada categoria, para ordenar y reagrupar sin
+// repetir el switch en cada sitio.
+const FUENTE_POR_CAT = {
+  servicios: SERVICIOS_DATA,
+  ceramico: CERAMICO_DATA,
+  ppf: PPF_DATA,
+  polarizados: POLARIZADOS_DATA,
+}
 
 const LAVADOS_DATA = [
   { id: 'estandar',     name: 'Apex Estándar',       tag: 'Básico',         time: '50 min', desc: 'Lavado por fuera · Limpieza de neumáticos · Aspirado de salón · Aplicación de acondicionador interiores',                                                     prices: { auto: 25,  suv: 30,  suv_xl: 35,  pickup: 35,  pickup_xl: 40  } },
@@ -584,6 +600,30 @@ export default function Presupuesto() {
                 : 'bg-white dark:bg-gray-800 text-gray-500 border-gray-300 dark:border-gray-600 hover:border-gray-400'
             }`}>{label}</button>
         ))}
+      </div>
+    )
+  }
+
+  // Titulo bajo el que aparece el servicio. Se puede mover a otro existente o
+  // crear uno nuevo, para no depender de que el grupo venga del catalogo.
+  function GrupoSelect({ item, cat }) {
+    const actual = grupoDe(item, cat)
+    const opciones = gruposDe(cat)
+    if (!opciones.includes(actual)) opciones.push(actual)
+    return (
+      <div className="flex items-center gap-1.5 pt-0.5 flex-wrap">
+        <span className="text-[10px] text-gray-400 mr-0.5">🏷 Título:</span>
+        <select
+          value={actual}
+          onChange={e => {
+            if (e.target.value !== '__nuevo__') { updateServiceField(item.id, 'grupo', e.target.value); return }
+            const nombre = prompt('Nombre del nuevo título:')?.trim()
+            if (nombre) updateServiceField(item.id, 'grupo', nombre)
+          }}
+          className="text-[10px] font-semibold border border-gray-300 dark:border-gray-600 rounded-full px-2 py-0.5 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300">
+          {opciones.map(g => <option key={g} value={g}>{g}</option>)}
+          <option value="__nuevo__">+ Nuevo título…</option>
+        </select>
       </div>
     )
   }
@@ -885,6 +925,10 @@ export default function Presupuesto() {
   const discountAmt = Math.round(total * discountPct / 100)
   const totalFinal = total - discountAmt
 
+  // Grupo al que pertenece un servicio. Lo que nunca se clasifico cae en uno
+  // aparte, al final, en vez de perderse.
+  const grupoDe = (s, cat) => s.grupo || GRUPO_POR_DEFECTO[cat] || GRUPO_SIN_ASIGNAR
+
   // Titulos de seccion. Sin ellos la lista era un bloque continuo y no se veia
   // donde empezaba cada familia de servicios.
   function conTitulo(items, label) {
@@ -895,16 +939,16 @@ export default function Presupuesto() {
   // Agrupa por el campo `grupo` respetando el orden en que aparecen, para no
   // pelear con el orden que el admin haya configurado. Lo que no tiene grupo
   // (servicios añadidos a mano) cae al final.
-  function porGrupos(items) {
+  function porGrupos(items, cat) {
     const orden = []
     const mapa = new Map()
     items.forEach(s => {
-      const g = s.grupo || 'Otros'
+      const g = grupoDe(s, cat)
       if (!mapa.has(g)) { mapa.set(g, []); orden.push(g) }
       mapa.get(g).push(s)
     })
-    const otros = orden.filter(g => g === 'Otros')
-    return [...orden.filter(g => g !== 'Otros'), ...otros]
+    const otros = orden.filter(g => g === GRUPO_SIN_ASIGNAR)
+    return [...orden.filter(g => g !== GRUPO_SIN_ASIGNAR), ...otros]
       .flatMap(g => conTitulo(mapa.get(g), g))
   }
 
@@ -924,28 +968,52 @@ export default function Presupuesto() {
     return [...all].sort((a, b) => (orderMap[a.id] ?? 9999) - (orderMap[b.id] ?? 9999))
   }
 
-  function moveService(id, dir) {
-    const cat = 'servicios'
-    const data = applyMeta(SERVICIOS_DATA, cat)
+  // Sube o baja un servicio dentro de SU titulo. Saltar de titulo se hace
+  // cambiando el grupo, no con las flechas: si se moviera por la lista plana,
+  // el reagrupado devolveria el item a su sitio y la flecha pareceria rota.
+  function moveService(id, cat, dir) {
+    const data = applyMeta(FUENTE_POR_CAT[cat] || [], cat)
+    const item = data.find(s => s.id === id)
+    if (!item) return
+    const mismos = data.filter(s => grupoDe(s, cat) === grupoDe(item, cat))
+    const pos = mismos.findIndex(s => s.id === id)
+    const destino = mismos[pos + dir]
+    if (!destino) return
     const ids = data.map(s => s.id)
-    const idx = ids.indexOf(id)
-    if (idx < 0) return
-    const newIdx = idx + dir
-    if (newIdx < 0 || newIdx >= ids.length) return
-    const next = [...ids]
-    ;[next[idx], next[newIdx]] = [next[newIdx], next[idx]]
-    saveCatMeta({ ...catMeta, order: { ...catMeta.order, [cat]: next } })
+    const i = ids.indexOf(id), j = ids.indexOf(destino.id)
+    ;[ids[i], ids[j]] = [ids[j], ids[i]]
+    saveCatMeta({ ...catMeta, order: { ...catMeta.order, [cat]: ids } })
+  }
+
+  // Categoria a la que pertenece un servicio, que es la clave con la que se
+  // guardan orden y ediciones.
+  const catDeServicio = (s) => {
+    if (s.id?.startsWith('sv_')) return 'servicios'
+    if (PPF_IDS.has(s.id)) return 'ppf'
+    if (POL_IDS.has(s.id)) return 'polarizados'
+    if (CER_IDS.has(s.id)) return 'ceramico'
+    return catMeta.added.find(a => a.id === s.id)?.category || category
+  }
+
+  // Titulos que ya existen en una categoria, para ofrecerlos al reasignar.
+  const gruposDe = (cat) => {
+    const vistos = []
+    applyMeta(FUENTE_POR_CAT[cat] || [], cat).forEach(s => {
+      const g = grupoDe(s, cat)
+      if (!vistos.includes(g)) vistos.push(g)
+    })
+    return vistos
   }
 
   // ── Filas para otras categorías ──────────────────────────────────────────
   const catData = useMemo(() => {
     if (category === 'ceramico')    return [
-      ...conTitulo(applyMeta(CERAMICO_DATA, 'ceramico'), 'Cerámicos'),
-      ...conTitulo(applyMeta(PPF_DATA, 'ppf'), 'PPF'),
+      ...porGrupos(applyMeta(CERAMICO_DATA, 'ceramico'), 'ceramico'),
+      ...porGrupos(applyMeta(PPF_DATA, 'ppf'), 'ppf'),
     ]
     if (category === 'polarizados') return applyMeta(POLARIZADOS_DATA, 'polarizados')
     if (category === 'lavados')     return applyMeta(LAVADOS_DATA, 'lavados')
-    if (category === 'servicios')   return porGrupos(applyMeta(SERVICIOS_DATA, 'servicios'))
+    if (category === 'servicios')   return porGrupos(applyMeta(SERVICIOS_DATA, 'servicios'), 'servicios')
     return []
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [category, catMeta])
@@ -2164,6 +2232,7 @@ export default function Presupuesto() {
                                 <EditableTextCell label="Descripción" value={s.desc} onSave={v => updateServiceField(s.id, 'desc', v)} />
                                 <EditableTextCell label="Tiempo (ej: 50 min)" value={s.time} onSave={v => updateServiceField(s.id, 'time', v || null)} />
                                 <StockToggle item={s} />
+                                <GrupoSelect item={s} cat={catDeServicio(s)} />
                                 {isSv && (
                                   <button onClick={() => openSubcatConfig(s)}
                                     className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border transition-all ${
@@ -2175,16 +2244,14 @@ export default function Presupuesto() {
                                   </button>
                                 )}
                               </div>
-                              {isSv && (
-                                <div className="flex flex-col gap-0.5">
-                                  <button onClick={() => moveService(s.id, -1)} className="p-0.5 text-gray-300 hover:text-indigo-500 transition-colors" title="Mover arriba">
-                                    <ChevronUp className="w-4 h-4" />
-                                  </button>
-                                  <button onClick={() => moveService(s.id, 1)} className="p-0.5 text-gray-300 hover:text-indigo-500 transition-colors" title="Mover abajo">
-                                    <ChevronDown className="w-4 h-4" />
-                                  </button>
-                                </div>
-                              )}
+                              <div className="flex flex-col gap-0.5">
+                                <button onClick={() => moveService(s.id, catDeServicio(s), -1)} className="p-0.5 text-gray-300 hover:text-indigo-500 transition-colors" title="Mover arriba">
+                                  <ChevronUp className="w-4 h-4" />
+                                </button>
+                                <button onClick={() => moveService(s.id, catDeServicio(s), 1)} className="p-0.5 text-gray-300 hover:text-indigo-500 transition-colors" title="Mover abajo">
+                                  <ChevronDown className="w-4 h-4" />
+                                </button>
+                              </div>
                               <button onClick={() => { if (confirm(`¿Eliminar "${s.name}"?`)) deleteService(s.id) }}
                                 className="self-start mt-0.5 text-red-400 hover:text-red-600 transition-colors">
                                 <X className="w-4 h-4" />

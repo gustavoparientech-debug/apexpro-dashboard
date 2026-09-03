@@ -23,6 +23,7 @@ const DEFAULT_CONFIG = {
   // La pintura tricapa lleva una capa mas (base, color y transparente con
   // perla), asi que el paño cuesta mas en cualquier gama.
   basePricesTricapa: { economy: 350, standard: 390, premium: 450 },
+  armados: ARMADOS_DEFAULT,
   panels: [
     { id: 'guardafango_del_izq', label: 'Guardafango Del. Izq.', mult: { auto: 1,   suv: 1.2, pickup: 1.3 } },
     { id: 'guardafango_del_der', label: 'Guardafango Del. Der.', mult: { auto: 1,   suv: 1.2, pickup: 1.3 } },
@@ -96,8 +97,16 @@ const PULIDO_MIN_DIAS_COMPLETO   = 2
 // No se exige el 100%: un trabajo al que solo le faltan los estribos se desarma igual.
 const UMBRAL_VEHICULO_COMPLETO   = 0.8
 // Armado y desarmado de parachoques suelto, cuando no es un trabajo completo.
-const ARMADO_PARACHOQUE_PRECIO = 90
-const ARMADO_PARACHOQUE_HORAS  = 3
+// Piezas que se desarman y se vuelven a armar como servicio suelto. Solo
+// aplican cuando el vehiculo no se desarma entero: en un trabajo completo ya
+// van dentro de los dias de armado y cobrarlas seria cobrarlas dos veces.
+// `requierePanel` limita la opcion a que ese paño este seleccionado.
+const ARMADOS_DEFAULT = [
+  { id: 'parachoques', label: 'Parachoques', precio: 60, horas: 3,   requierePanel: ['parachoque_del', 'parachoque_tra'] },
+  { id: 'faros',       label: 'Faros',       precio: 40, horas: 1.5, requierePanel: null },
+]
+
+const fmtHorasArmado = (h) => Number.isInteger(h) ? `${h}h` : `${Math.floor(h)}h ${Math.round((h % 1) * 60)}min`
 
 // Estimación de tiempo de entrega basada en nivel de daño y cantidad de paños
 function estimateDays(selectedRows, teamSize = 2, withPulido = true, opts = {}) {
@@ -108,7 +117,7 @@ function estimateDays(selectedRows, teamSize = 2, withPulido = true, opts = {}) 
   const none = selectedRows.filter(r => !r.damageId || r.damageId === 'none').length
   const total = selectedRows.length
 
-  const { totalPanels = 0, conInteriores = false, armadoParachoques = false } = opts
+  const { totalPanels = 0, conInteriores = false, horasArmados = 0 } = opts
   const panosCarroceria = selectedRows.filter(r => r.fixed == null).length
   const esCompleto = totalPanels > 0 && panosCarroceria / totalPanels >= UMBRAL_VEHICULO_COMPLETO
 
@@ -149,9 +158,9 @@ function estimateDays(selectedRows, teamSize = 2, withPulido = true, opts = {}) 
   const pulidoH = withPulido
     ? selectedRows.reduce((s, r) => s + (r.mult || 1) * 0.8, 0)
     : 0
-  // El armado del parachoque solo se cobra aparte si el vehiculo no se desarma
-  // entero; en un trabajo completo ya va dentro de las fases.
-  const armadoParachoqueH = (!esCompleto && armadoParachoques) ? ARMADO_PARACHOQUE_HORAS : 0
+  // Los armados sueltos solo suman si el vehiculo no se desarma entero; en un
+  // trabajo completo ya van dentro de las fases.
+  const armadoParachoqueH = esCompleto ? 0 : horasArmados
 
   const color = sev > 0 ? 'red' : mod > 0 ? 'orange' : lev > 0 ? 'yellow' : 'blue'
 
@@ -202,7 +211,9 @@ function estimateDays(selectedRows, teamSize = 2, withPulido = true, opts = {}) 
 
   const prepLabel = `Planchado + prep (${teamLabel}): ${prepDays} día${prepDays !== 1 ? 's' : ''}`
   const paintLabel = `Base seca (5h) + pintura + barniz + pulido: ${paintDays} día${paintDays !== 1 ? 's' : ''}`
-  const armadoLabel = armadoParachoqueH ? 'Armado y desarmado de parachoques: 3h' : null
+  const armadoLabel = armadoParachoqueH
+    ? `Armado y desarmado: ${fmtHorasArmado(armadoParachoqueH)}`
+    : null
 
   return { text, color, panoLines, faseLines: null, prepLabel, paintLabel, bufferLabel: null, armadoLabel, totalDays, esCompleto: false, resumenLabel: null }
 }
@@ -327,6 +338,12 @@ function mergeConfig(saved) {
   return {
     basePrices: { ...DEFAULT_CONFIG.basePrices, ...saved.basePrices },
     basePricesTricapa: { ...DEFAULT_CONFIG.basePricesTricapa, ...saved.basePricesTricapa },
+    // La lista de piezas viene del codigo; de lo guardado solo se respeta el
+    // precio y las horas, que son lo que el admin edita.
+    armados: ARMADOS_DEFAULT.map(a => {
+      const sa = saved.armados?.find(x => x.id === a.id)
+      return sa ? { ...a, precio: sa.precio ?? a.precio, horas: sa.horas ?? a.horas } : a
+    }),
     panels: DEFAULT_CONFIG.panels.map(p => {
       const sp = saved.panels?.find(x => x.id === p.id)
       if (!sp) return p
@@ -476,7 +493,7 @@ export default function Presupuesto() {
   const [agruparPintura, setAgruparPintura] = useState(false)
   // Armado y desarmado del parachoque como servicio aparte. Solo aplica cuando
   // el vehiculo no se desarma entero.
-  const [armadoParachoques, setArmadoParachoques] = useState(false)
+  const [armadosSel, setArmadosSel] = useState({})
   // Descuento fijo de bienvenida para vehiculos nuevos en cotizaciones de
   // ceramico. Va aparte de los descuentos por porcentaje porque es un monto
   // cerrado que se concede o no, no una negociacion.
@@ -662,7 +679,7 @@ export default function Presupuesto() {
       // reabrir la cotizacion los importes se recalculaban con lo que hubiera
       // seleccionado en ese momento y no coincidian con lo cotizado.
       vehicleType, selectedTier, selectedBrand,
-      teamSize, withPulido, agruparPintura, armadoParachoques, tricapa,
+      teamSize, withPulido, agruparPintura, armadosSel, tricapa,
       discountMode, sectionDiscounts, manualDiscountPct,
       created_at: Date.now(),
       expires_at: Date.now() + 7 * 24 * 60 * 60 * 1000,
@@ -728,7 +745,9 @@ export default function Presupuesto() {
     if (q.teamSize)   setTeamSize(q.teamSize)
     if (q.withPulido !== undefined)     setWithPulido(q.withPulido)
     if (q.agruparPintura !== undefined) setAgruparPintura(q.agruparPintura)
-    if (q.armadoParachoques !== undefined) setArmadoParachoques(q.armadoParachoques)
+    if (q.armadosSel) setArmadosSel(q.armadosSel)
+    // Presupuestos viejos guardaban un solo booleano de parachoques.
+    else if (q.armadoParachoques) setArmadosSel({ parachoques: true })
     if (q.tricapa !== undefined) setTricapa(q.tricapa)
     if (q.discountMode)      setDiscountMode(q.discountMode)
     if (q.sectionDiscounts)  setSectionDiscounts(q.sectionDiscounts)
@@ -842,6 +861,22 @@ export default function Presupuesto() {
     persistConfig({ ...config, panels: newPanels })
   }
 
+  // Precio y tiempo de cada armado, editables por el admin y guardados con el
+  // resto de la configuracion.
+  function editarArmado(a) {
+    const precio = prompt(`Precio de armado y desarmado de ${a.label.toLowerCase()} (S/):`, a.precio)
+    if (precio === null) return
+    const p = parseFloat(precio)
+    if (!Number.isFinite(p) || p < 0) { toast.error('Precio inválido'); return }
+    const horas = prompt(`¿Cuántas horas toma? (ej: 3 o 1.5)`, a.horas)
+    if (horas === null) return
+    const h = parseFloat(horas)
+    if (!Number.isFinite(h) || h < 0) { toast.error('Tiempo inválido'); return }
+    const armados = (config.armados || []).map(x => x.id === a.id ? { ...x, precio: p, horas: h } : x)
+    persistConfig({ ...config, armados })
+    toast.success(`${a.label}: S/${p} · ${h}h`)
+  }
+
   function saveBasePrices() {
     const e = parseFloat(pricesDraft.economy)
     const s = parseFloat(pricesDraft.standard)
@@ -885,16 +920,20 @@ export default function Presupuesto() {
   const panosCarroceriaSel = config.panels.filter(p => p.fixed == null && selected[p.id]).length
   const trabajoCompleto = totalPanosCarroceria > 0 &&
     panosCarroceriaSel / totalPanosCarroceria >= UMBRAL_VEHICULO_COMPLETO
-  const hayParachoque = !!(selected['parachoque_del'] || selected['parachoque_tra'])
-  // En un trabajo completo el parachoque se desarma igual dentro de los dias de
-  // armado del vehiculo: cobrarlo aparte seria cobrarlo dos veces.
-  const armadoParachoquesActivo = armadoParachoques && hayParachoque && !trabajoCompleto
+  // Piezas que se pueden ofrecer ahora: las que no piden un paño concreto, y
+  // las que lo piden solo si ese paño está marcado. En un trabajo completo no
+  // se ofrece ninguna: el vehiculo se desarma entero y ya va contado.
+  const armadosDisponibles = trabajoCompleto ? [] : (config.armados || []).filter(a =>
+    !a.requierePanel || a.requierePanel.some(id => selected[id]))
+  const armadosActivos = armadosDisponibles.filter(a => armadosSel[a.id])
+  const precioArmados = armadosActivos.reduce((t, a) => t + (Number(a.precio) || 0), 0)
+  const horasArmados  = armadosActivos.reduce((t, a) => t + (Number(a.horas)  || 0), 0)
 
   const opcionesPlazo = useMemo(() => ({
     totalPanels: totalPanosCarroceria,
     conInteriores: !!selected['pintura_interior'],
-    armadoParachoques: armadoParachoquesActivo,
-  }), [totalPanosCarroceria, selected, armadoParachoquesActivo])
+    horasArmados,
+  }), [totalPanosCarroceria, selected, horasArmados])
 
   const rows = useMemo(() => config.panels.map(p => {
     const mult = p.mult[vehicleType]
@@ -912,8 +951,8 @@ export default function Presupuesto() {
 
   const total = useMemo(() =>
     rows.filter(r => selected[r.id]).reduce((s, r) => s + r.price, 0) +
-    (armadoParachoquesActivo ? ARMADO_PARACHOQUE_PRECIO : 0),
-    [rows, selected, armadoParachoquesActivo]
+    precioArmados,
+    [rows, selected, precioArmados]
   )
 
   const selectedCount = Object.values(selected).filter(Boolean).length
@@ -1315,8 +1354,8 @@ export default function Presupuesto() {
             : r.damageId !== 'none' ? etiquetaPlanchado(r) : `Pintado de ${r.label}${sufTricapa}`,
           price: r.price,
         }))
-    if (armadoParachoquesActivo) {
-      planchadoSel.push({ label: 'Armado y desarmado de parachoques', price: ARMADO_PARACHOQUE_PRECIO })
+    for (const a of armadosActivos) {
+      planchadoSel.push({ label: `Armado y desarmado de ${a.label.toLowerCase()}`, price: Number(a.precio) || 0 })
     }
     const ceramicoSel = catRows.filter(r => !r._divider && (ceramicoIds.has(r.id) || ppfIds.has(r.id))).map(r => ({ label: r.label, price: r.price }))
     const polSel = catRows.filter(r => polIds.has(r.id)).map(r => ({ label: r.label, price: r.price }))
@@ -2737,24 +2776,33 @@ export default function Presupuesto() {
                     ))}
                   </div>
 
-                  {/* Armado de parachoques — no se ofrece en un trabajo completo,
-                      donde el desarmado del vehiculo ya lo incluye. */}
-                  {hayParachoque && !trabajoCompleto && (
-                    <div className="flex items-center gap-1 flex-wrap">
-                      <span className="text-[10px] text-gray-400 mr-1">🔧 Parachoques:</span>
-                      {[
-                        { v: false, label: 'Sin armado' },
-                        { v: true,  label: `Con armado y desarmado · S/${ARMADO_PARACHOQUE_PRECIO}` },
-                      ].map(({ v, label }) => (
-                        <button key={String(v)} onClick={() => setArmadoParachoques(v)}
-                          className={`text-[10px] px-2 py-0.5 rounded-full border transition-colors ${
-                            armadoParachoques === v
-                              ? 'bg-purple-600 text-white border-purple-600 font-semibold'
-                              : 'bg-white dark:bg-gray-800 text-gray-500 border-gray-300 dark:border-gray-600 hover:border-purple-400'
-                          }`}>
-                          {label}
-                        </button>
-                      ))}
+                  {/* Armados sueltos — no se ofrecen en un trabajo completo,
+                      donde el desarmado del vehiculo ya los incluye. */}
+                  {armadosDisponibles.length > 0 && (
+                    <div className="flex items-start gap-1 flex-wrap">
+                      <span className="text-[10px] text-gray-400 mr-1 mt-0.5">🔧 Armado:</span>
+                      {armadosDisponibles.map(a => {
+                        const on = !!armadosSel[a.id]
+                        return (
+                          <span key={a.id} className="inline-flex items-center gap-1">
+                            <button onClick={() => setArmadosSel(m => ({ ...m, [a.id]: !on }))}
+                              className={`text-[10px] px-2 py-0.5 rounded-full border transition-colors ${
+                                on
+                                  ? 'bg-purple-600 text-white border-purple-600 font-semibold'
+                                  : 'bg-white dark:bg-gray-800 text-gray-500 border-gray-300 dark:border-gray-600 hover:border-purple-400'
+                              }`}>
+                              {a.label} · S/{a.precio}
+                            </button>
+                            {canAdmin && (
+                              <button onClick={() => editarArmado(a)}
+                                title={`Editar precio y tiempo de ${a.label.toLowerCase()}`}
+                                className="text-gray-300 hover:text-purple-500 transition-colors">
+                                <Edit2 className="w-2.5 h-2.5" />
+                              </button>
+                            )}
+                          </span>
+                        )
+                      })}
                     </div>
                   )}
 
@@ -2872,13 +2920,15 @@ export default function Presupuesto() {
           key: `p_${r.id}`, label: r.fixed != null ? r.label : r.damageId !== 'none' ? `${r.label} + Planchado (${DAMAGE_LEVELS.find(d => d.id === r.damageId)?.label})` : `Pintado — ${r.label}`,
           price: r.price, onRemove: () => setSelected(s => ({ ...s, [r.id]: false })),
         }))
-        const planchadoSel = armadoParachoquesActivo
-          ? [...planchadoBase, {
-              key: 'p_armado_parachoques', label: 'Armado y desarmado de parachoques',
-              price: ARMADO_PARACHOQUE_PRECIO,
-              onRemove: () => setArmadoParachoques(false),
-            }]
-          : planchadoBase
+        const planchadoSel = [
+          ...planchadoBase,
+          ...armadosActivos.map(a => ({
+            key: `p_armado_${a.id}`,
+            label: `Armado y desarmado de ${a.label.toLowerCase()}`,
+            price: Number(a.precio) || 0,
+            onRemove: () => setArmadosSel(m => ({ ...m, [a.id]: false })),
+          })),
+        ]
         const ceramicoBase = catRows.filter(r => ceramicoIds.has(r.id) || ppfIds.has(r.id)).map(r => ({
           key: `c_${r.id}`, label: r.label, price: r.price, onRemove: () => setCatSelected(s => ({ ...s, [r.id]: false })),
         }))

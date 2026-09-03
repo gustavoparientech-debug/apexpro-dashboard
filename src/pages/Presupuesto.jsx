@@ -20,6 +20,9 @@ import jsPDF from 'jspdf'
 // ─── Configuración por defecto ────────────────────────────────────────────────
 const DEFAULT_CONFIG = {
   basePrices: { economy: 250, standard: 290, premium: 350 },
+  // La pintura tricapa lleva una capa mas (base, color y transparente con
+  // perla), asi que el paño cuesta mas en cualquier gama.
+  basePricesTricapa: { economy: 350, standard: 390, premium: 450 },
   panels: [
     { id: 'guardafango_del_izq', label: 'Guardafango Del. Izq.', mult: { auto: 1,   suv: 1.2, pickup: 1.3 } },
     { id: 'guardafango_del_der', label: 'Guardafango Del. Der.', mult: { auto: 1,   suv: 1.2, pickup: 1.3 } },
@@ -323,6 +326,7 @@ function mergeConfig(saved) {
   if (!saved) return DEFAULT_CONFIG
   return {
     basePrices: { ...DEFAULT_CONFIG.basePrices, ...saved.basePrices },
+    basePricesTricapa: { ...DEFAULT_CONFIG.basePricesTricapa, ...saved.basePricesTricapa },
     panels: DEFAULT_CONFIG.panels.map(p => {
       const sp = saved.panels?.find(x => x.id === p.id)
       if (!sp) return p
@@ -467,6 +471,8 @@ export default function Presupuesto() {
   // Agrupar en el presupuesto los paños que solo se pintan: en trabajos grandes
   // la lista paño por paño no aporta nada y lo que interesa detallar es el
   // planchado, que es el trabajo que justifica el precio.
+  // Tricapa: el paño cuesta mas porque lleva una capa adicional.
+  const [tricapa, setTricapa] = useState(false)
   const [agruparPintura, setAgruparPintura] = useState(false)
   // Armado y desarmado del parachoque como servicio aparte. Solo aplica cuando
   // el vehiculo no se desarma entero.
@@ -656,7 +662,7 @@ export default function Presupuesto() {
       // reabrir la cotizacion los importes se recalculaban con lo que hubiera
       // seleccionado en ese momento y no coincidian con lo cotizado.
       vehicleType, selectedTier, selectedBrand,
-      teamSize, withPulido, agruparPintura, armadoParachoques,
+      teamSize, withPulido, agruparPintura, armadoParachoques, tricapa,
       discountMode, sectionDiscounts, manualDiscountPct,
       created_at: Date.now(),
       expires_at: Date.now() + 7 * 24 * 60 * 60 * 1000,
@@ -723,6 +729,7 @@ export default function Presupuesto() {
     if (q.withPulido !== undefined)     setWithPulido(q.withPulido)
     if (q.agruparPintura !== undefined) setAgruparPintura(q.agruparPintura)
     if (q.armadoParachoques !== undefined) setArmadoParachoques(q.armadoParachoques)
+    if (q.tricapa !== undefined) setTricapa(q.tricapa)
     if (q.discountMode)      setDiscountMode(q.discountMode)
     if (q.sectionDiscounts)  setSectionDiscounts(q.sectionDiscounts)
     if (q.manualDiscountPct !== undefined) setManualDiscountPct(q.manualDiscountPct)
@@ -818,7 +825,10 @@ export default function Presupuesto() {
     }
   }
 
-  const basePrice = config.basePrices[selectedTier]
+  // Con tricapa manda su propia tabla de precios, no un recargo sobre la normal:
+  // asi cada gama se ajusta por separado.
+  const preciosVigentes = tricapa ? config.basePricesTricapa : config.basePrices
+  const basePrice = preciosVigentes[selectedTier]
 
   function updateMult(panelId, vt, val) {
     const newPanels = config.panels.map(p =>
@@ -838,9 +848,11 @@ export default function Presupuesto() {
     const pr = parseFloat(pricesDraft.premium)
     if ([e, s, pr].some(isNaN)) { toast.error('Valores inválidos'); return }
     if (e > s || s > pr) { toast.error('Economy ≤ Standard ≤ Premium'); return }
-    persistConfig({ ...config, basePrices: { economy: e, standard: s, premium: pr } })
+    // Se edita la tabla que se está viendo: con tricapa activo, la tricapa.
+    const clave = tricapa ? 'basePricesTricapa' : 'basePrices'
+    persistConfig({ ...config, [clave]: { economy: e, standard: s, premium: pr } })
     setEditingPrices(false)
-    toast.success('Precios guardados')
+    toast.success(`Precios ${tricapa ? 'tricapa ' : ''}guardados`)
   }
 
   function togglePanel(id) {
@@ -1274,8 +1286,11 @@ export default function Presupuesto() {
     const ppfIds = new Set(PPF_DATA.map(x => x.id))
     const polIds = new Set(POLARIZADOS_DATA.map(x => x.id))
     const planchadoRows = rows.filter(r => selected[r.id])
+    // El cliente tiene que ver que el precio es de tricapa, si no el importe no
+    // se explica frente a otra proforma.
+    const sufTricapa = tricapa ? ' (tricapa)' : ''
     const etiquetaPlanchado = r =>
-      `${r.label} + Planchado (${DAMAGE_LEVELS.find(d => d.id === r.damageId)?.label})`
+      `${r.label} + Planchado (${DAMAGE_LEVELS.find(d => d.id === r.damageId)?.label})${sufTricapa}`
     // Los extras de precio cerrado no son paños: no se agrupan ni se anuncian
     // como "Pintado de ...", van con su propio nombre.
     const extrasFijos  = planchadoRows.filter(r => r.fixed != null)
@@ -1288,7 +1303,7 @@ export default function Presupuesto() {
       // llevan planchado se siguen detallando uno por uno.
       ? [
           ...(soloPintura.length ? [{
-            label: `Pintado de ${soloPintura.length} paño${soloPintura.length !== 1 ? 's' : ''}`,
+            label: `Pintado de ${soloPintura.length} paño${soloPintura.length !== 1 ? 's' : ''}${sufTricapa}`,
             price: soloPintura.reduce((a, r) => a + r.price, 0),
           }] : []),
           ...conPlanchado.map(r => ({ label: etiquetaPlanchado(r), price: r.price })),
@@ -1297,7 +1312,7 @@ export default function Presupuesto() {
       : planchadoRows.map(r => ({
           label: r.fixed != null
             ? r.label
-            : r.damageId !== 'none' ? etiquetaPlanchado(r) : `Pintado de ${r.label}`,
+            : r.damageId !== 'none' ? etiquetaPlanchado(r) : `Pintado de ${r.label}${sufTricapa}`,
           price: r.price,
         }))
     if (armadoParachoquesActivo) {
@@ -2451,6 +2466,27 @@ export default function Presupuesto() {
           </div>
         </div>
 
+        {/* Tipo de pintura */}
+        <div>
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Tipo de pintura</p>
+          <div className="grid grid-cols-2 gap-2">
+            {[
+              { v: false, label: 'Normal',  sub: 'Bicapa' },
+              { v: true,  label: 'Tricapa', sub: 'Capa extra de perla' },
+            ].map(({ v, label, sub }) => (
+              <button key={String(v)} onClick={() => setTricapa(v)}
+                className={`py-2 rounded-xl border text-xs font-semibold transition-all ${
+                  tricapa === v
+                    ? 'border-red-500 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400'
+                    : 'border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400'
+                }`}>
+                {label}
+                <div className="text-[10px] font-normal mt-0.5 opacity-70">{sub}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+
         {/* Tier de marca */}
         <div>
           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Categoría de marca</p>
@@ -2463,7 +2499,7 @@ export default function Presupuesto() {
                     : 'border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400'
                 }`}>
                 {b.label}
-                <div className="text-[10px] font-normal mt-0.5 opacity-70">{formatMoney(config.basePrices[b.tier])}/paño</div>
+                <div className="text-[10px] font-normal mt-0.5 opacity-70">{formatMoney(preciosVigentes[b.tier])}/paño</div>
               </button>
             ))}
           </div>
@@ -2505,9 +2541,11 @@ export default function Presupuesto() {
         {canAdmin && (
           <div className="border-t border-gray-100 dark:border-gray-800 pt-3">
             <div className="flex items-center justify-between mb-2">
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Precio base por paño</p>
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                Precio base por paño{tricapa && ' · tricapa'}
+              </p>
               {!editingPrices
-                ? <button onClick={() => { setPricesDraft({ ...config.basePrices }); setEditingPrices(true) }}
+                ? <button onClick={() => { setPricesDraft({ ...preciosVigentes }); setEditingPrices(true) }}
                     className="text-xs text-red-600 flex items-center gap-1"><Edit2 className="w-3 h-3" />Editar</button>
                 : <div className="flex gap-2">
                     <button onClick={saveBasePrices} className="text-xs text-green-600 font-semibold">Guardar</button>
@@ -2524,7 +2562,7 @@ export default function Presupuesto() {
                         value={pricesDraft[b.tier]}
                         onChange={e => setPricesDraft(d => ({ ...d, [b.tier]: e.target.value }))}
                         className="w-full text-xs text-center border border-red-400 rounded-lg px-1 py-1 font-mono dark:bg-gray-800 dark:text-white" />
-                    : <p className="text-sm font-bold text-gray-900 dark:text-white">{formatMoney(config.basePrices[b.tier])}</p>
+                    : <p className="text-sm font-bold text-gray-900 dark:text-white">{formatMoney(preciosVigentes[b.tier])}</p>
                   }
                 </div>
               ))}
@@ -2539,7 +2577,7 @@ export default function Presupuesto() {
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-800">
           <div>
             <p className="font-bold text-gray-900 dark:text-white text-sm">Paños del vehículo</p>
-            <p className="text-xs text-gray-500">Base: {formatMoney(basePrice)}/paño · {vtLabel?.emoji} {vtLabel?.label}{selectedBrand ? ` · ${selectedBrand}` : ''}</p>
+            <p className="text-xs text-gray-500">Base: {formatMoney(basePrice)}/paño{tricapa ? ' · tricapa' : ''} · {vtLabel?.emoji} {vtLabel?.label}{selectedBrand ? ` · ${selectedBrand}` : ''}</p>
           </div>
           <div className="flex items-center gap-2">
             {selectedCount > 0 && (

@@ -1125,14 +1125,14 @@ export default function Presupuesto() {
         const subKey = key.slice(svc.id.length + 1)
         if (svc.subcats?.length) {
           const sc = svc.subcats.find(x => x.key === subKey)
-          if (sc) return { id: key, label: `${svc.name} — ${sc.label}`, price: sc.price }
+          if (sc) return { id: key, label: `${svc.name} — ${sc.label}`, price: sc.price, desc: svc.desc }
         }
         if (svc.prices && SV_VK_LABELS[subKey]) {
-          return { id: key, label: `${svc.name} — ${SV_VK_LABELS[subKey]}`, price: getEffectivePrice(svc, subKey) }
+          return { id: key, label: `${svc.name} — ${SV_VK_LABELS[subKey]}`, price: getEffectivePrice(svc, subKey), desc: svc.desc }
         }
       }
       const svc = ALL_CAT_DATA.find(s => s.id === key)
-      if (svc) return { id: key, label: svc.name, price: getEffectivePrice(svc, null) }
+      if (svc) return { id: key, label: svc.name, price: getEffectivePrice(svc, null), desc: svc.desc }
       return null
     }).filter(Boolean)
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1357,10 +1357,12 @@ export default function Presupuesto() {
     for (const a of armadosActivos) {
       planchadoSel.push({ label: `Armado y desarmado de ${a.label.toLowerCase()}`, price: Number(a.precio) || 0 })
     }
-    const ceramicoSel = catRows.filter(r => !r._divider && (ceramicoIds.has(r.id) || ppfIds.has(r.id))).map(r => ({ label: r.label, price: r.price }))
-    const polSel = catRows.filter(r => polIds.has(r.id)).map(r => ({ label: r.label, price: r.price }))
-    const lavSel = lavItems.map(r => ({ label: r.label, price: r.price }))
-    const svSel = serviciosRows.map(r => ({ label: r.label, price: r.price }))
+    // La descripcion del catalogo viaja con cada item: es lo que explica al
+    // cliente que incluye el servicio y por que cuesta lo que cuesta.
+    const ceramicoSel = catRows.filter(r => !r._divider && (ceramicoIds.has(r.id) || ppfIds.has(r.id))).map(r => ({ label: r.label, price: r.price, desc: r.desc }))
+    const polSel = catRows.filter(r => polIds.has(r.id)).map(r => ({ label: r.label, price: r.price, desc: r.desc }))
+    const lavSel = lavItems.map(r => ({ label: r.label, price: r.price, desc: r.desc }))
+    const svSel = serviciosRows.map(r => ({ label: r.label, price: r.price, desc: r.desc }))
     const manualSel = manualItems.map(r => ({ label: r.titulo + (r.descripcion ? ` — ${r.descripcion}` : ''), price: r.monto }))
     const sections = [
       { title: 'Planchado & Pintura', items: planchadoSel, sectKey: 'planchado' },
@@ -1421,6 +1423,8 @@ export default function Presupuesto() {
           return
         }
         msg += `*${idx++}.* ${r.label}\n`
+        // La descripcion del catalogo explica que incluye el servicio.
+        if (r.desc) msg += `   _${String(r.desc).trim()}_\n`
         msg += `   💰 ${formatMoney(r.price)}\n`
       })
       if (discPctS > 0) msg += `   🎁 Dto. ${s.title}: -${formatMoney(discAmtS)}\n`
@@ -1628,7 +1632,19 @@ export default function Presupuesto() {
         y += 6
       }
       s.items.forEach(r => {
-        const rowH = 7.5
+        // El alto de la fila lo marca lo que hay que escribir: el nombre puede
+        // partirse en varias lineas y debajo va la descripcion del catalogo.
+        // Con alto fijo, un nombre largo o la descripcion se montaban sobre la
+        // fila siguiente.
+        doc.setFontSize(8.5); doc.setFont('helvetica', 'normal')
+        const labelLines = r.esDescuento ? [r.label] : doc.splitTextToSize(r.label, cW - 30)
+        doc.setFontSize(6.5)
+        const descLines = (!r.esDescuento && r.desc)
+          ? doc.splitTextToSize(String(r.desc).trim(), cW - 30)
+          : []
+        const rowH = r.esDescuento
+          ? 7.5
+          : Math.max(7.5, labelLines.length * 4 + descLines.length * 3 + 3.5)
         y = espacio(rowH)
 
         // Los descuentos se pintan en verde y sin numero de fila: no son un
@@ -1650,8 +1666,12 @@ export default function Presupuesto() {
         doc.setTextColor(100, 100, 100); doc.setFontSize(7.5); doc.setFont('helvetica', 'normal')
         doc.text(`${rowIdx + 1}`, mL + 3, y + 5, { align: 'center' })
         doc.setTextColor(20, 20, 20); doc.setFontSize(8.5)
-        const labelLines = doc.splitTextToSize(r.label, cW - 30)
         doc.text(labelLines, mL + 12, y + 5)
+        if (descLines.length) {
+          doc.setTextColor(120, 120, 120); doc.setFontSize(6.5)
+          doc.text(descLines, mL + 12, y + 5 + labelLines.length * 4 - 0.5)
+        }
+        doc.setTextColor(20, 20, 20); doc.setFontSize(8.5)
         doc.setFont('helvetica', 'bold')
         doc.text(formatMoney(r.price), W - mR - 2, y + 5, { align: 'right' })
         y += rowH

@@ -1698,11 +1698,12 @@ export default function Presupuesto() {
     const altoFirma = firmaB64 ? 34 : 26   // con firma la linea baja 8mm
     const altoCierre = altoTotales + altoAdelanto + altoObs + 20 + altoFirma
 
-    // Filas vacías hasta completar al menos 10 ítems
+    // Filas vacías hasta completar al menos 10 ítems. Se dibujan hasta donde
+    // llegue la hoja: recortarlas para hacerle sitio al cierre no evitaba la
+    // segunda pagina (el cierre no cabia igual) y dejaba la tabla coja.
     const emptyRows = Math.max(0, 10 - allPdfItems.length)
-    const topeRelleno = LIMITE_Y - altoCierre - 2
     for (let i = 0; i < emptyRows; i++) {
-      if (y + 7.5 > topeRelleno) break   // el relleno es estético, no arrastra páginas
+      if (y + 7.5 > LIMITE_Y) break   // el relleno es estético, no arrastra páginas
       const ii = allPdfItems.length + i
       if (ii % 2 === 0) { doc.setFillColor(250, 250, 250); doc.rect(mL, y, cW, 7.5, 'F') }
       doc.setDrawColor(235, 235, 235)

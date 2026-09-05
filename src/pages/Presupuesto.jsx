@@ -1679,10 +1679,30 @@ export default function Presupuesto() {
       })
     })
 
+    // ── Alto del cierre ──────────────────────────────────────────────────────
+    // Se mide ANTES del relleno: las filas vacías son decorativas, pero si se
+    // dibujan hasta el fondo se comen el sitio del cierre y lo empujan a una
+    // hoja nueva con media pagina en blanco detras.
+    const altoTotales = (discountMode === 'global'
+      ? ((manualDiscountPct != null ? manualDiscountPct : autoDiscountPct || catDiscountPct) > 0 ? 16 : 0)
+      : (pdfBruto - pdfTotal > 0 ? 16 : 0)) + 13
+    const adelantoPdf = parseFloat(exportForm.adelanto) || 0
+    const altoAdelanto = adelantoPdf > 0 ? 16 : 0
+    // Las observaciones ya no son de alto fijo: se mide lo que de verdad ocupan.
+    let altoObs = 0
+    if (observaciones) {
+      doc.setFontSize(7.5); doc.setFont('helvetica', 'normal')
+      const l = doc.splitTextToSize(String(observaciones).trim(), cW - 32)
+      altoObs = Math.max(10, l.length * 3.6 + 3.6) + 3
+    }
+    const altoFirma = firmaB64 ? 34 : 26   // con firma la linea baja 8mm
+    const altoCierre = altoTotales + altoAdelanto + altoObs + 20 + altoFirma
+
     // Filas vacías hasta completar al menos 10 ítems
     const emptyRows = Math.max(0, 10 - allPdfItems.length)
+    const topeRelleno = LIMITE_Y - altoCierre - 2
     for (let i = 0; i < emptyRows; i++) {
-      if (y + 7.5 > LIMITE_Y) break   // el relleno es estético, no arrastra páginas
+      if (y + 7.5 > topeRelleno) break   // el relleno es estético, no arrastra páginas
       const ii = allPdfItems.length + i
       if (ii % 2 === 0) { doc.setFillColor(250, 250, 250); doc.rect(mL, y, cW, 7.5, 'F') }
       doc.setDrawColor(235, 235, 235)
@@ -1697,14 +1717,7 @@ export default function Presupuesto() {
     // Totales, condiciones y firmas se piden como un solo bloque: si se parten,
     // el TOTAL queda en una hoja y las firmas en otra, y antes la caja de TOTAL
     // llegaba a dibujarse debajo del pie, donde no se ve.
-    const altoTotales = (discountMode === 'global'
-      ? ((manualDiscountPct != null ? manualDiscountPct : autoDiscountPct || catDiscountPct) > 0 ? 16 : 0)
-      : (pdfBruto - pdfTotal > 0 ? 16 : 0)) + 13
-    const adelantoPdf = parseFloat(exportForm.adelanto) || 0
-    const altoAdelanto = adelantoPdf > 0 ? 16 : 0
-    const altoObs   = observaciones ? 13 : 0
-    const altoFirma = firmaB64 ? 34 : 26   // con firma la linea baja 8mm
-    y = espacio(altoTotales + altoAdelanto + altoObs + 20 + altoFirma, false)
+    y = espacio(altoCierre, false)
 
     // Subtotal / descuento / total
     const numCol = W - mR - 35

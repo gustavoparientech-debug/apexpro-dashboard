@@ -1740,15 +1740,23 @@ export default function Presupuesto() {
 
     // Observaciones
     if (observaciones) {
-      doc.setFillColor(245, 245, 245)
-      doc.rect(mL, y, cW, 10, 'F')
-      doc.setTextColor(80, 80, 80)
+      // El texto se parte al ancho util y la caja se dibuja despues, ya sabiendo
+      // cuanto ocupa: antes la caja era de alto fijo y el texto se escribia de
+      // una linea, asi que una observacion larga se salia de la hoja.
+      const OBS_SANGRIA = 28                       // ancho de la etiqueta
       doc.setFontSize(7.5)
-      doc.setFont('helvetica', 'bold')
-      doc.text('Observaciones:', mL + 2, y + 5)
       doc.setFont('helvetica', 'normal')
-      doc.text(observaciones, mL + 28, y + 5)
-      y += 13
+      const obsLines = doc.splitTextToSize(String(observaciones).trim(), cW - OBS_SANGRIA - 4)
+      const obsH = Math.max(10, obsLines.length * 3.6 + 3.6)
+      y = espacio(obsH + 3)
+      doc.setFillColor(245, 245, 245)
+      doc.rect(mL, y, cW, obsH, 'F')
+      doc.setTextColor(80, 80, 80)
+      doc.setFont('helvetica', 'bold')
+      doc.text('Observaciones:', mL + 2, y + 4.8)
+      doc.setFont('helvetica', 'normal')
+      doc.text(obsLines, mL + OBS_SANGRIA, y + 4.8)
+      y += obsH + 3
     }
 
     // Condiciones

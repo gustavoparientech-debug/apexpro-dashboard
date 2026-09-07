@@ -1209,7 +1209,10 @@ export default function Dashboard() {
     const nextY = selMonth === 12 ? selYear + 1 : selYear
     const endP  = `${nextY}-${String(nextM).padStart(2,'0')}-01`
     Promise.all([
-      supabase.from('tickets').select('*').gte('date', `${p}-01`).lt('date', endP).neq('status', 'abierto'),
+      // Los abiertos tambien se traen: no suman a ingresos (el memo los separa),
+      // pero su adelanto ya esta cobrado y pertenece a ese mes. Excluirlos aqui
+      // hacia que en un mes pasado no se viera ni un sol de adelantos.
+      supabase.from('tickets').select('*').gte('date', `${p}-01`).lt('date', endP),
       supabase.from('daily_summary').select('*').gte('date', `${p}-01`).lt('date', endP),
       supabase.from('worker_expenses').select('*').gte('date', `${p}-01`).lt('date', endP),
     ]).then(([t, s, e]) => { setPastTickets(t.data || []); setPastSummaries(s.data || []); setPastExpenses(e.data || []) })

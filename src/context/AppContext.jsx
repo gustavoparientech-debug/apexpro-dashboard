@@ -921,14 +921,20 @@ export function AppProvider({ children }) {
   // ─── Adelantos por ticket ───────────────────────────────────────────────────
   // Un servicio puede recibir varios adelantos, asi que viven en su propia
   // tabla y no en una columna del ticket.
+  // Adelantos de los tickets del mes, no adelantos hechos en el mes. El dinero
+  // pertenece al servicio: un adelanto de septiembre sobre un ticket de agosto
+  // se filtraba fuera de agosto (por su fecha) y fuera de septiembre (porque el
+  // ticket no es de ese mes), y no aparecia en ningun lado.
   const fetchAdvances = async (year, month) => {
     if (IS_DEMO) return []
     const start = `${year}-${String(month).padStart(2, '0')}-01`
     const nm = month === 12 ? 1 : month + 1
     const ny = month === 12 ? year + 1 : year
     const end = `${ny}-${String(nm).padStart(2, '0')}-01`
-    const { data } = await supabase.from('ticket_advances').select('*')
-      .gte('date', start).lt('date', end).order('date')
+    const { data, error } = await supabase.from('ticket_advances')
+      .select('*, tickets!inner(date)')
+      .gte('tickets.date', start).lt('tickets.date', end).order('date')
+    if (error) { console.error('fetchAdvances', error); return [] }
     return data || []
   }
 

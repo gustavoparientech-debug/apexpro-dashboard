@@ -664,9 +664,31 @@ export default function Trabajadores() {
   }
 
   const monthStart = monthRangeStr(year, month)
+  const monthEndStr = (y, m) => `${y}-${String(m).padStart(2, '0')}-${String(new Date(y, m, 0).getDate()).padStart(2, '0')}`
+
+  // Las bajas programadas se aplican solas al llegar el dia. Se hace al abrir
+  // Equipo porque no hay proceso en segundo plano: si no, un trabajador con
+  // salida pactada seguiria contando como activo despues de irse.
+  useEffect(() => {
+    const hoy = todayISO()
+    const vencidas = (workers || []).filter(w => w.active && w.terminated_at && w.terminated_at <= hoy)
+    if (!vencidas.length) return
+    Promise.all(vencidas.map(w => updateWorker(w.id, { active: false })))
+      .then(() => toast.success(vencidas.length === 1
+        ? `${vencidas[0].name} quedó inactivo: llegó su fecha de salida`
+        : `${vencidas.length} trabajadores quedaron inactivos por fecha de salida`))
+      .catch(() => {})
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workers])
+
+  // Salida ya pactada pero aun no cumplida.
+  const salidaProgramada = (w) => w.active && w.terminated_at && w.terminated_at > todayISO()
 
   function leftThisMonth(w) {
-    return !w.active && w.terminated_at && w.terminated_at >= monthStart
+    // Tambien los que tienen salida programada dentro del mes que se mira: su
+    // sueldo de ese mes va prorrateado aunque hoy sigan activos.
+    return w.terminated_at && w.terminated_at >= monthStart &&
+      (!w.active || w.terminated_at <= monthEndStr(year, month))
   }
 
   const workerStats = useMemo(() => {
@@ -726,8 +748,13 @@ export default function Trabajadores() {
   async function handleToggleActive(worker) {
     try {
       if (worker.active) {
-        await updateWorker(worker.id, { active: false, terminated_at: terminationDate })
-        toast.success('Trabajador dado de baja')
+        // Una fecha futura no da de baja hoy: deja la salida programada y el
+        // trabajador sigue activo hasta ese dia.
+        const programada = terminationDate > todayISO()
+        await updateWorker(worker.id, { active: !programada ? false : true, terminated_at: terminationDate })
+        toast.success(programada
+          ? `Salida programada para el ${formatDate(terminationDate)}`
+          : 'Trabajador dado de baja')
       } else {
         await updateWorker(worker.id, { active: true, terminated_at: null })
         toast.success('Trabajador reactivado')
@@ -1124,7 +1151,9 @@ export default function Trabajadores() {
                         <p className="font-medium text-gray-900 dark:text-white">{w.name}</p>
                         <p className="text-xs text-gray-400">
                           {w.weekly_hours}h/sem
-                          {leftThisMonth(w) && <span className="text-amber-500"> · Se retiró el {formatDate(w.terminated_at)}</span>}
+                          {salidaProgramada(w)
+                            ? <span className="text-amber-500"> · 📅 Sale el {formatDate(w.terminated_at)}</span>
+                            : leftThisMonth(w) && <span className="text-amber-500"> · Se retiró el {formatDate(w.terminated_at)}</span>}
                         </p>
                       </div>
                     </div>
@@ -1153,7 +1182,7 @@ export default function Trabajadores() {
                       <button onClick={() => { setEditingWorker(w); setShowWorkerForm(true) }} className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded">
                         <Edit2 className="w-3.5 h-3.5 text-gray-400" />
                       </button>
-                      <button onClick={() => { setTerminationDate(todayISO()); setDeactivateTarget(w) }} className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded">
+                      <button onClick={() => { setTerminationDate(salidaProgramada(w) ? w.terminated_at : todayISO()); setDeactivateTarget(w) }} className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded">
                         {w.active ? <UserX className="w-3.5 h-3.5 text-gray-400" /> : <UserCheck className="w-3.5 h-3.5 text-green-500" />}
                       </button>
                     </div>
@@ -1386,7 +1415,9 @@ export default function Trabajadores() {
                           <div className="flex items-center gap-1.5">
                             <p className="text-xs text-gray-400">
                               Base: {formatMoney(w.base_salary)} · {w.weekly_hours}h/sem
-                              {leftThisMonth(w) && <span className="text-amber-500"> · Se retiró el {formatDate(w.terminated_at)}</span>}
+                              {salidaProgramada(w)
+                            ? <span className="text-amber-500"> · 📅 Sale el {formatDate(w.terminated_at)}</span>
+                            : leftThisMonth(w) && <span className="text-amber-500"> · Se retiró el {formatDate(w.terminated_at)}</span>}
                             </p>
                             <button onClick={() => setEditingNominaWorker({ id: w.id, base_salary: w.base_salary, weekly_hours: w.weekly_hours })}
                               className="p-0.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded">
@@ -1705,17 +1736,35 @@ export default function Trabajadores() {
       </Modal>
 
       {deactivateTarget?.active ? (
-        <Modal open={!!deactivateTarget} onClose={() => setDeactivateTarget(null)} title="¿Dar de baja?" size="sm">
+        <Modal open={!!deactivateTarget} onClose={() => setDeactivateTarget(null)} title={terminationDate > todayISO() ? '¿Programar salida?' : '¿Dar de baja?'} size="sm">
           <p className="text-gray-600 dark:text-gray-400 text-sm mb-4">
-            {deactivateTarget?.name} quedará inactivo. Su pago de este mes se calculará solo por los días que trabajó.
+            {terminationDate > todayISO()
+              ? `${deactivateTarget?.name} sigue trabajando hasta esa fecha y ese día queda inactivo solo. Su pago de ese mes se calculará por los días trabajados.`
+              : `${deactivateTarget?.name} quedará inactivo. Su pago de este mes se calculará solo por los días que trabajó.`}
           </p>
           <div className="mb-6">
             <label className="label">Fecha de salida</label>
-            <input type="date" className="input" value={terminationDate} onChange={e => setTerminationDate(e.target.value)} max={todayISO()} />
+            {/* Sin tope: hay contratos con fin pactado, y antes solo se podia
+                dar de baja el mismo dia o hacia atras. */}
+            <input type="date" className="input" value={terminationDate} onChange={e => setTerminationDate(e.target.value)} />
+            {terminationDate > todayISO() && (
+              <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-1">
+                📅 Baja programada: seguirá contando como activo hasta el {formatDate(terminationDate)}.
+              </p>
+            )}
           </div>
-          <div className="flex gap-3 justify-end">
+          <div className="flex gap-3 justify-end flex-wrap">
             <button className="btn-secondary" onClick={() => setDeactivateTarget(null)}>Cancelar</button>
-            <button className="btn-danger" onClick={() => { handleToggleActive(deactivateTarget); setDeactivateTarget(null) }}>Dar de baja</button>
+            {salidaProgramada(deactivateTarget) && (
+              <button className="btn-secondary" onClick={async () => {
+                await updateWorker(deactivateTarget.id, { terminated_at: null })
+                toast.success('Salida programada anulada')
+                setDeactivateTarget(null)
+              }}>Anular salida</button>
+            )}
+            <button className="btn-danger" onClick={() => { handleToggleActive(deactivateTarget); setDeactivateTarget(null) }}>
+              {terminationDate > todayISO() ? 'Programar salida' : 'Dar de baja'}
+            </button>
           </div>
         </Modal>
       ) : (

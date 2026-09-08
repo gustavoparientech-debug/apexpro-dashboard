@@ -1678,7 +1678,7 @@ export default function Dashboard() {
             </div>
           ) : null
 
-          // Evolución mensual: ingresos, costos y utilidad — el avance real del negocio
+          // Evolución mensual de ingresos — el avance real del negocio
           if (sectionId === 'tendencia') return insights && insights.serie.some(m => m.ingresos > 0) ? (() => {
             // Solo el mes en curso lleva proyeccion: en uno pasado no queda
             // nada por cerrar. Los meses previos van a null para que la linea
@@ -1689,7 +1689,7 @@ export default function Dashboard() {
               <div className="flex items-start justify-between mb-1 gap-3">
                 <div>
                   <p className="text-sm font-bold text-gray-900 dark:text-white">Evolución del negocio</p>
-                  <p className="text-xs text-gray-400">Últimos 6 meses · ingresos, costos y utilidad</p>
+                  <p className="text-xs text-gray-400">Últimos 6 meses · ingresos por mes</p>
                 </div>
                 {insights.variacion !== null && (
                   <div className={`text-right shrink-0 px-2.5 py-1 rounded-lg ${
@@ -1712,10 +1712,13 @@ export default function Dashboard() {
                     <YAxis tick={{ fontSize: 11, fill: '#6b7280' }} tickFormatter={v => `S/${v >= 1000 ? (v/1000).toFixed(0)+'k' : v}`} axisLine={false} tickLine={false} width={52} />
                     <Tooltip contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.12)', fontSize: 12 }}
                       formatter={(v, n) => [formatMoney(v), n]} />
-                    <Legend wrapperStyle={{ fontSize: 11 }} iconType="circle" />
-                    <Bar dataKey="ingresos" name="Ingresos" fill="#ef4444" radius={[5,5,0,0]} maxBarSize={38} />
-                    <Bar dataKey="costos"   name="Costos"   fill="#d1d5db" radius={[5,5,0,0]} maxBarSize={38} />
-                    <Line dataKey="utilidad" name="Utilidad" stroke="#16a34a" strokeWidth={2.5} dot={{ r: 3.5, fill: '#16a34a' }} />
+                    {/* Solo ingresos: con costos y utilidad encima habia tres
+                        series de escalas distintas y no se leia ninguna. */}
+                    <Bar dataKey="ingresos" name="Ingresos" fill="#ef4444" radius={[5,5,0,0]} maxBarSize={38}>
+                      <LabelList dataKey="ingresos" position="top" offset={6}
+                        formatter={v => v >= 1000 ? `S/${(v/1000).toFixed(1)}k` : `S/${Math.round(v)}`}
+                        style={{ fontSize: 10, fontWeight: 700, fill: '#6b7280' }} />
+                    </Bar>
                   </ComposedChart>
                 </ResponsiveContainer>
               </div>

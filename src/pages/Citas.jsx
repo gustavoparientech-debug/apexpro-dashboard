@@ -205,8 +205,8 @@ function CitaSheet({ cita, onClose, onSave }) {
 }
 
 function shareWhatsApp(cita) {
-  const LABELS = { lavado_estandar:'Lavado Estándar', lavado_offroad:'Lavado Off-Road', lavado_detailing:'Detailing Completo', ceramico:'Recubrimiento Cerámico', ppf:'PPF', polarizado:'Polarizado', planchado:'Planchado y Pintura', otro:'Otro' }
-  const EMOJIS = { lavado_estandar:'🚿', lavado_offroad:'🚙', lavado_detailing:'✨', ceramico:'💎', ppf:'🛡️', polarizado:'🕶️', planchado:'🎨', otro:'🔧' }
+  const LABELS = { lavado_estandar:'Lavado Estándar', lavado_offroad:'Lavado Off-Road', lavado_detailing:'Detailing Completo', ceramico:'Recubrimiento Cerámico', pulidos:'Pulidos y Descontaminaciones', ppf:'PPF', polarizado:'Polarizado', planchado:'Planchado y Pintura', otro:'Otro' }
+  const EMOJIS = { lavado_estandar:'🚿', lavado_offroad:'🚙', lavado_detailing:'✨', ceramico:'💎', pulidos:'💠', ppf:'🛡️', polarizado:'🕶️', planchado:'🎨', otro:'🔧' }
   const svcLabel = cita.service === 'otro' && cita.serviceDesc ? cita.serviceDesc : (LABELS[cita.service] || 'Otro')
   const emoji = EMOJIS[cita.service] || '🔧'
 

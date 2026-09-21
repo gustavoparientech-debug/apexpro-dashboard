@@ -2971,6 +2971,11 @@ export default function Registro() {
 
   const dayTotal = useMemo(() => dayGross - expensesTodayTotal, [dayGross, expensesTodayTotal])
 
+  const openTicketsTotal = useMemo(
+    () => openTickets.reduce((s, t) => s + (t.price_charged || 0), 0),
+    [openTickets]
+  )
+
   // Caja por método de pago
   const cajaStats = useMemo(() => {
     const map = {}
@@ -3143,6 +3148,15 @@ export default function Registro() {
                   </p>
                 </div>
               </div>
+              {openTicketsTotal > 0 && (
+                <div className="flex items-center gap-1.5 mt-2">
+                  <span className="text-[10px] text-white/40 uppercase tracking-widest">Con tickets abiertos</span>
+                  <span className="text-sm font-bold text-sky-400">
+                    {hideTotal && canAdmin ? '•••' : formatMoney(dayGross + openTicketsTotal)}
+                  </span>
+                  <span className="text-[10px] text-white/30">({openTickets.length})</span>
+                </div>
+              )}
               {expensesTodayTotal > 0 && (
                 <div className="flex items-center gap-1 mt-2">
                   <span className="text-[10px] text-white/40 uppercase tracking-widest">Gastos descontados</span>

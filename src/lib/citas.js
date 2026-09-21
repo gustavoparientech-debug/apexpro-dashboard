@@ -12,10 +12,11 @@ export const SERVICIOS_CITA = [
   { id: 'lavado_offroad',   label: 'Lavado Off-Road',        emoji: '🚙', color: 'orange' },
   { id: 'lavado_detailing', label: 'Detailing Completo',     emoji: '✨', color: 'purple' },
   { id: 'ceramico',         label: 'Recubrimiento Cerámico', emoji: '💎', color: 'cyan' },
+  { id: 'pulidos',           label: 'Pulidos y Descont.',     emoji: '💠', color: 'green' },
   { id: 'ppf',              label: 'PPF',                    emoji: '🛡️', color: 'gray' },
   { id: 'polarizado',       label: 'Polarizado',             emoji: '🕶️', color: 'indigo' },
   { id: 'planchado',        label: 'Planchado y Pintura',    emoji: '🎨', color: 'red' },
-  { id: 'otro',             label: 'Otro',                   emoji: '🔧', color: 'green' },
+  { id: 'otro',             label: 'Otro',                   emoji: '🔧', color: 'gray' },
 ]
 
 // Categoría de Presupuesto → servicio de la cita.
@@ -25,6 +26,7 @@ const POR_CATEGORIA = {
   ppf:         'ppf',
   polarizados: 'polarizado',
   lavados:     'lavado_estandar',
+  pulidos:     'pulidos',
   servicios:   'otro',
 }
 

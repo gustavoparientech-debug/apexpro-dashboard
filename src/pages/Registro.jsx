@@ -2999,14 +2999,20 @@ export default function Registro() {
     const map = {}
     closedToday.forEach(t => {
       if (!t.worker_id) return
-      if (!map[t.worker_id]) map[t.worker_id] = { total: 0, extras: 0, byVehicle: {} }
+      if (!map[t.worker_id]) map[t.worker_id] = { total: 0, extras: 0, income: 0, byVehicle: {} }
       map[t.worker_id].total += 1
+      map[t.worker_id].income += (t.price_charged || 0)
       map[t.worker_id].extras += (t.extras?.length || 0)
       const vt = t.vehicle_type || 'otro'
       map[t.worker_id].byVehicle[vt] = (map[t.worker_id].byVehicle[vt] || 0) + 1
     })
     return Object.entries(map)
-      .map(([wid, s]) => ({ worker: workers.find(w => w.id === wid), ...s }))
+      .map(([wid, s]) => {
+        const w = workers.find(w => w.id === wid)
+        const goal = w?.daily_goal ? Number(w.daily_goal) : 0
+        const pct = goal > 0 ? Math.min(100, Math.round((s.income / goal) * 100)) : null
+        return { worker: w, ...s, goal, pct }
+      })
       .filter(r => r.worker)
       .sort((a, b) => b.total - a.total)
   }, [closedToday, workers])
@@ -3327,25 +3333,45 @@ export default function Registro() {
           <h2 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-2">
             Por colaborador
           </h2>
-          <div className="flex flex-wrap gap-2">
-            {workerDayStats.map(({ worker, total, extras, byVehicle }) => (
-              <div key={worker.id} className="flex items-center gap-2 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-xl px-3 py-2">
-                <div className="w-6 h-6 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center text-red-600 font-bold text-xs flex-none">
-                  {worker.name[0]}
+          <div className="space-y-2">
+            {workerDayStats.map(({ worker, total, extras, income, goal, pct, byVehicle }) => (
+              <div key={worker.id} className="bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-xl px-3 py-2.5">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center text-red-600 font-bold text-xs flex-none">
+                    {worker.name[0]}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-semibold text-gray-900 dark:text-white">{worker.name}</span>
+                      <span className="text-lg font-black text-gray-900 dark:text-white leading-none">{total}</span>
+                      <span className="text-xs text-gray-400 flex gap-1">
+                        {Object.entries(byVehicle).map(([vt, cnt]) => {
+                          const vObj = (vehicleTypes || []).find(v => v.value === vt)
+                          return <span key={vt}>{vObj?.emoji || '🚗'}×{cnt}</span>
+                        })}
+                      </span>
+                      {extras > 0 && (
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">
+                          +{extras}e
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-xs font-bold text-gray-700 dark:text-gray-300">{formatMoney(income)}</span>
+                      {pct !== null && (
+                        <>
+                          <div className="flex-1 h-1.5 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
+                            <div className={`h-full rounded-full transition-all ${pct >= 100 ? 'bg-emerald-500' : pct >= 60 ? 'bg-amber-500' : 'bg-red-400'}`}
+                              style={{ width: `${pct}%` }} />
+                          </div>
+                          <span className={`text-xs font-black ${pct >= 100 ? 'text-emerald-600' : pct >= 60 ? 'text-amber-600' : 'text-red-500'}`}>
+                            {pct}%
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  </div>
                 </div>
-                <span className="text-sm font-semibold text-gray-900 dark:text-white">{worker.name}</span>
-                <span className="text-lg font-black text-gray-900 dark:text-white leading-none">{total}</span>
-                <span className="text-xs text-gray-400 flex gap-1">
-                  {Object.entries(byVehicle).map(([vt, cnt]) => {
-                    const vObj = (vehicleTypes || []).find(v => v.value === vt)
-                    return <span key={vt}>{vObj?.emoji || '🚗'}×{cnt}</span>
-                  })}
-                </span>
-                {extras > 0 && (
-                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">
-                    +{extras}e
-                  </span>
-                )}
               </div>
             ))}
           </div>

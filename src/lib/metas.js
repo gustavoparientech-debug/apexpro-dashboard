@@ -389,17 +389,20 @@ export function costoTotal(e) {
 }
 
 // Qué fila de la tabla le corresponde a una meta: la de su mismo servicio, o
-// la del servicio del que toma el precio.
-export function claveCosto(item, claves) {
-  if (!claves) return null
-  if (claves.ids?.has(item.id)) return item.id
+// la del servicio del que toma el precio. Una meta que no sale de Presupuesto
+// tiene su propia fila (por su id) en "Otras metas del mes".
+export function claveCosto(item, claves, costos) {
+  if (claves?.ids?.has(item.id)) return item.id
   const ref = servicioVinculado(item)
-  if (!ref) return null
-  return claves.porPrecio?.[`${ref}|${item.variants?.[0] || ''}`] || claves.porPrecio?.[`${ref}|`] || null
+  const porServicio = ref
+    ? (claves?.porPrecio?.[`${ref}|${item.variants?.[0] || ''}`] || claves?.porPrecio?.[`${ref}|`] || null)
+    : null
+  if (porServicio) return porServicio
+  return costos && costos[item.id] ? item.id : null
 }
 
 export function conCostoTabla(item, { claves, costos } = {}) {
-  const clave = claveCosto(item, claves)
+  const clave = claveCosto(item, claves, costos)
   const costo = clave ? costoTotal(costos?.[clave]) : null
   if (costo == null) return item
   return { ...item, costo, margin: Math.max(0, (Number(item.price) || 0) - costo), costoTabla: clave }

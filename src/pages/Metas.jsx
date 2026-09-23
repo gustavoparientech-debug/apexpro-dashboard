@@ -11,8 +11,8 @@ import {
   computeEconomics, costoFijoMes,
   fetchMetasConfig, fetchMetasRows, rowsFromTickets, METAS_KEY,
 } from '../lib/metas'
-import { Target, RefreshCw, CalendarDays, Flame, TrendingUp, Wallet, Link as LinkIcon } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { Target, RefreshCw, CalendarDays, Flame, TrendingUp, Wallet, Settings2, BarChart3 } from 'lucide-react'
+import MetasConfig from '../components/modules/MetasConfig'
 
 // Semáforo contra el ritmo del mes, no contra el 100%: al día 5 nadie va al 80%.
 const ESTADO = {
@@ -138,6 +138,9 @@ export default function Metas() {
   const verDinero = isAdmin || isDemo
   const { month, year } = currentMonthYear()
   const prefix = monthPrefix(year, month)
+  // Configurar las metas es solo del admin; el resto del equipo ve el avance.
+  const [tab, setTab] = useState('avance')
+  const [mesConfig, setMesConfig] = useState(() => ({ month, year }))
   const today  = todayISO()
 
   const [config, setConfig]   = useState(null)
@@ -166,7 +169,7 @@ export default function Metas() {
     return () => { vivo = false }
   }, [prefix, tickets.length])
 
-  // El admin puede cambiar las metas desde Configuración mientras el trabajador
+  // El admin puede cambiar las metas desde la pestaña Configurar mientras el trabajador
   // tiene la página abierta.
   useEffect(() => {
     const ch = supabase
@@ -203,7 +206,7 @@ export default function Metas() {
   )
 
   // El plan en dinero: lo mismo que el plan mensual en Excel, con los precios y
-  // márgenes que el admin carga en Configuración.
+  // márgenes que el admin carga en la pestaña Configurar.
   const costoFijo = useMemo(
     () => costoFijoMes(monthlyCosts, workers),
     [monthlyCosts, workers]
@@ -238,16 +241,52 @@ export default function Metas() {
   const estadoGlobal = ESTADO[total.meta ? estadoMeta(total.pct, expectedPct) : 'sinmeta']
   const ritmoDia = total.faltan > 0 && diasRestantes > 0 ? total.faltan / diasRestantes : 0
 
+  const pestanas = verDinero && (
+    <div className="grid grid-cols-2 gap-1 p-1 rounded-2xl bg-gray-100 dark:bg-gray-800">
+      {[
+        { id: 'avance',     label: 'Avance',     icon: BarChart3 },
+        { id: 'configurar', label: 'Configurar', icon: Settings2 },
+      ].map(t => (
+        <button key={t.id} onClick={() => setTab(t.id)}
+          className={`flex items-center justify-center gap-1.5 py-2 rounded-xl text-sm font-bold transition-all ${
+            tab === t.id
+              ? 'bg-white dark:bg-gray-900 text-red-600 dark:text-red-400 shadow-sm'
+              : 'text-gray-500 dark:text-gray-400'
+          }`}>
+          <t.icon className="w-4 h-4" /> {t.label}
+        </button>
+      ))}
+    </div>
+  )
+
+  if (verDinero && tab === 'configurar') {
+    return (
+      <div className="space-y-4 max-w-2xl mx-auto pb-4">
+        {pestanas}
+        <MetasConfig
+          year={mesConfig.year} month={mesConfig.month}
+          costoFijo={costoFijo}
+          onChangeMonth={(y, m) => setMesConfig({ year: y, month: m })}
+          sinEnlace
+        />
+      </div>
+    )
+  }
+
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="w-8 h-8 border-4 border-red-600 border-t-transparent rounded-full animate-spin" />
+      <div className="space-y-4 max-w-2xl mx-auto pb-4">
+        {pestanas}
+        <div className="flex items-center justify-center h-64">
+          <div className="w-8 h-8 border-4 border-red-600 border-t-transparent rounded-full animate-spin" />
+        </div>
       </div>
     )
   }
 
   return (
     <div className="space-y-4 max-w-2xl mx-auto pb-4">
+      {pestanas}
 
       {/* Resumen del mes */}
       <div className="rounded-2xl bg-[#1e1e1e] p-5 shadow-xl">
@@ -332,9 +371,9 @@ export default function Metas() {
           <div className="flex items-center gap-2 px-3.5 py-2.5 bg-gray-50 dark:bg-gray-800/50 border-b border-gray-100 dark:border-gray-800">
             <Wallet className="w-4 h-4 text-gray-400" />
             <p className="text-xs font-bold uppercase tracking-widest text-gray-500 flex-1">Cuánto genera el plan</p>
-            <Link to="/configuracion" className="flex items-center gap-1 text-[11px] font-semibold text-red-600 dark:text-red-400 hover:underline">
-              Editar <LinkIcon className="w-3 h-3" />
-            </Link>
+            <button onClick={() => setTab('configurar')} className="flex items-center gap-1 text-[11px] font-semibold text-red-600 dark:text-red-400 hover:underline">
+              Editar <Settings2 className="w-3 h-3" />
+            </button>
           </div>
 
           <div className="p-3.5 space-y-3">

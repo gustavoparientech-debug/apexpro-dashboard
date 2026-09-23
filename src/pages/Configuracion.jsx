@@ -47,7 +47,6 @@ function VariantEditor({ extra, onSave }) {
 import { useApp } from '../context/AppContext'
 import { supabase } from '../lib/supabase'
 import { formatMoney, calcRealSalary, salarioDelMes, currentMonthYear, getWorkingDaysInMonth, monthName } from '../lib/utils'
-import MetasConfig from '../components/modules/MetasConfig'
 import { CATEGORIAS, CATEGORIA_DEFAULT, catInfo, porCategoria } from '../lib/servicios'
 import Modal from '../components/ui/Modal'
 import ConfirmDialog from '../components/ui/ConfirmDialog'
@@ -646,9 +645,6 @@ export default function Configuracion() {
           {savingCosts ? 'Guardando...' : 'Guardar costos'}
         </button>
       </div>
-
-      {/* Metas de servicios del mes (lo que ven los trabajadores) */}
-      <MetasConfig year={selYear} month={selMonth} costoFijo={fixedTotal + payrollTotal + casualTotal} />
 
       {/* Metas + Reparto unificado */}
       <div className="card">

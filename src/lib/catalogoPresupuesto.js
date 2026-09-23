@@ -331,15 +331,21 @@ export function opcionesMetas({ meta, precios, config } = {}, vehicleTypes = [])
     }),
   })
 
-  // Lavados: el ticket los registra con los servicios del catálogo propio.
+  // Lavados: el ticket los registra con los servicios del catálogo propio, y
+  // el precio es el del ticket (el primer tamaño, o el precio fijo).
   grupos.push({
-    id: 'catalogo', label: 'Lavados (catálogo del ticket)', emoji: '🚿',
+    id: 'catalogo', label: 'Lavados (precio del ticket)', emoji: '🚿',
     opciones: (vehicleTypes || [])
       .filter(v => v.active !== false && v.origen !== 'presupuesto')
       .map(v => opcion({
         id: `svc_${v.value}`, label: v.label, emoji: v.emoji || '🚗',
         group: v.category === 'lavados' ? 'lavados' : 'detailing',
         source: 'vehiculo', vehicles: [v.value],
+        precio: {
+          value: v.value, label: v.label, emoji: v.emoji || '🚗',
+          variants: v.variants?.length ? v.variants : null,
+          default_price: v.default_price,
+        },
       })),
   })
 

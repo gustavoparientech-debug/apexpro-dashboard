@@ -1,14 +1,14 @@
 // ─── Multa automática por tardanzas ──────────────────────────────────────────
-// Desde septiembre 2026, en cada mes las dos primeras tardanzas no tienen
-// multa; desde la tercera, cada tardanza genera una multa de S/ 10 (aparte
-// del descuento por minutos que ya lleva la tardanza). Las multas que el admin
-// cargó a mano por tardanzas cuentan como hechas y no se duplican.
+// Desde septiembre 2026, cada 3 tardanzas del mes generan una multa de S/ 10
+// (en la 3ª, la 6ª, la 9ª…), aparte del descuento por minutos que ya lleva
+// cada tardanza. Las multas que el admin cargó a mano por tardanzas cuentan
+// como hechas y no se duplican.
 
 import { supabase } from './supabase'
 import { normalize } from './metas'
 
 export const MULTA_TARDANZA      = 10
-export const TARDANZAS_SIN_MULTA = 2
+export const TARDANZAS_POR_MULTA = 3
 export const INICIO_MULTAS       = '2026-09'
 export const MARCA_MULTA         = 'Multa automática por tardanza'
 
@@ -22,11 +22,16 @@ function fechaCorta(iso) {
   return `${d}/${m}`
 }
 
-function descripcion(t, n) {
+function detalleTardanza(t) {
   const llego = (t.observation || '').match(/lleg[oó] (\d{1,2}:\d{2})/)?.[1]
-  const min   = Math.round((Number(t.hours_late) || 0) * 60)
-  const detalle = [fechaCorta(t.date), llego && `llegó ${llego}`, min > 0 && `${min} min tarde`].filter(Boolean).join(', ')
-  return `${MARCA_MULTA} — ${n}ª tardanza del mes (${detalle}). S/ ${MULTA_TARDANZA} por cada tardanza desde la ${TARDANZAS_SIN_MULTA + 1}ª.`
+  return llego ? `${fechaCorta(t.date)} llegó ${llego}` : fechaCorta(t.date)
+}
+
+// Las tres tardanzas que forman la multa, para saber de qué es.
+function descripcion(grupo, n) {
+  const desde = n - TARDANZAS_POR_MULTA + 1
+  return `${MARCA_MULTA} — tardanzas ${desde}ª a ${n}ª del mes (${grupo.map(detalleTardanza).join(' · ')}). ` +
+    `S/ ${MULTA_TARDANZA} por cada ${TARDANZAS_POR_MULTA} tardanzas.`
 }
 
 // Qué multas crear y cuáles borrar para un trabajador en un mes. Recibe sus
@@ -38,7 +43,10 @@ export function planMultas(incidencias) {
     .sort((a, b) => (a.date + (a.created_at || '')).localeCompare(b.date + (b.created_at || '')))
     .forEach(t => { if (!porFecha.has(t.date)) porFecha.set(t.date, t) })
   const tardanzas = [...porFecha.values()]
-  const conMulta  = tardanzas.slice(TARDANZAS_SIN_MULTA).map((t, k) => ({ t, n: TARDANZAS_SIN_MULTA + k + 1 }))
+  // La multa va en el día de la 3ª, 6ª, 9ª… tardanza del mes.
+  const conMulta = tardanzas
+    .map((t, k) => ({ t, n: k + 1, grupo: tardanzas.slice(k + 1 - TARDANZAS_POR_MULTA, k + 1) }))
+    .filter(x => x.n % TARDANZAS_POR_MULTA === 0)
 
   const multas    = incidencias.filter(i => i.type === 'multa')
   const autos     = multas.filter(esAuto)
@@ -61,7 +69,7 @@ export function planMultas(incidencias) {
   }
 
   const faltan = conMulta.filter(q => !cubiertas.has(q.t.date))
-  const texto  = new Map(faltan.map(q => [q.t.date, descripcion(q.t, q.n)]))
+  const texto  = new Map(faltan.map(q => [q.t.date, descripcion(q.grupo, q.n)]))
   const quedan = new Set()
   const borrar = []
   // Si se borró una tardanza anterior, la multa que queda cambia de número.

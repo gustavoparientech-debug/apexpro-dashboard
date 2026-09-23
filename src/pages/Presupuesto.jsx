@@ -550,6 +550,30 @@ export default function Presupuesto() {
     else toast.success('Precio actualizado ✓')
   }
 
+  // Cerámico, pulidos y PPF: Auto es la guía. Al cambiar su precio, SUV y
+  // Pickup suben o bajan lo mismo y conservan su diferencia con Auto
+  // (4900 / 5900 / 6900 → 5000 / 6000 / 7000). Cada tamaño se puede seguir
+  // editando por separado.
+  async function saveCatPriceConGuia(s, vehicleKey, newPrice) {
+    const esGuia = vehicleKey === 'auto' && ['ceramico', 'ppf'].includes(catDeServicio(s))
+    if (!esGuia) return saveCatPriceOverride(s.id, vehicleKey, newPrice)
+    const delta = newPrice - getEffectivePrice(s, 'auto')
+    const precios = { auto: newPrice }
+    for (const k of ['suv', 'pickup']) {
+      const actual = Number(getEffectivePrice(s, k)) || 0
+      if (actual > 0) precios[k] = Math.max(0, Math.round((actual + delta) * 100) / 100)
+    }
+    const prev = catPriceOverrides[s.id]
+    const next = { ...catPriceOverrides, [s.id]: { ...(typeof prev === 'object' ? prev : {}), ...precios } }
+    setCatPriceOverrides(next)
+    const { error } = await supabase.from('app_settings').upsert(
+      { key: 'cat_prices', value: next, updated_at: new Date().toISOString() },
+      { onConflict: 'key' }
+    )
+    if (error) toast.error(`Error al guardar: ${error.message}`)
+    else toast.success(delta ? `Precio actualizado ✓ · SUV y Pickup ${delta > 0 ? '+' : ''}${delta}` : 'Precio actualizado ✓')
+  }
+
   async function saveCatMeta(next) {
     setCatMeta(next)
     const { error } = await supabase.from('app_settings').upsert(
@@ -2221,7 +2245,7 @@ export default function Presupuesto() {
                           <div className="flex-shrink-0 flex flex-col items-end gap-0.5" onClick={e => e.stopPropagation()}>
                             <p className="text-sm font-bold text-red-600 dark:text-red-400">{formatMoney(price)}</p>
                             {canAdmin && (
-                              <EditableCell value={price} onSave={v => saveCatPriceOverride(s.id, vKey, v)} />
+                              <EditableCell value={price} onSave={v => saveCatPriceConGuia(s, vKey, v)} />
                             )}
                           </div>
                         </button>

@@ -367,3 +367,6 @@ create policy loyalty_redemptions_auth on public.loyalty_redemptions
 --     El precio ya quedaba congelado en price_charged; con el nombre, cambiar o
 --     dar de baja un servicio en Presupuesto tampoco toca los tickets que ya
 --     existen: siguen mostrando lo que se vendió ese día.
+
+-- Servicio terminado, esperando que el cliente recoja y pague (el ticket sigue abierto).
+alter table tickets add column if not exists finished_at timestamptz;

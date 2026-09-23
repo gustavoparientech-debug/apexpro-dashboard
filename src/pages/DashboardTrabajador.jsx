@@ -373,7 +373,8 @@ export default function DashboardTrabajador() {
           <div className="flex items-center gap-3">
             {/* Avatar con opción de subir foto */}
             <label className="relative cursor-pointer flex-shrink-0 group">
-              <input type="file" accept="image/*" capture="environment" className="hidden" onClick={e => { e.target.value = '' }} onChange={handlePhotoUpload} disabled={uploadingPhoto} />
+              {/* Sin `capture`: el teléfono ofrece elegir entre cámara y galería. */}
+              <input type="file" accept="image/*" className="hidden" onClick={e => { e.target.value = '' }} onChange={handlePhotoUpload} disabled={uploadingPhoto} />
               {(localAvatar || profile?.avatar_url) ? (
                 <div className="relative w-14 h-14">
                   {!avatarLoaded && (

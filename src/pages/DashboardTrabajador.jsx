@@ -244,12 +244,15 @@ export default function DashboardTrabajador() {
     setUploadingPhoto(true)
     try {
       const blob = await compressImage(file, 200, 0.25)
-      const path = `avatars/${profile.id}.jpg`
-      const { error: upErr } = await supabase.storage.from('payment-photos').upload(path, blob, { upsert: true, contentType: 'image/jpeg' })
+      // Nombre nuevo en cada cambio: el almacenamiento solo permite subir
+      // archivos, no reemplazarlos, y así el teléfono no muestra la foto vieja.
+      const path = `avatars/${profile.id}-${Date.now()}.jpg`
+      const { error: upErr } = await supabase.storage.from('payment-photos').upload(path, blob, { contentType: 'image/jpeg' })
       if (upErr) throw upErr
       const { data } = supabase.storage.from('payment-photos').getPublicUrl(path)
       const remoteUrl = data.publicUrl
-      await supabase.from('profiles').update({ avatar_url: remoteUrl }).eq('id', profile.id)
+      const { error: perfErr } = await supabase.from('profiles').update({ avatar_url: remoteUrl }).eq('id', profile.id)
+      if (perfErr) throw perfErr
       await refreshProfile()
       setLocalAvatar(null)
       URL.revokeObjectURL(preview)
@@ -342,7 +345,6 @@ export default function DashboardTrabajador() {
 
   const hora   = new Date().getHours()
   const saludoDefault = hora < 12 ? 'Buenos días 👋' : hora < 19 ? 'Buenas tardes 👋' : 'Buenas noches 🌙'
-  const saludo = profile?.greeting || saludoDefault
   const nombre = profile?.display_name?.split(' ')[0] || worker?.name || 'equipo'
 
   async function saveGreeting() {
@@ -366,36 +368,7 @@ export default function DashboardTrabajador() {
 
       {/* Saludo + fecha prominente */}
       <div className="card bg-[#1e1e1e] dark:bg-[#1e1e1e] border-0">
-        {editingGreeting ? (
-          <div className="flex items-center gap-2 mb-2">
-            <input
-              className="flex-1 bg-gray-800 text-white text-sm rounded-lg px-3 py-2 border border-gray-600 focus:outline-none focus:border-red-500"
-              value={greetingDraft}
-              onChange={e => setGreetingDraft(e.target.value)}
-              placeholder="Ej: ¡A romperla hoy! 💪"
-              maxLength={60}
-              autoFocus
-              onKeyDown={e => { if (e.key === 'Enter') saveGreeting(); if (e.key === 'Escape') setEditingGreeting(false) }}
-            />
-            <button onClick={saveGreeting} disabled={savingGreeting} className="p-2 bg-red-600 hover:bg-red-700 rounded-lg text-white">
-              <Check className="w-4 h-4" />
-            </button>
-            <button onClick={() => setEditingGreeting(false)} className="p-2 text-gray-400 hover:text-white">
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-        ) : (
-          <div className="flex items-center gap-2 mb-1">
-            <p className="text-gray-400 text-sm">{saludo}</p>
-            <button
-              onClick={() => { setGreetingDraft(profile?.greeting || ''); setEditingGreeting(true) }}
-              className="p-1 text-gray-600 hover:text-gray-400 transition-colors"
-              title="Editar mensaje"
-            >
-              <Pencil className="w-3 h-3" />
-            </button>
-          </div>
-        )}
+        <p className="text-gray-400 text-sm mb-2">{saludoDefault}</p>
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-3">
             {/* Avatar con opción de subir foto */}
@@ -443,6 +416,44 @@ export default function DashboardTrabajador() {
           </span>
           <span className="text-gray-300 text-sm font-medium">{fechaHoy}</span>
         </div>
+
+        {/* La frase del trabajador, grande: es lo primero que ve al abrir la app */}
+        {editingGreeting ? (
+          <div className="mt-4 flex items-center gap-2">
+            <input
+              className="flex-1 bg-gray-800 text-white text-base font-semibold rounded-xl px-3 py-2.5 border border-gray-600 focus:outline-none focus:border-red-500"
+              value={greetingDraft}
+              onChange={e => setGreetingDraft(e.target.value)}
+              placeholder="Ej: ¡A romperla hoy! 💪"
+              maxLength={80}
+              autoFocus
+              onKeyDown={e => { if (e.key === 'Enter') saveGreeting(); if (e.key === 'Escape') setEditingGreeting(false) }}
+            />
+            <button onClick={saveGreeting} disabled={savingGreeting} className="p-2.5 bg-red-600 hover:bg-red-700 rounded-xl text-white">
+              <Check className="w-4 h-4" />
+            </button>
+            <button onClick={() => setEditingGreeting(false)} className="p-2.5 text-gray-400 hover:text-white">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        ) : profile?.greeting ? (
+          <button
+            onClick={() => { setGreetingDraft(profile.greeting); setEditingGreeting(true) }}
+            className="relative mt-4 w-full text-left rounded-2xl px-5 pt-5 pb-4 bg-gradient-to-br from-red-600 via-red-500 to-orange-500 shadow-lg shadow-red-900/30 active:scale-[0.99] transition-transform overflow-hidden"
+            title="Editar mi frase">
+            <span className="absolute -top-3 left-2 text-7xl leading-none font-serif text-white/25 select-none">“</span>
+            <p className="relative text-white text-xl font-black leading-snug tracking-tight break-words pr-6">
+              {profile.greeting}
+            </p>
+            <Pencil className="absolute top-3 right-3 w-3.5 h-3.5 text-white/60" />
+          </button>
+        ) : (
+          <button
+            onClick={() => { setGreetingDraft(''); setEditingGreeting(true) }}
+            className="mt-4 w-full py-3 rounded-2xl border-2 border-dashed border-white/20 text-white/70 text-sm font-semibold hover:bg-white/5 transition-colors">
+            ✍️ Escribe tu frase del día
+          </button>
+        )}
       </div>
 
       {/* Aviso si no está vinculado a trabajador */}

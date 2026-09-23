@@ -40,6 +40,9 @@ function useElapsedMs(openedAt) {
   const [ms, setMs] = useState(() => openedAt ? Date.now() - new Date(openedAt).getTime() : 0)
   useEffect(() => {
     if (!openedAt) return
+    // Al cambiar el punto de partida (p. ej. al marcar terminado) se recalcula
+    // ya, sin esperar al siguiente segundo.
+    setMs(Date.now() - new Date(openedAt).getTime())
     const id = setInterval(() => setMs(Date.now() - new Date(openedAt).getTime()), 1000)
     return () => clearInterval(id)
   }, [openedAt])
@@ -68,8 +71,16 @@ function shortStamp(value) {
     : d.toLocaleDateString('es-PE', { day: '2-digit', month: 'short' })
 }
 
-function TimerBadge({ openedAt }) {
-  const ms = useElapsedMs(openedAt)
+function TimerBadge({ openedAt, finishedAt }) {
+  const ms = useElapsedMs(finishedAt || openedAt)
+  // Terminado: el reloj del servicio se detiene y se muestra cuánto lleva
+  // esperando al cliente.
+  if (finishedAt) return (
+    <span className="flex items-center justify-end gap-1 text-xs font-mono font-bold text-emerald-600 dark:text-emerald-400">
+      <CheckCircle className="w-3 h-3" />
+      espera {formatElapsed(ms)}
+    </span>
+  )
   return (
     <span className="flex items-center gap-1 text-xs font-mono font-bold text-amber-600 dark:text-amber-400">
       <Clock className="w-3 h-3" />
@@ -1072,6 +1083,13 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
     } finally { setCobrandoBono(false) }
   }
 
+  // Terminado sin cobrar: se guarda la hora y el ticket queda abierto.
+  async function marcarTerminado(si) {
+    await onUpdate(ticket.id, { finished_at: si ? new Date().toISOString() : null })
+    toast.success(si ? 'Servicio terminado · queda por cobrar' : 'Ticket de vuelta en proceso')
+    if (si) onClose()
+  }
+
   async function handleClose() {
     if (isMixto && !mixtoOk) {
       toast.error(`La suma debe ser ${formatMoney(total)} (falta ${formatMoney(total - mixtoSum)})`)
@@ -1087,6 +1105,8 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
       payment_method: effectivePayment,
       // Un ticket reabierto conserva su primer cierre.
       closed_at:      ticket.closed_at || new Date().toISOString(),
+      // Si no se marcó antes como terminado, termina al cobrarse.
+      finished_at:    ticket.finished_at || new Date().toISOString(),
       ...(paymentPhoto && { payment_photo: paymentPhoto }),
       ...(isMixto && { mixto_yape: parseFloat(mixtoYape) || 0, mixto_efectivo: parseFloat(mixtoEfectivo) || 0 }),
     })
@@ -1665,6 +1685,22 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
           <span className="text-sm text-gray-500">Total a cobrar</span>
           <span className="text-2xl font-black text-red-600">{formatMoney(total)}</span>
         </div>
+        {/* Terminado pero sin pagar: el ticket sigue abierto hasta cobrarse. */}
+        {ticket.finished_at ? (
+          <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800">
+            <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">
+              🏁 Servicio terminado a las {new Date(ticket.finished_at).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' })} · esperando pago
+            </span>
+            <button onClick={() => marcarTerminado(false)} className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-300 underline whitespace-nowrap">
+              Volver a en proceso
+            </button>
+          </div>
+        ) : (
+          <button onClick={() => marcarTerminado(true)}
+            className="w-full py-2.5 rounded-2xl border-2 border-emerald-500 text-emerald-700 dark:text-emerald-300 font-bold text-sm flex items-center justify-center gap-2 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 active:scale-95 transition-all">
+            🏁 Servicio terminado — falta pago
+          </button>
+        )}
         <div className="flex gap-2">
           <button onClick={handleSave} disabled={saving}
             className="flex-1 py-3 rounded-2xl border-2 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 font-bold text-sm flex items-center justify-center gap-2 hover:bg-gray-50 dark:hover:bg-gray-800 active:scale-95 transition-all disabled:opacity-50">
@@ -1843,8 +1879,9 @@ function LoyaltyPanel({ plate, card, config, onCobrar, onDeshacer, onAjustar, co
   )
 }
 
-function ActiveTicketCard({ ticket, workers, vehicleTypes, onClick, onToggleHide, expenses = [], advances = [],
+function ActiveTicketCard({ ticket, workers, vehicleTypes, onClick, onToggleHide, onToggleTerminado, expenses = [], advances = [],
                             loyaltyCard, loyaltyConfig }) {
+  const terminado = !!ticket.finished_at
   const worker  = workers.find(w => w.id === ticket.worker_id)
   const vehicle = (vehicleTypes || []).find(v => v.value === ticket.vehicle_type)
   const extras  = ticket.extras || []
@@ -1861,7 +1898,7 @@ function ActiveTicketCard({ ticket, workers, vehicleTypes, onClick, onToggleHide
   const tieneMovimientos = gastos.length > 0 || adelantado > 0
 
   return (
-    <div className={`card flex items-start gap-3 border-l-4 ${ticket.hidden_from_workers ? 'border-l-gray-400 opacity-60' : 'border-l-amber-400'}`}>
+    <div className={`card flex items-start gap-3 border-l-4 ${ticket.hidden_from_workers ? 'border-l-gray-400 opacity-60' : terminado ? 'border-l-emerald-500' : 'border-l-amber-400'}`}>
       <button onClick={onClick} className="flex items-start gap-3 flex-1 text-left min-w-0">
         {ticket.photo_url ? (
           <img src={thumbUrl(ticket.photo_url)} alt="placa" className="w-14 h-14 object-cover rounded-xl flex-none" loading="lazy" />
@@ -1871,13 +1908,19 @@ function ActiveTicketCard({ ticket, workers, vehicleTypes, onClick, onToggleHide
           </div>
         )}
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-0.5">
+          <div className="flex items-center gap-x-2 gap-y-1 flex-wrap mb-0.5">
             <span className="font-mono font-black text-gray-900 dark:text-white">
               {ticket.plate || 'Sin placa'}
             </span>
-            <span className="text-xs bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 px-1.5 py-0.5 rounded-full font-medium">
-              Abierto
-            </span>
+            {terminado ? (
+              <span className="text-xs bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 px-1.5 py-0.5 rounded-full font-medium whitespace-nowrap">
+                ✓ Por cobrar
+              </span>
+            ) : (
+              <span className="text-xs bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 px-1.5 py-0.5 rounded-full font-medium">
+                Abierto
+              </span>
+            )}
             {ticket.hidden_from_workers && (
               <span className="text-xs bg-gray-100 dark:bg-gray-800 text-gray-500 px-1.5 py-0.5 rounded-full">Oculto</span>
             )}
@@ -1921,10 +1964,17 @@ function ActiveTicketCard({ ticket, workers, vehicleTypes, onClick, onToggleHide
           )}
         </div>
         <div className="text-right flex-none">
-          <TimerBadge openedAt={ticket.opened_at} />
+          <TimerBadge openedAt={ticket.opened_at} finishedAt={ticket.finished_at} />
           <p className="text-sm font-bold text-red-600 mt-0.5">{formatMoney(total)}</p>
         </div>
       </button>
+      {onToggleTerminado && (
+        <button onClick={() => onToggleTerminado(ticket)}
+          title={terminado ? 'Volver a en proceso' : 'Servicio terminado (falta pago)'}
+          className={`p-1.5 rounded-lg mt-1 flex-none transition-colors ${terminado ? 'bg-emerald-50 dark:bg-emerald-900/20' : 'hover:bg-gray-100 dark:hover:bg-gray-800'}`}>
+          <CheckCircle className={`w-4 h-4 ${terminado ? 'text-emerald-500' : 'text-gray-400'}`} />
+        </button>
+      )}
       {onToggleHide && (
         <button onClick={() => onToggleHide(ticket)}
           title={ticket.hidden_from_workers ? 'Mostrar a trabajadores' : 'Ocultar a trabajadores'}
@@ -1949,7 +1999,9 @@ function descripcionGasto(exp) {
 // ─── Duración de servicio ─────────────────────────────────────────────────────
 function serviceDuration(ticket) {
   const start = ticket.opened_at ? new Date(ticket.opened_at) : null
-  const end   = ticket.closed_at ? new Date(ticket.closed_at) : null
+  // El servicio termina cuando se marcó listo, no cuando el cliente pagó.
+  const fin   = ticket.finished_at || ticket.closed_at
+  const end   = fin ? new Date(fin) : null
   if (!start || !end || end <= start) return null
   const totalSecs = Math.round((end - start) / 1000)
   if (totalSecs < 5) return null
@@ -3059,6 +3111,15 @@ export default function Registro() {
     catch { toast.error('Error al eliminar') }
   }
 
+  // Servicio listo pero sin cobrar: el ticket sigue abierto.
+  async function handleToggleTerminado(ticket) {
+    const si = !ticket.finished_at
+    try {
+      await updateTicket(ticket.id, { finished_at: si ? new Date().toISOString() : null })
+      toast.success(si ? 'Servicio terminado · queda por cobrar' : 'Ticket de vuelta en proceso')
+    } catch { toast.error('Error al actualizar') }
+  }
+
   async function handleToggleHideTicket(ticket) {
     const newVal = !ticket.hidden_from_workers
     try {
@@ -3081,7 +3142,7 @@ export default function Registro() {
     try {
       // La hora de cierre original no se toca: si el servicio se vuelve a
       // cerrar, la duración sigue siendo la del trabajo real.
-      await updateTicket(ticket.id, { status: 'abierto', price_charged: base })
+      await updateTicket(ticket.id, { status: 'abierto', price_charged: base, finished_at: null })
       toast.success('Servicio abierto de nuevo')
       setActiveTicket(ticket.id)
     } catch { toast.error('No se pudo abrir el servicio') }
@@ -3427,7 +3488,8 @@ export default function Registro() {
               <ActiveTicketCard key={t.id} ticket={t} workers={workers} vehicleTypes={vehicleTypes} expenses={expenses} advances={advances}
                 loyaltyCard={cardOf(t)} loyaltyConfig={fidelidadConfig}
                 onClick={() => setActiveTicket(t.id)}
-                onToggleHide={canAdmin ? handleToggleHideTicket : null} />
+                onToggleHide={canAdmin ? handleToggleHideTicket : null}
+                onToggleTerminado={handleToggleTerminado} />
             ))}
           </div>
         </div>
@@ -3455,7 +3517,8 @@ export default function Registro() {
               <ActiveTicketCard key={t.id} ticket={t} workers={workers} vehicleTypes={vehicleTypes} expenses={expenses} advances={advances}
                 loyaltyCard={cardOf(t)} loyaltyConfig={fidelidadConfig}
                 onClick={() => setActiveTicket(t.id)}
-                onToggleHide={canAdmin ? handleToggleHideTicket : null} />
+                onToggleHide={canAdmin ? handleToggleHideTicket : null}
+                onToggleTerminado={handleToggleTerminado} />
             ))}
           </div>
         )}

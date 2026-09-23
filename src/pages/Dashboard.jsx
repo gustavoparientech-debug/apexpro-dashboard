@@ -287,7 +287,7 @@ function AfluenciaPanel() {
     const desde = new Date()
     desde.setDate(desde.getDate() - dias)
     supabase.from('tickets')
-      .select('date, opened_at, closed_at, created_at, price_charged, status, service_cat')
+      .select('date, opened_at, closed_at, finished_at, created_at, price_charged, status, service_cat')
       .gte('date', desde.toISOString().slice(0, 10))
       .then(({ data }) => { if (vivo) { setRows(data || []); setCargando(false) } })
     return () => { vivo = false }
@@ -406,7 +406,9 @@ function AfluenciaPanel() {
       const abierto = t.status !== 'cerrado'
       if (!t.closed_at && !abierto) { sumar(t.date, TOPE_HORAS_TICKET / 2); continue }
       const ini = new Date(t.opened_at)
-      const fin = t.closed_at ? new Date(t.closed_at) : new Date()
+      // Un auto listo esperando al cliente ya no ocupa a nadie.
+      const finTrabajo = t.finished_at || t.closed_at
+      const fin = finTrabajo ? new Date(finTrabajo) : new Date()
       const horas = (fin - ini) / 3600000
       if (!(horas > 0)) continue
 
@@ -1309,9 +1311,11 @@ export default function Dashboard() {
     const AVG_TIME_START = '2026-06-23'
     const avgTimeByType = {}
     periodTickets.forEach(t => {
-      if (!t.opened_at || !t.closed_at || t.is_manual) return
+      // El servicio dura hasta que se marcó terminado, no hasta que se cobró.
+      const finServicio = t.finished_at || t.closed_at
+      if (!t.opened_at || !finServicio || t.is_manual) return
       if (t.date < AVG_TIME_START) return
-      const mins = Math.round((new Date(t.closed_at) - new Date(t.opened_at)) / 60000)
+      const mins = Math.round((new Date(finServicio) - new Date(t.opened_at)) / 60000)
       if (mins < 1 || mins > 1440 * 7) return
       const extrasLabel = (t.extras?.length > 0)
         ? t.extras.map(e => e.name || e.label || e).sort().join(', ')

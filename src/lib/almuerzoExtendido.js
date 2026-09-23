@@ -1,14 +1,14 @@
 // ─── Descuento automático por almuerzo extendido ─────────────────────────────
 // Desde septiembre 2026 el almuerzo es de 1 hora. Si entre "Inicio almuerzo" y
-// "Fin almuerzo" pasa más de una hora (con 5 min de tolerancia por los
-// segundos de la marcación), se descuenta todo el tiempo de más, igual que una
-// tardanza. Se guarda como permiso por horas con su descripción.
+// "Fin almuerzo" pasa más de una hora, se descuenta todo el tiempo de más,
+// igual que una tardanza, sin tolerancia (se cuentan minutos completos: 60 min
+// y 40 s no descuenta). Se guarda como permiso por horas con su descripción.
 
 import { supabase } from './supabase'
 import { calcLatenessDiscount } from './utils'
 
 export const ALMUERZO_MIN       = 60
-export const ALMUERZO_TOLERANCIA = 5
+export const ALMUERZO_TOLERANCIA = 0
 export const INICIO_ALMUERZOS   = '2026-09'
 // Sin la palabra "automática": el recálculo de la salida borra los permisos
 // por horas automáticos del día y no debe llevarse este descuento.

@@ -23,7 +23,7 @@ function nuevoId() {
   return 'meta_' + Date.now().toString(36)
 }
 
-export default function MetasConfig({ year, month, costoFijo = 0, onChangeMonth }) {
+export default function MetasConfig({ year, month, costoFijo = 0, onChangeMonth, sinEnlace = false }) {
   const { serviciosTicket: vehicleTypes, tickets, isDemo } = useApp()
   const prefix = monthPrefix(year, month)
 
@@ -62,7 +62,7 @@ export default function MetasConfig({ year, month, costoFijo = 0, onChangeMonth 
     return () => { vivo = false }
   }, [aplicarConfig])
 
-  // Metas guardadas desde Configuración, Presupuesto u otro dispositivo se
+  // Metas guardadas desde la página Metas, Presupuesto u otro dispositivo se
   // reflejan acá sin recargar, salvo que haya cambios sin guardar.
   useEffect(() => {
     if (isDemo) return
@@ -214,12 +214,14 @@ export default function MetasConfig({ year, month, costoFijo = 0, onChangeMonth 
             Metas de servicios — {monthName(month)} {year}
           </p>
           <p className="text-xs text-gray-400 mt-0.5">
-            Los trabajadores ven estos números y su avance en la página <strong>Metas</strong>.
+            Los trabajadores ven estos números y su avance en la pestaña <strong>Avance</strong> de Metas.
           </p>
         </div>
-        <Link to="/metas" className="flex items-center gap-1.5 text-xs font-semibold text-red-600 dark:text-red-400 hover:underline">
-          Ver página <ExternalLink className="w-3.5 h-3.5" />
-        </Link>
+        {!sinEnlace && (
+          <Link to="/metas" className="flex items-center gap-1.5 text-xs font-semibold text-red-600 dark:text-red-400 hover:underline">
+            Ver página <ExternalLink className="w-3.5 h-3.5" />
+          </Link>
+        )}
       </div>
 
       {onChangeMonth && (

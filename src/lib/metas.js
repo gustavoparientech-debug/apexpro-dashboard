@@ -43,7 +43,7 @@ export const DEFAULT_ITEMS = [
 // ─── Economía de cada meta ───────────────────────────────────────────────────
 // Precio de lista, margen (lo que queda después del material y la mano de obra
 // del servicio) y días de bahía que ocupa una unidad. Son los mismos números del
-// plan mensual; el admin los edita en Configuración → Metas.
+// plan mensual; el admin los edita en Metas → Configurar.
 export const DEFAULT_ECON = {
   lavado_auto:     { price: 30,   margin: 22,    bayDays: 0.05 },
   lavado_exterior: { price: 20,   margin: 12,    bayDays: 0.03 },

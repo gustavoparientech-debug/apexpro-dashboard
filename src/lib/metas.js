@@ -115,25 +115,46 @@ export function matchCount(item, row) {
   return sub && kws.some(k => sub.includes(k)) ? 1 : 0
 }
 
-// Los números de un mes se heredan del último mes configurado: al empezar
-// septiembre las metas siguen siendo las de agosto hasta que el admin las edite.
-function inherited(map, prefix) {
-  if (!map) return {}
-  if (map[prefix]) return map[prefix]
-  const previo = Object.keys(map).filter(k => k < prefix).sort().pop()
-  return previo ? map[previo] : {}
+function ultimaClave(map, prefix) {
+  return Object.keys(map || {}).filter(k => k <= prefix).sort().pop() || null
+}
+
+// De dónde sale la configuración de un mes. Cada mes guarda su propia lista
+// (`months`); uno sin guardar parte de una copia del último mes configurado,
+// y editarlo no toca a los demás. Lo guardado antes de separar por mes (una
+// lista global + números en `goals`) se sigue leyendo para los meses viejos.
+export function origenMes(config, prefix) {
+  const mes    = ultimaClave(config?.months, prefix)
+  const legado = ultimaClave(config?.goals, prefix)
+  if (mes && (!legado || mes >= legado)) {
+    return { tipo: mes === prefix ? 'propio' : 'heredado', desde: mes, ...config.months[mes] }
+  }
+  if (legado) {
+    return {
+      tipo: legado === prefix ? 'propio' : 'heredado', desde: legado,
+      items: config?.items, goals: config.goals[legado], bays: config?.bays,
+    }
+  }
+  return { tipo: 'referencia', desde: null, items: config?.items, bays: config?.bays }
+}
+
+export function baysDelMes(config, prefix) {
+  return Number(origenMes(config, prefix).bays ?? config?.bays ?? DEFAULT_BAYS)
 }
 
 // Config guardada + mes → lista de metas con su número y su ajuste manual.
-export function resolveItems(config, prefix) {
-  const items  = config?.items?.length ? config.items : DEFAULT_ITEMS
-  const goals  = inherited(config?.goals, prefix)
+// Con `servicios` (el catálogo vigente) el precio se toma en vivo de Presupuesto.
+export function resolveItems(config, prefix, servicios = null) {
+  const origen = origenMes(config, prefix)
+  const items  = origen.items?.length ? origen.items : DEFAULT_ITEMS
+  const goals  = origen.goals || {}
+  // El ajuste manual es de ese mes y nunca se hereda.
   const manual = config?.manual?.[prefix] || {}
   return items.map(it => {
     // Las configuraciones guardadas antes de tener precios no traen estos campos:
     // se completan con la economía de referencia del servicio.
     const ref = DEFAULT_ECON[it.id] || {}
-    return {
+    const item = {
       ...it,
       goal:    Number(goals[it.id] ?? it.goal ?? 0),
       manual:  Number(manual[it.id] ?? 0),
@@ -143,7 +164,50 @@ export function resolveItems(config, prefix) {
       margin:  Number(it.margin  ?? ref.margin  ?? 0),
       bayDays: Number(it.bayDays ?? ref.bayDays ?? 0),
     }
+    return servicios ? conPrecioCatalogo(item, servicios) : item
   })
+}
+
+// ─── Precio conectado al catálogo / Presupuesto ──────────────────────────────
+// Metas de referencia que ya tienen su servicio en Presupuesto.
+const DEFAULT_PRECIO_DE = {
+  abrillantado:  'pre_abrillantado',
+  desc_mecanica: 'pre_desc_mecanica',
+  cer_carpro_3:  'pre_cer_carpro_3a',
+  cer_miyavi_1:  'pre_cer_miyavi_1a',
+  ppf_zonas:     'pre_ppf_zonas',
+  ppf_zonas_cer: 'pre_ppf_ceramico',
+  ppf_full:      'pre_ppf_full',
+}
+
+// `precioDe` vacío ('') significa precio escrito a mano.
+export function servicioVinculado(item) {
+  if (item.precioDe !== undefined) return item.precioDe || null
+  if (DEFAULT_PRECIO_DE[item.id]) return DEFAULT_PRECIO_DE[item.id]
+  if (item.source === 'vehiculo' && item.vehicles?.length === 1) return item.vehicles[0]
+  return null
+}
+
+// Precio vigente del servicio vinculado. El costo (material + mano de obra) se
+// mantiene, así que si Presupuesto sube el precio el margen sube igual.
+export function conPrecioCatalogo(item, servicios) {
+  const ref = servicioVinculado(item)
+  const s = ref ? (servicios || []).find(x => x.value === ref) : null
+  if (!s) return { ...item, vinculo: null }
+  const vars = s.variants || []
+  const variante = (item.variants?.length && vars.find(v => item.variants.includes(v.label))) || vars[0]
+  const vivo = Number(variante?.price ?? s.default_price) || 0
+  if (vivo <= 0) return { ...item, vinculo: null }
+  const costo = item.costo != null
+    ? Number(item.costo)
+    : (item.margin > 0 ? item.price - item.margin : null)
+  return {
+    ...item,
+    price: vivo,
+    costo,
+    margin: costo == null ? 0 : Math.max(0, vivo - costo),
+    vinculo: { label: s.label, emoji: s.emoji, variante: variante?.label || null, origen: s.origen || 'catalogo' },
+  }
 }
 
 // Avance de cada meta: lo que sale de los tickets + el ajuste manual.

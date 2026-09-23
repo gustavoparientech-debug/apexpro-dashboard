@@ -3089,9 +3089,10 @@ export default function Registro() {
         const pctConPendiente = goal > 0 ? Math.min(100, Math.round(((s.income + s.pendiente) / goal) * 100)) : null
         return { worker: w, ...s, goal, pct, pctConPendiente }
       })
-      .filter(r => r.worker)
+      // El avance de los administradores (el dueño) no se muestra al equipo.
+      .filter(r => r.worker && (canAdmin || r.worker.role !== 'admin'))
       .sort((a, b) => (b.total - a.total) || (b.pendiente - a.pendiente))
-  }, [closedToday, openTickets, workers])
+  }, [closedToday, openTickets, workers, canAdmin])
 
   async function handleSaveTicket(data) {
     try {

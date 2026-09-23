@@ -12,6 +12,7 @@ import { Plus, Edit2, UserX, UserCheck, AlertCircle, Clock, Calendar, Download, 
 import toast from 'react-hot-toast'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 import { reconciliarMultas } from '../lib/multasTardanza'
+import { reconciliarAlmuerzos } from '../lib/almuerzoExtendido'
 
 const INCIDENT_ICONS = { falta: '🔴', permiso: '🟡', permiso_horas: '🟡', tardanza: '🟠', hora_extra: '🟢', no_marcacion: '🔵', multa: '🚫', adelanto: '💵' }
 const INCIDENT_LABELS = { vacaciones: 'Vacaciones', falta: 'Falta injustificada', permiso: 'Permiso justificado', permiso_horas: 'Permiso por horas', tardanza: 'Tardanza', hora_extra: 'Hora extra', no_marcacion: 'No marcó entrada/salida', multa: 'Multa', adelanto: 'Adelanto de sueldo' }
@@ -541,11 +542,14 @@ export default function Trabajadores() {
   useEffect(() => {
     let vivo = true
     const prefix = `${selYear}-${String(selMonth).padStart(2, '0')}`
-    reconciliarMultas({ prefix })
-      .then(({ creadas, borradas }) => {
+    // Multas por tardanzas y descuentos por almuerzo de más de 1 hora.
+    Promise.all([reconciliarMultas({ prefix }), reconciliarAlmuerzos({ prefix, workers })])
+      .then(([multas, almuerzos]) => {
         if (!vivo) return
-        const cambio = creadas || borradas
+        const creadas = multas.creadas
+        const cambio = multas.creadas || multas.borradas || almuerzos.creadas || almuerzos.borradas
         if (creadas) toast(`${creadas} multa${creadas === 1 ? '' : 's'} por tardanza registrada${creadas === 1 ? '' : 's'}`, { icon: '🚫' })
+        if (almuerzos.creadas) toast(`${almuerzos.creadas} descuento${almuerzos.creadas === 1 ? '' : 's'} por almuerzo de más de 1 hora`, { icon: '⏱️' })
         if (!cambio && mesLeido.current === prefix) return
         mesLeido.current = prefix
         if (isCurrentMonth) recargarIncidencias(prefix)

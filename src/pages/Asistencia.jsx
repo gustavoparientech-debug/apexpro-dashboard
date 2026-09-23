@@ -11,6 +11,7 @@ import {
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { reconciliarMultas, MULTA_TARDANZA } from '../lib/multasTardanza'
+import { reconciliarAlmuerzos } from '../lib/almuerzoExtendido'
 
 // ── Geovalla ──────────────────────────────────────────────────────────────────
 const WORKPLACE_LAT  = -16.3550567
@@ -346,6 +347,14 @@ export default function Asistencia() {
     } catch { /* si falla, se pone al día al abrir Equipo */ }
   }
 
+  // Almuerzo de más de 1 hora: se descuenta el tiempo de más (desde sep 2026).
+  async function revisarAlmuerzo(workerId, dateStr) {
+    try {
+      const { creadas } = await reconciliarAlmuerzos({ prefix: dateStr.slice(0, 7), workerId, workers })
+      if (creadas) toast('Almuerzo de más de 1 hora: se descontó el tiempo extra', { icon: '⏱️' })
+    } catch { /* si falla, se pone al día al abrir Equipo */ }
+  }
+
   async function autoCreateOvertime(hoursExtra, dateStr, workerId) {
     const worker = workers.find(w => w.id === workerId)
     const pay = worker ? calcOvertimePay(worker.base_salary, worker.weekly_hours, hoursExtra) : 0
@@ -466,6 +475,8 @@ export default function Asistencia() {
         }
       }
 
+      if (pendingType === 'almuerzo_fin' || pendingType === 'almuerzo_inicio') await revisarAlmuerzo(selectedWorkerId, today)
+
       toast.success(`${TYPE_LABEL[pendingType]} registrada`)
       closeCamera(); await loadLogs()
     } catch (err) { toast.error('Error: ' + err.message) }
@@ -480,6 +491,7 @@ export default function Asistencia() {
     base.setHours(h, m, s || 0, 0)
     const { error } = await supabase.from('attendance_logs').update({ logged_at: base.toISOString() }).eq('id', editingLog.id)
     if (error) { toast.error(error.message); return }
+    if (editingLog.type === 'almuerzo_inicio' || editingLog.type === 'almuerzo_fin') await revisarAlmuerzo(editingLog.worker_id, adminDate)
     toast.success('Hora actualizada')
     setEditingLog(null); loadAdminLogs(); loadLogs()
 
@@ -548,6 +560,7 @@ export default function Asistencia() {
   }
   async function deleteAdminLog(id) {
     await supabase.from('attendance_logs').delete().eq('id', id)
+    if (adminWorker && adminDate) await revisarAlmuerzo(adminWorker, adminDate)
     toast.success('Registro eliminado')
     loadAdminLogs()
     loadLogs()
@@ -746,6 +759,7 @@ export default function Asistencia() {
               dt.setHours(h, m, s || 0, 0)
               await supabase.from('attendance_logs').insert({ worker_id: adminWorker, type: addingEntry.type, date: adminDate, logged_at: dt.toISOString() })
               await recalcIncidents(adminWorker, adminDate, addingEntry.type, dt)
+              if (addingEntry.type === 'almuerzo_inicio' || addingEntry.type === 'almuerzo_fin') await revisarAlmuerzo(adminWorker, adminDate)
               toast.success(`${TYPE_LABEL[addingEntry.type]} añadida`)
               setAddingEntry(null); loadAdminLogs(); loadLogs()
             }

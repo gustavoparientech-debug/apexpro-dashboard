@@ -9,22 +9,117 @@ import {
 } from '../../lib/metas'
 import { monthName, todayISO, formatMoney, getWorkingDaysInMonth } from '../../lib/utils'
 import { CATEGORIAS, porCategoria } from '../../lib/servicios'
-import { Plus, Save, Trash2, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, SlidersHorizontal, ExternalLink, RotateCcw, Calculator, Link2 } from 'lucide-react'
+import { Plus, Save, Trash2, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, SlidersHorizontal, ExternalLink, RotateCcw, Calculator, Link2, X, Check, Search } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 const FUENTES = [
   { value: 'vehiculo',  label: 'Por servicio del catálogo', hint: 'Cuenta los tickets del mes cuyo servicio sea uno de los marcados. Es el conteo directo: no depende de cómo se escriba nada.' },
   { value: 'categoria', label: 'Por categoría del catálogo', hint: 'Cuenta todos los tickets de esa categoría. Solo aplica a los tickets abiertos con el catálogo nuevo — los anteriores no tienen categoría guardada.' },
   { value: 'palabras',  label: 'Por palabras del adicional', hint: 'Cuenta los adicionales del ticket que contengan alguna de estas palabras. Sin tildes ni mayúsculas.' },
+  { value: 'presupuesto', label: 'Por servicio de Presupuesto', hint: 'Cuenta los tickets que tienen este servicio de Presupuesto, ya sea elegido como servicio del ticket o pasado como adicional desde una cotización.' },
+  { value: 'panos',     label: 'Por paños de planchado', hint: 'Cuenta cada paño pintado o planchado: los del planchado abierto en Registro y los que llegan desde una cotización. La meta es en paños.' },
   { value: 'manual',    label: 'Solo manual', hint: 'No se cuenta solo: el avance se escribe a mano en la columna “Manual”.' },
 ]
+
+// Ventana para elegir qué servicios de Presupuesto se vuelven metas.
+function SelectorServicios({ grupos, presentes, onAgregar, onClose }) {
+  const [elegidos, setElegidos] = useState(() => new Set())
+  const [busca, setBusca] = useState('')
+  const q = busca.trim().toLowerCase()
+
+  function alternar(id) {
+    setElegidos(prev => {
+      const n = new Set(prev)
+      if (n.has(id)) n.delete(id); else n.add(id)
+      return n
+    })
+  }
+
+  const visibles = grupos
+    .map(g => ({ ...g, opciones: g.opciones.filter(o => !q || o.label.toLowerCase().includes(q)) }))
+    .filter(g => g.opciones.length)
+
+  function agregar() {
+    const todas = grupos.flatMap(g => g.opciones)
+    onAgregar(todas.filter(o => elegidos.has(o.id)))
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50" onClick={onClose}>
+      <div className="w-full max-w-lg bg-white dark:bg-gray-900 rounded-t-3xl sm:rounded-2xl flex flex-col max-h-[85vh]"
+        onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-4 pt-4 pb-2">
+          <div>
+            <p className="font-bold text-gray-900 dark:text-white">Traer servicios de Presupuesto</p>
+            <p className="text-xs text-gray-400">Marca los que quieres como meta de este mes</p>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded-full text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+        <div className="px-4 pb-2">
+          <div className="flex items-center gap-2 bg-gray-100 dark:bg-gray-800 rounded-xl px-3 py-2">
+            <Search className="w-4 h-4 text-gray-400" />
+            <input value={busca} onChange={e => setBusca(e.target.value)} placeholder="Buscar servicio…"
+              className="flex-1 bg-transparent text-sm outline-none text-gray-800 dark:text-gray-100" />
+          </div>
+        </div>
+        <div className="flex-1 overflow-y-auto px-4 pb-3 space-y-3">
+          {visibles.map(g => (
+            <div key={g.id}>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1.5">{g.emoji} {g.label}</p>
+              <div className="space-y-1">
+                {g.opciones.map(o => {
+                  const ya  = presentes.has(o.id)
+                  const sel = elegidos.has(o.id)
+                  const pv  = o.precio?.variants?.find(v => !o.variants?.length || o.variants.includes(v.label)) || o.precio?.variants?.[0]
+                  const precio = Number(pv?.price ?? o.precio?.default_price) || 0
+                  return (
+                    <button key={o.id} disabled={ya} onClick={() => alternar(o.id)}
+                      className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl border text-left transition-colors ${
+                        ya ? 'opacity-50 border-gray-100 dark:border-gray-800'
+                          : sel ? 'border-red-500 bg-red-50 dark:bg-red-900/20'
+                          : 'border-gray-200 dark:border-gray-700 hover:border-gray-300'
+                      }`}>
+                      <span className={`w-5 h-5 rounded-md border flex items-center justify-center flex-none ${
+                        sel ? 'bg-red-600 border-red-600' : 'border-gray-300 dark:border-gray-600'
+                      }`}>
+                        {sel && <Check className="w-3.5 h-3.5 text-white" />}
+                      </span>
+                      <span className="text-base">{o.emoji}</span>
+                      <span className="flex-1 min-w-0 text-sm font-medium text-gray-800 dark:text-gray-100 truncate">{o.label}</span>
+                      <span className="text-xs text-gray-400 whitespace-nowrap">
+                        {ya ? 'Ya está' : precio > 0 ? `${formatMoney(precio)}${o.source === 'panos' ? '/paño' : ''}` : ''}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          ))}
+          {!visibles.length && <p className="text-xs text-gray-400 text-center py-6">No hay servicios con ese nombre</p>}
+        </div>
+        <div className="px-4 pb-5 pt-2 border-t border-gray-100 dark:border-gray-800">
+          <button onClick={agregar} disabled={!elegidos.size}
+            className="btn-primary w-full py-3 rounded-xl font-bold disabled:opacity-50">
+            {elegidos.size ? `Agregar ${elegidos.size} servicio${elegidos.size === 1 ? '' : 's'}` : 'Elige al menos un servicio'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 function nuevoId() {
   return 'meta_' + Date.now().toString(36)
 }
 
 export default function MetasConfig({ year, month, costoFijo = 0, onChangeMonth, sinEnlace = false }) {
-  const { serviciosTicket: vehicleTypes, tickets, isDemo } = useApp()
+  const { serviciosTicket: vehicleTypes, tickets, isDemo, metasCatalogo } = useApp()
+  // Precios vigentes de Presupuesto y del catálogo, buscados por servicio.
+  const catalogo = metasCatalogo?.catalogo || vehicleTypes
+  const gruposPresupuesto = metasCatalogo?.grupos || []
+  const [selector, setSelector] = useState(false)
   const prefix = monthPrefix(year, month)
 
   const [config, setConfig]   = useState(null)
@@ -79,8 +174,8 @@ export default function MetasConfig({ year, month, costoFijo = 0, onChangeMonth,
 
   // Precio vigente de Presupuesto / catálogo: cambia solo cuando allá se edita.
   const vivos = useMemo(
-    () => items.map(i => conPrecioCatalogo(i, vehicleTypes)),
-    [items, vehicleTypes]
+    () => items.map(i => conPrecioCatalogo(i, catalogo)),
+    [items, catalogo]
   )
   const progreso = useMemo(() => computeProgress(vivos, rows, todayISO()), [vivos, rows])
   const origen = useMemo(() => origenMes(config, prefix), [config, prefix])
@@ -120,26 +215,24 @@ export default function MetasConfig({ year, month, costoFijo = 0, onChangeMonth,
     if (m > 12) { m = 1; y += 1 }
     onChangeMonth(y, m)
   }
-  // Metas directas desde el catálogo: una por servicio, contadas por el servicio
-  // del ticket y no por palabras. Es la conexión entre el catálogo y las metas.
-  function agregarDelCatalogo() {
-    const yaEstan = new Set(items.flatMap(i => i.vehicles || []))
-    const nuevos = (vehicleTypes || [])
-      .filter(v => v.active !== false && !yaEstan.has(v.value))
-      .map(v => ({
-        id: `svc_${v.value}`,
-        emoji: v.emoji || '🎯',
-        label: v.label,
-        goal: 0, manual: 0,
-        group: (v.category === 'lavados' ? 'lavados' : 'detailing'),
-        source: 'vehiculo',
-        vehicles: [v.value], keywords: [], categories: [], variants: [],
-        price: Number(v.default_price) || Number(v.variants?.[0]?.price) || 0,
-        margin: 0, bayDays: 0,
-      }))
-    if (!nuevos.length) { toast('Todos los servicios del catálogo ya tienen meta', { icon: '👌' }); return }
+  // Solo los servicios que el admin marca: cada uno sabe cómo contarse en los
+  // tickets y de qué servicio de Presupuesto toma el precio.
+  const presentes = useMemo(() => {
+    const ids = new Set(items.map(i => i.id))
+    if (items.some(i => i.source === 'panos')) ids.add('pres_pano')
+    return ids
+  }, [items])
+
+  function agregarElegidos(opciones) {
+    const nuevos = opciones.map(o => ({
+      id: o.id, emoji: o.emoji || '🎯', label: o.label,
+      goal: 0, manual: 0, group: o.group || 'detailing', source: o.source,
+      vehicles: o.vehicles || [], variants: o.variants || [], keywords: o.keywords || [], categories: [],
+      precioDe: o.precioDe, price: 0, margin: 0, bayDays: 0,
+    }))
     editar(list => [...list, ...nuevos])
-    toast(`${nuevos.length} servicio${nuevos.length === 1 ? '' : 's'} del catálogo — pon las metas y guarda`, { icon: '📋' })
+    setSelector(false)
+    toast(`${nuevos.length} servicio${nuevos.length === 1 ? '' : 's'} agregado${nuevos.length === 1 ? '' : 's'} — pon las metas y guarda`, { icon: '📋' })
   }
 
   function restaurar() {
@@ -205,6 +298,17 @@ export default function MetasConfig({ year, month, costoFijo = 0, onChangeMonth,
     ? econ.pct
     : (totalMeta > 0 ? Math.round((totalHecho / totalMeta) * 100) : 0)
   const activos    = (vehicleTypes || []).filter(v => v.active !== false)
+  // Servicios de los que una meta puede tomar el precio, sin repetir.
+  const opcionesPrecio = gruposPresupuesto.map(g => {
+    const vistos = new Set()
+    const opciones = []
+    for (const o of g.opciones) {
+      if (!o.precioDe || vistos.has(o.precioDe)) continue
+      vistos.add(o.precioDe)
+      opciones.push({ value: o.precioDe, label: o.precio?.label || o.label })
+    }
+    return { id: g.id, label: g.label, emoji: g.emoji, opciones }
+  }).filter(g => g.opciones.length)
 
   return (
     <div className="card">
@@ -378,10 +482,12 @@ export default function MetasConfig({ year, month, costoFijo = 0, onChangeMonth,
                     {item.goal > 0 && (Number(v.price) || Number(v.margin))
                       ? <>Genera <strong className="text-gray-600 dark:text-gray-300">{formatMoney((Number(item.goal) || 0) * (Number(v.price) || 0))}</strong>
                           {' '}· margen {formatMoney((Number(item.goal) || 0) * (Number(v.margin) || 0))}</>
-                      : 'Sin precio cargado — no suma al plan'}
+                      : Number(v.price) > 0
+                        ? 'Pon una meta para que sume al plan'
+                        : 'Sin precio cargado — no suma al plan'}
                     {v.vinculo && (
                       <span className="inline-flex items-center gap-1 ml-1.5 text-sky-600 dark:text-sky-400" title="El precio se actualiza solo cuando cambia en Presupuesto o el catálogo">
-                        <Link2 className="w-3 h-3" /> {formatMoney(v.price)} de {v.vinculo.label}{v.vinculo.variante ? ` · ${v.vinculo.variante}` : ''}
+                        <Link2 className="w-3 h-3" /> {formatMoney(v.price)}{item.source === 'panos' ? '/paño' : ''} de {v.vinculo.label}{v.vinculo.variante ? ` · ${v.vinculo.variante}` : ''}
                       </span>
                     )}
                   </p>
@@ -443,15 +549,16 @@ export default function MetasConfig({ year, month, costoFijo = 0, onChangeMonth,
                             else update(item.id, { precioDe: val })
                           }}>
                           <option value="">Escrito a mano</option>
-                          {porCategoria(activos).map(grupo => (
-                            <optgroup key={grupo.value} label={`${grupo.emoji} ${grupo.label}`}>
-                              {grupo.servicios.map(s => (
-                                <option key={s.id || s.value} value={s.value}>
-                                  {s.label}{s.origen === 'presupuesto' ? ' (Presupuesto)' : ''}
-                                </option>
+                          {opcionesPrecio.map(grupo => (
+                            <optgroup key={grupo.id} label={`${grupo.emoji} ${grupo.label}`}>
+                              {grupo.opciones.map(o => (
+                                <option key={o.value} value={o.value}>{o.label}</option>
                               ))}
                             </optgroup>
                           ))}
+                          {servicioVinculado(item) && !opcionesPrecio.some(g => g.opciones.some(o => o.value === servicioVinculado(item))) && (
+                            <option value={servicioVinculado(item)}>{v.vinculo?.label || 'Servicio anterior'}</option>
+                          )}
                         </select>
                         {servicioVinculado(item) && !v.vinculo && (
                           <p className="text-[11px] text-amber-600 mt-1">Ese servicio ya no está en el catálogo — se usa el último precio guardado.</p>
@@ -550,9 +657,11 @@ export default function MetasConfig({ year, month, costoFijo = 0, onChangeMonth,
                         </div>
                       )}
 
-                      {item.source === 'palabras' && (
+                      {(item.source === 'palabras' || item.source === 'presupuesto') && (
                         <div>
-                          <label className="label text-xs">Palabras clave (separadas por coma)</label>
+                          <label className="label text-xs">
+                            {item.source === 'presupuesto' ? 'Nombre con el que llega como adicional' : 'Palabras clave (separadas por coma)'}
+                          </label>
                           <input className="input text-sm py-1.5"
                             value={(item.keywords || []).join(', ')}
                             placeholder="ej: carpro 2, car pro 2"
@@ -572,9 +681,9 @@ export default function MetasConfig({ year, month, costoFijo = 0, onChangeMonth,
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3">
-            <button onClick={agregarDelCatalogo}
+            <button onClick={() => setSelector(true)}
               className="flex items-center justify-center gap-2 py-2.5 rounded-xl border-2 border-dashed border-red-200 dark:border-red-800 text-sm font-semibold text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
-              <Plus className="w-4 h-4" /> Traer servicios del catálogo
+              <Plus className="w-4 h-4" /> Traer servicios de Presupuesto
             </button>
             <button onClick={agregar}
               className="flex items-center justify-center gap-2 py-2.5 rounded-xl border-2 border-dashed border-gray-200 dark:border-gray-700 text-sm text-gray-400 hover:text-gray-600 hover:border-gray-400 dark:hover:border-gray-500 transition-colors">
@@ -601,6 +710,11 @@ export default function MetasConfig({ year, month, costoFijo = 0, onChangeMonth,
             </button>
           </div>
         </>
+      )}
+
+      {selector && (
+        <SelectorServicios grupos={gruposPresupuesto} presentes={presentes}
+          onAgregar={agregarElegidos} onClose={() => setSelector(false)} />
       )}
     </div>
   )

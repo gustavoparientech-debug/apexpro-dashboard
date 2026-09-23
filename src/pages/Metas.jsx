@@ -133,7 +133,7 @@ function GrupoCard({ grupo, items, expectedPct, diasRestantes, verDinero }) {
 }
 
 export default function Metas() {
-  const { tickets, isDemo, workers, monthlyCosts, serviciosTicket } = useApp()
+  const { tickets, isDemo, workers, monthlyCosts, metasCatalogo } = useApp()
   const { isAdmin } = useAuth()
   const verDinero = isAdmin || isDemo
   const { month, year } = currentMonthYear()
@@ -201,8 +201,8 @@ export default function Metas() {
   const expectedPct   = diasTotal > 0 ? Math.round((diasElapsed / diasTotal) * 100) : 0
 
   const progreso = useMemo(
-    () => computeProgress(resolveItems(config, prefix, serviciosTicket), rows || [], today),
-    [config, rows, prefix, today, serviciosTicket]
+    () => computeProgress(resolveItems(config, prefix, metasCatalogo?.catalogo), rows || [], today),
+    [config, rows, prefix, today, metasCatalogo]
   )
 
   // El plan en dinero: lo mismo que el plan mensual en Excel, con los precios y

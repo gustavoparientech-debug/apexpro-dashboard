@@ -5,7 +5,7 @@ import { supabase } from '../../lib/supabase'
 import {
   GRUPOS, DEFAULT_ITEMS, DEFAULT_BAYS, METAS_KEY, monthPrefix, resolveItems, computeProgress,
   computeEconomics, fetchMetasConfig, saveMetasConfig, fetchMetasRows, rowsFromTickets,
-  origenMes, baysDelMes, conPrecioCatalogo, servicioVinculado,
+  origenMes, baysDelMes, conPrecioCatalogo, conCostoTabla, servicioVinculado,
 } from '../../lib/metas'
 import { monthName, todayISO, formatMoney, getWorkingDaysInMonth } from '../../lib/utils'
 import { CATEGORIAS, porCategoria } from '../../lib/servicios'
@@ -174,8 +174,8 @@ export default function MetasConfig({ year, month, costoFijo = 0, onChangeMonth,
 
   // Precio vigente de Presupuesto / catálogo: cambia solo cuando allá se edita.
   const vivos = useMemo(
-    () => items.map(i => conPrecioCatalogo(i, catalogo)),
-    [items, catalogo]
+    () => items.map(i => conCostoTabla(conPrecioCatalogo(i, catalogo), metasCatalogo || {})),
+    [items, catalogo, metasCatalogo]
   )
   const progreso = useMemo(() => computeProgress(vivos, rows, todayISO()), [vivos, rows])
   const origen = useMemo(() => origenMes(config, prefix), [config, prefix])
@@ -578,8 +578,11 @@ export default function MetasConfig({ year, month, costoFijo = 0, onChangeMonth,
                         </div>
                         <div>
                           <label className="label text-xs">Margen unitario</label>
-                          <input type="number" min="0" step="1" className="input text-sm py-1.5"
+                          <input type="number" min="0" step="1"
+                            className={`input text-sm py-1.5 ${v.costoTabla ? 'opacity-70 cursor-not-allowed' : ''}`}
                             value={v.margin ?? 0}
+                            readOnly={!!v.costoTabla}
+                            title={v.costoTabla ? 'Sale de la pestaña Márgenes: se cambia allá' : undefined}
                             onChange={e => {
                               const m = e.target.value === '' ? 0 : Number(e.target.value)
                               // Con precio conectado se guarda el costo, así el
@@ -597,6 +600,7 @@ export default function MetasConfig({ year, month, costoFijo = 0, onChangeMonth,
                       <p className="text-[11px] text-gray-400 leading-snug">
                         El <strong>margen</strong> es lo que queda del precio después del material y la mano de obra.
                         Los <strong>días de bahía</strong> dicen cuánto ocupa el taller una unidad (0.05 = un rato; 3 = tres días).
+                        {v.costoTabla && <> El margen de este servicio sale de la pestaña <strong>Márgenes</strong> (costo {formatMoney(v.costo)}).</>}
                       </p>
 
                       {item.source === 'vehiculo' && (

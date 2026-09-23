@@ -354,7 +354,26 @@ export function opcionesMetas({ meta, precios, config } = {}, vehicleTypes = [])
   for (const v of vehicleTypes || []) {
     if (!vistos.has(v.value)) { vistos.add(v.value); catalogo.push(v) }
   }
-  return { grupos, catalogo }
+  // Para encontrar la fila de costos de una meta por el servicio del que toma
+  // el precio (y la cobertura, en polarizados).
+  const ids = new Set()
+  const porPrecio = {}
+  for (const g of grupos) {
+    for (const o of g.opciones) {
+      ids.add(o.id)
+      const k = `${o.precioDe}|${o.source === 'presupuesto' && o.variants?.[0] ? o.variants[0] : ''}`
+      if (!porPrecio[k]) porPrecio[k] = o.id
+    }
+  }
+  return { grupos, catalogo, claves: { ids, porPrecio } }
+}
+
+// Precio por unidad que muestra una opción: su cobertura en polarizados, el
+// tamaño Auto (o el primero) en el resto.
+export function precioBase(o) {
+  const vars = o.precio?.variants || []
+  const v = vars.find(x => o.variants?.length && o.variants.includes(x.label)) || vars[0]
+  return Number(v?.price ?? o.precio?.default_price ?? o.default_price) || 0
 }
 
 // Niveles de planchado por paño, igual que en Presupuesto: el planchado se

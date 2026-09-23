@@ -11,8 +11,9 @@ import {
   computeEconomics, costoFijoMes,
   fetchMetasConfig, fetchMetasRows, rowsFromTickets, METAS_KEY,
 } from '../lib/metas'
-import { Target, RefreshCw, CalendarDays, Flame, TrendingUp, Wallet, Settings2, BarChart3 } from 'lucide-react'
+import { Target, RefreshCw, CalendarDays, Flame, TrendingUp, Wallet, Settings2, BarChart3, Calculator } from 'lucide-react'
 import MetasConfig from '../components/modules/MetasConfig'
+import MargenesServicios from '../components/modules/MargenesServicios'
 
 // Semáforo contra el ritmo del mes, no contra el 100%: al día 5 nadie va al 80%.
 const ESTADO = {
@@ -217,7 +218,7 @@ export default function Metas() {
   const expectedPct   = diasTotal > 0 ? Math.round((diasElapsed / diasTotal) * 100) : 0
 
   const progreso = useMemo(
-    () => computeProgress(resolveItems(config, prefix, metasCatalogo?.catalogo), rows || [], today),
+    () => computeProgress(resolveItems(config, prefix, metasCatalogo), rows || [], today),
     [config, rows, prefix, today, metasCatalogo]
   )
 
@@ -259,10 +260,11 @@ export default function Metas() {
   const ritmoDia = total.faltan > 0 && diasRestantes > 0 ? total.faltan / diasRestantes : 0
 
   const pestanas = verDinero && (
-    <div className="grid grid-cols-2 gap-1 p-1 rounded-2xl bg-gray-100 dark:bg-gray-800">
+    <div className="grid grid-cols-3 gap-1 p-1 rounded-2xl bg-gray-100 dark:bg-gray-800">
       {[
         { id: 'avance',     label: 'Avance',     icon: BarChart3 },
         { id: 'configurar', label: 'Configurar', icon: Settings2 },
+        { id: 'margenes',   label: 'Márgenes',   icon: Calculator },
       ].map(t => (
         <button key={t.id} onClick={() => setTab(t.id)}
           className={`flex items-center justify-center gap-1.5 py-2 rounded-xl text-sm font-bold transition-all ${
@@ -275,6 +277,15 @@ export default function Metas() {
       ))}
     </div>
   )
+
+  if (verDinero && tab === 'margenes') {
+    return (
+      <div className="space-y-4 max-w-2xl mx-auto pb-4">
+        {pestanas}
+        <MargenesServicios />
+      </div>
+    )
+  }
 
   if (verDinero && tab === 'configurar') {
     return (

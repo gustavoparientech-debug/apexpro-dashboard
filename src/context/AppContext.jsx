@@ -1,6 +1,7 @@
 import { createContext, useContext, useReducer, useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 import { fetchCatalogoOverrides, serviciosDePresupuesto, opcionesMetas } from '../lib/catalogoPresupuesto'
+import { fetchCostos, COSTOS_KEY } from '../lib/metas'
 import {
   DEMO_WORKERS, DEMO_SERVICES, DEMO_TICKETS, DEMO_INCIDENTS, DEMO_MONTHLY_COSTS
 } from '../lib/demoData'
@@ -1147,8 +1148,15 @@ export function AppProvider({ children }) {
     } catch { /* si falla, el ticket sigue con lo que ya tenía */ }
   }, [])
 
+  // Costo por unidad de cada servicio (pestaña Márgenes de Metas).
+  const [costosServicios, setCostosServicios] = useState({})
+  const reloadCostos = useCallback(async () => {
+    setCostosServicios(await fetchCostos())
+  }, [])
+
   useEffect(() => {
     reloadPresupuestoServices()
+    reloadCostos()
     if (IS_DEMO) return
     // Lo que el admin cambia en Presupuesto tiene que verse al toque al abrir
     // un ticket, aunque sea desde otro dispositivo.
@@ -1157,22 +1165,25 @@ export function AppProvider({ children }) {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'app_settings' }, payload => {
         const key = payload.new?.key || payload.old?.key
         if (['cat_meta', 'cat_prices', 'presupuesto_config'].includes(key)) reloadPresupuestoServices()
+        if (key === COSTOS_KEY) reloadCostos()
       })
       .subscribe()
     return () => { supabase.removeChannel(ch) }
-  }, [reloadPresupuestoServices])
+  }, [reloadPresupuestoServices, reloadCostos])
 
   // Servicios que se pueden elegir como meta, con el precio vigente de
   // Presupuesto: cambia solo cuando allá se edita.
   const metasCatalogo = useMemo(
-    () => opcionesMetas(presupuestoOverrides || {}, state.vehicleTypes),
-    [presupuestoOverrides, state.vehicleTypes]
+    () => ({ ...opcionesMetas(presupuestoOverrides || {}, state.vehicleTypes), costos: costosServicios }),
+    [presupuestoOverrides, state.vehicleTypes, costosServicios]
   )
 
   return (
     <AppContext.Provider value={{
       ...state,
       metasCatalogo,
+      reloadCostos,
+      setCostosServicios,
       // Servicios que ve el ticket: los del catálogo propio más los de
       // Presupuesto (cerámico, PPF, polarizado, planchado). Configuración solo
       // edita `vehicleTypes`; los de Presupuesto se editan en su pantalla.

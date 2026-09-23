@@ -183,8 +183,11 @@ export function baysDelMes(config, prefix) {
 }
 
 // Config guardada + mes → lista de metas con su número y su ajuste manual.
-// Con `servicios` (el catálogo vigente) el precio se toma en vivo de Presupuesto.
+// Con el catálogo de metas (`{ catalogo, claves, costos }`, o solo la lista de
+// servicios) el precio se toma en vivo de Presupuesto y el costo de la tabla
+// de Márgenes.
 export function resolveItems(config, prefix, servicios = null) {
+  const cat = Array.isArray(servicios) ? { catalogo: servicios } : servicios
   const origen = origenMes(config, prefix)
   const items  = origen.items?.length ? origen.items : DEFAULT_ITEMS
   const goals  = origen.goals || {}
@@ -204,13 +207,13 @@ export function resolveItems(config, prefix, servicios = null) {
       margin:  Number(it.margin  ?? ref.margin  ?? 0),
       bayDays: Number(it.bayDays ?? ref.bayDays ?? 0),
     }
-    return servicios ? conPrecioCatalogo(item, servicios) : item
+    return cat ? conCostoTabla(conPrecioCatalogo(item, cat.catalogo), cat) : item
   })
 }
 
 // ─── Precio conectado al catálogo / Presupuesto ──────────────────────────────
 // Metas de referencia que ya tienen su servicio en Presupuesto.
-const DEFAULT_PRECIO_DE = {
+export const DEFAULT_PRECIO_DE = {
   abrillantado:  'pre_abrillantado',
   desc_mecanica: 'pre_desc_mecanica',
   cer_carpro_3:  'pre_cer_carpro_3a',
@@ -370,6 +373,57 @@ export async function fetchMetasConfig() {
   } catch {
     return null
   }
+}
+
+// ─── Tabla de márgenes ───────────────────────────────────────────────────────
+// Costo por unidad de cada servicio de Presupuesto (material, mano de obra y
+// otros). El margen es el precio vigente menos ese costo, así una meta que
+// sigue a Presupuesto recalcula su margen sola cuando cambia el precio.
+export const COSTOS_KEY = 'costos_servicios'
+
+export function costoTotal(e) {
+  if (!e) return null
+  const partes = [e.material, e.manoObra, e.otros].map(v => (v === '' || v == null ? null : Number(v)))
+  if (partes.every(v => v == null || Number.isNaN(v))) return null
+  return partes.reduce((s, v) => s + (Number(v) || 0), 0)
+}
+
+// Qué fila de la tabla le corresponde a una meta: la de su mismo servicio, o
+// la del servicio del que toma el precio.
+export function claveCosto(item, claves) {
+  if (!claves) return null
+  if (claves.ids?.has(item.id)) return item.id
+  const ref = servicioVinculado(item)
+  if (!ref) return null
+  return claves.porPrecio?.[`${ref}|${item.variants?.[0] || ''}`] || claves.porPrecio?.[`${ref}|`] || null
+}
+
+export function conCostoTabla(item, { claves, costos } = {}) {
+  const clave = claveCosto(item, claves)
+  const costo = clave ? costoTotal(costos?.[clave]) : null
+  if (costo == null) return item
+  return { ...item, costo, margin: Math.max(0, (Number(item.price) || 0) - costo), costoTabla: clave }
+}
+
+export async function fetchCostos() {
+  if (IS_DEMO) return {}
+  try {
+    const { data, error } = await withTimeout(
+      supabase.from('app_settings').select('value').eq('key', COSTOS_KEY).maybeSingle()
+    )
+    if (error) return {}
+    return data?.value || {}
+  } catch {
+    return {}
+  }
+}
+
+export async function saveCostos(costos) {
+  const { error } = await supabase.from('app_settings').upsert(
+    { key: COSTOS_KEY, value: costos, updated_at: new Date().toISOString() },
+    { onConflict: 'key' }
+  )
+  if (error) throw error
 }
 
 export async function saveMetasConfig(config) {

@@ -150,7 +150,7 @@ function GrupoCard({ grupo, items, expectedPct, diasRestantes, verDinero }) {
 }
 
 export default function Metas() {
-  const { tickets, isDemo, workers, monthlyCosts, metasCatalogo } = useApp()
+  const { tickets, dailySummaries, isDemo, workers, monthlyCosts, metasCatalogo } = useApp()
   const { isAdmin } = useAuth()
   const verDinero = isAdmin || isDemo
   const { month, year } = currentMonthYear()
@@ -241,6 +241,20 @@ export default function Metas() {
     [econ]
   )
 
+  // Bruto real del mes, como en el Panel: lo cobrado en tickets cerrados más
+  // los resúmenes de día. Solo el admin ve montos; el trabajador ve el avance
+  // estimado con los servicios de la meta.
+  const brutoMes = useMemo(() => {
+    if (!verDinero) return null
+    const deTickets = (tickets || [])
+      .filter(t => t.date?.startsWith(prefix) && t.status !== 'abierto')
+      .reduce((s, t) => s + (Number(t.price_charged) || 0), 0)
+    const deResumenes = (dailySummaries || [])
+      .filter(d => d.date?.startsWith(prefix))
+      .reduce((s, d) => s + (Number(d.total_income) || 0), 0)
+    return deTickets + deResumenes
+  }, [verDinero, tickets, dailySummaries, prefix])
+
   const total = useMemo(() => {
     const meta  = progreso.reduce((s, i) => s + i.goal, 0)
     // El avance global cuenta cada meta hasta su tope: 300 lavados no compensan
@@ -249,12 +263,13 @@ export default function Metas() {
     const hoy   = progreso.reduce((s, i) => s + i.hoy, 0)
     // Y se mide en dinero, no en cantidad: cien lavados no valen lo que un PPF.
     // Sin precios cargados se cae al conteo, que es lo único que hay.
+    // Bruto contra bruto: lo cobrado en el mes contra el ingreso del plan.
     const pct = econ.ingresoMeta > 0
-      ? econ.pct
+      ? (brutoMes != null ? Math.round((brutoMes / econ.ingresoMeta) * 100) : econ.pct)
       : (meta > 0 ? Math.round((hecho / meta) * 100) : 0)
     const pctServicios = meta > 0 ? Math.round((hecho / meta) * 100) : 0
     return { meta, hecho, hoy, pct, pctServicios, faltan: Math.max(0, meta - hecho) }
-  }, [progreso, econ])
+  }, [progreso, econ, brutoMes])
 
   const estadoGlobal = ESTADO[total.meta ? estadoMeta(total.pct, expectedPct) : 'sinmeta']
   const ritmoDia = total.faltan > 0 && diasRestantes > 0 ? total.faltan / diasRestantes : 0
@@ -353,7 +368,7 @@ export default function Metas() {
             <div className="bg-white/10 rounded-xl px-3 py-2.5">
               <div className="flex items-baseline justify-between gap-2">
                 <p className="text-white text-xl font-black leading-none tabular-nums truncate">
-                  {verDinero && econ.ingresoMeta > 0 ? formatMoney(econ.ingresoLogrado) : 'Del plan'}
+                  {brutoMes != null && econ.ingresoMeta > 0 ? formatMoney(brutoMes) : 'Del plan'}
                 </p>
                 <span className="text-base font-black tabular-nums" style={{ color: ANILLO_DINERO }}>{total.pct}%</span>
               </div>
@@ -442,18 +457,21 @@ export default function Metas() {
             {/* Lo que ya se generó contra lo que promete el plan */}
             <div>
               <div className="flex items-center justify-between text-[11px] mb-1">
-                <span className="text-gray-500">Generado hasta hoy</span>
+                <span className="text-gray-500">Ingreso bruto del mes</span>
                 <span className="font-bold text-gray-700 dark:text-gray-200 tabular-nums">
-                  {formatMoney(econ.ingresoReal)}
+                  {formatMoney(brutoMes ?? econ.ingresoReal)}
                   <span className="text-gray-400 font-semibold"> / {formatMoney(econ.ingresoMeta)}</span>
                 </span>
               </div>
               <div className="h-2 rounded-full bg-gray-100 dark:bg-gray-800 overflow-hidden">
                 <div className="h-full rounded-full bg-emerald-500"
-                  style={{ width: `${econ.ingresoMeta > 0 ? Math.min(100, (econ.ingresoReal / econ.ingresoMeta) * 100) : 0}%`, transition: 'width 800ms cubic-bezier(0.23,1,0.32,1)' }} />
+                  style={{ width: `${econ.ingresoMeta > 0 ? Math.min(100, ((brutoMes ?? econ.ingresoReal) / econ.ingresoMeta) * 100) : 0}%`, transition: 'width 800ms cubic-bezier(0.23,1,0.32,1)' }} />
               </div>
               <p className="text-[11px] text-gray-400 mt-1.5">
-                Margen generado: <span className="font-semibold text-gray-600 dark:text-gray-300">{formatMoney(econ.margenReal)}</span>
+                De eso, los servicios de la meta suman <span className="font-semibold text-gray-600 dark:text-gray-300">{formatMoney(econ.ingresoReal)}</span> a precio de lista.
+              </p>
+              <p className="text-[11px] text-gray-400 mt-0.5">
+                Margen de esos servicios: <span className="font-semibold text-gray-600 dark:text-gray-300">{formatMoney(econ.margenReal)}</span>
                 {' '}· falta {formatMoney(Math.max(0, econ.costoFijo - econ.margenReal))} para cubrir el costo fijo
               </p>
             </div>

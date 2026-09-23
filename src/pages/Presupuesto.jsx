@@ -6,9 +6,6 @@ import { Edit2, Check, X, ChevronDown, ChevronUp, ChevronRight, FileText, Messag
 import { addCita, servicioDeCategoria, SERVICIOS_CITA, franjasHorarias } from '../lib/citas'
 import { useNavigate } from 'react-router-dom'
 import { NewTicketForm } from './Registro'
-import MetasConfig from '../components/modules/MetasConfig'
-import { costoFijoMes } from '../lib/metas'
-import { currentMonthYear } from '../lib/utils'
 import toast from 'react-hot-toast'
 import { CERAMICO_DATA, PPF_DATA, POLARIZADOS_DATA } from '../lib/catalogoPresupuesto'
 
@@ -252,10 +249,6 @@ const CATEGORIES = [
   { id: 'servicios',   label: 'Servicios',   icon: '🧰', sub: 'Adicionales' },
 ]
 
-// Solo admin: las metas del mes se configuran junto a los precios que las
-// alimentan.
-const TAB_METAS = { id: 'metas', label: 'Metas', icon: '🎯', sub: 'del mes' }
-
 const CAT_VEHICLES = {
   ceramico:    [{ id: 'auto', label: 'Auto / HB' }, { id: 'suv', label: 'SUV' }, { id: 'pickup', label: 'Pickup' }],
   ppf:         [{ id: 'auto', label: 'Auto / HB' }, { id: 'suv', label: 'SUV' }, { id: 'pickup', label: 'Pickup' }],
@@ -450,10 +443,7 @@ function EditableTextCell({ label, value, onSave }) {
 export default function Presupuesto() {
   const { isAdmin, isDemo, isWorker, profile } = useAuth()
   const canAdmin = isAdmin || isDemo
-  const { addTicket, workers = [], vehicleTypes = [], monthlyCosts } = useApp()
-  const tabs = canAdmin ? [...CATEGORIES, TAB_METAS] : CATEGORIES
-  const [metasMes, setMetasMes] = useState(() => currentMonthYear())
-  const costoFijoMetas = useMemo(() => costoFijoMes(monthlyCosts, workers), [monthlyCosts, workers])
+  const { addTicket, workers = [], vehicleTypes = [] } = useApp()
 
   const [config, setConfig] = useState(() => mergeConfig(null))
   const [loading, setLoading] = useState(true)
@@ -1880,17 +1870,17 @@ export default function Presupuesto() {
             <h1 className="text-xl font-black tracking-tight">PRESUPUESTO</h1>
           </div>
           <p className="text-red-200 text-sm">
-            {tabs.find(c => c.id === category)?.label} {tabs.find(c => c.id === category)?.sub} · Apex Pro
+            {CATEGORIES.find(c => c.id === category)?.label} {CATEGORIES.find(c => c.id === category)?.sub} · Apex Pro
           </p>
         </div>
       </div>
 
       {/* Tabs de categoría */}
-      <div className={`grid gap-2 ${tabs.length > 5 ? 'grid-cols-3 sm:grid-cols-6' : 'grid-cols-5'}`}>
-        {tabs.map(cat => {
+      <div className="grid grid-cols-5 gap-2">
+        {CATEGORIES.map(cat => {
           const isActive = category === cat.id
           const ceramicoPpfIds = new Set([...CERAMICO_DATA, ...PPF_DATA].map(s => s.id))
-          const hasSelected = cat.id === 'metas' ? false : cat.id === 'planchado'
+          const hasSelected = cat.id === 'planchado'
             ? selectedCount > 0
             : catRows.some(r => {
                 if (cat.id === 'ceramico') return ceramicoPpfIds.has(r.id)
@@ -1914,13 +1904,6 @@ export default function Presupuesto() {
         })}
       </div>
 
-      {category === 'metas' && canAdmin ? (
-        <MetasConfig
-          year={metasMes.year} month={metasMes.month}
-          costoFijo={costoFijoMetas}
-          onChangeMonth={(year, month) => setMetasMes({ year, month })}
-        />
-      ) : (<>
       {/* ── Buscador global ─────────────────────────────────────── */}
       <div className="relative">
         <div className="flex items-center gap-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-2xl px-4 py-2.5 shadow-sm">
@@ -3784,7 +3767,6 @@ export default function Presupuesto() {
           Como admin puedes editar los multiplicadores tocando el número en cada celda.
         </div>
       )}
-      </>)}
     </div>
   )
 }

@@ -62,7 +62,7 @@ export default function MetasConfig({ year, month, costoFijo = 0, onChangeMonth,
     return () => { vivo = false }
   }, [aplicarConfig])
 
-  // Metas guardadas desde la página Metas, Presupuesto u otro dispositivo se
+  // Metas guardadas desde otra pestaña u otro dispositivo se
   // reflejan acá sin recargar, salvo que haya cambios sin guardar.
   useEffect(() => {
     if (isDemo) return

@@ -1,13 +1,15 @@
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { useApp } from '../../context/AppContext'
+import { supabase } from '../../lib/supabase'
 import {
-  GRUPOS, DEFAULT_ITEMS, DEFAULT_BAYS, monthPrefix, resolveItems, computeProgress,
+  GRUPOS, DEFAULT_ITEMS, DEFAULT_BAYS, METAS_KEY, monthPrefix, resolveItems, computeProgress,
   computeEconomics, fetchMetasConfig, saveMetasConfig, fetchMetasRows, rowsFromTickets,
+  origenMes, baysDelMes, conPrecioCatalogo, servicioVinculado,
 } from '../../lib/metas'
 import { monthName, todayISO, formatMoney, getWorkingDaysInMonth } from '../../lib/utils'
 import { CATEGORIAS, porCategoria } from '../../lib/servicios'
-import { Plus, Save, Trash2, ChevronUp, ChevronDown, SlidersHorizontal, ExternalLink, RotateCcw, Calculator } from 'lucide-react'
+import { Plus, Save, Trash2, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, SlidersHorizontal, ExternalLink, RotateCcw, Calculator, Link2 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 const FUENTES = [
@@ -21,7 +23,7 @@ function nuevoId() {
   return 'meta_' + Date.now().toString(36)
 }
 
-export default function MetasConfig({ year, month, costoFijo = 0 }) {
+export default function MetasConfig({ year, month, costoFijo = 0, onChangeMonth }) {
   const { serviciosTicket: vehicleTypes, tickets, isDemo } = useApp()
   const prefix = monthPrefix(year, month)
 
@@ -32,6 +34,11 @@ export default function MetasConfig({ year, month, costoFijo = 0 }) {
   const [saving, setSaving]   = useState(false)
   const [abierto, setAbierto] = useState(null) // id del ítem con opciones avanzadas abiertas
   const [bays, setBays]       = useState(DEFAULT_BAYS)
+  // Cambios sin guardar: mientras haya, no se pisa lo que el admin escribe
+  // aunque otra pantalla guarde metas.
+  const [dirty, setDirty]     = useState(false)
+  const dirtyRef = useRef(false)
+  useEffect(() => { dirtyRef.current = dirty }, [dirty])
 
   const cargarAvance = useCallback(async () => {
     if (isDemo) { setRows(rowsFromTickets(tickets, prefix)); return }
@@ -39,34 +46,56 @@ export default function MetasConfig({ year, month, costoFijo = 0 }) {
     catch { setRows(rowsFromTickets(tickets, prefix)) }
   }, [prefix, isDemo, tickets])
 
-  // La config se recarga solo al cambiar de mes: recargarla por otro motivo
-  // borraría lo que el admin esté editando sin haber guardado.
+  const aplicarConfig = useCallback(cfg => {
+    setConfig(cfg)
+    setItems(resolveItems(cfg, prefix))
+    setBays(baysDelMes(cfg, prefix))
+    setDirty(false)
+  }, [prefix])
+
   useEffect(() => {
     let vivo = true
     setLoading(true)
     fetchMetasConfig()
-      .then(cfg => {
-        if (!vivo) return
-        setConfig(cfg)
-        setItems(resolveItems(cfg, prefix))
-        setBays(Number(cfg?.bays ?? DEFAULT_BAYS))
-      })
+      .then(cfg => { if (vivo) aplicarConfig(cfg) })
       .finally(() => { if (vivo) setLoading(false) })
     return () => { vivo = false }
-  }, [prefix])
+  }, [aplicarConfig])
+
+  // Metas guardadas desde Configuración, Presupuesto u otro dispositivo se
+  // reflejan acá sin recargar, salvo que haya cambios sin guardar.
+  useEffect(() => {
+    if (isDemo) return
+    const ch = supabase
+      .channel(`metas-config-${prefix}-${Math.random().toString(36).slice(2)}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'app_settings', filter: `key=eq.${METAS_KEY}` },
+        () => { if (!dirtyRef.current) fetchMetasConfig().then(aplicarConfig) })
+      .subscribe()
+    return () => { supabase.removeChannel(ch) }
+  }, [prefix, isDemo, aplicarConfig])
 
   // El avance sí se refresca cuando entran tickets nuevos.
   useEffect(() => { cargarAvance() }, [prefix, tickets.length])
 
-  const progreso = useMemo(() => computeProgress(items, rows, todayISO()), [items, rows])
+  // Precio vigente de Presupuesto / catálogo: cambia solo cuando allá se edita.
+  const vivos = useMemo(
+    () => items.map(i => conPrecioCatalogo(i, vehicleTypes)),
+    [items, vehicleTypes]
+  )
+  const progreso = useMemo(() => computeProgress(vivos, rows, todayISO()), [vivos, rows])
+  const origen = useMemo(() => origenMes(config, prefix), [config, prefix])
 
+  function editar(fn) {
+    setItems(fn)
+    setDirty(true)
+  }
   function update(id, patch) {
-    setItems(list => list.map(i => i.id === id ? { ...i, ...patch } : i))
+    editar(list => list.map(i => i.id === id ? { ...i, ...patch } : i))
   }
   function mover(idx, dir) {
     const destino = idx + dir
     if (destino < 0 || destino >= items.length) return
-    setItems(list => {
+    editar(list => {
       const copia = [...list]
       const [x] = copia.splice(idx, 1)
       copia.splice(destino, 0, x)
@@ -74,15 +103,22 @@ export default function MetasConfig({ year, month, costoFijo = 0 }) {
     })
   }
   function agregar() {
-    setItems(list => [...list, {
+    editar(list => [...list, {
       id: nuevoId(), emoji: '🎯', label: '', goal: 0, manual: 0,
       group: 'detailing', source: 'manual', vehicles: [], keywords: [], categories: [], variants: [],
       price: 0, margin: 0, bayDays: 0,
     }])
   }
   function eliminar(id) {
-    setItems(list => list.filter(i => i.id !== id))
+    editar(list => list.filter(i => i.id !== id))
     if (abierto === id) setAbierto(null)
+  }
+  function cambiarMes(delta) {
+    if (dirty && !window.confirm('Hay cambios sin guardar en las metas de este mes. ¿Salir sin guardar?')) return
+    let m = month + delta, y = year
+    if (m < 1) { m = 12; y -= 1 }
+    if (m > 12) { m = 1; y += 1 }
+    onChangeMonth(y, m)
   }
   // Metas directas desde el catálogo: una por servicio, contadas por el servicio
   // del ticket y no por palabras. Es la conexión entre el catálogo y las metas.
@@ -102,12 +138,12 @@ export default function MetasConfig({ year, month, costoFijo = 0 }) {
         margin: 0, bayDays: 0,
       }))
     if (!nuevos.length) { toast('Todos los servicios del catálogo ya tienen meta', { icon: '👌' }); return }
-    setItems(list => [...list, ...nuevos])
+    editar(list => [...list, ...nuevos])
     toast(`${nuevos.length} servicio${nuevos.length === 1 ? '' : 's'} del catálogo — pon las metas y guarda`, { icon: '📋' })
   }
 
   function restaurar() {
-    setItems(DEFAULT_ITEMS.map(i => ({ ...i, manual: 0 })))
+    editar(() => DEFAULT_ITEMS.map(i => ({ ...i, manual: 0 })))
     toast('Lista de referencia cargada — recuerda guardar', { icon: '↩️' })
   }
 
@@ -115,28 +151,48 @@ export default function MetasConfig({ year, month, costoFijo = 0 }) {
     if (items.some(i => !i.label.trim())) { toast.error('Todos los servicios necesitan nombre'); return }
     setSaving(true)
     try {
-      const definiciones = items.map(({ id, emoji, label, group, source, vehicles, keywords, categories, variants, goal, price, margin, bayDays }) => ({
+      // Se guarda con el precio vigente de Presupuesto; el costo viaja aparte
+      // para que el margen siga al precio cuando allá cambie.
+      const definiciones = vivos.map(({ id, emoji, label, group, source, vehicles, keywords, categories, variants, goal, price, margin, costo, bayDays, precioDe }) => ({
         id, emoji, label: label.trim(), group, source,
         vehicles: vehicles || [], keywords: keywords || [],
         categories: categories || [], variants: variants || [],
-        goal: Number(goal) || 0, // sirve de respaldo si el mes no tiene número propio
-        // La economía no cambia mes a mes: viaja con la definición del servicio.
+        goal: Number(goal) || 0,
         price: Number(price) || 0, margin: Number(margin) || 0, bayDays: Number(bayDays) || 0,
+        ...(costo != null ? { costo: Number(costo) } : {}),
+        ...(precioDe !== undefined ? { precioDe } : {}),
       }))
-      const goalsMes  = Object.fromEntries(items.map(i => [i.id, Number(i.goal) || 0]))
       const manualMes = Object.fromEntries(items.map(i => [i.id, Number(i.manual) || 0]))
+      // Solo se escribe este mes: los demás quedan como estaban.
       const nuevo = {
         ...(config || {}),
-        bays:   Number(bays) || 0,
-        items:  definiciones,
-        goals:  { ...(config?.goals  || {}), [prefix]: goalsMes },
+        months: { ...(config?.months || {}), [prefix]: { bays: Number(bays) || 0, items: definiciones } },
         manual: { ...(config?.manual || {}), [prefix]: manualMes },
       }
       await saveMetasConfig(nuevo)
       setConfig(nuevo)
+      setDirty(false)
       toast.success(`Metas de ${monthName(month)} ${year} guardadas ✓`)
     } catch (err) {
       toast.error('Error al guardar: ' + (err.message || ''))
+    } finally { setSaving(false) }
+  }
+
+  // Deja el mes como estaba antes de configurarlo: vuelve a heredar del anterior.
+  async function quitarConfigMes() {
+    if (!window.confirm(`¿Quitar la configuración propia de ${monthName(month)} ${year}? Volverá a copiar la del mes anterior.`)) return
+    setSaving(true)
+    try {
+      const months = { ...(config?.months || {}) }
+      delete months[prefix]
+      const goals = { ...(config?.goals || {}) }
+      delete goals[prefix]
+      const nuevo = { ...(config || {}), months, goals }
+      await saveMetasConfig(nuevo)
+      aplicarConfig(nuevo)
+      toast.success('Listo, el mes vuelve a heredar')
+    } catch (err) {
+      toast.error('Error: ' + (err.message || ''))
     } finally { setSaving(false) }
   }
 
@@ -166,10 +222,47 @@ export default function MetasConfig({ year, month, costoFijo = 0 }) {
         </Link>
       </div>
 
+      {onChangeMonth && (
+        <div className="flex items-center gap-2 mt-3">
+          <button onClick={() => cambiarMes(-1)} className="p-2 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700" title="Mes anterior">
+            <ChevronLeft className="w-4 h-4 text-gray-500" />
+          </button>
+          <p className="flex-1 text-center text-sm font-bold text-gray-800 dark:text-gray-100 capitalize">
+            {monthName(month)} {year}
+          </p>
+          <button onClick={() => cambiarMes(1)} className="p-2 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700" title="Mes siguiente">
+            <ChevronRight className="w-4 h-4 text-gray-500" />
+          </button>
+        </div>
+      )}
+
       {loading ? (
         <p className="text-xs text-gray-400 py-6 text-center">Cargando metas…</p>
       ) : (
         <>
+          {/* De dónde salen las metas de este mes */}
+          <div className={`mt-3 px-3 py-2 rounded-xl text-xs leading-snug flex items-start justify-between gap-2 ${
+            origen.tipo === 'propio'
+              ? 'bg-emerald-50 dark:bg-emerald-900/10 text-emerald-700 dark:text-emerald-300'
+              : 'bg-amber-50 dark:bg-amber-900/10 text-amber-700 dark:text-amber-300'
+          }`}>
+            <span>
+              {origen.tipo === 'propio' && <>Este mes tiene su <strong>configuración propia</strong>. Cambiarla no afecta a otros meses.</>}
+              {origen.tipo === 'heredado' && (() => {
+                const [y, m] = origen.desde.split('-').map(Number)
+                return <>Copia de <strong>{monthName(m)} {y}</strong>. Al guardar queda como configuración propia de {monthName(month)}, sin tocar {monthName(m)}.</>
+              })()}
+              {origen.tipo === 'referencia' && <>Lista de referencia. Al guardar queda como configuración propia de {monthName(month)}.</>}
+            </span>
+            {origen.tipo === 'propio' && (
+              <button onClick={quitarConfigMes} disabled={saving} className="text-[11px] font-semibold underline whitespace-nowrap">
+                Volver a heredar
+              </button>
+            )}
+          </div>
+          {dirty && (
+            <p className="mt-2 text-[11px] font-semibold text-amber-600 dark:text-amber-400">● Cambios sin guardar</p>
+          )}
           {/* Resumen */}
           <div className="flex items-center justify-between gap-3 p-3 my-3 rounded-xl bg-red-50 dark:bg-red-900/10 border border-red-100 dark:border-red-900/30">
             <div className="text-sm">
@@ -188,7 +281,7 @@ export default function MetasConfig({ year, month, costoFijo = 0 }) {
               <label className="flex items-center gap-1.5 text-[11px] text-gray-500">
                 Bahías
                 <input type="number" min="0" step="1" value={bays}
-                  onChange={e => setBays(e.target.value === '' ? 0 : Number(e.target.value))}
+                  onChange={e => { setBays(e.target.value === '' ? 0 : Number(e.target.value)); setDirty(true) }}
                   className="w-14 text-center text-xs font-bold bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 py-1 focus:outline-none focus:ring-2 focus:ring-red-500" />
               </label>
             </div>
@@ -233,6 +326,7 @@ export default function MetasConfig({ year, month, costoFijo = 0 }) {
           <div className="divide-y divide-gray-100 dark:divide-gray-800">
             {items.map((item, idx) => {
               const p = progreso.find(x => x.id === item.id) || { done: 0, auto: 0, pct: 0 }
+              const v = vivos[idx] || item
               const expandido = abierto === item.id
               return (
                 <div key={item.id} className="py-2">
@@ -279,10 +373,15 @@ export default function MetasConfig({ year, month, costoFijo = 0 }) {
 
                   {/* Lo que aporta esta meta al plan */}
                   <p className="text-[11px] text-gray-400 pl-1 mt-0.5">
-                    {item.goal > 0 && (Number(item.price) || Number(item.margin))
-                      ? <>Genera <strong className="text-gray-600 dark:text-gray-300">{formatMoney((Number(item.goal) || 0) * (Number(item.price) || 0))}</strong>
-                          {' '}· margen {formatMoney((Number(item.goal) || 0) * (Number(item.margin) || 0))}</>
+                    {item.goal > 0 && (Number(v.price) || Number(v.margin))
+                      ? <>Genera <strong className="text-gray-600 dark:text-gray-300">{formatMoney((Number(item.goal) || 0) * (Number(v.price) || 0))}</strong>
+                          {' '}· margen {formatMoney((Number(item.goal) || 0) * (Number(v.margin) || 0))}</>
                       : 'Sin precio cargado — no suma al plan'}
+                    {v.vinculo && (
+                      <span className="inline-flex items-center gap-1 ml-1.5 text-sky-600 dark:text-sky-400" title="El precio se actualiza solo cuando cambia en Presupuesto o el catálogo">
+                        <Link2 className="w-3 h-3" /> {formatMoney(v.price)} de {v.vinculo.label}{v.vinculo.variante ? ` · ${v.vinculo.variante}` : ''}
+                      </span>
+                    )}
                   </p>
 
                   {/* Acciones de la fila */}
@@ -330,19 +429,54 @@ export default function MetasConfig({ year, month, costoFijo = 0 }) {
                         {FUENTES.find(f => f.value === item.source)?.hint}
                       </p>
 
+                      {/* Precio conectado a Presupuesto / catálogo */}
+                      <div>
+                        <label className="label text-xs">Precio tomado de</label>
+                        <select className="input text-sm py-1.5"
+                          value={servicioVinculado(item) || ''}
+                          onChange={e => {
+                            const val = e.target.value
+                            // Al desconectar se queda con el último precio vigente.
+                            if (!val) update(item.id, { precioDe: '', price: v.price, margin: v.margin, costo: undefined })
+                            else update(item.id, { precioDe: val })
+                          }}>
+                          <option value="">Escrito a mano</option>
+                          {porCategoria(activos).map(grupo => (
+                            <optgroup key={grupo.value} label={`${grupo.emoji} ${grupo.label}`}>
+                              {grupo.servicios.map(s => (
+                                <option key={s.id || s.value} value={s.value}>
+                                  {s.label}{s.origen === 'presupuesto' ? ' (Presupuesto)' : ''}
+                                </option>
+                              ))}
+                            </optgroup>
+                          ))}
+                        </select>
+                        {servicioVinculado(item) && !v.vinculo && (
+                          <p className="text-[11px] text-amber-600 mt-1">Ese servicio ya no está en el catálogo — se usa el último precio guardado.</p>
+                        )}
+                      </div>
+
                       {/* Economía del servicio: lo que hace que el plan tenga monto */}
                       <div className="grid grid-cols-3 gap-2">
                         <div>
                           <label className="label text-xs">Precio unitario</label>
-                          <input type="number" min="0" step="1" className="input text-sm py-1.5"
-                            value={item.price ?? 0}
+                          <input type="number" min="0" step="1"
+                            className={`input text-sm py-1.5 ${v.vinculo ? 'opacity-70 cursor-not-allowed' : ''}`}
+                            value={v.price ?? 0}
+                            readOnly={!!v.vinculo}
+                            title={v.vinculo ? 'Viene de Presupuesto: se cambia allá' : undefined}
                             onChange={e => update(item.id, { price: e.target.value === '' ? 0 : Number(e.target.value) })} />
                         </div>
                         <div>
                           <label className="label text-xs">Margen unitario</label>
                           <input type="number" min="0" step="1" className="input text-sm py-1.5"
-                            value={item.margin ?? 0}
-                            onChange={e => update(item.id, { margin: e.target.value === '' ? 0 : Number(e.target.value) })} />
+                            value={v.margin ?? 0}
+                            onChange={e => {
+                              const m = e.target.value === '' ? 0 : Number(e.target.value)
+                              // Con precio conectado se guarda el costo, así el
+                              // margen acompaña los cambios de precio.
+                              update(item.id, v.vinculo ? { margin: m, costo: v.price - m } : { margin: m })
+                            }} />
                         </div>
                         <div>
                           <label className="label text-xs">Días de bahía</label>
@@ -449,7 +583,9 @@ export default function MetasConfig({ year, month, costoFijo = 0 }) {
           <p className="text-[11px] text-gray-400 mt-3 leading-relaxed">
             <strong>Meta</strong> es lo que hay que hacer este mes. <strong>Manual</strong> suma trabajos que no
             quedan registrados en un ticket (planchado, trabajos con el pintor). <strong>Avance</strong> es lo que
-            ya lleva el equipo. Los meses siguientes heredan estos números hasta que los cambies.
+            ya lleva el equipo. Cada mes se guarda por separado: un mes nuevo arranca como copia del último
+            configurado y lo que cambies ahí no toca a los demás. Los precios con 🔗 vienen de Presupuesto y se
+            actualizan solos cuando los cambias allá.
           </p>
 
           <div className="flex items-center gap-3 mt-4">

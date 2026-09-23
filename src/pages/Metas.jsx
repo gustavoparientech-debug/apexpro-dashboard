@@ -7,7 +7,7 @@ import {
   getWorkingDaysInMonth, getWorkingDaysElapsed, getWorkingDaysRemaining,
 } from '../lib/utils'
 import {
-  GRUPOS, DEFAULT_BAYS, monthPrefix, resolveItems, computeProgress, estadoMeta,
+  GRUPOS, monthPrefix, resolveItems, baysDelMes, computeProgress, estadoMeta,
   computeEconomics, costoFijoMes,
   fetchMetasConfig, fetchMetasRows, rowsFromTickets, METAS_KEY,
 } from '../lib/metas'
@@ -133,7 +133,7 @@ function GrupoCard({ grupo, items, expectedPct, diasRestantes, verDinero }) {
 }
 
 export default function Metas() {
-  const { tickets, isDemo, workers, monthlyCosts } = useApp()
+  const { tickets, isDemo, workers, monthlyCosts, serviciosTicket } = useApp()
   const { isAdmin } = useAuth()
   const verDinero = isAdmin || isDemo
   const { month, year } = currentMonthYear()
@@ -198,8 +198,8 @@ export default function Metas() {
   const expectedPct   = diasTotal > 0 ? Math.round((diasElapsed / diasTotal) * 100) : 0
 
   const progreso = useMemo(
-    () => computeProgress(resolveItems(config, prefix), rows || [], today),
-    [config, rows, prefix, today]
+    () => computeProgress(resolveItems(config, prefix, serviciosTicket), rows || [], today),
+    [config, rows, prefix, today, serviciosTicket]
   )
 
   // El plan en dinero: lo mismo que el plan mensual en Excel, con los precios y
@@ -212,9 +212,9 @@ export default function Metas() {
     () => computeEconomics(progreso, {
       costoFijo,
       diasHabiles: diasTotal,
-      bays: Number(config?.bays ?? DEFAULT_BAYS),
+      bays: baysDelMes(config, prefix),
     }),
-    [progreso, costoFijo, diasTotal, config]
+    [progreso, costoFijo, diasTotal, config, prefix]
   )
   const topMargen = useMemo(
     () => [...econ.porItem].filter(i => i.margenMeta > 0).sort((a, b) => b.margenMeta - a.margenMeta).slice(0, 5),
@@ -392,7 +392,7 @@ export default function Metas() {
               </div>
               <p className="text-[11px] text-gray-400 mt-1.5">
                 {Math.round(econ.capacidadPct)}% de la capacidad del mes
-                ({diasTotal} días hábiles × {Number(config?.bays ?? DEFAULT_BAYS)} bahías).
+                ({diasTotal} días hábiles × {baysDelMes(config, prefix)} bahías).
                 {econ.capacidadPct > 100 && ' El plan no entra en el taller.'}
               </p>
             </div>

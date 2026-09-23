@@ -2,6 +2,7 @@ import { createContext, useContext, useReducer, useEffect, useState, useCallback
 import { supabase } from '../lib/supabase'
 import { fetchCatalogoOverrides, serviciosDePresupuesto, opcionesMetas } from '../lib/catalogoPresupuesto'
 import { fetchCostos, COSTOS_KEY } from '../lib/metas'
+import { reconciliarMultas } from '../lib/multasTardanza'
 import {
   DEMO_WORKERS, DEMO_SERVICES, DEMO_TICKETS, DEMO_INCIDENTS, DEMO_MONTHLY_COSTS
 } from '../lib/demoData'
@@ -705,7 +706,13 @@ export function AppProvider({ children }) {
     if (error) throw error
     invalidateDynamicCache()
     dispatch({ type: 'ADD_INCIDENT', payload: { ...i, discount_amount: discount } })
+    if (i.type === 'tardanza') revisarMultasDe(i.worker_id, i.date)
     return i
+  }
+
+  // Desde la 3ª tardanza del mes va una multa de S/ 10 (ver multasTardanza).
+  const revisarMultasDe = (workerId, date) => {
+    reconciliarMultas({ prefix: String(date).slice(0, 7), workerId }).catch(() => {})
   }
 
   const updateIncident = async (id, data) => {
@@ -719,19 +726,24 @@ export function AppProvider({ children }) {
       dispatch({ type: 'UPDATE_INCIDENT', payload: updated })
       return updated
     }
+    const prev = state.incidents.find(x => x.id === id)
     const { data: i, error } = await supabase.from('attendance_incidents').update(enriched).eq('id', id).select().single()
     if (error) throw error
     invalidateDynamicCache()
     dispatch({ type: 'UPDATE_INCIDENT', payload: { ...i, discount_amount: discount } })
+    if (i.type === 'tardanza' || prev?.type === 'tardanza') revisarMultasDe(i.worker_id, i.date)
+    if (prev?.type === 'tardanza' && prev.date?.slice(0, 7) !== i.date?.slice(0, 7)) revisarMultasDe(prev.worker_id, prev.date)
     return i
   }
 
   const deleteIncident = async (id) => {
     if (IS_DEMO) { dispatch({ type: 'DELETE_INCIDENT', payload: id }); return }
+    const prev = state.incidents.find(x => x.id === id)
     const { error } = await supabase.from('attendance_incidents').delete().eq('id', id)
     if (error) throw error
     invalidateDynamicCache()
     dispatch({ type: 'DELETE_INCIDENT', payload: id })
+    if (prev?.type === 'tardanza' || prev?.type === 'multa') revisarMultasDe(prev.worker_id, prev.date)
   }
 
   // ─── CRUD Vehicle Types ─────────────────────────────────────────────────────

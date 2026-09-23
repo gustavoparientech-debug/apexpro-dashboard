@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
+import { reconciliarMultas, MULTA_TARDANZA } from '../lib/multasTardanza'
 
 // ── Geovalla ──────────────────────────────────────────────────────────────────
 const WORKPLACE_LAT  = -16.3550567
@@ -336,6 +337,15 @@ export default function Asistencia() {
     if (error) toast.error(`Error incidencia auto: ${error.message}`)
   }
 
+  // Desde la 3ª tardanza del mes va una multa de S/ 10; se revisa cada vez que
+  // una tardanza se crea, se corrige o se borra.
+  async function revisarMultas(workerId, dateStr) {
+    try {
+      const { creadas } = await reconciliarMultas({ prefix: dateStr.slice(0, 7), workerId })
+      if (creadas) toast(`Multa de S/ ${MULTA_TARDANZA} por tardanza registrada`, { icon: '🚫' })
+    } catch { /* si falla, se pone al día al abrir Equipo */ }
+  }
+
   async function autoCreateOvertime(hoursExtra, dateStr, workerId) {
     const worker = workers.find(w => w.id === workerId)
     const pay = worker ? calcOvertimePay(worker.base_salary, worker.weekly_hours, hoursExtra) : 0
@@ -370,6 +380,7 @@ export default function Asistencia() {
       const diffMin = nowMin - timeToMin(sched.start_time)
       if (diffMin > tolerance && diffMin <= 240)
         await autoCreateIncident('tardanza', Math.round(diffMin) / 60, dateStr, workerId, nowMin)
+      await revisarMultas(workerId, dateStr)
     }
 
     if (logType === 'salida' && sched.end_time) {
@@ -431,6 +442,7 @@ export default function Asistencia() {
           const hoursLate = Math.round(diffMin) / 60
           await autoCreateIncident('tardanza', hoursLate, today, selectedWorkerId, nowMin)
           toast(`Tardanza registrada: ${Math.round(diffMin)} min`, { icon: '⚠️' })
+          await revisarMultas(selectedWorkerId, today)
         }
       }
 
@@ -503,6 +515,7 @@ export default function Asistencia() {
           await autoCreateIncident('tardanza', Math.round(diffMin) / 60, adminDate, editingLog.worker_id, editedMin)
           toast(`Tardanza recalculada: ${Math.round(diffMin)} min`, { icon: '⚠️' })
         }
+        await revisarMultas(editingLog.worker_id, adminDate)
       }
       if (editingLog.type === 'salida' && sched.end_time) {
         // Verificar si almorzó ese día

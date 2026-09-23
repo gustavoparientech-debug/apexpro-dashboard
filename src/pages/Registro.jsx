@@ -3443,7 +3443,8 @@ export default function Registro() {
                       )}
                     </div>
                     <div className="flex items-center gap-2 mt-1">
-                      <span className="text-xs font-bold text-gray-700 dark:text-gray-300">{formatMoney(income)}</span>
+                      {/* Los montos solo los ve el admin; el equipo ve el porcentaje. */}
+                      {canAdmin && <span className="text-xs font-bold text-gray-700 dark:text-gray-300">{formatMoney(income)}</span>}
                       {pct !== null && (
                         <>
                           {/* Cerrado sólido; lo de tickets abiertos, rayado a continuación */}
@@ -3467,7 +3468,7 @@ export default function Registro() {
                     {abiertos > 0 && (
                       <p className="flex items-center gap-1 mt-1 text-[11px] font-semibold text-amber-600 dark:text-amber-400">
                         <Clock className="w-3 h-3" />
-                        {abiertos} abierto{abiertos === 1 ? '' : 's'} · {formatMoney(pendiente)} pendiente
+                        {abiertos} abierto{abiertos === 1 ? '' : 's'}{canAdmin ? ` · ${formatMoney(pendiente)} pendiente` : ' pendiente'}
                         {pctConPendiente !== null && pctConPendiente > pct && <> · +{pctConPendiente - pct}% al cerrar</>}
                       </p>
                     )}

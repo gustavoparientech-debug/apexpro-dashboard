@@ -2913,7 +2913,7 @@ export default function Registro() {
   const [showIncidentForm, setShowIncidentForm] = useState(false)
   const [activeTicket, setActiveTicket]    = useState(null)
   const [editingTicket, setEditingTicket]  = useState(null)
-  const [overdueOpenTickets, setOverdueOpenTickets] = useState([])
+  const [overdueOpenTicketsAll, setOverdueOpenTickets] = useState([])
 
   const currentMonthStart = `${cy}-${String(cm).padStart(2, '0')}-01`
 
@@ -2928,6 +2928,12 @@ export default function Registro() {
   const [editingExpense, setEditingExpense] = useState(null)
 
   const canAdmin = isAdmin || isDemo
+  // Los pendientes de meses anteriores se cargan aparte: sin este filtro los
+  // trabajadores veían los tickets que el admin ocultó.
+  const overdueOpenTickets = useMemo(
+    () => overdueOpenTicketsAll.filter(t => canAdmin || !t.hidden_from_workers),
+    [overdueOpenTicketsAll, canAdmin]
+  )
 
   // Filtro por rango de fechas (solo admin)
   const [showRange, setShowRange] = useState(false)

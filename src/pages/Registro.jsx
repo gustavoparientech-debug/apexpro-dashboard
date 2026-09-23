@@ -2971,8 +2971,17 @@ export default function Registro() {
 
   const dayTotal = useMemo(() => dayGross - expensesTodayTotal, [dayGross, expensesTodayTotal])
 
+  // Lo que cobrará un ticket abierto al cerrarse: precio + adicionales −
+  // descuento, el mismo monto que muestra su tarjeta.
+  const totalAbierto = (t) => {
+    const extras = (t.extras || []).reduce((a, e) => a + (Number(e.price) || 0), 0)
+    const bruto  = (Number(t.price_charged) || 0) + extras
+    const desc   = Math.round((bruto * ((Number(t.discount_pct) || 0) / 100) + (Number(t.discount_fixed) || 0)) * 100) / 100
+    return Math.max(0, bruto - desc)
+  }
+
   const openTicketsTotal = useMemo(
-    () => openTickets.reduce((s, t) => s + (t.price_charged || 0), 0),
+    () => openTickets.reduce((s, t) => s + totalAbierto(t), 0),
     [openTickets]
   )
 
@@ -2997,9 +3006,17 @@ export default function Registro() {
   // Resumen por trabajador (tickets cerrados del día)
   const workerDayStats = useMemo(() => {
     const map = {}
+    const nuevo = () => ({ total: 0, extras: 0, income: 0, byVehicle: {}, abiertos: 0, pendiente: 0 })
+    // Lo de tickets abiertos cuenta aparte, como pendiente hasta que se cierren.
+    openTickets.forEach(t => {
+      if (!t.worker_id) return
+      if (!map[t.worker_id]) map[t.worker_id] = nuevo()
+      map[t.worker_id].abiertos  += 1
+      map[t.worker_id].pendiente += totalAbierto(t)
+    })
     closedToday.forEach(t => {
       if (!t.worker_id) return
-      if (!map[t.worker_id]) map[t.worker_id] = { total: 0, extras: 0, income: 0, byVehicle: {} }
+      if (!map[t.worker_id]) map[t.worker_id] = nuevo()
       map[t.worker_id].total += 1
       map[t.worker_id].income += (t.price_charged || 0)
       map[t.worker_id].extras += (t.extras?.length || 0)
@@ -3011,11 +3028,12 @@ export default function Registro() {
         const w = workers.find(w => w.id === wid)
         const goal = w?.daily_goal ? Number(w.daily_goal) : 0
         const pct = goal > 0 ? Math.min(100, Math.round((s.income / goal) * 100)) : null
-        return { worker: w, ...s, goal, pct }
+        const pctConPendiente = goal > 0 ? Math.min(100, Math.round(((s.income + s.pendiente) / goal) * 100)) : null
+        return { worker: w, ...s, goal, pct, pctConPendiente }
       })
       .filter(r => r.worker)
-      .sort((a, b) => b.total - a.total)
-  }, [closedToday, workers])
+      .sort((a, b) => (b.total - a.total) || (b.pendiente - a.pendiente))
+  }, [closedToday, openTickets, workers])
 
   async function handleSaveTicket(data) {
     try {
@@ -3334,7 +3352,7 @@ export default function Registro() {
             Por colaborador
           </h2>
           <div className="space-y-2">
-            {workerDayStats.map(({ worker, total, extras, income, goal, pct, byVehicle }) => (
+            {workerDayStats.map(({ worker, total, extras, income, pct, pctConPendiente, abiertos, pendiente, byVehicle }) => (
               <div key={worker.id} className="bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-xl px-3 py-2.5">
                 <div className="flex items-center gap-2">
                   <div className="w-7 h-7 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center text-red-600 font-bold text-xs flex-none">
@@ -3360,9 +3378,17 @@ export default function Registro() {
                       <span className="text-xs font-bold text-gray-700 dark:text-gray-300">{formatMoney(income)}</span>
                       {pct !== null && (
                         <>
-                          <div className="flex-1 h-1.5 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
-                            <div className={`h-full rounded-full transition-all ${pct >= 100 ? 'bg-emerald-500' : pct >= 60 ? 'bg-amber-500' : 'bg-red-400'}`}
+                          {/* Cerrado sólido; lo de tickets abiertos, rayado a continuación */}
+                          <div className="flex-1 h-1.5 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden flex">
+                            <div className={`h-full transition-all ${pct >= 100 ? 'bg-emerald-500' : pct >= 60 ? 'bg-amber-500' : 'bg-red-400'}`}
                               style={{ width: `${pct}%` }} />
+                            {pctConPendiente > pct && (
+                              <div className="h-full transition-all"
+                                style={{
+                                  width: `${pctConPendiente - pct}%`,
+                                  backgroundImage: 'repeating-linear-gradient(135deg, rgba(245,158,11,0.75) 0 3px, rgba(245,158,11,0.3) 3px 6px)',
+                                }} />
+                            )}
                           </div>
                           <span className={`text-xs font-black ${pct >= 100 ? 'text-emerald-600' : pct >= 60 ? 'text-amber-600' : 'text-red-500'}`}>
                             {pct}%
@@ -3370,6 +3396,13 @@ export default function Registro() {
                         </>
                       )}
                     </div>
+                    {abiertos > 0 && (
+                      <p className="flex items-center gap-1 mt-1 text-[11px] font-semibold text-amber-600 dark:text-amber-400">
+                        <Clock className="w-3 h-3" />
+                        {abiertos} abierto{abiertos === 1 ? '' : 's'} · {formatMoney(pendiente)} pendiente
+                        {pctConPendiente !== null && pctConPendiente > pct && <> · +{pctConPendiente - pct}% al cerrar</>}
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>

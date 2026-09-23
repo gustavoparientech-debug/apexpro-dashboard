@@ -23,19 +23,35 @@ const ESTADO = {
   sinmeta:  { bar: 'bg-gray-300',    text: 'text-gray-400',                          chip: 'bg-gray-100 dark:bg-gray-800 text-gray-500',                                 ring: 'stroke-gray-400',    label: 'Sin meta' },
 }
 
-function Ring({ pct, size = 116, stroke = 11, className = 'stroke-white' }) {
-  const r = (size - stroke) / 2
-  const circ = 2 * Math.PI * r
+// Anillos tipo Apple Watch: afuera la cantidad de servicios, adentro el dinero.
+const ANILLO_SERVICIOS = '#FF2D55'
+const ANILLO_DINERO    = '#A3F900'
+
+function ActivityRings({ servicios, dinero, size = 136, stroke = 15, gap = 3 }) {
+  const c = size / 2
+  const anillos = [
+    { pct: servicios, color: ANILLO_SERVICIOS, r: (size - stroke) / 2 },
+    { pct: dinero,    color: ANILLO_DINERO,    r: (size - stroke) / 2 - stroke - gap },
+  ]
   return (
     <svg width={size} height={size} className="-rotate-90 flex-none">
-      <circle cx={size / 2} cy={size / 2} r={r} fill="none" strokeWidth={stroke} className="stroke-white/15" />
-      <circle
-        cx={size / 2} cy={size / 2} r={r} fill="none" strokeWidth={stroke} strokeLinecap="round"
-        className={className}
-        strokeDasharray={circ}
-        strokeDashoffset={circ * (1 - Math.min(100, Math.max(0, pct)) / 100)}
-        style={{ transition: 'stroke-dashoffset 900ms cubic-bezier(0.23,1,0.32,1)' }}
-      />
+      {anillos.map(({ pct, color, r }) => {
+        const circ = 2 * Math.PI * r
+        const p = Math.min(100, Math.max(0, pct || 0))
+        return (
+          <g key={color}>
+            <circle cx={c} cy={c} r={r} fill="none" strokeWidth={stroke} stroke={color} strokeOpacity={0.2} />
+            {p > 0 && (
+              <circle
+                cx={c} cy={c} r={r} fill="none" strokeWidth={stroke} strokeLinecap="round" stroke={color}
+                strokeDasharray={circ}
+                strokeDashoffset={circ * (1 - p / 100)}
+                style={{ transition: 'stroke-dashoffset 900ms cubic-bezier(0.23,1,0.32,1)' }}
+              />
+            )}
+          </g>
+        )
+      })}
     </svg>
   )
 }
@@ -235,7 +251,8 @@ export default function Metas() {
     const pct = econ.ingresoMeta > 0
       ? econ.pct
       : (meta > 0 ? Math.round((hecho / meta) * 100) : 0)
-    return { meta, hecho, hoy, pct, faltan: Math.max(0, meta - hecho) }
+    const pctServicios = meta > 0 ? Math.round((hecho / meta) * 100) : 0
+    return { meta, hecho, hoy, pct, pctServicios, faltan: Math.max(0, meta - hecho) }
   }, [progreso, econ])
 
   const estadoGlobal = ESTADO[total.meta ? estadoMeta(total.pct, expectedPct) : 'sinmeta']
@@ -306,20 +323,33 @@ export default function Metas() {
         </div>
 
         <div className="flex items-center gap-5">
-          <div className="relative flex-none">
-            <Ring pct={total.pct} className={estadoGlobal.ring} />
-            <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <span className="text-white text-3xl font-black leading-none">{total.pct}%</span>
-              <span className="text-[10px] text-gray-400 uppercase tracking-wider mt-1">del plan</span>
-            </div>
-          </div>
+          <ActivityRings servicios={total.pctServicios} dinero={total.pct} />
 
           <div className="flex-1 min-w-0 space-y-2">
+            {/* Anillo de afuera: cantidad de servicios */}
             <div className="bg-white/10 rounded-xl px-3 py-2.5">
-              <p className="text-white text-xl font-black leading-none tabular-nums">
-                {total.hecho}<span className="text-gray-400 text-sm font-bold"> / {total.meta}</span>
+              <div className="flex items-baseline justify-between gap-2">
+                <p className="text-white text-xl font-black leading-none tabular-nums">
+                  {total.hecho}<span className="text-gray-400 text-sm font-bold"> / {total.meta}</span>
+                </p>
+                <span className="text-base font-black tabular-nums" style={{ color: ANILLO_SERVICIOS }}>{total.pctServicios}%</span>
+              </div>
+              <p className="flex items-center gap-1.5 text-[10px] text-gray-400 uppercase tracking-wide mt-1">
+                <span className="w-2 h-2 rounded-full" style={{ background: ANILLO_SERVICIOS }} /> Servicios
               </p>
-              <p className="text-[10px] text-gray-400 uppercase tracking-wide mt-1">Servicios de la meta</p>
+            </div>
+            {/* Anillo de adentro: dinero */}
+            <div className="bg-white/10 rounded-xl px-3 py-2.5">
+              <div className="flex items-baseline justify-between gap-2">
+                <p className="text-white text-xl font-black leading-none tabular-nums truncate">
+                  {verDinero && econ.ingresoMeta > 0 ? formatMoney(econ.ingresoLogrado) : 'Del plan'}
+                </p>
+                <span className="text-base font-black tabular-nums" style={{ color: ANILLO_DINERO }}>{total.pct}%</span>
+              </div>
+              <p className="flex items-center gap-1.5 text-[10px] text-gray-400 uppercase tracking-wide mt-1">
+                <span className="w-2 h-2 rounded-full flex-none" style={{ background: ANILLO_DINERO }} />
+                <span className="truncate">Dinero{verDinero && econ.ingresoMeta > 0 ? ` · de ${formatMoney(econ.ingresoMeta)}` : ''}</span>
+              </p>
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div className="bg-white/10 rounded-xl px-3 py-2">

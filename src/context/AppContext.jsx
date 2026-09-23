@@ -113,6 +113,10 @@ function reducer(state, action) {
   switch (action.type) {
     case 'SET_ALL':           return { ...state, ...action.payload, loading: false }
     // Actualiza solo datos dinámicos sin mostrar spinner
+    case 'SET_INCIDENTS_MES': return {
+      ...state,
+      incidents: [...state.incidents.filter(i => !i.date?.startsWith(action.payload.prefix)), ...action.payload.incidents],
+    }
     case 'SET_DYNAMIC':       return { ...state, tickets: action.payload.tickets, dailySummaries: action.payload.dailySummaries, incidents: action.payload.incidents, monthlyCosts: action.payload.monthlyCosts, expenses: action.payload.expenses }
     case 'SET_LOADING':       return { ...state, loading: action.payload }
     case 'SET_ERROR':         return { ...state, error: action.payload, loading: false }
@@ -242,6 +246,7 @@ export function AppProvider({ children }) {
   // ── Guardar en localStorage cada vez que cambia el estado (solo demo) ──────
   // Usamos una ref para acumular TODOS los tickets/incidencias de todos los meses
   const allDataRef = useRef({ tickets: [], dailySummaries: [], incidents: [] })
+  const mesCargado = useRef(null)
 
   useEffect(() => {
     if (!IS_DEMO || !initialLoadDone.current) return
@@ -273,6 +278,8 @@ export function AppProvider({ children }) {
 
   // ── Carga de datos ──────────────────────────────────────────────────────────
   const loadData = useCallback(async (month, year) => {
+    const { month: cmL, year: cyL } = currentMonthYear()
+    mesCargado.current = `${year || cyL}-${String(month || cmL).padStart(2, '0')}`
     if (loadInFlight.current) return
     loadInFlight.current = true
     dispatch({ type: 'SET_LOADING', payload: true })
@@ -710,9 +717,26 @@ export function AppProvider({ children }) {
     return i
   }
 
-  // Desde la 3ª tardanza del mes va una multa de S/ 10 (ver multasTardanza).
+  // Multa de S/ 10 cada 3 tardanzas del mes (ver multasTardanza).
   const revisarMultasDe = (workerId, date) => {
-    reconciliarMultas({ prefix: String(date).slice(0, 7), workerId }).catch(() => {})
+    const prefix = String(date).slice(0, 7)
+    reconciliarMultas({ prefix, workerId })
+      .then(({ creadas, borradas }) => { if (creadas || borradas) recargarIncidencias(prefix) })
+      .catch(() => {})
+  }
+
+  // attendance_incidents no llega por realtime: tras crear o borrar multas
+  // automáticas se vuelve a leer el mes para que la pantalla no quede vieja.
+  const recargarIncidencias = async (prefix) => {
+    if (IS_DEMO) return
+    invalidateDynamicCache()
+    if (prefix !== mesCargado.current) return
+    const [y, m] = prefix.split('-').map(Number)
+    const fin = `${prefix}-${String(new Date(y, m, 0).getDate()).padStart(2, '0')}`
+    const { data, error } = await supabase.from('attendance_incidents').select('*')
+      .gte('date', `${prefix}-01`).lte('date', fin)
+    if (error) return
+    dispatch({ type: 'SET_INCIDENTS_MES', payload: { prefix, incidents: (data || []).map(i => enrichIncident(i, state.workers)) } })
   }
 
   const updateIncident = async (id, data) => {
@@ -1194,6 +1218,7 @@ export function AppProvider({ children }) {
     <AppContext.Provider value={{
       ...state,
       metasCatalogo,
+      recargarIncidencias,
       reloadCostos,
       setCostosServicios,
       // Servicios que ve el ticket: los del catálogo propio más los de

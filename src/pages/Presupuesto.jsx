@@ -7,7 +7,7 @@ import { addCita, servicioDeCategoria, SERVICIOS_CITA, franjasHorarias } from '.
 import { useNavigate } from 'react-router-dom'
 import { NewTicketForm } from './Registro'
 import toast from 'react-hot-toast'
-import { CERAMICO_DATA, PPF_DATA, POLARIZADOS_DATA } from '../lib/catalogoPresupuesto'
+import { CERAMICO_DATA, PPF_DATA, POLARIZADOS_DATA, SERVICIOS_DATA } from '../lib/catalogoPresupuesto'
 
 // Titulo que le toca a un servicio que no trae grupo propio, por categoria.
 const GRUPO_SIN_ASIGNAR = 'Otros'
@@ -280,39 +280,6 @@ const VT_LAVADOS_FILTER = {
   otro:            null,
 }
 
-const SERVICIOS_DATA = [
-  // ── Precio fijo (no varía por vehículo) ──────────────────────────────────
-  { id: 'sv_techo_g1',     name: 'Lavado de Techo G1',              timeMin: 60,  price: 80  , grupo: 'Lavados' },
-  { id: 'sv_techo_g2',     name: 'Lavado de Techo G2',              timeMin: 60,  price: 90  , grupo: 'Lavados' },
-  { id: 'sv_techo_g3',     name: 'Lavado de Techo G3',              timeMin: 60,  price: 100 , grupo: 'Lavados' },
-  { id: 'sv_ret_asientos', name: 'Retirada de asientos',            timeMin: 30,  price: 60  , grupo: 'Detallado y desmontaje' },
-  { id: 'sv_asientos_1f',  name: 'Lavado de asientos 1 Fila',       timeMin: 60,  price: 40  , grupo: 'Lavados' },
-  { id: 'sv_asientos_2f',  name: 'Lavado de asientos 2 Filas',      timeMin: 90,  price: 80  , grupo: 'Lavados' },
-  { id: 'sv_asientos_3f',  name: 'Lavado de asientos 3 Filas',      timeMin: 120, price: 110 , grupo: 'Lavados' },
-  { id: 'sv_ext_cam',      name: 'Lavado Exterior Camioneta',       timeMin: 30,  price: 25  , grupo: 'Lavados' },
-  { id: 'sv_chasis',       name: 'Lavado Chasis V-Mol',             timeMin: 30,  price: 50  , grupo: 'Lavados' },
-  { id: 'sv_alumax',       name: 'Alumax y Removex',                timeMin: 30,  price: 30  , grupo: 'Detallado y desmontaje' },
-  { id: 'sv_ret_llantas',  name: 'Retirado de llantas',             timeMin: 45,  price: 80  , grupo: 'Detallado y desmontaje' },
-  { id: 'sv_det_interior', name: 'Detallado interior',              timeMin: 120, price: 90  , grupo: 'Detallado y desmontaje' },
-  { id: 'sv_elixir',       name: 'Elixir CarPro',                   timeMin: 15,  price: 20  , grupo: 'Protección y brillo' },
-  { id: 'sv_encerado',     name: 'Encerado Bleend 3 meses',         timeMin: 15,  price: 20  , grupo: 'Protección y brillo' },
-  { id: 'sv_cer_g3',       name: 'Tratamiento Cerámico G3',         timeMin: 120, price: 100 , grupo: 'Cerámicos' },
-  { id: 'sv_gliss',        name: 'Aplicación de Gliss Car Pro',     timeMin: 60,  price: 100 , grupo: 'Protección y brillo' },
-  { id: 'sv_lav_piso',     name: 'Lavado de Piso',                  timeMin: 60,  price: 80  , grupo: 'Lavados' },
-  { id: 'sv_ret_alfombra', name: 'Retirado de Alfombra',            timeMin: 30,  price: 40  , grupo: 'Detallado y desmontaje' },
-  { id: 'sv_motor_basico', name: 'Lavado de Motor (Básico)',        timeMin: 20,  price: 20  , grupo: 'Lavados' },
-  { id: 'sv_motor_det',    name: 'Lavado de Motor (Detallado)',     timeMin: 40,  price: 40  , grupo: 'Lavados' },
-  { id: 'sv_berniz',       name: 'Berniz de Motor',                 timeMin: 15,  price: 15  , grupo: 'Detallado y desmontaje' },
-  { id: 'sv_cera_vonixx',  name: 'Cera en pasta Vonixx',           timeMin: 15,  price: 20  , grupo: 'Protección y brillo' },
-  // ── Precio según vehículo ─────────────────────────────────────────────────
-  { id: 'sv_ext_basico',   name: 'Lavado Exterior (Básico)',        timeMin: 30,  prices: { auto: 25, suv: 30, pickup: 35, xl: 40 } , grupo: 'Lavados' },
-  { id: 'sv_offroad',      name: 'Lavado OffRoad',                  timeMin: 45,  prices: { auto: 55, suv: 60, pickup: 65, xl: 70 } , grupo: 'Lavados' },
-  { id: 'sv_pul1',         name: 'Pulido 1 Paso',                   timeMin: 120, prices: { auto: 130, suv: 150, pickup: 170, xl: 170 } , grupo: 'Pulidos y Descontaminaciones' },
-  { id: 'sv_pul3',         name: 'Pulido 3 Pasos',                  timeMin: 240, prices: { auto: 260, suv: 280, pickup: 300, xl: 300 } , grupo: 'Pulidos y Descontaminaciones' },
-  { id: 'sv_desc',         name: 'Descontaminación',                timeMin: 90,  prices: { auto: 120, suv: 140, pickup: 160, xl: 160 } , grupo: 'Pulidos y Descontaminaciones' },
-  { id: 'sv_cer_cp2',      name: 'Cerámico CarPro 2 Años',          timeMin: 480, prices: { auto: 799, suv: 899, pickup: 999, xl: 999 } , grupo: 'Cerámicos' },
-  { id: 'sv_cer_ap3',      name: 'Cerámico AutoPremium 3 Años',     timeMin: 480, prices: { auto: 499, suv: 599, pickup: 699, xl: 699 } , grupo: 'Cerámicos' },
-]
 
 // De donde sale el catalogo de cada categoria, para ordenar y reagrupar sin
 // repetir el switch en cada sitio.

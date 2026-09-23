@@ -84,6 +84,25 @@ export function normalize(text) {
     .trim()
 }
 
+// Paños de planchado y pintura de un ticket. Abierto desde Registro guarda
+// "3 paños · Standard · Auto"; desde una cotización, cada paño llega como
+// adicional ("Capot + Planchado (Leve)", "Pintado de Techo") o agrupado
+// ("Pintado de 4 paños").
+export function panosDeTicket(row) {
+  let n = 0
+  if (String(row?.vehicle_type || '').startsWith('pre_planchado')) {
+    const m = normalize(row.vehicle_subtype).match(/(\d+)\s*panos?/)
+    n += m ? Number(m[1]) : 1
+  }
+  for (const name of row?.extras_names || []) {
+    const x = normalize(name)
+    const grupo = x.match(/^pintado de (\d+) panos?\b/)
+    if (grupo) n += Number(grupo[1])
+    else if (x.startsWith('pintado de ') || x.includes(' + planchado')) n += 1
+  }
+  return n
+}
+
 // Cuántas veces aporta un ticket a una meta. Un mismo ticket puede llevar dos
 // adicionales del mismo servicio, y ambos cuentan.
 export function matchCount(item, row) {
@@ -104,6 +123,27 @@ export function matchCount(item, row) {
   // catálogo nuevo: los anteriores no tienen categoría guardada.
   if (item.source === 'categoria') {
     return (item.categories || []).includes(row.service_cat) ? 1 : 0
+  }
+
+  if (item.source === 'panos') return panosDeTicket(row)
+
+  // Servicio de Presupuesto: cuenta si es el servicio del ticket o si llegó
+  // como adicional desde una cotización (con su nombre de Presupuesto).
+  if (item.source === 'presupuesto') {
+    let n = 0
+    if ((item.vehicles || []).includes(row.vehicle_type)) {
+      const vars = item.variants || []
+      if (!vars.length || vars.includes(row.vehicle_subtype)) n += 1
+    }
+    // Nombre exacto, o con el tamaño que agrega Presupuesto ("Pulido 1 Paso —
+    // SUV"): "Miyavi 1 Año Plus" no debe contar como "Miyavi 1 Año".
+    const kws = (item.keywords || []).map(normalize).filter(Boolean)
+    if (kws.length) {
+      n += (row.extras_names || []).map(normalize)
+        .filter(name => kws.some(k => name === k || name.startsWith(k + ' — ') || name.startsWith(k + ' (')))
+        .length
+    }
+    return n
   }
 
   const kws = (item.keywords || []).map(normalize).filter(Boolean)

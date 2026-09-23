@@ -1,6 +1,6 @@
 import { createContext, useContext, useReducer, useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
-import { fetchCatalogoOverrides, serviciosDePresupuesto } from '../lib/catalogoPresupuesto'
+import { fetchCatalogoOverrides, serviciosDePresupuesto, opcionesMetas } from '../lib/catalogoPresupuesto'
 import {
   DEMO_WORKERS, DEMO_SERVICES, DEMO_TICKETS, DEMO_INCIDENTS, DEMO_MONTHLY_COSTS
 } from '../lib/demoData'
@@ -1136,12 +1136,14 @@ export function AppProvider({ children }) {
   // dos listas de precios.
   const [presupuestoServices, setPresupuestoServices] = useState([])
   const [presupuestoConfig, setPresupuestoConfig]     = useState(null)
+  const [presupuestoOverrides, setPresupuestoOverrides] = useState(null)
   const reloadPresupuestoServices = useCallback(async () => {
     if (IS_DEMO) return
     try {
       const ov = await fetchCatalogoOverrides()
       setPresupuestoServices(serviciosDePresupuesto(ov))
       setPresupuestoConfig(ov.config)
+      setPresupuestoOverrides(ov)
     } catch { /* si falla, el ticket sigue con lo que ya tenía */ }
   }, [])
 
@@ -1160,9 +1162,17 @@ export function AppProvider({ children }) {
     return () => { supabase.removeChannel(ch) }
   }, [reloadPresupuestoServices])
 
+  // Servicios que se pueden elegir como meta, con el precio vigente de
+  // Presupuesto: cambia solo cuando allá se edita.
+  const metasCatalogo = useMemo(
+    () => opcionesMetas(presupuestoOverrides || {}, state.vehicleTypes),
+    [presupuestoOverrides, state.vehicleTypes]
+  )
+
   return (
     <AppContext.Provider value={{
       ...state,
+      metasCatalogo,
       // Servicios que ve el ticket: los del catálogo propio más los de
       // Presupuesto (cerámico, PPF, polarizado, planchado). Configuración solo
       // edita `vehicleTypes`; los de Presupuesto se editan en su pantalla.

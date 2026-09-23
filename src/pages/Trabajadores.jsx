@@ -398,7 +398,7 @@ export default function Trabajadores() {
   const { workers, tickets, incidents, services, addWorker, updateWorker, addIncident, updateIncident, deleteIncident, addExpense,
           fetchWorkerMonthlyConfigs, fetchWorkerConfigsUpTo, saveWorkerMonthlyConfig,
           fetchCasualWorkers, addCasualWorker, fetchCasualPayments,
-          addCasualPayment, deleteCasualPayment } = useApp()
+          addCasualPayment, deleteCasualPayment, recargarIncidencias } = useApp()
   const { month: curMonth, year: curYear } = currentMonthYear()
   const [selMonth, setSelMonth] = useState(curMonth)
   const [selYear,  setSelYear]  = useState(curYear)
@@ -534,13 +534,22 @@ export default function Trabajadores() {
 
   // Multas por tardanza del mes al día: crea las que falten (también las de
   // tardanzas anteriores a esta función) y quita las que ya no correspondan.
+  // Al abrir el mes se leen sus incidencias una vez desde la base: las multas
+  // automáticas se crean y borran sin avisar por realtime y la copia guardada
+  // en el teléfono podía mostrar multas que ya no existen.
+  const mesLeido = useRef(null)
   useEffect(() => {
     let vivo = true
-    reconciliarMultas({ prefix: `${selYear}-${String(selMonth).padStart(2, '0')}` })
+    const prefix = `${selYear}-${String(selMonth).padStart(2, '0')}`
+    reconciliarMultas({ prefix })
       .then(({ creadas, borradas }) => {
-        if (!vivo || !(creadas || borradas)) return
+        if (!vivo) return
+        const cambio = creadas || borradas
         if (creadas) toast(`${creadas} multa${creadas === 1 ? '' : 's'} por tardanza registrada${creadas === 1 ? '' : 's'}`, { icon: '🚫' })
-        if (!isCurrentMonth) loadPastMonth(selMonth, selYear, workers)
+        if (!cambio && mesLeido.current === prefix) return
+        mesLeido.current = prefix
+        if (isCurrentMonth) recargarIncidencias(prefix)
+        else if (cambio) loadPastMonth(selMonth, selYear, workers)
       })
       .catch(() => {})
     return () => { vivo = false }

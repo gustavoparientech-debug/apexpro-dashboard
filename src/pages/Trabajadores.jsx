@@ -11,6 +11,7 @@ import Badge from '../components/ui/Badge'
 import { Plus, Edit2, UserX, UserCheck, AlertCircle, Clock, Calendar, Download, FileSpreadsheet, Pencil, Check, X, Trash2, Users, Wallet, ChevronLeft, ChevronRight } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
+import { reconciliarMultas } from '../lib/multasTardanza'
 
 const INCIDENT_ICONS = { falta: '🔴', permiso: '🟡', permiso_horas: '🟡', tardanza: '🟠', hora_extra: '🟢', no_marcacion: '🔵', multa: '🚫', adelanto: '💵' }
 const INCIDENT_LABELS = { vacaciones: 'Vacaciones', falta: 'Falta injustificada', permiso: 'Permiso justificado', permiso_horas: 'Permiso por horas', tardanza: 'Tardanza', hora_extra: 'Hora extra', no_marcacion: 'No marcó entrada/salida', multa: 'Multa', adelanto: 'Adelanto de sueldo' }
@@ -530,6 +531,20 @@ export default function Trabajadores() {
     if (isCurrentMonth) { setPastMonthData(null); return }
     loadPastMonth(selMonth, selYear, workers)
   }, [selMonth, selYear, isCurrentMonth, workers])
+
+  // Multas por tardanza del mes al día: crea las que falten (también las de
+  // tardanzas anteriores a esta función) y quita las que ya no correspondan.
+  useEffect(() => {
+    let vivo = true
+    reconciliarMultas({ prefix: `${selYear}-${String(selMonth).padStart(2, '0')}` })
+      .then(({ creadas, borradas }) => {
+        if (!vivo || !(creadas || borradas)) return
+        if (creadas) toast(`${creadas} multa${creadas === 1 ? '' : 's'} por tardanza registrada${creadas === 1 ? '' : 's'}`, { icon: '🚫' })
+        if (!isCurrentMonth) loadPastMonth(selMonth, selYear, workers)
+      })
+      .catch(() => {})
+    return () => { vivo = false }
+  }, [selMonth, selYear, incidents.length])
 
   // Hora real de entrada por trabajador y dia. En una tardanza lo primero que
   // se pregunta es a que hora llego, y eso solo esta en attendance_logs.

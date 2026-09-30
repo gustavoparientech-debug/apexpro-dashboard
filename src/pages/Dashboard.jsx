@@ -139,6 +139,8 @@ const SORT_OPTIONS = [
 // El domingo no se trabaja: si aparece un ticket es porque entró a destajo y
 // ensucia el promedio, así que queda fuera de la estadística.
 const DIAS_SEMANA = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado']
+// "los lunes", "los sábados": solo sábado cambia en plural.
+const diaPlural = i => DIAS_SEMANA[i].toLowerCase() + (i === 5 ? 's' : '')
 const RANGOS_AFLUENCIA = [
   { dias: 30,  label: '30 días' },
   { dias: 90,  label: '3 meses' },
@@ -229,6 +231,38 @@ function repartirFueraDeHorario(porHora) {
   }
 }
 
+// Lo que muestra el gráfico de horas a partir de los conteos por hora: barras
+// del horario de atención, hora pico, mejor rato para almorzar y hasta qué hora
+// llega el 90% de los autos. Sirve para todos los días juntos o para uno solo.
+function resumenHoras(porHora) {
+  const { dentro, autosFuera, ingresosFuera } = repartirFueraDeHorario(porHora)
+  const dataHoras = dentro.map(h => ({
+    ...h,
+    label: `${String(h.hora).padStart(2, '0')}:00`,
+    ingresos: Math.round(h.ingresos),
+  }))
+  const conMarca = dataHoras.reduce((s, h) => s + h.autos, 0)
+  const horaPico = conMarca > 0 ? [...dataHoras].sort((a, b) => b.autos - a.autos)[0] : null
+
+  // Ventana de almuerzo: las dos horas más flojas entre las 11 y las 16.
+  const mediodia = dataHoras.filter(h => h.hora >= 11 && h.hora <= 15)
+  let almuerzo = null
+  for (let i = 0; i < mediodia.length - 1; i++) {
+    const suma = mediodia[i].autos + mediodia[i + 1].autos
+    if (!almuerzo || suma < almuerzo.suma) almuerzo = { desde: mediodia[i].hora, suma }
+  }
+
+  // Hasta qué hora llega el 90% de los autos: lo que pasa después no justifica
+  // tener el taller abierto.
+  let acumulado = 0
+  let cierre = null
+  for (const h of dataHoras) {
+    acumulado += h.autos
+    if (!cierre && conMarca > 0 && acumulado >= conMarca * 0.9) cierre = h.hora
+  }
+  return { dataHoras, conMarca, horaPico, almuerzo, cierre, autosFuera, ingresosFuera }
+}
+
 // Mes con mas servicios dentro del periodo traido. Es la referencia para
 // dimensionar: hay que poder con el mes bueno, no con el promedio.
 const MESES_NOMBRE = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre']
@@ -278,6 +312,8 @@ function AfluenciaPanel() {
   }, [horarios, equipoLavados])
   const [dias, setDias]   = useState(90)
   const [soloPico, setSoloPico] = useState(false)
+  // Día de la semana del gráfico por hora (null = todos los días juntos).
+  const [diaHoras, setDiaHoras] = useState(null)
   const [rows, setRows]   = useState(null)
   const [cargando, setCargando] = useState(true)
 
@@ -309,6 +345,8 @@ function AfluenciaPanel() {
     const porDia = DIAS_SEMANA.map(nombre => ({ dia: nombre, autos: 0, ingresos: 0, fechas: new Set() }))
     const domingos = (rows || []).filter(t => t.date && esDomingo(t.date)).length
     const porHora = Array.from({ length: 24 }, (_, h) => ({ hora: h, autos: 0, ingresos: 0 }))
+    // Las mismas horas separadas por día de la semana, para filtrar el gráfico.
+    const porHoraDia = DIAS_SEMANA.map(() => Array.from({ length: 24 }, (_, h) => ({ hora: h, autos: 0, ingresos: 0 })))
 
     for (const t of lista) {
       const [y, m, d] = t.date.split('-').map(Number)
@@ -320,7 +358,10 @@ function AfluenciaPanel() {
       const marca = t.opened_at || t.created_at
       if (marca) {
         const h = new Date(marca).getHours()
-        if (!isNaN(h)) { porHora[h].autos += 1; porHora[h].ingresos += Number(t.price_charged) || 0 }
+        if (!isNaN(h)) {
+          porHora[h].autos += 1; porHora[h].ingresos += Number(t.price_charged) || 0
+          porHoraDia[idx][h].autos += 1; porHoraDia[idx][h].ingresos += Number(t.price_charged) || 0
+        }
       }
     }
 
@@ -345,34 +386,10 @@ function AfluenciaPanel() {
     // Solo el horario de atencion: lo marcado fuera se reparte dentro siguiendo
     // la tendencia, para que el grafico refleje cuando entra el trabajo de
     // verdad y no cuando se registro el ticket.
-    const { dentro, autosFuera, ingresosFuera } = repartirFueraDeHorario(porHora)
-    const dataHoras = dentro.map(h => ({
-      ...h,
-      label: `${String(h.hora).padStart(2, '0')}:00`,
-      ingresos: Math.round(h.ingresos),
-    }))
-
-    const conMarca = dataHoras.reduce((s, h) => s + h.autos, 0)
+    const { dataHoras, conMarca, horaPico, almuerzo, cierre, autosFuera, ingresosFuera } = resumenHoras(porHora)
+    const horasPorDia = porHoraDia.map((ph, i) => ({ ...resumenHoras(ph), veces: vecesPorDia[i] }))
     const mejorDia  = [...dataDias].sort((a, b) => b.promedio - a.promedio)[0]
     const peorDia   = [...dataDias].filter(d => d.autos > 0).sort((a, b) => a.promedio - b.promedio)[0]
-    const horaPico  = [...dataHoras].sort((a, b) => b.autos - a.autos)[0]
-
-    // Ventana de almuerzo: las dos horas más flojas entre las 11 y las 16.
-    const mediodia = dataHoras.filter(h => h.hora >= 11 && h.hora <= 15)
-    let almuerzo = null
-    for (let i = 0; i < mediodia.length - 1; i++) {
-      const suma = mediodia[i].autos + mediodia[i + 1].autos
-      if (!almuerzo || suma < almuerzo.suma) almuerzo = { desde: mediodia[i].hora, suma }
-    }
-
-    // Hasta qué hora llega el 90% de los autos: lo que pasa después no justifica
-    // tener el taller abierto.
-    let acumulado = 0
-    let cierre = null
-    for (const h of dataHoras) {
-      acumulado += h.autos
-      if (!cierre && conMarca > 0 && acumulado >= conMarca * 0.9) cierre = h.hora
-    }
 
     // ── Carga de taller: cuanta gente pide el trabajo que entra ──────────────
     // Un lavado se mide por las horas que el auto esta en el taller. Un trabajo
@@ -480,7 +497,7 @@ function AfluenciaPanel() {
       }
     }
 
-    return { mesPico, dataDias, dataHoras, mejorDia, peorDia, horaPico, almuerzo, cierre, total: lista.length, conMarca, domingos, autosFuera, ingresosFuera, carga }
+    return { mesPico, dataDias, dataHoras, horasPorDia, mejorDia, peorDia, horaPico, almuerzo, cierre, total: lista.length, conMarca, domingos, autosFuera, ingresosFuera, carga }
   }, [rows, dias, soloPico, horasPorDia])
 
   return (
@@ -551,20 +568,37 @@ function AfluenciaPanel() {
           </div>
 
           {/* Horas del día */}
+          {(() => { const horas = diaHoras == null ? analisis : analisis.horasPorDia[diaHoras]; return (
           <div>
             <div className="flex items-baseline justify-between mb-1">
               <p className="text-xs font-bold uppercase tracking-widest text-gray-400">Autos que entran por hora</p>
-              <p className="text-[11px] text-gray-400">{analisis.conMarca} con hora registrada</p>
+              <p className="text-[11px] text-gray-400">
+                {horas.conMarca} con hora registrada
+                {diaHoras != null && ` · ${horas.veces} ${horas.veces === 1 ? DIAS_SEMANA[diaHoras].toLowerCase() : diaPlural(diaHoras)}`}
+              </p>
             </div>
-            {analisis.autosFuera > 0 && (
+            <div className="flex gap-1 overflow-x-auto pb-1 mb-1.5 -mx-1 px-1">
+              {[null, 0, 1, 2, 3, 4, 5].map(i => {
+                const activo = diaHoras === i
+                return (
+                  <button key={i ?? 'todos'} onClick={() => setDiaHoras(i)}
+                    className={`shrink-0 px-2.5 py-1 rounded-full text-[11px] font-semibold transition-colors ${
+                      activo ? 'bg-red-600 text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
+                    }`}>
+                    {i == null ? 'General' : DIAS_SEMANA[i].slice(0, 3)}
+                  </button>
+                )
+              })}
+            </div>
+            {horas.autosFuera > 0 && (
               <p className="text-[10px] text-gray-400 mb-1">
-                Horario 8:30–18:00 · {analisis.autosFuera} auto{analisis.autosFuera === 1 ? '' : 's'} con
-                marca fuera de horario (registro tardío) repartido{analisis.autosFuera === 1 ? '' : 's'} según la tendencia del día
+                Horario 8:30–18:00 · {horas.autosFuera} auto{horas.autosFuera === 1 ? '' : 's'} con
+                marca fuera de horario (registro tardío) repartido{horas.autosFuera === 1 ? '' : 's'} según la tendencia del día
               </p>
             )}
             <div className="h-52">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={analisis.dataHoras} margin={{ top: 16, right: 4, left: -22, bottom: 0 }}>
+                <BarChart data={horas.dataHoras} margin={{ top: 16, right: 4, left: -22, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
                   <XAxis dataKey="label" tick={{ fontSize: 9 }} axisLine={false} tickLine={false} interval={0} />
                   <YAxis tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
@@ -574,21 +608,31 @@ function AfluenciaPanel() {
                   <Bar dataKey="autos" radius={[6, 6, 2, 2]} maxBarSize={30}>
                     <LabelList dataKey="autos" position="top" offset={5}
                       style={{ fontSize: 9, fontWeight: 700, fill: '#6b7280' }} />
-                    {analisis.dataHoras.map(h => (
+                    {horas.dataHoras.map(h => (
                       <Cell key={h.hora}
-                        fill={h.hora === analisis.horaPico?.hora ? '#dc2626'
-                          : (analisis.almuerzo && (h.hora === analisis.almuerzo.desde || h.hora === analisis.almuerzo.desde + 1)) ? '#93c5fd'
+                        fill={h.hora === horas.horaPico?.hora ? '#dc2626'
+                          : (horas.almuerzo && (h.hora === horas.almuerzo.desde || h.hora === horas.almuerzo.desde + 1)) ? '#93c5fd'
                           : '#fca5a5'} />
                     ))}
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
+            {diaHoras != null && (
+              <p className="text-[11px] text-gray-400 mt-1">
+                {horas.conMarca === 0
+                  ? `Sin autos con hora registrada los ${diaPlural(diaHoras)} del período.`
+                  : `Los ${diaPlural(diaHoras)}: hora pico ${String(horas.horaPico.hora).padStart(2, '0')}:00` +
+                    (horas.almuerzo ? ` · almuerzo sugerido ${String(horas.almuerzo.desde).padStart(2, '0')}:00–${String(horas.almuerzo.desde + 2).padStart(2, '0')}:00` : '') +
+                    (horas.veces > 0 ? ` · ${Math.round((horas.conMarca / horas.veces) * 10) / 10} autos por día en promedio` : '')}
+              </p>
+            )}
             <div className="flex items-center gap-4 mt-1.5">
               <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-red-600" /><span className="text-[11px] text-gray-400">Hora pico</span></div>
               <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-blue-300" /><span className="text-[11px] text-gray-400">Mejor rato para almorzar</span></div>
             </div>
           </div>
+          ) })()}
 
           {/* Qué hacer con esto */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">

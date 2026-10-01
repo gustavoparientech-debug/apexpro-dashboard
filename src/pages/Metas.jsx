@@ -30,10 +30,11 @@ const ANILLO_DINERO    = '#A3F900'
 
 function ActivityRings({ servicios, dinero, size = 136, stroke = 15, gap = 3 }) {
   const c = size / 2
+  // Sin dinero (trabajadores) queda solo el anillo de servicios.
   const anillos = [
     { pct: servicios, color: ANILLO_SERVICIOS, r: (size - stroke) / 2 },
-    { pct: dinero,    color: ANILLO_DINERO,    r: (size - stroke) / 2 - stroke - gap },
-  ]
+    dinero != null && { pct: dinero, color: ANILLO_DINERO, r: (size - stroke) / 2 - stroke - gap },
+  ].filter(Boolean)
   return (
     <svg width={size} height={size} className="-rotate-90 flex-none">
       {anillos.map(({ pct, color, r }) => {
@@ -125,8 +126,9 @@ function GrupoCard({ grupo, items, expectedPct, diasRestantes, verDinero }) {
   if (!items.length) return null
   const meta = items.reduce((s, i) => s + i.goal, 0)
   const hecho = items.reduce((s, i) => s + Math.min(i.done, i.goal || i.done), 0)
-  // El porcentaje del grupo pesa el dinero de cada meta, no cuántas son.
-  const metaMonto  = items.reduce((s, i) => s + i.goal * (i.price || 0), 0)
+  // El porcentaje del grupo pesa el dinero de cada meta, no cuántas son. El
+  // trabajador no ve montos: para él cuenta la cantidad.
+  const metaMonto  = verDinero ? items.reduce((s, i) => s + i.goal * (i.price || 0), 0) : 0
   const hechoMonto = items.reduce((s, i) => s + Math.min(i.done, i.goal || i.done) * (i.price || 0), 0)
   const pct = metaMonto > 0
     ? Math.round((hechoMonto / metaMonto) * 100)
@@ -271,7 +273,9 @@ export default function Metas() {
     return { meta, hecho, hoy, pct, pctServicios, faltan: Math.max(0, meta - hecho) }
   }, [progreso, econ, brutoMes])
 
-  const estadoGlobal = ESTADO[total.meta ? estadoMeta(total.pct, expectedPct) : 'sinmeta']
+  // El trabajador ve solo cantidades: su estado sale del avance en servicios.
+  const pctGlobal = verDinero ? total.pct : total.pctServicios
+  const estadoGlobal = ESTADO[total.meta ? estadoMeta(pctGlobal, expectedPct) : 'sinmeta']
   const ritmoDia = total.faltan > 0 && diasRestantes > 0 ? total.faltan / diasRestantes : 0
 
   const pestanas = verDinero && (
@@ -349,7 +353,7 @@ export default function Metas() {
         </div>
 
         <div className="flex items-center gap-5">
-          <ActivityRings servicios={total.pctServicios} dinero={total.pct} />
+          <ActivityRings servicios={total.pctServicios} dinero={verDinero ? total.pct : null} />
 
           <div className="flex-1 min-w-0 space-y-2">
             {/* Anillo de afuera: cantidad de servicios */}
@@ -364,8 +368,8 @@ export default function Metas() {
                 <span className="w-2 h-2 rounded-full" style={{ background: ANILLO_SERVICIOS }} /> Servicios
               </p>
             </div>
-            {/* Anillo de adentro: dinero */}
-            <div className="bg-white/10 rounded-xl px-3 py-2.5">
+            {/* Anillo de adentro: dinero, solo para el admin */}
+            {verDinero && <div className="bg-white/10 rounded-xl px-3 py-2.5">
               <div className="flex items-baseline justify-between gap-2">
                 <p className="text-white text-xl font-black leading-none tabular-nums truncate">
                   {brutoMes != null && econ.ingresoMeta > 0 ? formatMoney(brutoMes) : 'Del plan'}
@@ -374,9 +378,9 @@ export default function Metas() {
               </div>
               <p className="flex items-center gap-1.5 text-[10px] text-gray-400 uppercase tracking-wide mt-1">
                 <span className="w-2 h-2 rounded-full flex-none" style={{ background: ANILLO_DINERO }} />
-                <span className="truncate">Dinero{verDinero && econ.ingresoMeta > 0 ? ` · de ${formatMoney(econ.ingresoMeta)}` : ''}</span>
+                <span className="truncate">Dinero{econ.ingresoMeta > 0 ? ` · de ${formatMoney(econ.ingresoMeta)}` : ''}</span>
               </p>
-            </div>
+            </div>}
             <div className="grid grid-cols-2 gap-2">
               <div className="bg-white/10 rounded-xl px-3 py-2">
                 <p className="text-white text-base font-black leading-none">{total.faltan}</p>
@@ -537,10 +541,12 @@ export default function Metas() {
           La línea gris dentro de cada barra marca dónde deberíamos ir hoy ({expectedPct}% del mes).
           Si la barra pasa la línea, vamos adelantados.
         </p>
-        <p className="text-[11px] text-gray-400 mt-1.5 leading-relaxed">
-          El porcentaje del mes pesa lo que vale cada servicio, no cuántos son: cien lavados
-          no equivalen a un PPF.
-        </p>
+        {verDinero && (
+          <p className="text-[11px] text-gray-400 mt-1.5 leading-relaxed">
+            El porcentaje del mes pesa lo que vale cada servicio, no cuántos son: cien lavados
+            no equivalen a un PPF.
+          </p>
+        )}
       </div>
     </div>
   )

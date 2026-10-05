@@ -236,12 +236,56 @@ export function serviciosDePresupuesto({ meta, precios, config }) {
   return salida
 }
 
+// ─── Extras del ticket ───────────────────────────────────────────────────────
+// Los extras que se agregan a un ticket son la pestaña Servicios de
+// Presupuesto: mismos nombres, precios, niveles (subcategorías), títulos y
+// orden. Al cambiar algo allá, cambia en el ticket. Los que están sin stock no
+// se ofrecen.
+const SV_TAMANIOS = [['auto', 'Auto'], ['suv', 'SUV'], ['pickup', 'Pickup'], ['xl', 'XL']]
+
+// Variantes de un servicio de la pestaña Servicios: sus niveles si los tiene,
+// si no los tamaños de vehículo cuando el precio cambia por tamaño.
+function variantesServicio(s, pr) {
+  if (s.subcats?.length) {
+    return s.subcats.map(x => ({ label: x.label, price: Number(x.price) || 0 }))
+  }
+  if (s.prices) {
+    return SV_TAMANIOS
+      .map(([k, l]) => ({ label: l, price: precioCon(pr, s.id, k, s.prices[k] ?? 0) }))
+      .filter(v => v.price > 0)
+  }
+  return null
+}
+
+export function extrasDePresupuesto({ meta, precios } = {}) {
+  if (!meta) return []
+  const borrados  = new Set(meta.deleted || [])
+  const overrides = meta.overrides || {}
+  const pr = precios || {}
+  const todos = SERVICIOS_DATA
+    .filter(s => !borrados.has(s.id))
+    .map(s => ({ ...s, ...(overrides[s.id] || {}) }))
+    .concat((meta.added || []).filter(a => a.category === 'servicios').map(a => ({ ...a, ...(overrides[a.id] || {}) })))
+  const orden = Object.fromEntries((meta.order?.servicios || []).map((id, i) => [id, i]))
+  return todos
+    .filter(s => s.inStock !== false)
+    .sort((a, b) => (orden[a.id] ?? 9999) - (orden[b.id] ?? 9999))
+    .map(s => {
+      const variants = variantesServicio(s, pr)
+      return {
+        id: s.id,
+        name: s.name,
+        grupo: s.grupo || 'Otros',
+        variants: variants?.length ? variants : null,
+        price: variants?.length ? 0 : precioCon(pr, s.id, null, s.price ?? 0),
+      }
+    })
+}
+
 // ─── Servicios de Presupuesto para las metas ─────────────────────────────────
 // Lo que se puede elegir como meta, agrupado como en Presupuesto. Cada opción
 // dice cómo se cuenta en los tickets y de qué servicio toma el precio, así la
 // meta sigue a Presupuesto cuando allá cambia un precio o un nombre.
-const SV_TAMANIOS = [['auto', 'Auto'], ['suv', 'SUV'], ['pickup', 'Pickup'], ['xl', 'XL']]
-
 const slugMarca = marca => marca.toLowerCase().replace(/[^a-z0-9]+/g, '_')
 
 export function opcionesMetas({ meta, precios, config } = {}, vehicleTypes = []) {
@@ -316,9 +360,7 @@ export function opcionesMetas({ meta, precios, config } = {}, vehicleTypes = [])
     id: 'servicios', label: 'Servicios adicionales', emoji: '🧰',
     opciones: lista(SERVICIOS_DATA, 'servicios').map(s => {
       const value = `pre_${s.id}`
-      const variants = s.prices
-        ? SV_TAMANIOS.map(([k, l]) => ({ label: l, price: precioCon(pr, s.id, k, s.prices[k] ?? 0) })).filter(v => v.price > 0)
-        : null
+      const variants = variantesServicio(s, pr)
       return opcion({
         id: `pres_${s.id}`, label: s.name, emoji: '🧰',
         group: /lavado/i.test(s.grupo || s.name || '') ? 'lavados' : 'detailing',

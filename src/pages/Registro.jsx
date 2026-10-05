@@ -1238,20 +1238,39 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
               </div>
             )}
 
-            {/* Catálogo */}
-            {!variantPicker && extrasCatalog.filter(e => e.active !== false).length > 0 && (
-              <div className="grid grid-cols-2 gap-2">
-                {extrasCatalog.filter(e => e.active !== false).map(ex => (
-                  <button key={ex.id} onClick={() => addCatalogExtra(ex)}
-                    className="flex items-center justify-between px-3 py-2 rounded-xl border border-gray-200 dark:border-gray-700 hover:border-red-400 hover:bg-red-50 dark:hover:bg-red-900/10 transition-all text-sm">
-                    <span className="font-medium text-gray-700 dark:text-gray-300">{ex.name}</span>
-                    <span className="text-xs font-bold text-red-500">
-                      {ex.variants?.length ? `${ex.variants.length} niveles` : `+S/${ex.price}`}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            )}
+            {/* Catálogo: la pestaña Servicios de Presupuesto, con sus títulos */}
+            {!variantPicker && extrasCatalog.length > 0 && (() => {
+              const grupos = []
+              for (const ex of extrasCatalog) {
+                const g = ex.grupo || ''
+                let grupo = grupos.find(x => x.nombre === g)
+                if (!grupo) grupos.push(grupo = { nombre: g, items: [] })
+                grupo.items.push(ex)
+              }
+              return (
+                <div className="space-y-2.5">
+                  {grupos.map(g => (
+                    <div key={g.nombre}>
+                      {grupos.length > 1 && g.nombre && (
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1.5">{g.nombre}</p>
+                      )}
+                      <div className="grid grid-cols-2 gap-2">
+                        {g.items.map(ex => (
+                          <button key={ex.id} onClick={() => addCatalogExtra(ex)}
+                            className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl border border-gray-200 dark:border-gray-700 hover:border-red-400 hover:bg-red-50 dark:hover:bg-red-900/10 transition-all text-sm text-left">
+                            <span className="font-medium text-gray-700 dark:text-gray-300">{ex.name}</span>
+                            <span className="text-xs font-bold text-red-500 flex-none">
+                              {ex.variants?.length ? `${ex.variants.length} niveles` : `+S/${ex.price}`}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                  <p className="text-[10px] text-gray-400">Precios de Presupuesto → Servicios. Se cambian allá.</p>
+                </div>
+              )
+            })()}
 
             {/* Manual */}
             <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-3 space-y-2">
@@ -2870,7 +2889,7 @@ const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto
 // ─── Página principal ─────────────────────────────────────────────────────────
 export default function Registro() {
   const {
-    tickets, dailySummaries, workers, serviciosTicket, extrasCatalog, expenses,
+    tickets, dailySummaries, workers, serviciosTicket, extrasTicket, expenses,
     addTicket, updateTicket, deleteTicket, addDailySummary, deleteDailySummary, updateExpense, deleteExpense, addIncident, loadData,
     fetchAdvances,
   } = useApp()
@@ -3743,7 +3762,7 @@ export default function Registro() {
             onClose={() => setActiveTicket(null)}
             workers={workers}
             vehicleTypes={vehicleTypes}
-            extrasCatalog={extrasCatalog || []}
+            extrasCatalog={extrasTicket || []}
             onUpdate={handleUpdateTicket}
             onDelete={canAdmin ? handleDeleteTicket : null}
             onClosed={(tk) => setSummaryTicket(tk)}

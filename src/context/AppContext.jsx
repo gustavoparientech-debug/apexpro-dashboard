@@ -1,6 +1,6 @@
 import { createContext, useContext, useReducer, useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
-import { fetchCatalogoOverrides, serviciosDePresupuesto, opcionesMetas } from '../lib/catalogoPresupuesto'
+import { fetchCatalogoOverrides, serviciosDePresupuesto, opcionesMetas, extrasDePresupuesto } from '../lib/catalogoPresupuesto'
 import { fetchCostos, COSTOS_KEY } from '../lib/metas'
 import { reconciliarMultas } from '../lib/multasTardanza'
 import {
@@ -1214,9 +1214,17 @@ export function AppProvider({ children }) {
     [presupuestoOverrides, state.vehicleTypes, costosServicios]
   )
 
+  // Extras del ticket: la pestaña Servicios de Presupuesto. Sin conexión (o en
+  // demo) queda el catálogo de extras antiguo.
+  const extrasTicket = useMemo(() => {
+    const dePresupuesto = extrasDePresupuesto(presupuestoOverrides || {})
+    return dePresupuesto.length ? dePresupuesto : state.extrasCatalog.filter(e => e.active !== false)
+  }, [presupuestoOverrides, state.extrasCatalog])
+
   return (
     <AppContext.Provider value={{
       ...state,
+      extrasTicket,
       metasCatalogo,
       recargarIncidencias,
       reloadCostos,

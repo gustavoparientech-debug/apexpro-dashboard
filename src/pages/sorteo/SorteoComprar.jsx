@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Shuffle, Trash2, X, FileText } from 'lucide-react'
 import toast from 'react-hot-toast'
-import { Shell, Card, ErrorBox, Boton, Spinner, Leyenda } from '../../components/sorteo/ui'
+import { Shell, Card, ErrorBox, Boton, Spinner, Leyenda, Terminos } from '../../components/sorteo/ui'
 import TicketGrid from '../../components/sorteo/TicketGrid'
 import BuyerFields, { EMPTY_BUYER, validateBuyer } from '../../components/sorteo/BuyerFields'
 import PaymentStep from '../../components/sorteo/PaymentStep'
@@ -183,7 +183,7 @@ export default function SorteoComprar() {
         <div className="fixed inset-0 z-50 bg-black/70 flex items-end sm:items-center justify-center p-4" onClick={() => setTerms(false)}>
           <div className="bg-[#1b1b1b] border border-white/10 rounded-2xl p-5 max-w-lg w-full max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Términos y condiciones">
             <p className="font-bold flex items-center gap-2"><FileText className="w-4 h-4 text-red-500" /> Términos y condiciones</p>
-            <p className="text-sm text-gray-300 mt-3 whitespace-pre-line leading-relaxed">{cfg.terminos || 'Sin términos publicados.'}</p>
+            <div className="mt-4"><Terminos texto={cfg.terminos} /></div>
             <Boton className="mt-5" onClick={() => { setAcepta(true); setTerms(false) }}>Acepto</Boton>
           </div>
         </div>

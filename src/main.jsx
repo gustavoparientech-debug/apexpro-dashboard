@@ -112,7 +112,33 @@ const PageFallback = (
   </div>
 )
 
-ReactDOM.createRoot(document.getElementById('root')).render(
+// apexproaqp.com es el dominio público del sorteo: ahí solo existen sus
+// páginas. Ni login ni panel, y no se cargan sesión ni datos del negocio.
+// (sorteo.localhost sirve para probarlo en local.)
+const IS_SORTEO_HOST = /(^|\.)apexproaqp\.com$|^sorteo\.localhost$/i.test(window.location.hostname)
+
+function SorteoSite() {
+  return (
+    <BrowserRouter>
+      <Suspense fallback={PageFallback}>
+        <Routes>
+          <Route path="/sorteo"                 element={<SorteoLanding />} />
+          <Route path="/sorteo/comprar"         element={<SorteoComprar />} />
+          <Route path="/sorteo/estado/:orderId" element={<SorteoEstado />} />
+          <Route path="/sorteo/lista"           element={<SorteoLista />} />
+          <Route path="*"                       element={<Navigate to="/sorteo" replace />} />
+        </Routes>
+      </Suspense>
+      <Toaster position="top-center" toastOptions={{ duration: 3000 }} />
+    </BrowserRouter>
+  )
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(IS_SORTEO_HOST ? (
+  <React.StrictMode>
+    <ErrorBoundary><SorteoSite /></ErrorBoundary>
+  </React.StrictMode>
+) : (
   <React.StrictMode>
     <ErrorBoundary>
     <ThemeProvider>
@@ -161,4 +187,4 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     </ThemeProvider>
     </ErrorBoundary>
   </React.StrictMode>
-)
+))

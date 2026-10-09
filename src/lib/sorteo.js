@@ -3,6 +3,10 @@ import { supabase } from './supabase'
 // Sorteo Apex Pro: acceso a datos. El navegador nunca lee pedidos ni tickets
 // directamente (salvo el admin); todo pasa por las RPC de supabase/sorteo_rpc.sql.
 
+// Dominio público del sorteo: los enlaces que se comparten con clientes
+// apuntan aquí, nunca a la dirección del panel.
+export const PUBLIC_SITE = 'https://apexproaqp.com'
+
 export const RECEIPTS_BUCKET = 'raffle-receipts'
 export const MAX_RECEIPT_BYTES = 5 * 1024 * 1024
 

@@ -3,6 +3,11 @@ import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
 export default defineConfig({
+  build: {
+    // sorteo.html: la misma app con título y vista previa propios para el
+    // dominio público del sorteo (ver vercel.json).
+    rollupOptions: { input: { main: 'index.html', sorteo: 'sorteo.html' } },
+  },
   plugins: [
     react(),
     VitePWA({

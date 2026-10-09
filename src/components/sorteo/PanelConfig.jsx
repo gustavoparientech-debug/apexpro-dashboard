@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Plus, Trash2, Save, Loader2, Copy, RotateCcw } from 'lucide-react'
 import toast from 'react-hot-toast'
-import { updateConfig, resetRaffle } from '../../lib/sorteo'
+import { updateConfig, resetRaffle, PUBLIC_SITE } from '../../lib/sorteo'
 
 // Arequipa no cambia de horario: siempre UTC-5.
 const toLocalInput = (iso) => iso ? new Date(new Date(iso).getTime() - 5 * 3600e3).toISOString().slice(0, 16) : ''
@@ -71,7 +71,7 @@ export default function PanelConfig({ config, onSaved }) {
         <div className="flex flex-wrap gap-1.5 pt-1">
           {links.map(([label, path]) => (
             <button key={path} type="button" className="btn-secondary !py-1.5 !px-3 text-xs flex items-center gap-1"
-              onClick={() => navigator.clipboard.writeText(window.location.origin + path).then(() => toast.success('Enlace copiado'))}>
+              onClick={() => navigator.clipboard.writeText(PUBLIC_SITE + path).then(() => toast.success('Enlace copiado'))}>
               <Copy className="w-3.5 h-3.5" /> {label}
             </button>
           ))}

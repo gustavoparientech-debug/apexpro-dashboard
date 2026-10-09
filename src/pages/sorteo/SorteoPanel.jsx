@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Ticket, ClipboardList, Settings, ExternalLink } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
-import { fetchConfig, DEFAULT_CONFIG } from '../../lib/sorteo'
+import { fetchConfig, DEFAULT_CONFIG, PUBLIC_SITE } from '../../lib/sorteo'
 import PanelVender from '../../components/sorteo/PanelVender'
 import PanelPedidos from '../../components/sorteo/PanelPedidos'
 import PanelConfig from '../../components/sorteo/PanelConfig'
@@ -31,7 +31,7 @@ export default function SorteoPanel() {
             {config.estado === 'abierto' ? 'Venta abierta' : 'Venta cerrada'} · S/{Number(config.precio_ticket)} por ticket
           </p>
         </div>
-        <a href="/sorteo" target="_blank" rel="noreferrer" className="btn-secondary text-sm flex items-center gap-1.5 shrink-0">
+        <a href={`${PUBLIC_SITE}/sorteo`} target="_blank" rel="noreferrer" className="btn-secondary text-sm flex items-center gap-1.5 shrink-0">
           <ExternalLink className="w-4 h-4" /> Página pública
         </a>
       </div>

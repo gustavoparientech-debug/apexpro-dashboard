@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { Loader2 } from 'lucide-react'
 import { LogoOscuro } from '../ui/Logo'
@@ -6,6 +7,11 @@ import { LogoOscuro } from '../ui/Logo'
 // igual que /fidelidad: es la cara de la marca hacia el cliente.
 
 export function Shell({ children, wide = false, back }) {
+  useEffect(() => {
+    const prev = document.title
+    document.title = 'Sorteo Apex Pro'
+    return () => { document.title = prev }
+  }, [])
   return (
     <div className="min-h-screen bg-[#111] text-white">
       <header className="border-b border-white/5">
@@ -88,6 +94,37 @@ export function Leyenda({ withSelected = false }) {
         <span key={k} className="flex items-center gap-1.5">
           <span className={`w-2.5 h-2.5 rounded-full ${STATUS_STYLE[k].dot}`} /> {STATUS_STYLE[k].label}
         </span>
+      ))}
+    </div>
+  )
+}
+
+// Términos tal como se escriben en Configuración: las líneas que empiezan con
+// "-" son puntos; cualquier otra línea es el título de una sección.
+export function Terminos({ texto }) {
+  if (!texto?.trim()) return <p className="text-sm text-gray-500">Sin términos publicados.</p>
+  const secciones = []
+  for (const raw of texto.split('\n')) {
+    const linea = raw.trim()
+    if (!linea) continue
+    if (linea.startsWith('-')) {
+      if (!secciones.length) secciones.push({ titulo: null, puntos: [] })
+      secciones[secciones.length - 1].puntos.push(linea.replace(/^-\s*/, ''))
+    } else {
+      secciones.push({ titulo: linea, puntos: [] })
+    }
+  }
+  return (
+    <div className="space-y-4">
+      {secciones.map((s, i) => (
+        <section key={i}>
+          {s.titulo && <h3 className="text-xs font-bold uppercase tracking-wider text-red-400 mb-1.5">{s.titulo}</h3>}
+          <ul className="space-y-1.5">
+            {s.puntos.map((p, j) => (
+              <li key={j} className="text-sm text-gray-300 leading-relaxed pl-3.5 relative before:content-[''] before:absolute before:left-0 before:top-[0.6em] before:w-1.5 before:h-1.5 before:rounded-full before:bg-gray-600">{p}</li>
+            ))}
+          </ul>
+        </section>
       ))}
     </div>
   )

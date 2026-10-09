@@ -5,7 +5,7 @@ import TicketGrid from './TicketGrid'
 import { Leyenda } from './ui'
 import BuyerFields, { EMPTY_BUYER, validateBuyer } from './BuyerFields'
 import { useRaffleBoard } from '../../hooks/useRaffleBoard'
-import { staffSell, staffAttachReceipt, uploadReceipt, boardStatus, fmtNum, fmtSoles, MAX_RECEIPT_BYTES } from '../../lib/sorteo'
+import { staffSell, staffAttachReceipt, uploadReceipt, boardStatus, fmtNum, fmtSoles, MAX_RECEIPT_BYTES, PUBLIC_SITE } from '../../lib/sorteo'
 import { downloadTicketsPdf } from '../../lib/sorteoPdf'
 
 const MEDIOS = [['efectivo', 'Efectivo'], ['yape', 'Yape'], ['plin', 'Plin'], ['transferencia', 'Transferencia']]
@@ -140,7 +140,7 @@ export default function PanelVender({ config, admin }) {
 
 function VentaHecha({ venta, total, onNueva }) {
   const aprobado = venta.etapa === 'aprobado'
-  const url = `${window.location.origin}/sorteo/estado/${venta.id}`
+  const url = `${PUBLIC_SITE}/sorteo/estado/${venta.id}`
   const nums = venta.tickets.map(t => fmtNum(t.number, total)).join(', ')
   const msg = `¡Hola! Gracias por participar en el ${venta.titulo}. Tus números: ${nums}. Mira el estado de tu pedido y descarga tus tickets aquí: ${url}`
 

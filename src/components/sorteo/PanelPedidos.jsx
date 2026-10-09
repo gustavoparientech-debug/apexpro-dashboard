@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Search, RefreshCw, Image as ImageIcon, Check, X, Download, Loader2, MessageCircle, Link2 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { supabase } from '../../lib/supabase'
-import { fetchOrders, approveOrder, rejectOrder, receiptUrl, fetchOrderStatus, fmtNum, fmtSoles } from '../../lib/sorteo'
+import { fetchOrders, approveOrder, rejectOrder, receiptUrl, fetchOrderStatus, fmtNum, fmtSoles, PUBLIC_SITE } from '../../lib/sorteo'
 import { downloadTicketsPdf } from '../../lib/sorteoPdf'
 
 const etapa = (o) =>
@@ -180,9 +180,9 @@ export default function PanelPedidos({ config, admin }) {
                     {o.status === 'approved' && (
                       <button onClick={() => pdf(o.id)} className="btn-secondary !py-1.5 !px-3 text-xs flex items-center gap-1"><Download className="w-3.5 h-3.5" /> PDF</button>
                     )}
-                    <button onClick={() => navigator.clipboard.writeText(`${window.location.origin}/sorteo/estado/${o.id}`).then(() => toast.success('Enlace copiado'))}
+                    <button onClick={() => navigator.clipboard.writeText(`${PUBLIC_SITE}/sorteo/estado/${o.id}`).then(() => toast.success('Enlace copiado'))}
                       className="btn-secondary !py-1.5 !px-3 text-xs flex items-center gap-1"><Link2 className="w-3.5 h-3.5" /> Enlace</button>
-                    <a href={`https://wa.me/51${o.celular}?text=${encodeURIComponent(`Hola, este es el estado de tu pedido del ${config.titulo}: ${window.location.origin}/sorteo/estado/${o.id}`)}`}
+                    <a href={`https://wa.me/51${o.celular}?text=${encodeURIComponent(`Hola, este es el estado de tu pedido del ${config.titulo}: ${PUBLIC_SITE}/sorteo/estado/${o.id}`)}`}
                       target="_blank" rel="noreferrer" className="btn-secondary !py-1.5 !px-3 text-xs flex items-center gap-1"><MessageCircle className="w-3.5 h-3.5" /> WhatsApp</a>
                   </div>
                 </div>

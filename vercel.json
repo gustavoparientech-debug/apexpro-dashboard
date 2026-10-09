@@ -1,5 +1,18 @@
 {
+  "redirects": [
+    {
+      "source": "/",
+      "has": [{ "type": "host", "value": "apexproaqp.com" }],
+      "destination": "/sorteo",
+      "permanent": false
+    }
+  ],
   "rewrites": [
+    {
+      "source": "/(.*)",
+      "has": [{ "type": "host", "value": "apexproaqp.com" }],
+      "destination": "/sorteo.html"
+    },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }

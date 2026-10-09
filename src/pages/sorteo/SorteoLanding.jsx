@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Trophy, Ticket, CalendarDays, ListOrdered, ShieldCheck } from 'lucide-react'
-import { Shell, Card, Spinner } from '../../components/sorteo/ui'
+import { Trophy, Ticket, CalendarDays, ListOrdered, ShieldCheck, FileText, ChevronDown } from 'lucide-react'
+import { Shell, Card, Spinner, Terminos } from '../../components/sorteo/ui'
 import { useRaffleBoard } from '../../hooks/useRaffleBoard'
 import { fetchConfig, fmtFecha, fmtSoles, DEFAULT_CONFIG } from '../../lib/sorteo'
 
@@ -102,10 +102,33 @@ export default function SorteoLanding() {
         </ol>
       </Card>
 
+      <h2 id="terminos" className="flex items-center gap-2 text-lg font-bold mt-8 mb-3">
+        <FileText className="w-5 h-5 text-red-500" /> Términos y condiciones
+      </h2>
+      <TerminosCard texto={config.terminos} />
+
       <Link to="/sorteo/lista"
         className="mt-4 flex items-center justify-center gap-2 text-sm text-gray-400 hover:text-white border border-white/10 rounded-xl py-3 transition-colors">
         <ListOrdered className="w-4 h-4" /> Ver la lista de participantes
       </Link>
     </Shell>
+  )
+}
+
+// Se muestran las primeras secciones; el resto se despliega con un botón.
+function TerminosCard({ texto }) {
+  const [abierto, setAbierto] = useState(false)
+  return (
+    <Card className="relative">
+      <div className={abierto ? '' : 'max-h-64 overflow-hidden'}>
+        <Terminos texto={texto} />
+      </div>
+      {!abierto && <div className="absolute inset-x-0 bottom-14 h-20 bg-gradient-to-t from-[#1b1b1b] to-transparent pointer-events-none rounded-b-2xl" />}
+      <button onClick={() => setAbierto(a => !a)} aria-expanded={abierto}
+        className="mt-3 w-full flex items-center justify-center gap-1.5 text-sm font-semibold text-gray-300 hover:text-white border border-white/10 rounded-xl py-2.5 transition-colors">
+        {abierto ? 'Ver menos' : 'Leer términos completos'}
+        <ChevronDown className={`w-4 h-4 transition-transform ${abierto ? 'rotate-180' : ''}`} />
+      </button>
+    </Card>
   )
 }

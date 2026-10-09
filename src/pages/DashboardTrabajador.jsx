@@ -9,6 +9,7 @@ import {
 } from '../lib/metas'
 import { Target, Clock, CheckCircle, Car, AlertCircle, Plus, X, ClipboardList, TrendingDown, Pencil, Check, CalendarDays, ChevronRight } from 'lucide-react'
 import toast from 'react-hot-toast'
+import AtajoSorteo from '../components/sorteo/AtajoSorteo'
 
 const GASTO_CATS = [
   { value: 'insumos',    label: '🧴 Insumos' },
@@ -456,6 +457,8 @@ export default function DashboardTrabajador() {
           </button>
         )}
       </div>
+
+      <AtajoSorteo />
 
       {/* Aviso si no está vinculado a trabajador */}
       {!linked && (

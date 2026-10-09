@@ -306,16 +306,17 @@ const ADMIN_NAV = [
 
 const WORKER_NAV = [
   { to: '/',              label: 'Inicio',      icon: LayoutDashboard },
+  { to: '/sorteo-panel',  label: 'Sorteo',      icon: Ticket },
   { to: '/metas',         label: 'Metas',       icon: Target },
   { to: '/registro',      label: 'Registro',    icon: ClipboardList },
   { to: '/citas',         label: 'Citas',       icon: CalendarDays },
   { to: '/presupuesto',   label: 'Presupuesto', icon: Calculator },
   { to: '/asistencia',    label: 'Asistencia',  icon: Fingerprint },
-  { to: '/sorteo-panel',  label: 'Sorteo',      icon: Ticket },
 ]
 
-// La barra inferior aguanta cinco destinos; Presupuesto queda en el menú lateral.
-const WORKER_MOBILE = ['/', '/metas', '/registro', '/citas', '/asistencia']
+// La barra inferior aguanta cinco destinos; Citas y Presupuesto quedan en el
+// menú lateral. Sorteo va segundo mientras dure la venta de tickets.
+const WORKER_MOBILE = ['/', '/sorteo-panel', '/metas', '/registro', '/asistencia']
   .map(to => WORKER_NAV.find(n => n.to === to))
 
 function NavItem({ item, collapsed, onClick }) {

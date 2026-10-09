@@ -4,7 +4,7 @@ import { CheckCircle2, Clock, XCircle, Hourglass, Download, Ticket, Link2 } from
 import toast from 'react-hot-toast'
 import { Shell, Card, Boton, Spinner } from '../../components/sorteo/ui'
 import { fetchOrderStatus, fetchConfig, fmtNum, fmtSoles, fmtFecha, fmtPhone, DEFAULT_CONFIG } from '../../lib/sorteo'
-import { downloadTicketsPdf } from '../../lib/sorteoPdf'
+import { downloadTicketImages } from '../../lib/sorteoImagen'
 
 const ETAPAS = {
   esperando_pago: { icon: Clock,        color: 'text-amber-400', titulo: 'Esperando tu pago',       texto: 'Tus números están reservados. Sube tu comprobante antes de que venza la reserva.' },
@@ -36,8 +36,8 @@ export default function SorteoEstado() {
 
   async function descargar() {
     setBusy(true)
-    try { await downloadTicketsPdf(order, config.total_tickets) }
-    catch { toast.error('No se pudo generar el PDF') }
+    try { await downloadTicketImages(order, config.total_tickets) }
+    catch { toast.error('No se pudieron generar los tickets') }
     finally { setBusy(false) }
   }
 
@@ -109,7 +109,7 @@ export default function SorteoEstado() {
       )}
 
       {order.etapa === 'aprobado' && (
-        <Boton className="mt-4" busy={busy} onClick={descargar}><Download className="w-4 h-4" /> Descargar tickets en PDF</Boton>
+        <Boton className="mt-4" busy={busy} onClick={descargar}><Download className="w-4 h-4" /> Descargar mis tickets (imagen)</Boton>
       )}
       {['esperando_pago', 'en_revision'].includes(order.etapa) && (
         <Boton variant="secondary" className="mt-4" onClick={copiarEnlace}><Link2 className="w-4 h-4" /> Copiar enlace de esta página</Boton>

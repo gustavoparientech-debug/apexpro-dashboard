@@ -6,7 +6,7 @@ import { Leyenda } from './ui'
 import BuyerFields, { EMPTY_BUYER, validateBuyer } from './BuyerFields'
 import { useRaffleBoard } from '../../hooks/useRaffleBoard'
 import { staffSell, staffAttachReceipt, uploadReceipt, boardStatus, fmtNum, fmtSoles, MAX_RECEIPT_BYTES, PUBLIC_SITE } from '../../lib/sorteo'
-import { downloadTicketsPdf } from '../../lib/sorteoPdf'
+import { downloadTicketImages } from '../../lib/sorteoImagen'
 
 const MEDIOS = [['efectivo', 'Efectivo'], ['yape', 'Yape'], ['plin', 'Plin'], ['transferencia', 'Transferencia']]
 
@@ -166,8 +166,8 @@ function VentaHecha({ venta, total, onNueva }) {
       <div className="grid grid-cols-2 gap-2">
         <a href={`https://wa.me/51${venta.celular}?text=${encodeURIComponent(msg)}`} target="_blank" rel="noreferrer"
           className="btn-secondary text-sm flex items-center justify-center gap-1.5"><MessageCircle className="w-4 h-4" /> WhatsApp</a>
-        <button disabled={!aprobado} onClick={() => downloadTicketsPdf(venta, total)}
-          className="btn-secondary text-sm flex items-center justify-center gap-1.5 disabled:opacity-40"><Download className="w-4 h-4" /> PDF</button>
+        <button disabled={!aprobado} onClick={() => downloadTicketImages(venta, total)}
+          className="btn-secondary text-sm flex items-center justify-center gap-1.5 disabled:opacity-40"><Download className="w-4 h-4" /> Tickets JPG</button>
       </div>
       <button onClick={onNueva} className="btn-primary w-full">Nueva venta</button>
     </div>

@@ -3,7 +3,7 @@ import { Search, RefreshCw, Image as ImageIcon, Check, X, Download, Loader2, Mes
 import toast from 'react-hot-toast'
 import { supabase } from '../../lib/supabase'
 import { fetchOrders, approveOrder, rejectOrder, receiptUrl, fetchOrderStatus, fmtNum, fmtSoles, PUBLIC_SITE } from '../../lib/sorteo'
-import { downloadTicketsPdf } from '../../lib/sorteoPdf'
+import { downloadTicketImages } from '../../lib/sorteoImagen'
 
 const etapa = (o) =>
   o.status === 'approved' ? 'aprobado'
@@ -85,8 +85,8 @@ export default function PanelPedidos({ config, admin }) {
   }
 
   async function pdf(id) {
-    try { await downloadTicketsPdf(await fetchOrderStatus(id), config.total_tickets) }
-    catch { toast.error('No se pudo generar el PDF') }
+    try { await downloadTicketImages(await fetchOrderStatus(id), config.total_tickets) }
+    catch { toast.error('No se pudieron generar los tickets') }
   }
 
   function rechazar(o) {
@@ -178,7 +178,7 @@ export default function PanelPedidos({ config, admin }) {
                       </>
                     )}
                     {o.status === 'approved' && (
-                      <button onClick={() => pdf(o.id)} className="btn-secondary !py-1.5 !px-3 text-xs flex items-center gap-1"><Download className="w-3.5 h-3.5" /> PDF</button>
+                      <button onClick={() => pdf(o.id)} className="btn-secondary !py-1.5 !px-3 text-xs flex items-center gap-1"><Download className="w-3.5 h-3.5" /> Tickets JPG</button>
                     )}
                     <button onClick={() => navigator.clipboard.writeText(`${PUBLIC_SITE}/sorteo/estado/${o.id}`).then(() => toast.success('Enlace copiado'))}
                       className="btn-secondary !py-1.5 !px-3 text-xs flex items-center gap-1"><Link2 className="w-3.5 h-3.5" /> Enlace</button>

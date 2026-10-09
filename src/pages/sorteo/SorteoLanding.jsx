@@ -101,7 +101,7 @@ export default function SorteoLanding() {
           <li>Elige tus números en la grilla (o deja que la suerte elija).</li>
           <li>Tus números quedan reservados {config.minutos_reserva} minutos.</li>
           <li>Paga por Yape o Plin al <span className="text-white font-semibold">{config.numero_pago}</span> y sube la captura.</li>
-          <li>Cuando verifiquemos el pago, descargas tus tickets en PDF.</li>
+          <li>Cuando verifiquemos el pago, descargas tus tickets como imagen.</li>
         </ol>
       </Card>
 

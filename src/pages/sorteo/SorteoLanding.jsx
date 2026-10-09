@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Trophy, Ticket, CalendarDays, ListOrdered, ShieldCheck, FileText, ChevronDown } from 'lucide-react'
 import { Shell, Card, Spinner, Terminos } from '../../components/sorteo/ui'
+import Countdown from '../../components/sorteo/Countdown'
 import { useRaffleBoard } from '../../hooks/useRaffleBoard'
 import { fetchConfig, fmtFecha, fmtSoles, DEFAULT_CONFIG } from '../../lib/sorteo'
 
@@ -29,6 +30,8 @@ export default function SorteoLanding() {
           Cada ticket cuesta <span className="text-white font-bold">{fmtSoles(config.precio_ticket)}</span>.
         </p>
       </section>
+
+      <Countdown fecha={config.fecha_sorteo} />
 
       <Card className="text-center">
         {loading ? <div className="h-16" /> : (

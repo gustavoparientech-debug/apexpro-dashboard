@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import { Plus, Trash2, Save, Loader2, Copy } from 'lucide-react'
+import { Plus, Trash2, Save, Loader2, Copy, RotateCcw } from 'lucide-react'
 import toast from 'react-hot-toast'
-import { updateConfig } from '../../lib/sorteo'
+import { updateConfig, resetRaffle } from '../../lib/sorteo'
 
 // Arequipa no cambia de horario: siempre UTC-5.
 const toLocalInput = (iso) => iso ? new Date(new Date(iso).getTime() - 5 * 3600e3).toISOString().slice(0, 16) : ''
@@ -118,7 +118,42 @@ export default function PanelConfig({ config, onSaved }) {
       <button type="submit" disabled={busy} className="btn-primary flex items-center gap-2">
         {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Guardar configuración
       </button>
+
+      <Reiniciar />
     </form>
+  )
+}
+
+// Para dejar el sorteo en cero después de hacer pruebas.
+function Reiniciar() {
+  const [busy, setBusy] = useState(false)
+
+  async function reiniciar() {
+    const txt = window.prompt(
+      'Esto BORRA todos los pedidos, ventas y comprobantes, y deja los números libres. No se puede deshacer.\n\nEscribe REINICIAR para confirmar:'
+    )
+    if (txt === null) return
+    if (txt.trim().toUpperCase() !== 'REINICIAR') { toast.error('No se reinició: escribe REINICIAR'); return }
+    setBusy(true)
+    try {
+      const n = await resetRaffle()
+      toast.success(`Sorteo reiniciado (${n} pedido${n !== 1 ? 's' : ''} borrado${n !== 1 ? 's' : ''})`)
+    } catch (err) {
+      toast.error(err.message)
+    } finally { setBusy(false) }
+  }
+
+  return (
+    <div className="card border-red-200 dark:border-red-900/50 mt-6">
+      <p className="font-semibold text-red-600 dark:text-red-400">Reiniciar sorteo</p>
+      <p className="text-xs text-gray-500 mt-1">
+        Borra todos los pedidos, ventas y comprobantes y deja todos los números disponibles. Úsalo para limpiar las pruebas antes de lanzar el sorteo.
+        La configuración y los premios no se tocan.
+      </p>
+      <button type="button" onClick={reiniciar} disabled={busy} className="btn-danger mt-3 flex items-center gap-2 text-sm">
+        {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCcw className="w-4 h-4" />} Reiniciar sorteo
+      </button>
+    </div>
   )
 }
 

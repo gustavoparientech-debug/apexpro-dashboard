@@ -127,6 +127,26 @@ export async function rejectOrder(id, motivo) {
   return data
 }
 
+// Borra todos los pedidos, libera los números y elimina los comprobantes.
+export async function resetRaffle() {
+  const { data, error } = await supabase.rpc('raffle_reset', { p_confirm: 'REINICIAR' })
+  if (error) throw new Error(errorMessage(error))
+
+  const bucket = supabase.storage.from(RECEIPTS_BUCKET)
+  const paths = []
+  async function walk(prefix) {
+    const { data: items } = await bucket.list(prefix, { limit: 1000 })
+    for (const it of items || []) {
+      const full = prefix ? `${prefix}/${it.name}` : it.name
+      if (it.id) paths.push(full)   // archivo
+      else await walk(full)         // carpeta
+    }
+  }
+  await walk('')
+  for (let i = 0; i < paths.length; i += 100) await bucket.remove(paths.slice(i, i + 100))
+  return data
+}
+
 export async function receiptUrl(path) {
   const { data, error } = await supabase.storage.from(RECEIPTS_BUCKET).createSignedUrl(path, 600)
   if (error) throw error

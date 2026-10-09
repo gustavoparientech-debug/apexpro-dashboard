@@ -267,3 +267,28 @@ insert into public.raffle_config (id, premios, terminos) values (1,
   ]'::jsonb,
   'Cada ticket cuesta S/15 y participa con un número del 001 al 600. Los números se reservan por 15 minutos; si no se sube el comprobante en ese tiempo, se liberan. El pedido queda confirmado cuando Apex Pro Detailing verifica el pago. Los premios no son canjeables por dinero. El sorteo se realiza en la fecha publicada y se transmite por @apex.pro.aqp. Los ganadores se contactan al celular registrado.'
 ) on conflict (id) do nothing;
+
+-- ─── Reinicio (para limpiar pruebas) ───────────────────────────────────────
+
+-- Borra todos los pedidos y deja los números libres. Solo admin.
+create or replace function public.raffle_reset(p_confirm text)
+returns int language plpgsql security definer set search_path = public as $$
+declare n int;
+begin
+  if not raffle_is_admin() then raise exception 'NO_AUTORIZADO'; end if;
+  if p_confirm <> 'REINICIAR' then raise exception 'CONFIRMACION'; end if;
+  update raffle_tickets
+     set status = 'available', order_id = null, reserved_until = null, ticket_code = null, paid_at = null
+   where status <> 'available' or order_id is not null or ticket_code is not null;
+  delete from raffle_orders where true;
+  get diagnostics n = row_count;
+  return n;
+end $$;
+
+revoke all on function public.raffle_reset(text) from public, anon;
+grant execute on function public.raffle_reset(text) to authenticated;
+
+-- El admin puede borrar comprobantes (lo usa el reinicio).
+drop policy if exists raffle_receipts_admin_delete on storage.objects;
+create policy raffle_receipts_admin_delete on storage.objects for delete to authenticated
+  using (bucket_id = 'raffle-receipts' and public.raffle_is_admin());

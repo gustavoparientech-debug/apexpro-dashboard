@@ -83,8 +83,12 @@ function drawTicket(order, t, total, logo) {
   // Datos del participante
   ctx.font = font('normal', 3.6)
   ctx.fillText(`Participante: ${order.nombre}`, x + u(5), y + u(44), u(W - 10))
-  ctx.fillText(`DNI: ${order.dni}`, x + u(5), y + u(49))
-  ctx.fillText(`Sorteo: ${fecha}`, x + u(5), y + u(54), u(W - 10))
+  if (order.dni) {
+    ctx.fillText(`DNI: ${order.dni}`, x + u(5), y + u(49))
+    ctx.fillText(`Sorteo: ${fecha}`, x + u(5), y + u(54), u(W - 10))
+  } else {
+    ctx.fillText(`Sorteo: ${fecha}`, x + u(5), y + u(50), u(W - 10))
+  }
   ctx.fillStyle = '#787878'
   ctx.font = font('normal', 2.7)
   ctx.fillText('Ticket válido solo con su código. WhatsApp 959 240 309 · @apex.pro.aqp', x + u(5), y + u(59), u(W - 10))

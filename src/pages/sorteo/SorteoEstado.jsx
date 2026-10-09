@@ -81,9 +81,11 @@ export default function SorteoEstado() {
           <span className="text-gray-400">Participante</span>
           <span className="font-semibold text-right capitalize">{order.nombre.toLowerCase()}</span>
         </div>
-        <div className="flex justify-between text-sm mt-1.5">
-          <span className="text-gray-400">DNI</span><span className="tabular-nums">{order.dni}</span>
-        </div>
+        {order.dni && (
+          <div className="flex justify-between text-sm mt-1.5">
+            <span className="text-gray-400">DNI</span><span className="tabular-nums">{order.dni}</span>
+          </div>
+        )}
         <div className="flex justify-between text-sm mt-1.5">
           <span className="text-gray-400">Total</span>
           <span className="font-semibold">{fmtSoles(order.monto_total)} · {order.cantidad} ticket{order.cantidad !== 1 ? 's' : ''}</span>

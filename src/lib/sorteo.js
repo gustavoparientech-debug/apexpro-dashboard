@@ -174,7 +174,7 @@ export function errorMessage(error) {
     case 'SORTEO_CERRADO':     return 'La venta de tickets está cerrada.'
     case 'TERMINOS':           return 'Debes aceptar los términos y condiciones.'
     case 'NOMBRE':             return 'Escribe tu nombre y apellido.'
-    case 'DNI':                return 'Revisa tu DNI (8 dígitos) o carnet de extranjería.'
+    case 'DNI':                return 'Revisa tu DNI (8 dígitos) o carnet de extranjería, o déjalo vacío.'
     case 'CELULAR':            return 'El celular debe tener 9 dígitos y empezar con 9.'
     case 'EMAIL':              return 'Revisa tu correo electrónico.'
     case 'RESERVA_VENCIDA':    return 'Tu reserva venció y los números se liberaron. Vuelve a elegirlos.'

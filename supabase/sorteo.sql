@@ -36,7 +36,7 @@ create table if not exists public.raffle_config (
 create table if not exists public.raffle_orders (
   id                   uuid primary key default gen_random_uuid(),
   nombre_completo      text not null check (char_length(nombre_completo) between 3 and 120),
-  dni                  text not null check (dni ~ '^[0-9A-Z]{8,12}$'),
+  dni                  text check (dni is null or dni ~ '^[0-9A-Z]{8,12}$'),
   celular              text not null check (celular ~ '^9[0-9]{8}$'),
   email                text check (email is null or email ~* '^[^@\s]+@[^@\s]+\.[^@\s]+$'),
   cantidad             int not null check (cantidad > 0),
@@ -255,13 +255,13 @@ begin
   if cardinality(v_nums) > cfg.max_por_pedido then raise exception 'MAXIMO:%', cfg.max_por_pedido; end if;
 
   p_nombre  := regexp_replace(btrim(coalesce(p_nombre, '')), '\s+', ' ', 'g');
-  p_dni     := upper(regexp_replace(coalesce(p_dni, ''), '[^0-9A-Za-z]', '', 'g'));
+  p_dni     := nullif(upper(regexp_replace(coalesce(p_dni, ''), '[^0-9A-Za-z]', '', 'g')), '');
   p_celular := regexp_replace(coalesce(p_celular, ''), '\D', '', 'g');
   if p_celular ~ '^519[0-9]{8}$' then p_celular := substr(p_celular, 3); end if;
   p_email   := nullif(lower(btrim(coalesce(p_email, ''))), '');
 
   if char_length(p_nombre) < 3 or p_nombre !~ '\s' then raise exception 'NOMBRE'; end if;
-  if p_dni !~ '^[0-9A-Z]{8,12}$' then raise exception 'DNI'; end if;
+  if p_dni is not null and p_dni !~ '^[0-9A-Z]{8,12}$' then raise exception 'DNI'; end if;
   if p_celular !~ '^9[0-9]{8}$' then raise exception 'CELULAR'; end if;
   if p_email is not null and p_email !~* '^[^@\s]+@[^@\s]+\.[^@\s]+$' then raise exception 'EMAIL'; end if;
 

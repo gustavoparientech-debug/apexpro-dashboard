@@ -292,3 +292,10 @@ grant execute on function public.raffle_reset(text) to authenticated;
 drop policy if exists raffle_receipts_admin_delete on storage.objects;
 create policy raffle_receipts_admin_delete on storage.objects for delete to authenticated
   using (bucket_id = 'raffle-receipts' and public.raffle_is_admin());
+
+-- ─── DNI opcional ──────────────────────────────────────────────────────────
+-- Aplicado como migración sorteo_dni_opcional: dni pasa a ser nullable y
+-- raffle_create_order solo lo valida si viene.
+alter table public.raffle_orders alter column dni drop not null;
+alter table public.raffle_orders drop constraint if exists raffle_orders_dni_check;
+alter table public.raffle_orders add constraint raffle_orders_dni_check check (dni is null or dni ~ '^[0-9A-Z]{8,12}$');

@@ -65,7 +65,7 @@ export default function PanelPedidos({ config, admin }) {
       .filter(o => filtro === 'todos' || etapa(o) === filtro)
       .filter(o => !term
         || o.nombre_completo.toLowerCase().includes(term)
-        || o.dni.toLowerCase().includes(term)
+        || (o.dni || '').toLowerCase().includes(term)
         || o.celular.includes(term)
         || o.raffle_tickets?.some(t => (t.ticket_code || '').toLowerCase().includes(term))
         || (num !== null && o.raffle_tickets?.some(t => t.number === num)))
@@ -143,7 +143,7 @@ export default function PanelPedidos({ config, admin }) {
                     <div className="min-w-0">
                       <p className="font-semibold text-gray-900 dark:text-white capitalize truncate">{o.nombre_completo.toLowerCase()}</p>
                       <p className="text-xs text-gray-500">
-                        DNI {o.dni} · <a href={`https://wa.me/51${o.celular}`} target="_blank" rel="noreferrer" className="hover:underline">{o.celular}</a>
+                        {o.dni ? <>DNI {o.dni} · </> : null}<a href={`https://wa.me/51${o.celular}`} target="_blank" rel="noreferrer" className="hover:underline">{o.celular}</a>
                         {o.email && <> · {o.email}</>}
                       </p>
                     </div>

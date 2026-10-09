@@ -71,6 +71,12 @@ import AuthCallback from './pages/AuthCallback'
 // Página pública de fidelización: la abren los clientes desde su celular, así
 // que no pasa por Layout ni por sesión.
 const Fidelidad = lazy(() => import('./pages/Fidelidad'))
+// Sorteo Apex Pro: páginas públicas (sin sesión) y panel interno.
+const SorteoLanding = lazy(() => import('./pages/sorteo/SorteoLanding'))
+const SorteoComprar = lazy(() => import('./pages/sorteo/SorteoComprar'))
+const SorteoEstado  = lazy(() => import('./pages/sorteo/SorteoEstado'))
+const SorteoLista   = lazy(() => import('./pages/sorteo/SorteoLista'))
+const SorteoPanel   = lazy(() => import('./pages/sorteo/SorteoPanel'))
 
 // Páginas secundarias — lazy load (solo se descargan cuando el usuario navega ahí)
 const Trabajadores  = lazy(() => import('./pages/Trabajadores'))
@@ -117,6 +123,10 @@ ReactDOM.createRoot(document.getElementById('root')).render(
               <Route path="/login" element={<Login />} />
               <Route path="/auth/callback" element={<AuthCallback />} />
               <Route path="/fidelidad" element={<Suspense fallback={PageFallback}><Fidelidad /></Suspense>} />
+              <Route path="/sorteo"                  element={<Suspense fallback={PageFallback}><SorteoLanding /></Suspense>} />
+              <Route path="/sorteo/comprar"          element={<Suspense fallback={PageFallback}><SorteoComprar /></Suspense>} />
+              <Route path="/sorteo/estado/:orderId"  element={<Suspense fallback={PageFallback}><SorteoEstado /></Suspense>} />
+              <Route path="/sorteo/lista"            element={<Suspense fallback={PageFallback}><SorteoLista /></Suspense>} />
               <Route path="/*" element={
                 <Layout>
                   <Suspense fallback={PageFallback}>
@@ -138,6 +148,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
                       <Route path="/horarios"          element={<AdminOnly><Horarios /></AdminOnly>} />
                       <Route path="/facturas"          element={<AdminOnly><Facturas /></AdminOnly>} />
                       <Route path="/clientes"          element={<AdminOnly><Clientes /></AdminOnly>} />
+                      <Route path="/sorteo-panel"      element={<SorteoPanel />} />
                     </Routes>
                   </Suspense>
                 </Layout>

@@ -6,7 +6,7 @@ import { useApp } from '../../context/AppContext'
 import {
   LayoutDashboard, ClipboardList, Users, Wallet, TrendingUp,
   Settings, History, BarChart2, Sun, Moon, Menu, X, ChevronRight, UserCog, LogOut,
-  Plus, TrendingDown, AlertCircle, Calculator, CalendarDays, Fingerprint, Clock, AlarmClock, Target, Gift
+  Plus, TrendingDown, AlertCircle, Calculator, CalendarDays, Fingerprint, Clock, AlarmClock, Target, Gift, Ticket
 } from 'lucide-react'
 import { cn, todayISO } from '../../lib/utils'
 import { IncidentForm } from '../../pages/Trabajadores'
@@ -293,6 +293,7 @@ const ADMIN_NAV = [
   { to: '/configuracion', label: 'Config',    icon: Settings },
   { to: '/historial',     label: 'Historial', icon: History },
   { to: '/clientes',      label: 'Clientes',  icon: Gift },
+  { to: '/sorteo-panel',  label: 'Sorteo',    icon: Ticket },
   { to: '/reportes',      label: 'Reportes',  icon: BarChart2 },
   { to: '/usuarios',      label: 'Usuarios',    icon: UserCog },
   // { to: '/facturas', label: 'Facturas', icon: FileText }, // oculto hasta conectar el PSE
@@ -310,6 +311,7 @@ const WORKER_NAV = [
   { to: '/citas',         label: 'Citas',       icon: CalendarDays },
   { to: '/presupuesto',   label: 'Presupuesto', icon: Calculator },
   { to: '/asistencia',    label: 'Asistencia',  icon: Fingerprint },
+  { to: '/sorteo-panel',  label: 'Sorteo',      icon: Ticket },
 ]
 
 // La barra inferior aguanta cinco destinos; Presupuesto queda en el menú lateral.

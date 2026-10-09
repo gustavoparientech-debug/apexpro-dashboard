@@ -101,12 +101,12 @@ export default function PanelConfig({ config, onSaved }) {
           <div key={i} className="grid grid-cols-[1fr_64px_96px_36px] gap-2 items-center">
             <input className="input" placeholder="Premio" value={p.nombre} onChange={e => setPremio(i, 'nombre', e.target.value)} aria-label="Nombre del premio" />
             <input className="input" type="number" min="1" value={p.cantidad} onChange={e => setPremio(i, 'cantidad', e.target.value)} aria-label="Cantidad" title="Cantidad" />
-            <input className="input" type="number" min="0" step="1" placeholder="Valor S/" value={p.valor ?? ''} onChange={e => setPremio(i, 'valor', e.target.value)} aria-label="Valor en soles" />
+            <input className="input" type="number" min="0" step="1" placeholder="S/ c/u" value={p.valor ?? ''} onChange={e => setPremio(i, 'valor', e.target.value)} aria-label="Valor de cada uno en soles" />
             <button type="button" onClick={() => setF(prev => ({ ...prev, premios: prev.premios.filter((_, j) => j !== i) }))}
               className="p-2 text-gray-400 hover:text-red-600" aria-label="Quitar premio"><Trash2 className="w-4 h-4" /></button>
           </div>
         ))}
-        <p className="text-[11px] text-gray-500">Nombre · cantidad · valor en soles (se muestra en la página si lo llenas).</p>
+        <p className="text-[11px] text-gray-500">Nombre · cantidad · valor de cada uno en soles (se muestra en la página si lo llenas).</p>
       </div>
 
       <div className="card">

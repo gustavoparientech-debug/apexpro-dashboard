@@ -82,7 +82,7 @@ export default function SorteoLanding() {
             </div>
             {Number(p.valor) > 0 && (
               <div className="text-right shrink-0">
-                <p className="text-[10px] uppercase tracking-wider text-gray-500">Valor</p>
+                <p className="text-[10px] uppercase tracking-wider text-gray-500">Valor{Number(p.cantidad) > 1 ? ' c/u' : ''}</p>
                 <p className="font-bold text-sm">{fmtSoles(p.valor)}</p>
               </div>
             )}

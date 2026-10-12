@@ -161,7 +161,8 @@ function enrichIncident(incident, workers) {
   const discount = montoIncidencia(incident, worker)
   // Las vacaciones se abonan (el importe legal) y los días no trabajados se
   // descuentan aparte en la nómina; forzarlas a descuento las cobraba dos veces.
-  const is_addition = incident.type === 'hora_extra' || incident.type === 'vacaciones'
+  // La comisión de feriado también suma: el día se descuenta aparte.
+  const is_addition = ['hora_extra', 'vacaciones', 'comision_feriado'].includes(incident.type)
   return { ...incident, discount_amount: discount, is_addition }
 }
 

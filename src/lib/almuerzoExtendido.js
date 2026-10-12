@@ -6,6 +6,7 @@
 
 import { supabase } from './supabase'
 import { calcLatenessDiscount } from './utils'
+import { fetchFeriados } from './feriados'
 
 export const ALMUERZO_MIN       = 60
 export const ALMUERZO_TOLERANCIA = 0
@@ -87,9 +88,12 @@ async function reconciliar({ prefix, workerId = null, workers = [] }) {
   let qi = supabase.from('attendance_incidents').select('id, worker_id, date, type, observation, hours_late')
     .gte('date', desde).lte('date', hasta).eq('type', 'permiso_horas')
   if (workerId) { ql = ql.eq('worker_id', workerId); qi = qi.eq('worker_id', workerId) }
-  const [{ data: logs, error: e1 }, { data: incs, error: e2 }] = await Promise.all([ql, qi])
+  const [{ data: logsTodos, error: e1 }, { data: incs, error: e2 }, feriados] = await Promise.all([ql, qi, fetchFeriados().catch(() => [])])
   if (e1) throw e1
   if (e2) throw e2
+  // En feriado se cobra por comisión: el almuerzo largo no se descuenta.
+  const fechasFeriado = new Set(feriados.map(f => f.date))
+  const logs = (logsTodos || []).filter(l => !fechasFeriado.has(l.date))
 
   const ids = new Set([...(logs || []).map(l => l.worker_id), ...(incs || []).filter(esAuto).map(i => i.worker_id)])
   let creadas = 0, borradas = 0

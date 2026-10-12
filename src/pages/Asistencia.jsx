@@ -12,6 +12,7 @@ import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { reconciliarMultas, MULTA_TARDANZA } from '../lib/multasTardanza'
 import { reconciliarAlmuerzos } from '../lib/almuerzoExtendido'
+import { esFeriado } from '../lib/feriados'
 
 // ── Geovalla ──────────────────────────────────────────────────────────────────
 const WORKPLACE_LAT  = -16.3550567
@@ -325,6 +326,8 @@ export default function Asistencia() {
   }
 
   async function autoCreateIncident(type, hoursLate, dateStr, workerId, atMin = null) {
+    // En feriado se cobra por comisión: no hay tardanza ni salida anticipada.
+    if (await esFeriado(dateStr)) return false
     const worker = workers.find(w => w.id === workerId)
     const discount = worker ? calcLatenessDiscount(worker.base_salary, worker.weekly_hours, hoursLate) : 0
     const hora = atMin == null ? '' : (type === 'tardanza' ? ` · llegó ${minToHHMM(atMin)}` : ` · salió ${minToHHMM(atMin)}`)
@@ -336,6 +339,7 @@ export default function Asistencia() {
         : `Salida anticipada automática — ${Math.round(hoursLate * 60)} min faltantes${hora}`,
     })
     if (error) toast.error(`Error incidencia auto: ${error.message}`)
+    return !error
   }
 
   // Desde la 3ª tardanza del mes va una multa de S/ 10; se revisa cada vez que
@@ -356,6 +360,7 @@ export default function Asistencia() {
   }
 
   async function autoCreateOvertime(hoursExtra, dateStr, workerId) {
+    if (await esFeriado(dateStr)) return false
     const worker = workers.find(w => w.id === workerId)
     const pay = worker ? calcOvertimePay(worker.base_salary, worker.weekly_hours, hoursExtra) : 0
     const { error } = await supabase.from('attendance_incidents').insert({
@@ -364,6 +369,7 @@ export default function Asistencia() {
       observation: `Hora extra automática — ${Math.round(hoursExtra * 60)} min extra (pendiente aprobación)`,
     })
     if (error) toast.error(`Error hora extra auto: ${error.message}`)
+    return !error
   }
 
   // Recalcula incidencias de entrada/salida para un día dado (usado por admin al añadir entradas pasadas)
@@ -449,8 +455,8 @@ export default function Asistencia() {
         const diffMin = nowMin - schedMin
         if (diffMin > tolerance && diffMin <= 240) {
           const hoursLate = Math.round(diffMin) / 60
-          await autoCreateIncident('tardanza', hoursLate, today, selectedWorkerId, nowMin)
-          toast(`Tardanza registrada: ${Math.round(diffMin)} min`, { icon: '⚠️' })
+          if (await autoCreateIncident('tardanza', hoursLate, today, selectedWorkerId, nowMin))
+            toast(`Tardanza registrada: ${Math.round(diffMin)} min`, { icon: '⚠️' })
           await revisarMultas(selectedWorkerId, today)
         }
       }
@@ -466,12 +472,12 @@ export default function Asistencia() {
         const lateMin  = nowMin - effectiveEndMin
         if (earlyMin > tolerance && earlyMin <= 240) {
           const hoursEarly = Math.round(earlyMin) / 60
-          await autoCreateIncident('permiso_horas', hoursEarly, today, selectedWorkerId, nowMin)
-          toast(`Salida anticipada: ${Math.round(earlyMin)} min antes`, { icon: '⚠️' })
+          if (await autoCreateIncident('permiso_horas', hoursEarly, today, selectedWorkerId, nowMin))
+            toast(`Salida anticipada: ${Math.round(earlyMin)} min antes`, { icon: '⚠️' })
         } else if (lateMin > tolerance) {
           const hoursExtra = Math.round(lateMin) / 60
-          await autoCreateOvertime(hoursExtra, today, selectedWorkerId)
-          toast(hadLunch ? `Hora extra pendiente: ${Math.round(lateMin)} min` : `Hora extra por no almorzar: ${Math.round(lateMin)} min`, { icon: '🟢' })
+          if (await autoCreateOvertime(hoursExtra, today, selectedWorkerId))
+            toast(hadLunch ? `Hora extra pendiente: ${Math.round(lateMin)} min` : `Hora extra por no almorzar: ${Math.round(lateMin)} min`, { icon: '🟢' })
         }
       }
 
@@ -524,8 +530,8 @@ export default function Asistencia() {
       if (editingLog.type === 'entrada' && sched.start_time) {
         const diffMin = editedMin - timeToMin(sched.start_time)
         if (diffMin > tolerance && diffMin <= 240) {
-          await autoCreateIncident('tardanza', Math.round(diffMin) / 60, adminDate, editingLog.worker_id, editedMin)
-          toast(`Tardanza recalculada: ${Math.round(diffMin)} min`, { icon: '⚠️' })
+          if (await autoCreateIncident('tardanza', Math.round(diffMin) / 60, adminDate, editingLog.worker_id, editedMin))
+            toast(`Tardanza recalculada: ${Math.round(diffMin)} min`, { icon: '⚠️' })
         }
         await revisarMultas(editingLog.worker_id, adminDate)
       }
@@ -540,8 +546,8 @@ export default function Asistencia() {
         const earlyMin = effectiveEndMin - editedMin
         const lateMin  = editedMin - effectiveEndMin
         if (earlyMin > tolerance && earlyMin <= 240) {
-          await autoCreateIncident('permiso_horas', Math.round(earlyMin) / 60, adminDate, editingLog.worker_id, editedMin)
-          toast(`Salida anticipada recalculada: ${Math.round(earlyMin)} min`, { icon: '⚠️' })
+          if (await autoCreateIncident('permiso_horas', Math.round(earlyMin) / 60, adminDate, editingLog.worker_id, editedMin))
+            toast(`Salida anticipada recalculada: ${Math.round(earlyMin)} min`, { icon: '⚠️' })
         } else if (lateMin > tolerance) {
           // Borrar hora_extra automática previa antes de crear la nueva
           const { data: prevOT } = await supabase.from('attendance_incidents')
@@ -552,8 +558,8 @@ export default function Asistencia() {
               await supabase.from('attendance_incidents').delete().eq('id', row.id)
             }
           }
-          await autoCreateOvertime(Math.round(lateMin) / 60, adminDate, editingLog.worker_id)
-          toast(hadLunch ? `Hora extra recalculada: ${Math.round(lateMin)} min` : `Hora extra por no almorzar: ${Math.round(lateMin)} min`, { icon: '🟢' })
+          if (await autoCreateOvertime(Math.round(lateMin) / 60, adminDate, editingLog.worker_id))
+            toast(hadLunch ? `Hora extra recalculada: ${Math.round(lateMin)} min` : `Hora extra por no almorzar: ${Math.round(lateMin)} min`, { icon: '🟢' })
         }
       }
     }

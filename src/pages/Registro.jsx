@@ -17,6 +17,7 @@ import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { formatMoney, todayISO, compressImage } from '../lib/utils'
 import { estadisticaLlegadas, metaDelMes, ritmoDelDia } from '../lib/ritmoDia'
+import { fetchFeriados, COMISION_FERIADO } from '../lib/feriados'
 import ConfirmDialog from '../components/ui/ConfirmDialog'
 import { CATEGORIAS, catInfo, porCategoria, nombreServicio } from '../lib/servicios'
 import { planchadoConfig, precioPanel, PLANCHADO_GAMAS, PLANCHADO_VEHICULOS, PLANCHADO_NIVELES, descuentoPlanchado } from '../lib/catalogoPresupuesto'
@@ -3063,6 +3064,11 @@ export default function Registro() {
     [openTickets]
   )
 
+  // Feriado del día elegido: se avisa a todos que ese día se cobra por comisión.
+  const [feriados, setFeriados] = useState([])
+  useEffect(() => { fetchFeriados().then(setFeriados).catch(() => {}) }, [selMonth, selYear])
+  const feriadoDelDia = !hasRange ? feriados.find(f => f.date === selectedDate) : null
+
   // ── Ritmo del día ──────────────────────────────────────────────────────────
   // Solo hoy y para quien ve montos. La estadística por hora y por día de la
   // semana es la del gráfico "Autos que entran por hora" del Panel: los
@@ -3298,6 +3304,11 @@ export default function Registro() {
                 {canAdmin ? (hasRange ? 'Total rango' : fechaLabel.split(',')[0]) : new Date().toLocaleDateString('es-PE', { weekday: 'long' }).toUpperCase()}
                 {canAdmin && !hasRange && selectedDate !== today && <span className="ml-1.5 text-amber-400">· Lectura</span>}
               </p>
+              {feriadoDelDia && (
+                <p className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-300 bg-amber-400/15 px-2 py-0.5 rounded-full mb-1.5">
+                  📅 Feriado · {feriadoDelDia.nombre} · se paga {COMISION_FERIADO * 100}% de comisión por ticket
+                </p>
+              )}
               {/* Los dos montos que importan: lo que entró y lo que queda después
                   de los gastos del día. Antes el grande era solo el neto y el
                   bruto quedaba en letra chica. */}

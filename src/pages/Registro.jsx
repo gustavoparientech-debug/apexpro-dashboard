@@ -16,6 +16,7 @@ import { useApp } from '../context/AppContext'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { formatMoney, todayISO, compressImage } from '../lib/utils'
+import { curvaCobros, metaDelMes, ritmoDelDia } from '../lib/ritmoDia'
 import ConfirmDialog from '../components/ui/ConfirmDialog'
 import { CATEGORIAS, catInfo, porCategoria, nombreServicio } from '../lib/servicios'
 import { planchadoConfig, precioPanel, PLANCHADO_GAMAS, PLANCHADO_VEHICULOS, PLANCHADO_NIVELES, descuentoPlanchado } from '../lib/catalogoPresupuesto'
@@ -2889,7 +2890,7 @@ const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto
 // ─── Página principal ─────────────────────────────────────────────────────────
 export default function Registro() {
   const {
-    tickets, dailySummaries, workers, serviciosTicket, extrasTicket, expenses,
+    tickets, dailySummaries, workers, serviciosTicket, extrasTicket, expenses, monthlyCosts,
     addTicket, updateTicket, deleteTicket, addDailySummary, deleteDailySummary, updateExpense, deleteExpense, addIncident, loadData,
     fetchAdvances,
   } = useApp()
@@ -3061,6 +3062,50 @@ export default function Registro() {
     () => openTickets.reduce((s, t) => s + totalAbierto(t), 0),
     [openTickets]
   )
+
+  // ── Ritmo del día ──────────────────────────────────────────────────────────
+  // Solo hoy y para quien ve montos. La curva de cobros por hora sale de los
+  // tickets cerrados de las últimas ocho semanas.
+  const verRitmo = canAdmin && !hasRange && selectedDate === today
+  const [ticketsCurva, setTicketsCurva] = useState([])
+  useEffect(() => {
+    if (!verRitmo || isDemo) return
+    const desde = new Date(); desde.setDate(desde.getDate() - 56)
+    supabase.from('tickets').select('closed_at, price_charged')
+      .eq('status', 'cerrado').gte('date', desde.toISOString().slice(0, 10))
+      .then(({ data }) => setTicketsCurva(data || []))
+  }, [verRitmo, isDemo])
+  const curva = useMemo(
+    () => curvaCobros(ticketsCurva.length ? ticketsCurva : tickets),
+    [ticketsCurva, tickets]
+  )
+  // Se refresca cada minuto: lo esperado a esta hora va subiendo.
+  const [ahora, setAhora] = useState(() => new Date())
+  useEffect(() => {
+    if (!verRitmo) return
+    const id = setInterval(() => setAhora(new Date()), 60000)
+    return () => clearInterval(id)
+  }, [verRitmo])
+  const ritmo = useMemo(() => {
+    if (!verRitmo) return null
+    const prefix = today.slice(0, 7)
+    // Lo cobrado en el mes antes de hoy, con el mismo criterio que el total
+    // del día: los tickets del día, o el resumen si ese día no tiene tickets.
+    const porFecha = {}
+    for (const t of tickets || []) {
+      if (t.status !== 'cerrado' || !t.date?.startsWith(prefix) || t.date >= today) continue
+      porFecha[t.date] = porFecha[t.date] || { tickets: 0, resumen: 0, hay: false }
+      porFecha[t.date].tickets += Number(t.price_charged) || 0
+      porFecha[t.date].hay = true
+    }
+    for (const d of dailySummaries || []) {
+      if (!d.date?.startsWith(prefix) || d.date >= today) continue
+      porFecha[d.date] = porFecha[d.date] || { tickets: 0, resumen: 0, hay: false }
+      porFecha[d.date].resumen += Number(d.total_income) || 0
+    }
+    const ingresoAntes = Object.values(porFecha).reduce((a, f) => a + (f.hay ? f.tickets : f.resumen), 0)
+    return ritmoDelDia({ metaMes: metaDelMes(monthlyCosts, workers), ingresoAntes, hoy: dayGross, curva, ahora })
+  }, [verRitmo, today, tickets, dailySummaries, monthlyCosts, workers, dayGross, curva, ahora])
 
   // Caja por método de pago
   const cajaStats = useMemo(() => {
@@ -3268,6 +3313,45 @@ export default function Registro() {
                   <span className="text-[10px] text-white/30">({openTickets.length})</span>
                 </div>
               )}
+              {/* Ritmo del día: una línea, sin robarle lugar a los totales */}
+              {ritmo && (() => {
+                const C = {
+                  cumplido: { dot: 'bg-emerald-400', text: 'text-emerald-400', bar: 'bg-emerald-400', label: 'Meta del día cumplida' },
+                  ritmo:    { dot: 'bg-emerald-400', text: 'text-emerald-400', bar: 'bg-emerald-400', label: 'En ritmo' },
+                  cerca:    { dot: 'bg-amber-400',   text: 'text-amber-400',   bar: 'bg-amber-400',   label: 'Un poco abajo' },
+                  atrasado: { dot: 'bg-red-400',     text: 'text-red-400',     bar: 'bg-red-400',     label: 'Atrasado' },
+                  temprano: { dot: 'bg-white/40',    text: 'text-white/60',    bar: 'bg-white/40',    label: 'Aún no abre' },
+                }[ritmo.estado]
+                const oculto = hideTotal && canAdmin
+                return (
+                  <div className="mt-2.5 max-w-sm" title="La meta de hoy es lo que falta del mes repartido entre los días hábiles que quedan">
+                    <div className="flex items-center gap-1.5 text-[11px] leading-none">
+                      <span className={`w-1.5 h-1.5 rounded-full flex-none ${C.dot}`} />
+                      <span className={`font-bold ${C.text}`}>{C.label}</span>
+                      {ritmo.estado !== 'cumplido' && ritmo.estado !== 'temprano' && (
+                        <span className="text-white/40 truncate">
+                          · {oculto ? `${ritmo.pct}%` : `esperado a esta hora ${formatMoney(ritmo.esperado)}`}
+                        </span>
+                      )}
+                    </div>
+                    {/* La barra es el día entero; la marca, dónde deberíamos ir ahora. */}
+                    <div className="relative h-1 mt-1.5 rounded-full bg-white/10">
+                      <div className={`absolute inset-y-0 left-0 rounded-full ${C.bar}`} style={{ width: `${ritmo.pctDia}%`, transition: 'width 700ms ease' }} />
+                      {ritmo.fraccion > 0 && ritmo.fraccion < 1 && (
+                        <div className="absolute -top-0.5 -bottom-0.5 w-0.5 rounded-full bg-white/70"
+                          style={{ left: `${Math.round(ritmo.fraccion * 100)}%` }} />
+                      )}
+                    </div>
+                    <p className="text-[10px] text-white/30 mt-1">
+                      {oculto
+                        ? `${ritmo.pctDia}% de la meta de hoy`
+                        : ritmo.estado === 'cumplido'
+                          ? `Meta de hoy ${formatMoney(ritmo.metaHoy)} · cada sol de más baja la de mañana`
+                          : `Meta de hoy ${formatMoney(ritmo.metaHoy)} · faltan ${formatMoney(ritmo.falta)}`}
+                    </p>
+                  </div>
+                )
+              })()}
               {expensesTodayTotal > 0 && (
                 <div className="flex items-center gap-1 mt-2">
                   <span className="text-[10px] text-white/40 uppercase tracking-widest">Gastos descontados</span>

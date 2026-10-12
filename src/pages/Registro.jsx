@@ -16,7 +16,7 @@ import { useApp } from '../context/AppContext'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { formatMoney, todayISO, compressImage } from '../lib/utils'
-import { curvaCobros, metaDelMes, ritmoDelDia } from '../lib/ritmoDia'
+import { estadisticaLlegadas, metaDelMes, ritmoDelDia } from '../lib/ritmoDia'
 import ConfirmDialog from '../components/ui/ConfirmDialog'
 import { CATEGORIAS, catInfo, porCategoria, nombreServicio } from '../lib/servicios'
 import { planchadoConfig, precioPanel, PLANCHADO_GAMAS, PLANCHADO_VEHICULOS, PLANCHADO_NIVELES, descuentoPlanchado } from '../lib/catalogoPresupuesto'
@@ -3064,20 +3064,24 @@ export default function Registro() {
   )
 
   // ── Ritmo del día ──────────────────────────────────────────────────────────
-  // Solo hoy y para quien ve montos. La curva de cobros por hora sale de los
-  // tickets cerrados de las últimas ocho semanas.
+  // Solo hoy y para quien ve montos. La estadística por hora y por día de la
+  // semana es la del gráfico "Autos que entran por hora" del Panel: los
+  // tickets de los últimos 3 meses.
+  const DIAS_ESTADISTICA = 90
   const verRitmo = canAdmin && !hasRange && selectedDate === today
-  const [ticketsCurva, setTicketsCurva] = useState([])
+  const [ticketsHistoria, setTicketsHistoria] = useState(null)
   useEffect(() => {
     if (!verRitmo || isDemo) return
-    const desde = new Date(); desde.setDate(desde.getDate() - 56)
-    supabase.from('tickets').select('closed_at, price_charged')
-      .eq('status', 'cerrado').gte('date', desde.toISOString().slice(0, 10))
-      .then(({ data }) => setTicketsCurva(data || []))
+    const desde = new Date(); desde.setDate(desde.getDate() - DIAS_ESTADISTICA)
+    supabase.from('tickets').select('date, opened_at, created_at, price_charged')
+      .gte('date', desde.toISOString().slice(0, 10)).lt('date', todayISO())
+      .then(({ data }) => setTicketsHistoria(data || []))
   }, [verRitmo, isDemo])
-  const curva = useMemo(
-    () => curvaCobros(ticketsCurva.length ? ticketsCurva : tickets),
-    [ticketsCurva, tickets]
+  const estadistica = useMemo(
+    () => ticketsHistoria
+      ? estadisticaLlegadas(ticketsHistoria, DIAS_ESTADISTICA)
+      : estadisticaLlegadas((tickets || []).filter(t => t.date < today), 0),
+    [ticketsHistoria, tickets, today]
   )
   // Se refresca cada minuto: lo esperado a esta hora va subiendo.
   const [ahora, setAhora] = useState(() => new Date())
@@ -3104,8 +3108,16 @@ export default function Registro() {
       porFecha[d.date].resumen += Number(d.total_income) || 0
     }
     const ingresoAntes = Object.values(porFecha).reduce((a, f) => a + (f.hay ? f.tickets : f.resumen), 0)
-    return ritmoDelDia({ metaMes: metaDelMes(monthlyCosts, workers), ingresoAntes, hoy: dayGross, curva, ahora })
-  }, [verRitmo, today, tickets, dailySummaries, monthlyCosts, workers, dayGross, curva, ahora])
+    // Lo que entró hoy: cobrado más los autos que ya están en el taller.
+    const abiertosHoy = (tickets || [])
+      .filter(t => t.status === 'abierto' && t.date === today)
+      .reduce((a, t) => a + totalAbierto(t), 0)
+    return ritmoDelDia({
+      metaMes: metaDelMes(monthlyCosts, workers), ingresoAntes,
+      hoy: dayGross + abiertosHoy, estadistica, ahora,
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [verRitmo, today, tickets, dailySummaries, monthlyCosts, workers, dayGross, estadistica, ahora])
 
   // Caja por método de pago
   const cajaStats = useMemo(() => {
@@ -3330,7 +3342,7 @@ export default function Registro() {
                       <span className={`font-bold ${C.text}`}>{C.label}</span>
                       {ritmo.estado !== 'cumplido' && ritmo.estado !== 'temprano' && (
                         <span className="text-white/40 truncate">
-                          · {oculto ? `${ritmo.pct}%` : `esperado a esta hora ${formatMoney(ritmo.esperado)}`}
+                          · {oculto ? `${ritmo.pct}%` : `${formatMoney(ritmo.hoy)} de ${formatMoney(ritmo.esperado)} esperados a esta hora`}
                         </span>
                       )}
                     </div>
@@ -3348,7 +3360,19 @@ export default function Registro() {
                         : ritmo.estado === 'cumplido'
                           ? `Meta de hoy ${formatMoney(ritmo.metaHoy)} · cada sol de más baja la de mañana`
                           : `Meta de hoy ${formatMoney(ritmo.metaHoy)} · faltan ${formatMoney(ritmo.falta)}`}
+                      {!oculto && ritmo.estado !== 'cumplido' && ritmo.diaTipico > 0 && ritmo.fraccion < 1 && (
+                        <> · cierre estimado {formatMoney(ritmo.cierre)}</>
+                      )}
                     </p>
+                    {/* Con la estadística del día: si lo que suele llegar desde
+                        esta hora no alcanza, se dice, para moverse a tiempo. */}
+                    {ritmo.dificil && (
+                      <p className="text-[10px] text-amber-300/80 mt-0.5 leading-snug">
+                        {oculto
+                          ? 'Lo que suele entrar el resto del día no alcanza la meta'
+                          : `Desde esta hora suele entrar ${formatMoney(ritmo.porLlegar)} más: no alcanza para los ${formatMoney(ritmo.falta)} que faltan`}
+                      </p>
+                    )}
                   </div>
                 )
               })()}

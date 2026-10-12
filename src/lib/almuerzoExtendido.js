@@ -23,14 +23,19 @@ const esAuto = i => i.type === 'permiso_horas' && (i.observation || '').startsWi
 const hora = iso => new Date(iso).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit', hour12: false })
 
 // Minutos de almuerzo de un día: del primer inicio al último fin posterior.
+// Si no marcó el regreso pero sí la salida, el almuerzo corre hasta la salida:
+// no marcar la vuelta no puede salir más barato que marcarla tarde. Mientras
+// no haya ni regreso ni salida sigue almorzando y todavía no se descuenta.
 export function minutosAlmuerzo(logsDelDia) {
   const inicios = logsDelDia.filter(l => l.type === 'almuerzo_inicio').map(l => l.logged_at).sort()
   if (!inicios.length) return null
   const ini = inicios[0]
   const fines = logsDelDia.filter(l => l.type === 'almuerzo_fin' && l.logged_at > ini).map(l => l.logged_at).sort()
-  if (!fines.length) return null
-  const fin = fines[fines.length - 1]
-  return { ini, fin, minutos: Math.floor((new Date(fin) - new Date(ini)) / 60000) }
+  const salidas = logsDelDia.filter(l => l.type === 'salida' && l.logged_at > ini).map(l => l.logged_at).sort()
+  const sinRegreso = !fines.length
+  if (sinRegreso && !salidas.length) return null
+  const fin = sinRegreso ? salidas[0] : fines[fines.length - 1]
+  return { ini, fin, sinRegreso, minutos: Math.floor((new Date(fin) - new Date(ini)) / 60000) }
 }
 
 // Qué descuentos crear, corregir o borrar para un trabajador: recibe sus
@@ -49,7 +54,8 @@ export function planAlmuerzos(logs, incidencias, worker) {
       date,
       hours_late: horas,
       discount_amount: worker ? Math.round(calcLatenessDiscount(worker.base_salary, worker.weekly_hours, horas) * 100) / 100 : 0,
-      observation: `${MARCA_ALMUERZO} — ${a.minutos} min de almuerzo (${hora(a.ini)} a ${hora(a.fin)}), ` +
+      observation: `${MARCA_ALMUERZO} — ${a.minutos} min de almuerzo (${hora(a.ini)} a ${hora(a.fin)}` +
+        `${a.sinRegreso ? ', no marcó el regreso: se cuenta hasta su salida' : ''}), ` +
         `${exceso} min más de la hora permitida. Se descuenta el tiempo no trabajado.`,
     })
   }
@@ -84,7 +90,7 @@ async function reconciliar({ prefix, workerId = null, workers = [] }) {
   const hasta = `${prefix}-${String(new Date(y, m, 0).getDate()).padStart(2, '0')}`
 
   let ql = supabase.from('attendance_logs').select('worker_id, date, type, logged_at')
-    .gte('date', desde).lte('date', hasta).in('type', ['almuerzo_inicio', 'almuerzo_fin'])
+    .gte('date', desde).lte('date', hasta).in('type', ['almuerzo_inicio', 'almuerzo_fin', 'salida'])
   let qi = supabase.from('attendance_incidents').select('id, worker_id, date, type, observation, hours_late')
     .gte('date', desde).lte('date', hasta).eq('type', 'permiso_horas')
   if (workerId) { ql = ql.eq('worker_id', workerId); qi = qi.eq('worker_id', workerId) }

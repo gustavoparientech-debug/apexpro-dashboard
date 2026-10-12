@@ -481,7 +481,7 @@ export default function Asistencia() {
         }
       }
 
-      if (pendingType === 'almuerzo_fin' || pendingType === 'almuerzo_inicio') await revisarAlmuerzo(selectedWorkerId, today)
+      if (['almuerzo_fin', 'almuerzo_inicio', 'salida'].includes(pendingType)) await revisarAlmuerzo(selectedWorkerId, today)
 
       toast.success(`${TYPE_LABEL[pendingType]} registrada`)
       closeCamera(); await loadLogs()
@@ -497,7 +497,7 @@ export default function Asistencia() {
     base.setHours(h, m, s || 0, 0)
     const { error } = await supabase.from('attendance_logs').update({ logged_at: base.toISOString() }).eq('id', editingLog.id)
     if (error) { toast.error(error.message); return }
-    if (editingLog.type === 'almuerzo_inicio' || editingLog.type === 'almuerzo_fin') await revisarAlmuerzo(editingLog.worker_id, adminDate)
+    if (['almuerzo_inicio', 'almuerzo_fin', 'salida'].includes(editingLog.type)) await revisarAlmuerzo(editingLog.worker_id, adminDate)
     toast.success('Hora actualizada')
     setEditingLog(null); loadAdminLogs(); loadLogs()
 
@@ -765,7 +765,7 @@ export default function Asistencia() {
               dt.setHours(h, m, s || 0, 0)
               await supabase.from('attendance_logs').insert({ worker_id: adminWorker, type: addingEntry.type, date: adminDate, logged_at: dt.toISOString() })
               await recalcIncidents(adminWorker, adminDate, addingEntry.type, dt)
-              if (addingEntry.type === 'almuerzo_inicio' || addingEntry.type === 'almuerzo_fin') await revisarAlmuerzo(adminWorker, adminDate)
+              if (['almuerzo_inicio', 'almuerzo_fin', 'salida'].includes(addingEntry.type)) await revisarAlmuerzo(adminWorker, adminDate)
               toast.success(`${TYPE_LABEL[addingEntry.type]} añadida`)
               setAddingEntry(null); loadAdminLogs(); loadLogs()
             }

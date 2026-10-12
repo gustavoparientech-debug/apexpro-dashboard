@@ -13,6 +13,8 @@ import { IncidentForm } from '../../pages/Trabajadores'
 import { LogoOscuro } from '../ui/Logo'
 import UpdateBanner from '../UpdateBanner'
 import InstallBanner from '../InstallBanner'
+import FueraDeTurno from '../FueraDeTurno'
+import { useFueraDeTurno } from '../../hooks/useFueraDeTurno'
 import toast from 'react-hot-toast'
 import { supabase } from '../../lib/supabase'
 
@@ -368,13 +370,18 @@ export default function Layout({ children }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [collapsed,   setCollapsed]   = useState(false)
   const location = useLocation()
+  // Trabajador que ya marcó su salida hoy: solo ve su día y Asistencia.
+  const fueraDeTurno = useFueraDeTurno({ workerId: profile?.worker_id, activo: isWorker && !isAdmin && !isDemo })
+  const soloAsistencia = !!fueraDeTurno
 
   // Redirigir a login si no está autenticado
   if (!isDemo && !loading && !profile) {
     return <Navigate to="/login" replace />
   }
 
-  const NAV = isAdmin ? ADMIN_NAV : WORKER_NAV
+  const NAV = isAdmin ? ADMIN_NAV
+    : soloAsistencia ? WORKER_NAV.filter(n => n.to === '/' || n.to === '/asistencia')
+    : WORKER_NAV
   const ADMIN_MOBILE = [
     ADMIN_NAV.find(n => n.to === '/'),
     ADMIN_NAV.find(n => n.to === '/registro'),
@@ -382,7 +389,7 @@ export default function Layout({ children }) {
     ADMIN_NAV.find(n => n.to === '/citas'),
     ADMIN_NAV.find(n => n.to === '/presupuesto'),
   ]
-  const mobileNav = isAdmin ? ADMIN_MOBILE : WORKER_MOBILE
+  const mobileNav = isAdmin ? ADMIN_MOBILE : soloAsistencia ? NAV : WORKER_MOBILE
 
   const currentPage = NAV.find(i => {
     if (i.to === '/') return location.pathname === '/'
@@ -494,10 +501,12 @@ export default function Layout({ children }) {
         </header>
 
         <main className="flex-1 p-4 lg:p-6 overflow-auto pb-20 lg:pb-6">
-          {children}
+          {soloAsistencia && !location.pathname.startsWith('/asistencia')
+            ? <FueraDeTurno nombre={profile?.display_name?.trim().split(' ')[0]} logs={fueraDeTurno.logs} />
+            : children}
         </main>
 
-        <GlobalFab canAdmin={isAdmin || isDemo} workerWorkerId={profile?.worker_id} />
+        {!soloAsistencia && <GlobalFab canAdmin={isAdmin || isDemo} workerWorkerId={profile?.worker_id} />}
         <UpdateBanner />
         <InstallBanner />
 

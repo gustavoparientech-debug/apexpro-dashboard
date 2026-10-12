@@ -1,14 +1,25 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useApp } from '../context/AppContext'
 import { formatMoney, formatDate, calcRealSalary, calcProratedSalary, currentMonthYear, monthName } from '../lib/utils'
 import Badge from '../components/ui/Badge'
 import { Download, FileSpreadsheet, Pencil, Check, X, Trash2 } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { reconciliarFeriados } from '../lib/feriados'
 
-const INCIDENT_LABELS = { falta: 'Falta injustificada', permiso: 'Permiso justificado', permiso_horas: 'Permiso por horas', tardanza: 'Tardanza', hora_extra: 'Hora extra', no_marcacion: 'No marcó entrada/salida', multa: 'Multa', adelanto: 'Adelanto de sueldo' }
+const INCIDENT_LABELS = { falta: 'Falta injustificada', permiso: 'Permiso justificado', permiso_horas: 'Permiso por horas', tardanza: 'Tardanza', hora_extra: 'Hora extra', no_marcacion: 'No marcó entrada/salida', multa: 'Multa', adelanto: 'Adelanto de sueldo', feriado: 'Feriado (día sin sueldo)', comision_feriado: 'Comisión de feriado' }
 
 export default function Nomina() {
-  const { workers, incidents, updateWorker, updateIncident, deleteIncident } = useApp()
+  const { workers, incidents, updateWorker, updateIncident, deleteIncident, recargarIncidencias } = useApp()
+  // La comisión de feriado depende de los tickets cerrados: se pone al día al
+  // abrir la nómina para no pagar con un monto viejo.
+  useEffect(() => {
+    const { month: m, year: y } = currentMonthYear()
+    const prefix = `${y}-${String(m).padStart(2, '0')}`
+    reconciliarFeriados({ prefix, workers })
+      .then(r => { if (r.cambios) recargarIncidencias(prefix) })
+      .catch(() => {})
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   const [editingWorker, setEditingWorker] = useState(null)
   const [editingIncident, setEditingIncident] = useState(null) // incident being edited
   const [incDraft, setIncDraft] = useState({})

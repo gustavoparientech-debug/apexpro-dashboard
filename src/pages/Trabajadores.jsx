@@ -13,9 +13,11 @@ import toast from 'react-hot-toast'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 import { reconciliarMultas } from '../lib/multasTardanza'
 import { reconciliarAlmuerzos } from '../lib/almuerzoExtendido'
+import { reconciliarFeriados } from '../lib/feriados'
+import FeriadosCard from '../components/modules/FeriadosCard'
 
-const INCIDENT_ICONS = { falta: '🔴', permiso: '🟡', permiso_horas: '🟡', tardanza: '🟠', hora_extra: '🟢', no_marcacion: '🔵', multa: '🚫', adelanto: '💵' }
-const INCIDENT_LABELS = { vacaciones: 'Vacaciones', falta: 'Falta injustificada', permiso: 'Permiso justificado', permiso_horas: 'Permiso por horas', tardanza: 'Tardanza', hora_extra: 'Hora extra', no_marcacion: 'No marcó entrada/salida', multa: 'Multa', adelanto: 'Adelanto de sueldo' }
+const INCIDENT_ICONS = { falta: '🔴', permiso: '🟡', permiso_horas: '🟡', tardanza: '🟠', hora_extra: '🟢', no_marcacion: '🔵', multa: '🚫', adelanto: '💵', feriado: '📅', comision_feriado: '💰' }
+const INCIDENT_LABELS = { vacaciones: 'Vacaciones', falta: 'Falta injustificada', permiso: 'Permiso justificado', permiso_horas: 'Permiso por horas', tardanza: 'Tardanza', hora_extra: 'Hora extra', no_marcacion: 'No marcó entrada/salida', multa: 'Multa', adelanto: 'Adelanto de sueldo', feriado: 'Feriado (día sin sueldo)', comision_feriado: 'Comisión de feriado' }
 
 function monthRangeStr(year, month) {
   return `${year}-${String(month).padStart(2, '0')}-01`
@@ -542,12 +544,14 @@ export default function Trabajadores() {
   useEffect(() => {
     let vivo = true
     const prefix = `${selYear}-${String(selMonth).padStart(2, '0')}`
-    // Multas por tardanzas y descuentos por almuerzo de más de 1 hora.
-    Promise.all([reconciliarMultas({ prefix }), reconciliarAlmuerzos({ prefix, workers })])
-      .then(([multas, almuerzos]) => {
+    // Feriados primero (quitan las tardanzas de ese día), después multas por
+    // tardanzas y descuentos por almuerzo de más de 1 hora.
+    reconciliarFeriados({ prefix, workers }).catch(() => ({ cambios: 0 }))
+      .then(feriados => Promise.all([feriados, reconciliarMultas({ prefix }), reconciliarAlmuerzos({ prefix, workers })]))
+      .then(([feriados, multas, almuerzos]) => {
         if (!vivo) return
         const creadas = multas.creadas
-        const cambio = multas.creadas || multas.borradas || almuerzos.creadas || almuerzos.borradas
+        const cambio = feriados.cambios || multas.creadas || multas.borradas || almuerzos.creadas || almuerzos.borradas
         if (creadas) toast(`${creadas} multa${creadas === 1 ? '' : 's'} por tardanza registrada${creadas === 1 ? '' : 's'}`, { icon: '🚫' })
         if (almuerzos.creadas) toast(`${almuerzos.creadas} descuento${almuerzos.creadas === 1 ? '' : 's'} por almuerzo de más de 1 hora`, { icon: '⏱️' })
         if (!cambio && mesLeido.current === prefix) return
@@ -1266,6 +1270,17 @@ export default function Trabajadores() {
         </div>
       )}
 
+      {/* Feriados: el día se descuenta y quien vino cobra comisión */}
+      <FeriadosCard year={selYear} month={selMonth} onCambio={async () => {
+        const prefix = `${selYear}-${String(selMonth).padStart(2, '0')}`
+        try {
+          await reconciliarFeriados({ prefix, workers })
+          await Promise.all([reconciliarMultas({ prefix }), reconciliarAlmuerzos({ prefix, workers })])
+        } catch { /* se reintenta al volver a abrir Equipo */ }
+        if (isCurrentMonth) recargarIncidencias(prefix)
+        else loadPastMonth(selMonth, selYear, workers)
+      }} />
+
       {/* Lista de incidencias del mes */}
       {activeIncidents.length > 0 && (
         <div className="card">
@@ -1290,7 +1305,7 @@ export default function Trabajadores() {
           {/* Resumen compacto cuando está cerrado */}
           {!incExpanded && (
             <div className="flex flex-wrap gap-2 mt-2">
-              {['falta','tardanza','adelanto','multa','hora_extra','vacaciones','permiso','permiso_horas','no_marcacion'].map(type => {
+              {['falta','tardanza','adelanto','multa','hora_extra','vacaciones','permiso','permiso_horas','no_marcacion','feriado','comision_feriado'].map(type => {
                 const count = activeIncidents.filter(i => i.type === type).length
                 if (!count) return null
                 return (

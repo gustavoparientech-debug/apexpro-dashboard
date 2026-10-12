@@ -180,6 +180,13 @@ function esLavado(t) {
 const HORAS_AUTO_SOLO   = 1
 const HORAS_AUTO_PAREJA = 2 * 0.75   // dos personas, 45 minutos = 1.5 h-persona
 const PERSONAS_POR_SERVICIO = 2
+// Un dia se da por lleno cuando pasa este porcentaje de lo que cabe: el resto
+// es el margen para el auto que llega sin avisar.
+const OCUPACION_LLENA = 85
+const SEMANAS_POR_MES = 4.33
+// Jornada completa de lunes a sabado, para ver cuanto se puede ampliar a quien
+// trabaja medio tiempo.
+const HORAS_JORNADA_COMPLETA = 8
 
 // Un ticket de un solo dia que cruza la noche no son 20 horas: se topa en una jornada.
 const TOPE_HORAS_TICKET = 9
@@ -287,7 +294,10 @@ function AfluenciaPanel() {
   // contrata o sale alguien la tarjeta se ajusta sola. El admin queda fuera:
   // lleva ceramicos, que es trabajo de tecnico aparte y no de equipo de taller.
   const { workers } = useApp()
-  const equipoLavados = (workers || []).filter(w => w.active && w.role !== 'admin')
+  const equipoLavados = useMemo(
+    () => (workers || []).filter(w => w.active && w.role !== 'admin'),
+    [workers]
+  )
   const plantilla = equipoLavados.length
   // Los horarios traen las horas reales de cada dia: Gabriela sale a las 2 y los
   // demas hacen el dia completo, asi que la capacidad del sabado no es la del
@@ -297,9 +307,13 @@ function AfluenciaPanel() {
     supabase.from('work_schedules').select('id, weekday_hours').then(({ data }) => setHorarios(data || []))
   }, [])
 
+  const horariosPorId = useMemo(
+    () => Object.fromEntries(horarios.map(h => [h.id, h.weekday_hours || {}])),
+    [horarios]
+  )
   // Horas disponibles del equipo por dia de la semana (0 = lunes).
   const horasPorDia = useMemo(() => {
-    const porId = Object.fromEntries(horarios.map(h => [h.id, h.weekday_hours || {}]))
+    const porId = horariosPorId
     return DIAS_SEMANA.map((_, i) => {
       const dow = String(i + 1)          // weekday_hours usa 0=domingo
       return equipoLavados.reduce((a, w) => {
@@ -309,7 +323,7 @@ function AfluenciaPanel() {
         return a + (Number.isFinite(h) ? h : HORAS_EFECTIVAS_TRABAJADOR)
       }, 0)
     })
-  }, [horarios, equipoLavados])
+  }, [horariosPorId, equipoLavados])
   const [dias, setDias]   = useState(90)
   const [soloPico, setSoloPico] = useState(false)
   // Día de la semana del gráfico por hora (null = todos los días juntos).
@@ -387,7 +401,7 @@ function AfluenciaPanel() {
     // la tendencia, para que el grafico refleje cuando entra el trabajo de
     // verdad y no cuando se registro el ticket.
     const { dataHoras, conMarca, horaPico, almuerzo, cierre, autosFuera, ingresosFuera } = resumenHoras(porHora)
-    const horasPorDia = porHoraDia.map((ph, i) => ({ ...resumenHoras(ph), veces: vecesPorDia[i] }))
+    const graficoPorDia = porHoraDia.map((ph, i) => ({ ...resumenHoras(ph), veces: vecesPorDia[i] }))
     const mejorDia  = [...dataDias].sort((a, b) => b.promedio - a.promedio)[0]
     const peorDia   = [...dataDias].filter(d => d.autos > 0).sort((a, b) => a.promedio - b.promedio)[0]
 
@@ -482,7 +496,56 @@ function AfluenciaPanel() {
       const maxDia = jornadas.reduce((a, j) => Math.max(a, j.autos), 0)
       // Cuanta gente pide de verdad el dia mas cargado que ya paso.
       const horasNecesariasPico = maxDia * HORAS_AUTO_PAREJA
+      // ── Para crecer ──────────────────────────────────────────────────────
+      // Lo que se puede vender sin contratar: los autos que caben en la semana
+      // con el horario actual, menos los que ya entran.
+      const conPrecio = lavados.map(t => Number(t.price_charged) || 0).filter(v => v > 0)
+      const ticketProm = conPrecio.length ? conPrecio.reduce((a, v) => a + v, 0) / conPrecio.length : 0
+      const demandaSemana = porDiaSemana.reduce((a, d) => a + d.autos, 0)
+      const capSemanaPareja = horasPorDia.reduce((a, h) => a + h / HORAS_AUTO_PAREJA, 0)
+      const capSemanaSolo   = horasPorDia.reduce((a, h) => a + h / HORAS_AUTO_SOLO, 0)
+      const libresSemana = Math.max(0, capSemanaPareja - demandaSemana)
+      const libresMes = libresSemana * SEMANAS_POR_MES
+      // Dias flojos: los de menos ocupacion, donde conviene empujar ventas.
+      const flojos = [...porDiaSemana].filter(d => d.capacidad > 0)
+        .sort((a, b) => a.ocupacion - b.ocupacion).slice(0, 2)
+      // Dias en que el pico ya llena el taller trabajando en pareja: ahi se
+      // trabaja por separado (un auto cada uno) antes de pensar en contratar.
+      const llenos = porDiaSemana.filter(d => d.maxAutos > 0 && d.maxAutos >= d.capacidad * OCUPACION_LLENA / 100)
+      // Medio tiempo: horas que faltan para la jornada completa y lo que costaria.
+      const ampliar = equipoLavados.map(w => {
+        const wh = horariosPorId[w.schedule_id] || {}
+        const extra = DIAS_SEMANA.reduce((a, _, i) => {
+          const h = Number(wh[String(i + 1)])
+          return a + (Number.isFinite(h) ? Math.max(0, HORAS_JORNADA_COMPLETA - h) : 0)
+        }, 0)
+        const base = Number(w.base_salary) || 0
+        const costo = base * Math.max(0, 48 - (Number(w.weekly_hours) || 48)) / 48
+        return { nombre: w.name, extra, costo }
+      }).filter(a => a.extra > 0)
+      // Lo que cuesta una persona más a jornada completa, y cuántos lavados la pagan.
+      const sueldoNuevo = Math.max(0, ...equipoLavados.map(w => Number(w.base_salary) || 0))
+      const autosPagaSueldo = ticketProm > 0 ? Math.ceil(sueldoNuevo / ticketProm) : 0
+      // Se contrata cuando ni trabajando por separado se cubre el pico de un
+      // dia, o cuando la semana entera ya va llena en pareja.
+      const contratar = porDiaSemana.some(d => d.maxAutos > (horasPorDia[DIAS_SEMANA.indexOf(d.dia)] || 0) / HORAS_AUTO_SOLO)
+        || (capSemanaPareja > 0 && demandaSemana / capSemanaPareja * 100 >= OCUPACION_LLENA)
+      const crecimiento = {
+        ticketProm: Math.round(ticketProm),
+        demandaSemana: Math.round(demandaSemana),
+        capSemanaPareja: Math.round(capSemanaPareja),
+        capSemanaSolo: Math.round(capSemanaSolo),
+        libresSemana: Math.round(libresSemana),
+        libresMes: Math.round(libresMes),
+        libresDia: Math.round((libresSemana / 6) * 10) / 10,
+        ingresoPotencialMes: Math.round(libresMes * ticketProm),
+        flojos, llenos, ampliar, sueldoNuevo, autosPagaSueldo, contratar,
+        // Meta de autos por dia para llenar el taller hasta el margen de seguridad.
+        metaDia: Math.round((capSemanaPareja * OCUPACION_LLENA / 100 / 6) * 10) / 10,
+      }
+
       carga = {
+        crecimiento,
         autosProm: Math.round(autosProm * 10) / 10,
         maxDia,
         capacidadProm: Math.round(capacidadProm * 10) / 10,
@@ -497,8 +560,8 @@ function AfluenciaPanel() {
       }
     }
 
-    return { mesPico, dataDias, dataHoras, horasPorDia, mejorDia, peorDia, horaPico, almuerzo, cierre, total: lista.length, conMarca, domingos, autosFuera, ingresosFuera, carga }
-  }, [rows, dias, soloPico, horasPorDia])
+    return { mesPico, dataDias, dataHoras, graficoPorDia, mejorDia, peorDia, horaPico, almuerzo, cierre, total: lista.length, conMarca, domingos, autosFuera, ingresosFuera, carga }
+  }, [rows, dias, soloPico, horasPorDia, horariosPorId, equipoLavados])
 
   return (
     <div className="card">
@@ -568,7 +631,7 @@ function AfluenciaPanel() {
           </div>
 
           {/* Horas del día */}
-          {(() => { const horas = diaHoras == null ? analisis : analisis.horasPorDia[diaHoras]; return (
+          {(() => { const horas = diaHoras == null ? analisis : analisis.graficoPorDia[diaHoras]; return (
           <div>
             <div className="flex items-baseline justify-between mb-1">
               <p className="text-xs font-bold uppercase tracking-widest text-gray-400">Autos que entran por hora</p>
@@ -745,6 +808,70 @@ function AfluenciaPanel() {
                   </div>
                 ))}
               </div>
+
+              {/* Para crecer: cuánto más se puede vender con la misma gente */}
+              {(() => {
+                const c = analisis.carga.crecimiento
+                const fmtDias = l => l.map(d => d.dia.toLowerCase()).join(' y ')
+                return (
+                  <div className="mt-3 rounded-xl bg-emerald-50/60 dark:bg-emerald-900/10 border border-emerald-100 dark:border-emerald-900/40 p-3">
+                    <p className="text-xs font-bold uppercase tracking-widest text-emerald-700 dark:text-emerald-400 mb-2">
+                      Para crecer
+                    </p>
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-2">
+                      <div className="rounded-xl bg-white dark:bg-gray-900/40 px-3 py-2">
+                        <p className="text-[10px] text-gray-400 uppercase tracking-wide">Por semana</p>
+                        <p className="text-sm font-black text-gray-900 dark:text-white">{c.demandaSemana} de {c.capSemanaPareja} autos</p>
+                        <p className="text-[11px] text-gray-400">entran / caben en pareja</p>
+                      </div>
+                      <div className="rounded-xl bg-white dark:bg-gray-900/40 px-3 py-2">
+                        <p className="text-[10px] text-gray-400 uppercase tracking-wide">Lugares libres</p>
+                        <p className="text-sm font-black text-gray-900 dark:text-white">{c.libresMes} autos al mes</p>
+                        <p className="text-[11px] text-gray-400">≈ {c.libresDia} más por día</p>
+                      </div>
+                      <div className="rounded-xl bg-white dark:bg-gray-900/40 px-3 py-2">
+                        <p className="text-[10px] text-gray-400 uppercase tracking-wide">Ingreso por ganar</p>
+                        <p className="text-sm font-black text-emerald-700 dark:text-emerald-400">{formatMoney(c.ingresoPotencialMes)} al mes</p>
+                        <p className="text-[11px] text-gray-400">a {formatMoney(c.ticketProm)} por lavado, sin contratar</p>
+                      </div>
+                      <div className="rounded-xl bg-white dark:bg-gray-900/40 px-3 py-2">
+                        <p className="text-[10px] text-gray-400 uppercase tracking-wide">Meta diaria</p>
+                        <p className="text-sm font-black text-gray-900 dark:text-white">{c.metaDia} autos</p>
+                        <p className="text-[11px] text-gray-400">llena el taller al {OCUPACION_LLENA}%</p>
+                      </div>
+                    </div>
+                    <ul className="text-[11px] text-gray-600 dark:text-gray-300 space-y-1 leading-relaxed list-disc pl-4">
+                      {c.libresSemana > 0 && c.flojos.length > 0 && (
+                        <li>
+                          <b>Llena primero {fmtDias(c.flojos)}</b> ({c.flojos.map(d => `${d.ocupacion}%`).join(' y ')} usado): ahí
+                          conviene la promoción, los clientes de flota o las citas que puedas mover de otros días.
+                        </li>
+                      )}
+                      {c.llenos.length > 0 && (
+                        <li>
+                          <b>{fmtDias(c.llenos)}</b> el día más cargado ya llena el taller en pareja. Ese día que trabajen
+                          {' '}<b>por separado</b>, un auto cada uno: la semana pasa de {c.capSemanaPareja} a {c.capSemanaSolo} autos
+                          sin sumar a nadie.
+                        </li>
+                      )}
+                      {c.ampliar.map(a => (
+                        <li key={a.nombre}>
+                          Antes de contratar: <b>{a.nombre}</b> puede hacer {a.extra} h más por semana
+                          {' '}(≈ {Math.floor(a.extra / HORAS_AUTO_PAREJA)} autos)
+                          {a.costo > 0 && <> por unos {formatMoney(a.costo)} al mes</>}.
+                        </li>
+                      ))}
+                      <li>
+                        {c.contratar
+                          ? <><b className="text-red-600 dark:text-red-400">Ya hace falta otra persona:</b> el pico no se cubre ni trabajando por separado.</>
+                          : <><b>Todavía no hace falta contratar.</b> Una persona más a jornada completa cuesta {formatMoney(c.sueldoNuevo)} y
+                            se paga con {c.autosPagaSueldo} lavados más al mes (≈ {Math.ceil(c.autosPagaSueldo / 26)} por día).
+                            Conviene cuando la semana pase de {Math.round(c.capSemanaPareja * OCUPACION_LLENA / 100)} autos.</>}
+                      </li>
+                    </ul>
+                  </div>
+                )
+              })()}
 
               <p className="text-[11px] text-gray-400 leading-relaxed mt-2">
                 Solo lavados: planchado, cerámicos, polarizados y pintura los cubren técnicos que vienen esos

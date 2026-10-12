@@ -13,6 +13,7 @@ import toast from 'react-hot-toast'
 import { reconciliarMultas, MULTA_TARDANZA } from '../lib/multasTardanza'
 import { reconciliarAlmuerzos } from '../lib/almuerzoExtendido'
 import { esFeriado } from '../lib/feriados'
+import { EVENTO_MARCA } from '../hooks/useFueraDeTurno'
 
 // ── Geovalla ──────────────────────────────────────────────────────────────────
 const WORKPLACE_LAT  = -16.3550567
@@ -436,6 +437,8 @@ export default function Asistencia() {
         latitude: location?.lat ?? null, longitude: location?.lon ?? null,
         photo_b64: photo || null,
       })
+      // Al marcar la salida la app pasa a modo fuera de turno (ver Layout).
+      window.dispatchEvent(new Event(EVENTO_MARCA))
 
       // Horario vigente hoy para ese trabajador (sin caché stale).
       const sched = await scheduleForDate(selectedWorkerId, today)

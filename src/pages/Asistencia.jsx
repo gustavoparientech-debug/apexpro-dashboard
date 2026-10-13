@@ -11,6 +11,8 @@ import {
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { reconciliarMultas, MULTA_TARDANZA } from '../lib/multasTardanza'
+// Mismo importe que usa la nomina para esta incidencia.
+const NO_MARCACION_COST = 5
 import { reconciliarAlmuerzos } from '../lib/almuerzoExtendido'
 import { esFeriado } from '../lib/feriados'
 import { EVENTO_MARCA } from '../hooks/useFueraDeTurno'
@@ -353,6 +355,34 @@ export default function Asistencia() {
   }
 
   // Almuerzo de más de 1 hora: se descuenta el tiempo de más (desde sep 2026).
+  // Multa por marcacion olvidada. Una sola incidencia por dia que va sumando
+  // veces: si el trabajador olvido entrada y salida del mismo dia son dos
+  // multas, no dos incidencias sueltas que ensucian el desglose.
+  async function cobrarNoMarcacion(workerId, dateStr) {
+    try {
+      const { data: previa } = await supabase.from('attendance_incidents')
+        .select('id, no_marcacion_count')
+        .eq('worker_id', workerId).eq('date', dateStr).eq('type', 'no_marcacion')
+        .maybeSingle()
+
+      const veces = (previa?.no_marcacion_count || 0) + 1
+      const total = veces * NO_MARCACION_COST
+      const fila = {
+        worker_id: workerId, date: dateStr, type: 'no_marcacion',
+        no_marcacion_count: veces, apply_discount: true, discount_amount: total,
+        observation: `Marcación registrada por administración — ${veces} ${veces === 1 ? 'marca' : 'marcas'} no realizada${veces === 1 ? '' : 's'}`,
+      }
+      const { error } = previa
+        ? await supabase.from('attendance_incidents').update(fila).eq('id', previa.id)
+        : await supabase.from('attendance_incidents').insert(fila)
+      if (error) { toast.error(`No se pudo registrar la multa: ${error.message}`); return null }
+      return { veces, total }
+    } catch (e) {
+      toast.error('No se pudo registrar la multa por no marcar')
+      return null
+    }
+  }
+
   async function revisarAlmuerzo(workerId, dateStr) {
     try {
       const { creadas } = await reconciliarAlmuerzos({ prefix: dateStr.slice(0, 7), workerId, workers })
@@ -769,7 +799,12 @@ export default function Asistencia() {
               await supabase.from('attendance_logs').insert({ worker_id: adminWorker, type: addingEntry.type, date: adminDate, logged_at: dt.toISOString() })
               await recalcIncidents(adminWorker, adminDate, addingEntry.type, dt)
               if (['almuerzo_inicio', 'almuerzo_fin', 'salida'].includes(addingEntry.type)) await revisarAlmuerzo(adminWorker, adminDate)
+              // Si el admin tiene que poner la marca a mano es porque el
+              // trabajador no la hizo: la multa se cobra sola, antes se
+              // dependia de acordarse de registrarla despues.
+              const multa = await cobrarNoMarcacion(adminWorker, adminDate)
               toast.success(`${TYPE_LABEL[addingEntry.type]} añadida`)
+              if (multa) toast(`Multa por no marcar: S/ ${multa.total.toFixed(2)} (${multa.veces} ${multa.veces === 1 ? 'vez' : 'veces'})`, { icon: '🚫' })
               setAddingEntry(null); loadAdminLogs(); loadLogs()
             }
             return (

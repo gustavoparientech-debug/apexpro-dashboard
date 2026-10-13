@@ -25,7 +25,25 @@ responder algo, dilo en lugar de suponer.
   ocupa una isla durante 15 a 20 días.
 - Horario: 8:30 a 18:00, lunes a sábado. Domingos no se trabaja.
 
-## Advertencia importante sobre los datos
+## Mi situación real de caja — leer antes que los números
+
+Esto es lo más importante y no sale en las tablas:
+
+- **Prácticamente todos los meses del negocio han sido pérdida**, no solo los 5
+  que tengo registrados.
+- **Los gastos de junio a septiembre están subestimados**: no registré todo. La
+  pérdida real de esos meses es **mayor** que la que verás en la tabla. Solo
+  octubre lo estoy contabilizando completo.
+- **Hay meses en que no me alcanzó para pagar a los trabajadores** y los pagué
+  con los ingresos del mes siguiente. Estoy arrastrando el desfase.
+- **El alquiler (S/2,700/mes) me cuesta mucho pagarlo.**
+
+O sea: no es solo que el margen sea bajo. **No hay caja y estoy financiando el
+negocio con el mes que viene.** Tenlo en cuenta en tus recomendaciones: lo que
+me propongas tiene que funcionar sin capital que no tengo, y necesito saber
+cuánto tiempo me queda antes de no poder pagar.
+
+## Advertencia sobre los datos
 
 Mi sistema solo tiene **5 meses registrados: junio a octubre de 2026**, aunque
 el negocio lleva 20 meses. Los meses anteriores no están digitalizados. Ten en
@@ -34,29 +52,39 @@ distinguen una caída estructural de una estacionalidad. **Octubre está
 incompleto** (datos al día 13 de 26 días hábiles), así que no lo compares
 directo con meses completos.
 
-## Resultados mensuales (datos reales)
+## Resultados mensuales (lo que dice el sistema)
 
-| Mes | Autos | Ingresos | Costos fijos | Gastos variables | Resultado* |
-|---|---|---|---|---|---|
-| Jun 2026 | 148 | S/ 17,216 | S/ 7,570 | S/ 8,579 | **−S/ 2,133** |
-| Jul 2026 | 117 | S/ 9,159 | S/ 7,690 | S/ 1,611 | **−S/ 3,342** |
-| Ago 2026 | 107 | S/ 16,345 | S/ 8,145 | S/ 5,691 | **−S/ 691** |
-| Sep 2026 | 109 | S/ 7,051 | S/ 7,710 | S/ 1,591 | **−S/ 5,450** |
-| Oct 2026 (medio mes) | 62 | S/ 3,049 | S/ 7,170 | S/ 368 | −S/ 7,689 |
+| Mes | Autos | Ingresos | Costos fijos | Planilla | Gastos variables | Resultado* |
+|---|---|---|---|---|---|---|
+| Jun 2026 | 148 | S/ 17,216 | S/ 4,070 | S/ 3,200 | S/ 8,579 | +S/ 1,367 |
+| Jul 2026 | 117 | S/ 9,159 | S/ 4,190 | S/ 3,200 | S/ 1,611 | +S/ 158 |
+| Ago 2026 | 107 | S/ 16,345 | S/ 4,645 | S/ 3,200 | S/ 5,691 | +S/ 2,809 |
+| Sep 2026 | 109 | S/ 7,051 | S/ 4,210 | S/ 3,200 | S/ 1,591 | **−S/ 1,950** |
+| Oct 2026 (medio mes) | 62 | S/ 3,049 | S/ 3,970 | S/ 3,200 | S/ 368 | **−S/ 4,489** |
 
-\* Resultado = ingresos − costos fijos − planilla (S/3,200) − gastos variables
-pagados. **Los cuatro meses completos dieron pérdida: −S/ 11,616 acumulados.**
+\* Resultado = ingresos − costos fijos − planilla actual (S/3,200) − gastos
+variables pagados. Con los 3 trabajadores que tenía antes (S/4,800), junio y
+julio también salen negativos: −S/233 y −S/1,442.
 
-**Composición de los costos fijos** (~S/7,600/mes): alquiler S/2,700, insumos
-S/500–800, otros costos S/3,970–4,645.
+**⚠️ Estas cifras están mejor de lo que fue la realidad.** En junio–septiembre
+no registré todos los gastos. Yo sé que esos meses fueron pérdida, así que los
+gastos faltantes superan los resultados positivos que ves arriba. Trata esa
+columna como un **techo optimista**, no como el resultado real.
 
-**Gastos variables** (S/19,350 en 5 meses): "otro" S/8,184, insumos S/5,076,
-sin categoría S/2,095, pintura S/1,496, adelantos de sueldo S/1,048,
-repuestos S/800, comida S/447, transporte S/168, herramientas S/37.
+**Octubre es mi único mes con todo contabilizado**, y es el que deberías usar
+como referencia de cómo está el negocio hoy: lleva −S/4,489 a mitad de mes.
 
-⚠️ Posible doble conteo que no he podido resolver: hay "insumos" tanto en
-costos fijos (S/500–800/mes) como en gastos variables (S/5,076 en 5 meses).
-Pregúntame si no estás seguro de cómo tratarlos.
+**Costos fijos** (~S/4,000–4,600/mes): alquiler S/2,700, insumos S/500–800,
+luz S/450, agua S/320, internet. El alquiler es el 68% del fijo y es lo que
+más me cuesta pagar.
+
+**Gastos variables** (S/19,350 registrados en 5 meses): "otro" S/8,184,
+insumos S/5,076, sin categoría S/2,095, pintura S/1,496, adelantos de sueldo
+S/1,048, repuestos S/800, comida S/447, transporte S/168, herramientas S/37.
+
+Nota: los gastos variables de junio (S/8,579) y agosto (S/5,691) son altos
+porque incluyen materiales de las pinturas generales. Al analizar la
+rentabilidad de esos trabajos, conviene restarles su propio material.
 
 ## Composición de los ingresos
 
@@ -119,25 +147,51 @@ el día fuerte de lavados.
 
 ## Qué necesito que me digas
 
-1. **¿Es viable el negocio?** Con estos números, ¿tiene arreglo o debo pensar
-   en cerrar o transformarlo? Sé directo.
-2. **¿Cuántos trabajadores me convienen?** Hoy tengo 2 en planilla (S/3,200).
-   ¿Sostengo, reduzco o amplío? Considera que yo también trabajo aquí.
-3. **¿De dónde saco la rentabilidad?** Los lavados son el 86% de los autos pero
-   solo ~29% del dinero. Los servicios especiales dejan mucho más por unidad.
-   ¿Debo reposicionar el taller hacia cerámicos y detallado y dejar el lavado
-   como gancho, o el volumen de lavado es necesario?
-4. **¿Qué hago con las pinturas generales?** Dejan mucho dinero pero bloquean
-   una isla 3 a 7 semanas y solo entran 2–3 al año. ¿Las tomo, las cobro más
-   caro, o las rechazo?
-5. **Mi mayor problema parece ser que el 79% de los clientes no vuelve.**
-   ¿Es ese el punto a atacar primero, o hay algo más urgente?
-6. **Costos fijos de S/7,600/mes contra ingresos promedio de S/12,400.**
-   ¿Qué margen bruto necesito y qué nivel de ventas me pone en equilibrio?
-7. **Dame un plan concreto a 90 días**, con 3 a 5 acciones priorizadas por
-   impacto, y para cada una qué debo medir para saber si funcionó.
-8. **Dime qué información me falta** para decidir mejor, y qué debería empezar
-   a registrar desde ya.
+Ordénalo por urgencia: primero sobrevivir, después crecer.
+
+**Primero — la caja**
+
+1. **¿Cuánto tiempo me queda?** Con esta pérdida mensual y arrastrando sueldos
+   del mes anterior, ¿cuántos meses aguanto antes de no poder pagar planilla o
+   alquiler? Dame el cálculo.
+2. **¿Qué recorto esta semana?** De mis costos (alquiler S/2,700, otros fijos
+   ~S/4,000, planilla S/3,200), ¿qué se puede bajar o renegociar ya? El
+   alquiler es mi carga más pesada: ¿vale la pena buscar un local más chico,
+   negociar con el dueño, compartirlo o subarrendar una isla?
+3. **¿Qué hago con la deuda de sueldos que arrastro?** Necesito salir de ese
+   círculo sin dejar de pagar a mi gente.
+
+**Segundo — el modelo**
+
+4. **¿Es viable el negocio?** Con estos números, ¿tiene arreglo, hay que
+   transformarlo, o lo sensato es cerrar? Sé directo: prefiero una respuesta
+   dura a una optimista.
+5. **¿Cuántos trabajadores me convienen?** Hoy tengo 2 en planilla (S/3,200) y
+   la ocupación del taller ronda el 30%. ¿Sostengo, reduzco a 1, o cambio a un
+   esquema por jornada o por producción? Considera que yo también trabajo aquí
+   y hago los cerámicos.
+6. **¿De dónde saco la rentabilidad?** Los lavados son el 86% de los autos pero
+   solo ~29% del dinero. ¿Debo reposicionar el taller hacia cerámicos y
+   detallado y dejar el lavado como gancho, o el volumen de lavado es
+   necesario para cubrir fijos?
+7. **¿Qué hago con las pinturas generales?** Dejan mucho dinero pero bloquean
+   una isla 3 a 7 semanas y solo entran 2–3 al año. Además cobro casi todo al
+   final, lo que me agrava la caja. ¿Las tomo, las cobro distinto (más
+   adelanto, cobro por etapas), o las rechazo?
+8. **El 79% de los clientes no vuelve.** ¿Es el punto a atacar primero o hay
+   algo más urgente dada mi situación de caja?
+9. **¿Qué nivel de ventas me pone en equilibrio?** Costos fijos ~S/4,300 más
+   planilla S/3,200 = **S/7,500/mes** antes de insumos y materiales. ¿Cuántos
+   autos y de qué tipo necesito al mes, y es alcanzable con la capacidad que
+   tengo? Fíjate que septiembre (S/7,051) y octubre no llegan ni a cubrir eso.
+
+**Tercero — el plan**
+
+10. **Dame un plan a 90 días** con 3 a 5 acciones priorizadas, cada una con:
+    qué hago, cuánto cuesta, qué espero que pase y cómo mido si funcionó.
+11. **Dime qué información me falta** para decidir mejor y qué debo empezar a
+    registrar desde hoy.
 
 Si algún número te parece inconsistente o insuficiente, dímelo antes de
-construir recomendaciones sobre él.
+construir recomendaciones sobre él. Y si tu conclusión es que el negocio no es
+salvable como está, dímelo claramente.

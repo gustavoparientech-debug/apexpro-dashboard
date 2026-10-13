@@ -194,6 +194,19 @@ const TOPE_HORAS_TICKET = 9
 // quedo sin cerrar por olvido no infle el promedio para siempre.
 const TOPE_DIAS_TRABAJO = 20
 
+// Un trabajo que ocupa el taller mas de esto no es un servicio corriente: es
+// una pintura general, y entran dos o tres al año. Mezclarlas con el dia a dia
+// deformaba el promedio diario (las tres cayeron el mismo martes y lo subian
+// de S/143 a S/1,054). Los datos separan solos: nada ocupa entre 3 y 5 dias,
+// el salto es de 2 dias a 20.
+const DIAS_TRABAJO_LARGO = 5
+function esTrabajoLargo(t) {
+  if (!t.opened_at) return false
+  const fin = t.closed_at ? new Date(t.closed_at) : new Date()
+  const dias = Math.floor((fin - new Date(t.opened_at)) / 86400000)
+  return dias > DIAS_TRABAJO_LARGO
+}
+
 const HORA_APERTURA = 8
 const HORA_CIERRE   = 17   // ultima franja; a las 18:00 ya se cerro
 
@@ -358,6 +371,7 @@ function AfluenciaPanel() {
     // período, si no un mes con cinco sábados parece mejor que uno con cuatro.
     const porDia = DIAS_SEMANA.map(nombre => ({ dia: nombre, autos: 0, ingresos: 0, fechas: new Set(), porFecha: {} }))
     const domingos = (rows || []).filter(t => t.date && esDomingo(t.date)).length
+    let largos = 0, montoLargos = 0
     const porHora = Array.from({ length: 24 }, (_, h) => ({ hora: h, autos: 0, ingresos: 0 }))
     // Las mismas horas separadas por día de la semana, para filtrar el gráfico.
     const porHoraDia = DIAS_SEMANA.map(() => Array.from({ length: 24 }, (_, h) => ({ hora: h, autos: 0, ingresos: 0 })))
@@ -368,9 +382,12 @@ function AfluenciaPanel() {
       porDia[idx].autos += 1
       porDia[idx].ingresos += Number(t.price_charged) || 0
       porDia[idx].fechas.add(t.date)
-      // Ingreso de cada fecha suelta: hace falta para la mediana, que es lo
-      // que de verdad entra un dia normal.
-      porDia[idx].porFecha[t.date] = (porDia[idx].porFecha[t.date] || 0) + (Number(t.price_charged) || 0)
+      // Ingreso de cada fecha suelta, sin los trabajos largos: es la base del
+      // grafico de dinero, que describe el dia corriente.
+      if (esTrabajoLargo(t)) { largos += 1; montoLargos += Number(t.price_charged) || 0 }
+      else {
+        porDia[idx].porFecha[t.date] = (porDia[idx].porFecha[t.date] || 0) + (Number(t.price_charged) || 0)
+      }
 
       const marca = t.opened_at || t.created_at
       if (marca) {
@@ -403,7 +420,9 @@ function AfluenciaPanel() {
     }
 
     const dataDias = porDia.map((p, i) => {
+      // Jornadas del dia a dia, ya sin los trabajos largos.
       const jornadas = Object.values(p.porFecha)
+      const totalCorriente = jornadas.reduce((a, v) => a + v, 0)
       return {
         dia: p.dia,
         corto: p.dia.slice(0, 3),
@@ -411,6 +430,9 @@ function AfluenciaPanel() {
         ingresos: Math.round(p.ingresos),
         promedio: vecesPorDia[i] > 0 ? Math.round((p.autos / vecesPorDia[i]) * 10) / 10 : 0,
         promIngreso: vecesPorDia[i] > 0 ? Math.round(p.ingresos / vecesPorDia[i]) : 0,
+        // Se divide entre todas las veces que cayo ese dia, no entre los dias
+        // con trabajo: un lunes sin un solo auto tambien es un lunes.
+        promDinero: vecesPorDia[i] > 0 ? Math.round(totalCorriente / vecesPorDia[i]) : 0,
         medIngreso: Math.round(medianaDe(jornadas)),
         mejorDia: jornadas.length ? Math.round(Math.max(...jornadas)) : 0,
       }
@@ -579,7 +601,7 @@ function AfluenciaPanel() {
       }
     }
 
-    return { mesPico, dataDias, dataHoras, graficoPorDia, mejorDia, peorDia, horaPico, almuerzo, cierre, total: lista.length, conMarca, domingos, autosFuera, ingresosFuera, carga }
+    return { largos, montoLargos, mesPico, dataDias, dataHoras, graficoPorDia, mejorDia, peorDia, horaPico, almuerzo, cierre, total: lista.length, conMarca, domingos, autosFuera, ingresosFuera, carga }
   }, [rows, dias, soloPico, horasPorDia, horariosPorId, equipoLavados])
 
   return (
@@ -650,15 +672,14 @@ function AfluenciaPanel() {
           </div>
 
           {/* Dinero por día de la semana ─────────────────────────────────────
-              La barra es la mediana y no el promedio: un solo trabajo grande
-              dispara la media y deja de describir el dia corriente. Con los
-              datos de agosto, un martes de S/11,077 subia la media del martes
-              de S/142 a S/1,054. */}
+              Sin los trabajos largos: las pinturas generales entran dos o tres
+              al año y deformaban el promedio. Las tres del periodo cayeron el
+              mismo martes y lo subian de S/143 a S/1,054. */}
           <div>
-            <div className="flex items-baseline justify-between mb-1">
-              <p className="text-xs font-bold uppercase tracking-widest text-gray-400">Dinero que entra un día normal</p>
-              <p className="text-[11px] text-gray-400">
-                {formatMoney(analisis.dataDias.reduce((a, d) => a + d.medIngreso, 0))} en una semana típica
+            <div className="flex items-baseline justify-between mb-1 gap-3">
+              <p className="text-xs font-bold uppercase tracking-widest text-gray-400">Dinero que entra por día</p>
+              <p className="text-[11px] text-gray-400 text-right">
+                {formatMoney(analisis.dataDias.reduce((a, d) => a + d.promDinero, 0))} en una semana
               </p>
             </div>
             <div className="h-52">
@@ -672,23 +693,24 @@ function AfluenciaPanel() {
                     contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.12)', fontSize: 12 }}
                     labelFormatter={(_, p) => p?.[0]?.payload?.dia || ''}
                     formatter={(v, n, p) => [
-                      `${formatMoney(v)} un día normal · promedio ${formatMoney(p.payload.promIngreso)} · mejor ${formatMoney(p.payload.mejorDia)}`,
+                      `${formatMoney(v)} en promedio · día corriente ${formatMoney(p.payload.medIngreso)} · mejor ${formatMoney(p.payload.mejorDia)}`,
                       'Ingreso',
                     ]} />
-                  <Bar dataKey="medIngreso" radius={[6, 6, 2, 2]} maxBarSize={44}>
-                    <LabelList dataKey="medIngreso" position="top" offset={5}
+                  <Bar dataKey="promDinero" radius={[6, 6, 2, 2]} maxBarSize={44}>
+                    <LabelList dataKey="promDinero" position="top" offset={5}
                       formatter={v => v >= 1000 ? `S/${(v / 1000).toFixed(1)}k` : `S/${v}`}
                       style={{ fontSize: 10, fontWeight: 700, fill: '#6b7280' }} />
                     {analisis.dataDias.map(d => (
-                      <Cell key={d.dia} fill={d.medIngreso === Math.max(...analisis.dataDias.map(x => x.medIngreso)) ? '#15803d' : '#86efac'} />
+                      <Cell key={d.dia} fill={d.promDinero === Math.max(...analisis.dataDias.map(x => x.promDinero)) ? '#15803d' : '#86efac'} />
                     ))}
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
             <p className="text-[11px] text-gray-400 mt-1">
-              Es la mediana: lo que entra un día corriente. El promedio sube con un solo trabajo grande y deja de
-              servir para planificar — pasa el cursor por una barra para ver promedio y mejor día.
+              {analisis.largos > 0
+                ? `Sin ${analisis.largos} ${analisis.largos === 1 ? 'trabajo largo' : 'trabajos largos'} (${formatMoney(analisis.montoLargos)}): las pinturas generales ocupan semanas y entran pocas al año, así que deformaban el promedio del día.`
+                : 'Promedio por día de la semana, sin trabajos que ocupen el taller más de una semana.'}
             </p>
           </div>
 

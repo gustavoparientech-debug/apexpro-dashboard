@@ -199,6 +199,11 @@ const TOPE_DIAS_TRABAJO = 20
 // deformaba el promedio diario (las tres cayeron el mismo martes y lo subian
 // de S/143 a S/1,054). Los datos separan solos: nada ocupa entre 3 y 5 dias,
 // el salto es de 2 dias a 20.
+// A partir de aqui un servicio deja de ser el lavado del dia a dia: ceramicos,
+// planchados, detallados. Entran pocos y cambian mucho el dia, asi que se
+// pintan aparte en vez de mezclarse con el piso de ingresos.
+const PRECIO_SERVICIO_ESPECIAL = 300
+
 const DIAS_TRABAJO_LARGO = 5
 function esTrabajoLargo(t) {
   if (!t.opened_at) return false
@@ -369,7 +374,7 @@ function AfluenciaPanel() {
 
     // Por día de la semana: se divide entre cuántas veces cayó ese día en el
     // período, si no un mes con cinco sábados parece mejor que uno con cuatro.
-    const porDia = DIAS_SEMANA.map(nombre => ({ dia: nombre, autos: 0, ingresos: 0, fechas: new Set(), porFecha: {} }))
+    const porDia = DIAS_SEMANA.map(nombre => ({ dia: nombre, autos: 0, ingresos: 0, fechas: new Set(), porFecha: {}, dinEstandar: 0, dinEspecial: 0, dinPinturas: 0 }))
     const domingos = (rows || []).filter(t => t.date && esDomingo(t.date)).length
     let largos = 0, montoLargos = 0
     const porHora = Array.from({ length: 24 }, (_, h) => ({ hora: h, autos: 0, ingresos: 0 }))
@@ -382,11 +387,18 @@ function AfluenciaPanel() {
       porDia[idx].autos += 1
       porDia[idx].ingresos += Number(t.price_charged) || 0
       porDia[idx].fechas.add(t.date)
-      // Ingreso de cada fecha suelta, sin los trabajos largos: es la base del
-      // grafico de dinero, que describe el dia corriente.
-      if (esTrabajoLargo(t)) { largos += 1; montoLargos += Number(t.price_charged) || 0 }
-      else {
-        porDia[idx].porFecha[t.date] = (porDia[idx].porFecha[t.date] || 0) + (Number(t.price_charged) || 0)
+      // El dinero del dia se parte en dos: el piso que entra siempre y los
+      // trabajos que no se pueden dar por seguros. Las pinturas generales van
+      // con los especiales, pero contadas aparte para poder desglosarlas.
+      const monto = Number(t.price_charged) || 0
+      const pintura = esTrabajoLargo(t)
+      const especial = pintura || monto >= PRECIO_SERVICIO_ESPECIAL
+      if (pintura) { largos += 1; montoLargos += monto }
+      porDia[idx].dinEstandar  += especial ? 0 : monto
+      porDia[idx].dinEspecial  += especial ? monto : 0
+      porDia[idx].dinPinturas  += pintura ? monto : 0
+      if (!especial) {
+        porDia[idx].porFecha[t.date] = (porDia[idx].porFecha[t.date] || 0) + monto
       }
 
       const marca = t.opened_at || t.created_at
@@ -433,6 +445,9 @@ function AfluenciaPanel() {
         // Se divide entre todas las veces que cayo ese dia, no entre los dias
         // con trabajo: un lunes sin un solo auto tambien es un lunes.
         promDinero: vecesPorDia[i] > 0 ? Math.round(totalCorriente / vecesPorDia[i]) : 0,
+        dinEstandar: vecesPorDia[i] > 0 ? Math.round(p.dinEstandar / vecesPorDia[i]) : 0,
+        dinEspecial: vecesPorDia[i] > 0 ? Math.round(p.dinEspecial / vecesPorDia[i]) : 0,
+        dinPinturas: vecesPorDia[i] > 0 ? Math.round(p.dinPinturas / vecesPorDia[i]) : 0,
         medIngreso: Math.round(medianaDe(jornadas)),
         mejorDia: jornadas.length ? Math.round(Math.max(...jornadas)) : 0,
       }
@@ -672,14 +687,14 @@ function AfluenciaPanel() {
           </div>
 
           {/* Dinero por día de la semana ─────────────────────────────────────
-              Sin los trabajos largos: las pinturas generales entran dos o tres
-              al año y deformaban el promedio. Las tres del periodo cayeron el
-              mismo martes y lo subian de S/143 a S/1,054. */}
+              Dos colores: el piso que entra siempre y lo que no se puede dar
+              por seguro. Sin separarlos, un ceramico o una pintura disfrazaba
+              de bueno un dia que de lavados es flojo. */}
           <div>
             <div className="flex items-baseline justify-between mb-1 gap-3">
               <p className="text-xs font-bold uppercase tracking-widest text-gray-400">Dinero que entra por día</p>
               <p className="text-[11px] text-gray-400 text-right">
-                {formatMoney(analisis.dataDias.reduce((a, d) => a + d.promDinero, 0))} en una semana
+                {formatMoney(analisis.dataDias.reduce((a, d) => a + d.dinEstandar + d.dinEspecial, 0))} en una semana
               </p>
             </div>
             <div className="h-52">
@@ -692,25 +707,26 @@ function AfluenciaPanel() {
                   <Tooltip cursor={{ fill: 'rgba(0,0,0,0.04)', radius: 6 }}
                     contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.12)', fontSize: 12 }}
                     labelFormatter={(_, p) => p?.[0]?.payload?.dia || ''}
-                    formatter={(v, n, p) => [
-                      `${formatMoney(v)} en promedio · día corriente ${formatMoney(p.payload.medIngreso)} · mejor ${formatMoney(p.payload.mejorDia)}`,
-                      'Ingreso',
-                    ]} />
-                  <Bar dataKey="promDinero" radius={[6, 6, 2, 2]} maxBarSize={44}>
-                    <LabelList dataKey="promDinero" position="top" offset={5}
+                    formatter={(v, n, p) => n === 'Especiales' && p.payload.dinPinturas > 0
+                      ? [`${formatMoney(v)} · de eso ${formatMoney(p.payload.dinPinturas)} son pinturas generales`, n]
+                      : [formatMoney(v), n]} />
+                  <Bar dataKey="dinEstandar" name="Estándar" stackId="dinero" fill="#86efac" radius={[0, 0, 2, 2]} maxBarSize={44} />
+                  <Bar dataKey="dinEspecial" name="Especiales" stackId="dinero" fill="#15803d" radius={[6, 6, 0, 0]} maxBarSize={44}>
+                    <LabelList position="top" offset={5}
+                      valueAccessor={e => (e.payload?.dinEstandar || 0) + (e.payload?.dinEspecial || 0)}
                       formatter={v => v >= 1000 ? `S/${(v / 1000).toFixed(1)}k` : `S/${v}`}
                       style={{ fontSize: 10, fontWeight: 700, fill: '#6b7280' }} />
-                    {analisis.dataDias.map(d => (
-                      <Cell key={d.dia} fill={d.promDinero === Math.max(...analisis.dataDias.map(x => x.promDinero)) ? '#15803d' : '#86efac'} />
-                    ))}
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
+            <div className="flex items-center gap-4 mt-1.5 flex-wrap">
+              <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-green-300" /><span className="text-[11px] text-gray-400">Estándar — lavados, el piso de cada día</span></div>
+              <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-green-700" /><span className="text-[11px] text-gray-400">Especiales — cerámicos, planchados y pinturas</span></div>
+            </div>
             <p className="text-[11px] text-gray-400 mt-1">
-              {analisis.largos > 0
-                ? `Sin ${analisis.largos} ${analisis.largos === 1 ? 'trabajo largo' : 'trabajos largos'} (${formatMoney(analisis.montoLargos)}): las pinturas generales ocupan semanas y entran pocas al año, así que deformaban el promedio del día.`
-                : 'Promedio por día de la semana, sin trabajos que ocupen el taller más de una semana.'}
+              Verde claro es lo que entra pase lo que pase; verde oscuro depende de que caiga un trabajo grande.
+              Especial es todo servicio desde {formatMoney(PRECIO_SERVICIO_ESPECIAL)} o que ocupe el taller más de una semana.
             </p>
           </div>
 

@@ -356,7 +356,7 @@ function AfluenciaPanel() {
 
     // Por día de la semana: se divide entre cuántas veces cayó ese día en el
     // período, si no un mes con cinco sábados parece mejor que uno con cuatro.
-    const porDia = DIAS_SEMANA.map(nombre => ({ dia: nombre, autos: 0, ingresos: 0, fechas: new Set() }))
+    const porDia = DIAS_SEMANA.map(nombre => ({ dia: nombre, autos: 0, ingresos: 0, fechas: new Set(), porFecha: {} }))
     const domingos = (rows || []).filter(t => t.date && esDomingo(t.date)).length
     const porHora = Array.from({ length: 24 }, (_, h) => ({ hora: h, autos: 0, ingresos: 0 }))
     // Las mismas horas separadas por día de la semana, para filtrar el gráfico.
@@ -368,6 +368,9 @@ function AfluenciaPanel() {
       porDia[idx].autos += 1
       porDia[idx].ingresos += Number(t.price_charged) || 0
       porDia[idx].fechas.add(t.date)
+      // Ingreso de cada fecha suelta: hace falta para la mediana, que es lo
+      // que de verdad entra un dia normal.
+      porDia[idx].porFecha[t.date] = (porDia[idx].porFecha[t.date] || 0) + (Number(t.price_charged) || 0)
 
       const marca = t.opened_at || t.created_at
       if (marca) {
@@ -388,14 +391,30 @@ function AfluenciaPanel() {
       vecesPorDia[(d.getDay() + 6) % 7] += 1
     }
 
-    const dataDias = porDia.map((p, i) => ({
-      dia: p.dia,
-      corto: p.dia.slice(0, 3),
-      autos: p.autos,
-      ingresos: Math.round(p.ingresos),
-      promedio: vecesPorDia[i] > 0 ? Math.round((p.autos / vecesPorDia[i]) * 10) / 10 : 0,
-      promIngreso: vecesPorDia[i] > 0 ? Math.round(p.ingresos / vecesPorDia[i]) : 0,
-    }))
+    // Mediana del ingreso diario. El promedio no sirve para responder "cuanto
+    // entra un martes": un solo trabajo grande lo multiplica (un martes de
+    // S/11,077 subia la media de S/142 a S/1,054). La mediana ignora esos
+    // picos y describe el dia corriente.
+    const medianaDe = (valores) => {
+      if (!valores.length) return 0
+      const v = [...valores].sort((a, b) => a - b)
+      const m = Math.floor(v.length / 2)
+      return v.length % 2 ? v[m] : (v[m - 1] + v[m]) / 2
+    }
+
+    const dataDias = porDia.map((p, i) => {
+      const jornadas = Object.values(p.porFecha)
+      return {
+        dia: p.dia,
+        corto: p.dia.slice(0, 3),
+        autos: p.autos,
+        ingresos: Math.round(p.ingresos),
+        promedio: vecesPorDia[i] > 0 ? Math.round((p.autos / vecesPorDia[i]) * 10) / 10 : 0,
+        promIngreso: vecesPorDia[i] > 0 ? Math.round(p.ingresos / vecesPorDia[i]) : 0,
+        medIngreso: Math.round(medianaDe(jornadas)),
+        mejorDia: jornadas.length ? Math.round(Math.max(...jornadas)) : 0,
+      }
+    })
 
     // Solo el horario de atencion: lo marcado fuera se reparte dentro siguiendo
     // la tendencia, para que el grafico refleje cuando entra el trabajo de
@@ -628,6 +647,49 @@ function AfluenciaPanel() {
                 </BarChart>
               </ResponsiveContainer>
             </div>
+          </div>
+
+          {/* Dinero por día de la semana ─────────────────────────────────────
+              La barra es la mediana y no el promedio: un solo trabajo grande
+              dispara la media y deja de describir el dia corriente. Con los
+              datos de agosto, un martes de S/11,077 subia la media del martes
+              de S/142 a S/1,054. */}
+          <div>
+            <div className="flex items-baseline justify-between mb-1">
+              <p className="text-xs font-bold uppercase tracking-widest text-gray-400">Dinero que entra un día normal</p>
+              <p className="text-[11px] text-gray-400">
+                {formatMoney(analisis.dataDias.reduce((a, d) => a + d.medIngreso, 0))} en una semana típica
+              </p>
+            </div>
+            <div className="h-52">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={analisis.dataDias} margin={{ top: 16, right: 4, left: -8, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
+                  <XAxis dataKey="corto" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 10 }} axisLine={false} tickLine={false}
+                    tickFormatter={v => v >= 1000 ? `${(v / 1000).toFixed(1)}k` : v} />
+                  <Tooltip cursor={{ fill: 'rgba(0,0,0,0.04)', radius: 6 }}
+                    contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.12)', fontSize: 12 }}
+                    labelFormatter={(_, p) => p?.[0]?.payload?.dia || ''}
+                    formatter={(v, n, p) => [
+                      `${formatMoney(v)} un día normal · promedio ${formatMoney(p.payload.promIngreso)} · mejor ${formatMoney(p.payload.mejorDia)}`,
+                      'Ingreso',
+                    ]} />
+                  <Bar dataKey="medIngreso" radius={[6, 6, 2, 2]} maxBarSize={44}>
+                    <LabelList dataKey="medIngreso" position="top" offset={5}
+                      formatter={v => v >= 1000 ? `S/${(v / 1000).toFixed(1)}k` : `S/${v}`}
+                      style={{ fontSize: 10, fontWeight: 700, fill: '#6b7280' }} />
+                    {analisis.dataDias.map(d => (
+                      <Cell key={d.dia} fill={d.medIngreso === Math.max(...analisis.dataDias.map(x => x.medIngreso)) ? '#15803d' : '#86efac'} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+            <p className="text-[11px] text-gray-400 mt-1">
+              Es la mediana: lo que entra un día corriente. El promedio sube con un solo trabajo grande y deja de
+              servir para planificar — pasa el cursor por una barra para ver promedio y mejor día.
+            </p>
           </div>
 
           {/* Horas del día */}

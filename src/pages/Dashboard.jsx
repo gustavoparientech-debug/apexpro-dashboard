@@ -394,9 +394,10 @@ function AfluenciaPanel() {
       const pintura = esTrabajoLargo(t)
       const especial = pintura || monto >= PRECIO_SERVICIO_ESPECIAL
       if (pintura) { largos += 1; montoLargos += monto }
-      porDia[idx].dinEstandar  += especial ? 0 : monto
-      porDia[idx].dinEspecial  += especial ? monto : 0
-      porDia[idx].dinPinturas  += pintura ? monto : 0
+      // Tres cestas que no se solapan, para poder apilarlas sin contar doble.
+      porDia[idx].dinEstandar += (!especial) ? monto : 0
+      porDia[idx].dinEspecial += (especial && !pintura) ? monto : 0
+      porDia[idx].dinPinturas += pintura ? monto : 0
       if (!especial) {
         porDia[idx].porFecha[t.date] = (porDia[idx].porFecha[t.date] || 0) + monto
       }
@@ -707,13 +708,12 @@ function AfluenciaPanel() {
                   <Tooltip cursor={{ fill: 'rgba(0,0,0,0.04)', radius: 6 }}
                     contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.12)', fontSize: 12 }}
                     labelFormatter={(_, p) => p?.[0]?.payload?.dia || ''}
-                    formatter={(v, n, p) => n === 'Especiales' && p.payload.dinPinturas > 0
-                      ? [`${formatMoney(v)} · de eso ${formatMoney(p.payload.dinPinturas)} son pinturas generales`, n]
-                      : [formatMoney(v), n]} />
+                    formatter={(v, n) => [formatMoney(v), n]} />
                   <Bar dataKey="dinEstandar" name="Estándar" stackId="dinero" fill="#86efac" radius={[0, 0, 2, 2]} maxBarSize={44} />
-                  <Bar dataKey="dinEspecial" name="Especiales" stackId="dinero" fill="#15803d" radius={[6, 6, 0, 0]} maxBarSize={44}>
+                  <Bar dataKey="dinEspecial" name="Especiales" stackId="dinero" fill="#15803d" maxBarSize={44} />
+                  <Bar dataKey="dinPinturas" name="Pintura general" stackId="dinero" fill="#a16207" radius={[6, 6, 0, 0]} maxBarSize={44}>
                     <LabelList position="top" offset={5}
-                      valueAccessor={e => (e.payload?.dinEstandar || 0) + (e.payload?.dinEspecial || 0)}
+                      valueAccessor={e => (e.payload?.dinEstandar || 0) + (e.payload?.dinEspecial || 0) + (e.payload?.dinPinturas || 0)}
                       formatter={v => v >= 1000 ? `S/${(v / 1000).toFixed(1)}k` : `S/${v}`}
                       style={{ fontSize: 10, fontWeight: 700, fill: '#6b7280' }} />
                   </Bar>
@@ -722,11 +722,13 @@ function AfluenciaPanel() {
             </div>
             <div className="flex items-center gap-4 mt-1.5 flex-wrap">
               <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-green-300" /><span className="text-[11px] text-gray-400">Estándar — lavados, el piso de cada día</span></div>
-              <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-green-700" /><span className="text-[11px] text-gray-400">Especiales — cerámicos, planchados y pinturas</span></div>
+              <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-green-700" /><span className="text-[11px] text-gray-400">Especiales — cerámicos, planchados, detallados</span></div>
+              <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full" style={{ background: '#a16207' }} /><span className="text-[11px] text-gray-400">Pintura general — entran pocas al año</span></div>
             </div>
             <p className="text-[11px] text-gray-400 mt-1">
-              Verde claro es lo que entra pase lo que pase; verde oscuro depende de que caiga un trabajo grande.
-              Especial es todo servicio desde {formatMoney(PRECIO_SERVICIO_ESPECIAL)} o que ocupe el taller más de una semana.
+              Verde claro es lo que entra pase lo que pase. Verde oscuro son servicios desde {formatMoney(PRECIO_SERVICIO_ESPECIAL)},
+              que llegan seguido pero no todos los días. Marrón son las pinturas generales: ocupan el taller semanas
+              y entran dos o tres al año, así que ese tramo no se repite cada semana.
             </p>
           </div>
 

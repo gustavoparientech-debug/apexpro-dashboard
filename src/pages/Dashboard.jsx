@@ -458,7 +458,18 @@ function AfluenciaPanel() {
     // la tendencia, para que el grafico refleje cuando entra el trabajo de
     // verdad y no cuando se registro el ticket.
     const { dataHoras, conMarca, horaPico, almuerzo, cierre, autosFuera, ingresosFuera } = resumenHoras(porHora)
-    const graficoPorDia = porHoraDia.map((ph, i) => ({ ...resumenHoras(ph), veces: vecesPorDia[i] }))
+    // Por día de la semana el gráfico muestra el promedio a cada hora: los 11
+    // autos de las 9:00 en 13 lunes son 0.8 autos un lunes cualquiera.
+    const graficoPorDia = porHoraDia.map((ph, i) => {
+      const r = resumenHoras(ph)
+      const veces = vecesPorDia[i]
+      const prom = v => (veces > 0 ? Math.round((v / veces) * 10) / 10 : 0)
+      return {
+        ...r,
+        veces,
+        dataHoras: r.dataHoras.map(h => ({ ...h, promedio: prom(h.autos), ingresoProm: veces > 0 ? Math.round(h.ingresos / veces) : 0 })),
+      }
+    })
     const mejorDia  = [...dataDias].sort((a, b) => b.promedio - a.promedio)[0]
     const peorDia   = [...dataDias].filter(d => d.autos > 0).sort((a, b) => a.promedio - b.promedio)[0]
 
@@ -738,8 +749,9 @@ function AfluenciaPanel() {
             <div className="flex items-baseline justify-between mb-1">
               <p className="text-xs font-bold uppercase tracking-widest text-gray-400">Autos que entran por hora</p>
               <p className="text-[11px] text-gray-400">
-                {horas.conMarca} con hora registrada
-                {diaHoras != null && ` · ${horas.veces} ${horas.veces === 1 ? DIAS_SEMANA[diaHoras].toLowerCase() : diaPlural(diaHoras)}`}
+                {diaHoras == null
+                  ? `${horas.conMarca} con hora registrada`
+                  : `Promedio por ${DIAS_SEMANA[diaHoras].toLowerCase()} · ${horas.veces} ${horas.veces === 1 ? DIAS_SEMANA[diaHoras].toLowerCase() : diaPlural(diaHoras)}`}
               </p>
             </div>
             <div className="flex gap-1 overflow-x-auto pb-1 mb-1.5 -mx-1 px-1">
@@ -763,15 +775,19 @@ function AfluenciaPanel() {
             )}
             <div className="h-52">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={horas.dataHoras} margin={{ top: 16, right: 4, left: -22, bottom: 0 }}>
+                <BarChart data={horas.dataHoras} margin={{ top: 16, right: 4, left: diaHoras == null ? -22 : 4, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
                   <XAxis dataKey="label" tick={{ fontSize: 9 }} axisLine={false} tickLine={false} interval={0} />
-                  <YAxis tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+                  {/* Con promedios el eje daba 0.45 y 1.35: cada barra ya lleva su número. */}
+                  <YAxis hide={diaHoras != null} tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
                   <Tooltip cursor={{ fill: 'rgba(0,0,0,0.04)', radius: 6 }}
                     contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.12)', fontSize: 12 }}
-                    formatter={(v, n, p) => [`${v} autos · ${formatMoney(p.payload.ingresos)}`, 'Entradas']} />
-                  <Bar dataKey="autos" radius={[6, 6, 2, 2]} maxBarSize={30}>
-                    <LabelList dataKey="autos" position="top" offset={5}
+                    formatter={(v, n, p) => diaHoras == null
+                      ? [`${v} autos · ${formatMoney(p.payload.ingresos)}`, 'Entradas']
+                      : [`${v} autos en promedio · ${formatMoney(p.payload.ingresoProm)} (${p.payload.autos} en ${horas.veces} ${diaPlural(diaHoras)})`, 'Un ' + DIAS_SEMANA[diaHoras].toLowerCase()]} />
+                  <Bar dataKey={diaHoras == null ? 'autos' : 'promedio'} radius={[6, 6, 2, 2]} maxBarSize={30}>
+                    <LabelList dataKey={diaHoras == null ? 'autos' : 'promedio'} position="top" offset={5}
+                      formatter={v => (diaHoras != null && !v ? '' : v)}
                       style={{ fontSize: 9, fontWeight: 700, fill: '#6b7280' }} />
                     {horas.dataHoras.map(h => (
                       <Cell key={h.hora}

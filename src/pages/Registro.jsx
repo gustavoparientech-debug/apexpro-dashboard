@@ -12,6 +12,7 @@ function thumbUrl(url, size = 80) {
   } catch { return url }
 }
 import { useLocation } from 'react-router-dom'
+import { createPortal } from 'react-dom'
 import { useApp } from '../context/AppContext'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
@@ -846,7 +847,7 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
   const vehicle = (vehicleTypes || []).find(v => v.value === ticket.vehicle_type)
   const extras  = ticket.extras || []
   const { fetchTicketPhotos, expenses, addExpense, updateExpense, deleteExpense,
-          fetchTicketAdvances, addAdvance, deleteAdvance } = useApp()
+          fetchTicketAdvances, addAdvance, deleteAdvance, presupuestoConfig } = useApp()
 
   // ── Gastos del servicio ───────────────────────────────────────────────────
   // Se guardan en worker_expenses con ticket_id, o sea en la misma tabla que
@@ -949,6 +950,9 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
   const [manualName,    setManualName]    = useState('')
   const [manualPrice,   setManualPrice]   = useState('')
   const [variantPicker, setVariantPicker] = useState(null) // extra con variantes pendiente de selección
+  // Paños de planchado y pintura a último momento: se cotizan en la misma
+  // ventana que Presupuesto y entran como un extra con su total.
+  const [panosPicker, setPanosPicker] = useState(false)
   const [editPrice,     setEditPrice]     = useState(false)
   const [discountPct,   setDiscountPct]   = useState(ticket.discount_pct || 0)
   const [discountFixed, setDiscountFixed] = useState(ticket.discount_fixed || 0)
@@ -991,6 +995,24 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
     setVariantPicker(null)
     setShowAddExtra(false)
     toast.success(`+ ${extra.name} ${variant.label}`)
+  }
+
+  // El nombre empieza con "Pintado de N paños" para que la meta de paños los
+  // cuente; el desglose queda en el extra y en las notas del ticket.
+  async function addPanosExtra(datos) {
+    const n = datos.lineas.length
+    const detalle = datos.lineas.map(l => `${l.label} (${l.nivel}) ${formatMoney(l.precio)}`).join(' · ')
+    const desc = datos.descMonto > 0 ? ` · desc. ${datos.descPct}% −${formatMoney(datos.descMonto)}` : ''
+    const extra = {
+      name: `Pintado de ${n} paño${n === 1 ? '' : 's'} (${datos.resumen.split(' · ').slice(1).join(' · ')})`,
+      price: datos.total,
+      detalle: `${detalle}${desc}`,
+    }
+    const notes = [ticket.notes, `Paños agregados — ${datos.resumen}: ${detalle}${desc}`].filter(Boolean).join(' · ')
+    await onUpdate(ticket.id, { extras: [...extras, extra], notes })
+    setPanosPicker(false)
+    setShowAddExtra(false)
+    toast.success(`+ ${n} paño${n === 1 ? '' : 's'} · ${formatMoney(datos.total)}`)
   }
 
   async function addManualExtra() {
@@ -1184,6 +1206,7 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
                   {ex.discount_pct > 0 && (
                     <span className="ml-1.5 text-xs text-green-600 font-semibold">-{ex.discount_pct}%</span>
                   )}
+                  {ex.detalle && <span className="block text-[11px] text-gray-400 leading-snug mt-0.5">{ex.detalle}</span>}
                 </span>
                 <div className="flex items-center gap-2 shrink-0">
                   <div className="text-right">
@@ -1238,6 +1261,21 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
                   ))}
                 </div>
               </div>
+            )}
+
+            {/* Paños de pintura: el cliente a veces se anima al final */}
+            {!variantPicker && (
+              <button onClick={() => setPanosPicker(true)}
+                className="w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl border-2 border-dashed border-amber-300 dark:border-amber-700 bg-amber-50/60 dark:bg-amber-900/10 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-all text-sm text-left">
+                <span className="font-semibold text-amber-800 dark:text-amber-300">🎨 Paños de planchado y pintura</span>
+                <span className="text-[11px] font-bold text-amber-600 dark:text-amber-400 flex-none">cotizar</span>
+              </button>
+            )}
+            {panosPicker && createPortal(
+              <PlanchadoPicker config={presupuestoConfig}
+                onConfirm={addPanosExtra}
+                onClose={() => setPanosPicker(false)} />,
+              document.body
             )}
 
             {/* Catálogo: la pestaña Servicios de Presupuesto, con sus títulos */}

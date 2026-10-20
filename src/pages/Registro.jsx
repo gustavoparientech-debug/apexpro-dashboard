@@ -852,7 +852,14 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
   // ── Gastos del servicio ───────────────────────────────────────────────────
   // Se guardan en worker_expenses con ticket_id, o sea en la misma tabla que
   // el resto: asi entran solos en el Dashboard y en Reportes sin duplicar nada.
-  const gastos = (expenses || []).filter(e => e.ticket_id === ticket.id)
+  // Los gastos que carga el admin quedan ocultos para el trabajador: él solo
+  // ve cuánto cobrarle al cliente (total, adelantos y lo que falta), no los
+  // costos ni la ganancia del servicio. Los que agrega él mismo sí los ve.
+  const { isAdmin: esAdmin, isDemo: esDemo } = useAuth()
+  const verCostos = esAdmin || esDemo
+  const gastosDelTicket = (expenses || []).filter(e => e.ticket_id === ticket.id)
+  const gastosAdmin = !verCostos && gastosDelTicket.some(e => e.hidden_from_workers)
+  const gastos = verCostos ? gastosDelTicket : gastosDelTicket.filter(e => !e.hidden_from_workers)
   // Un gasto pendiente esta comprometido pero aun no salio de caja: se muestra
   // aparte y no resta de la ganancia hasta que se marque como pagado.
   const gastosPagados    = gastos.filter(e => e.paid !== false)
@@ -921,6 +928,7 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
         category: gastoForm.category,
         description: gastoForm.description.trim() || null,
         paid: gastoForm.paid,
+        hidden_from_workers: verCostos,
       })
       setGastoForm({ amount: '', description: '', category: 'insumos', paid: true })
       setShowGastoForm(false)
@@ -1558,7 +1566,28 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
             los pagados: con un gasto pendiente grande daba una cifra optimista
             que no se iba a cumplir. Aqui se separa lo cobrado de lo pendiente
             y se distingue la ganancia de hoy de la que quedara al cerrar. */}
-        {(adelanto > 0 || gastosTotal > 0 || pendienteTotal > 0) && (
+        {gastosAdmin && (
+          <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/40">
+            <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Cobro al cliente</p>
+            <div className="space-y-1 text-xs">
+              <div className="flex justify-between">
+                <span className="text-gray-500">Total del servicio</span>
+                <span className="font-semibold text-gray-800 dark:text-gray-200">{formatMoney(total)}</span>
+              </div>
+              {adelanto > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Adelanto ya cobrado</span>
+                  <span className="font-semibold text-green-600">−{formatMoney(adelanto)}</span>
+                </div>
+              )}
+              <div className="flex justify-between items-baseline pt-1.5 mt-1 border-t-2 border-gray-200 dark:border-gray-700">
+                <span className="text-gray-600 dark:text-gray-300 font-semibold">Falta cobrar</span>
+                <span className="text-base font-black text-amber-600">{formatMoney(Math.max(0, total - adelanto))}</span>
+              </div>
+            </div>
+          </div>
+        )}
+        {!gastosAdmin && (adelanto > 0 || gastosTotal > 0 || pendienteTotal > 0) && (
           <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/40">
             <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Resumen del servicio</p>
 
@@ -2987,6 +3016,12 @@ export default function Registro() {
   const [editingExpense, setEditingExpense] = useState(null)
 
   const canAdmin = isAdmin || isDemo
+  // Los gastos que el admin carga en un ticket no se le muestran al trabajador
+  // (ni su detalle ni la ganancia que resulta): ver TicketDetail.
+  const expensesVisibles = useMemo(
+    () => canAdmin ? (expenses || []) : (expenses || []).filter(e => !e.hidden_from_workers),
+    [expenses, canAdmin]
+  )
   // Los pendientes de meses anteriores se cargan aparte: sin este filtro los
   // trabajadores veían los tickets que el admin ocultó.
   const overdueOpenTickets = useMemo(
@@ -3669,7 +3704,7 @@ export default function Registro() {
           </div>
           <div className="space-y-2">
             {overdueOpenTickets.map(t => (
-              <ActiveTicketCard key={t.id} ticket={t} workers={workers} vehicleTypes={vehicleTypes} expenses={expenses} advances={advances}
+              <ActiveTicketCard key={t.id} ticket={t} workers={workers} vehicleTypes={vehicleTypes} expenses={expensesVisibles} advances={advances}
                 loyaltyCard={cardOf(t)} loyaltyConfig={fidelidadConfig}
                 onClick={() => setActiveTicket(t.id)}
                 onToggleHide={canAdmin ? handleToggleHideTicket : null}
@@ -3698,7 +3733,7 @@ export default function Registro() {
         ) : (
           <div className="space-y-2">
             {openTickets.map(t => (
-              <ActiveTicketCard key={t.id} ticket={t} workers={workers} vehicleTypes={vehicleTypes} expenses={expenses} advances={advances}
+              <ActiveTicketCard key={t.id} ticket={t} workers={workers} vehicleTypes={vehicleTypes} expenses={expensesVisibles} advances={advances}
                 loyaltyCard={cardOf(t)} loyaltyConfig={fidelidadConfig}
                 onClick={() => setActiveTicket(t.id)}
                 onToggleHide={canAdmin ? handleToggleHideTicket : null}
@@ -3724,7 +3759,7 @@ export default function Registro() {
           <div className="space-y-2">
             {closedToday.map(t => (
               <ClosedTicketCard key={t.id} ticket={t} workers={workers} vehicleTypes={vehicleTypes}
-                loyaltyCard={cardOf(t)} loyaltyConfig={fidelidadConfig} expenses={expenses}
+                loyaltyCard={cardOf(t)} loyaltyConfig={fidelidadConfig} expenses={expensesVisibles}
                 onDelete={canAdmin ? handleDeleteTicket : null}
                 onReopen={canAdmin ? handleReopenTicket : null}
                 onEdit={canAdmin ? (tk) => setEditingTicket(tk) : null}

@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
+import { useSorteoPausado, setSorteoPausado } from '../hooks/useSorteoPausado'
 import { useApp } from '../context/AppContext'
 import { supabase } from '../lib/supabase'
 import { formatMoney, calcRealSalary, salarioDelMes, currentMonthYear, getWorkingDaysInMonth, monthName } from '../lib/utils'
@@ -190,6 +191,38 @@ function VehicleTypeRow({ vt, onSave, onDelete }) {
           ))}
         </div>
       )}
+    </div>
+  )
+}
+
+function SorteoSwitch() {
+  const { pausado, cargado } = useSorteoPausado()
+  const [guardando, setGuardando] = useState(false)
+  async function cambiar() {
+    if (!pausado && !window.confirm('¿Poner el sorteo en pausa? Se oculta para todos: trabajadores, menú y página pública. Nada se borra.')) return
+    setGuardando(true)
+    try {
+      await setSorteoPausado(!pausado)
+      toast.success(pausado ? 'Sorteo reactivado' : 'Sorteo en pausa')
+    } catch (e) { toast.error(`No se pudo guardar: ${e.message || e}`) }
+    setGuardando(false)
+  }
+  const activo = !pausado
+  return (
+    <div className="card flex items-center gap-3">
+      <div className="flex-1">
+        <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">Sorteo {activo ? 'activo' : 'en pausa'}</p>
+        <p className="text-xs text-gray-400 mt-0.5">
+          {activo
+            ? 'Se ve en el menú, en el inicio de los trabajadores y en la página pública.'
+            : 'Oculto para todos: menú, trabajadores y página pública. Tickets, pedidos y configuración se conservan.'}
+        </p>
+      </div>
+      <button type="button" onClick={cambiar} disabled={guardando || !cargado}
+        className={`relative w-12 h-7 rounded-full transition-colors flex-none disabled:opacity-50 ${activo ? 'bg-green-600' : 'bg-gray-300 dark:bg-gray-700'}`}
+        role="switch" aria-checked={activo} aria-label="Sorteo activo">
+        <span className={`absolute top-1 w-5 h-5 bg-white rounded-full transition-all ${activo ? 'left-6' : 'left-1'}`} />
+      </button>
     </div>
   )
 }
@@ -726,6 +759,9 @@ export default function Configuracion() {
           )}
         </div>
       </div>
+
+      {/* Sorteo: en pausa se oculta para todos y nada se borra */}
+      <SorteoSwitch />
 
       {/* Extras: se editan en Presupuesto */}
       <div className="card">

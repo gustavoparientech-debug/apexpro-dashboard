@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
-import { Ticket, ClipboardList, Settings, ExternalLink } from 'lucide-react'
+import { Ticket, ClipboardList, Settings, ExternalLink, PauseCircle } from 'lucide-react'
+import toast from 'react-hot-toast'
+import { setSorteoPausado } from '../../hooks/useSorteoPausado'
 import { useAuth } from '../../context/AuthContext'
 import { fetchConfig, DEFAULT_CONFIG, PUBLIC_SITE } from '../../lib/sorteo'
 import PanelVender from '../../components/sorteo/PanelVender'
@@ -31,9 +33,22 @@ export default function SorteoPanel() {
             {config.estado === 'abierto' ? 'Venta abierta' : 'Venta cerrada'} · S/{Number(config.precio_ticket)} por ticket
           </p>
         </div>
-        <a href={`${PUBLIC_SITE}/sorteo`} target="_blank" rel="noreferrer" className="btn-secondary text-sm flex items-center gap-1.5 shrink-0">
-          <ExternalLink className="w-4 h-4" /> Página pública
-        </a>
+        <div className="flex flex-col sm:flex-row gap-2 shrink-0">
+          <a href={`${PUBLIC_SITE}/sorteo`} target="_blank" rel="noreferrer" className="btn-secondary text-sm flex items-center gap-1.5">
+            <ExternalLink className="w-4 h-4" /> Página pública
+          </a>
+          {/* Pausa: oculta todo lo del sorteo para todos hasta reactivarlo. */}
+          {isAdmin && (
+            <button onClick={async () => {
+                if (!window.confirm('¿Poner el sorteo en pausa? Se oculta para todos: trabajadores, menú y página pública. Nada se borra.')) return
+                try { await setSorteoPausado(true); toast.success('Sorteo en pausa') }
+                catch (e) { toast.error(`No se pudo pausar: ${e.message || e}`) }
+              }}
+              className="btn-secondary text-sm flex items-center gap-1.5 text-amber-700 dark:text-amber-400">
+              <PauseCircle className="w-4 h-4" /> Poner en pausa
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 p-1 rounded-xl w-fit max-w-full overflow-x-auto">

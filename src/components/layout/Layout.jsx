@@ -15,6 +15,7 @@ import UpdateBanner from '../UpdateBanner'
 import InstallBanner from '../InstallBanner'
 import FueraDeTurno from '../FueraDeTurno'
 import { useFueraDeTurno } from '../../hooks/useFueraDeTurno'
+import { useSorteoPausado } from '../../hooks/useSorteoPausado'
 import toast from 'react-hot-toast'
 import { supabase } from '../../lib/supabase'
 
@@ -373,15 +374,18 @@ export default function Layout({ children }) {
   // Trabajador que ya marcó su salida hoy: solo ve su día y Asistencia.
   const fueraDeTurno = useFueraDeTurno({ workerId: profile?.worker_id, activo: isWorker && !isAdmin && !isDemo })
   const soloAsistencia = !!fueraDeTurno
+  // Sorteo en pausa: desaparece del menú para todos (ver useSorteoPausado).
+  const { pausado: sorteoPausado } = useSorteoPausado()
+  const sinSorteo = items => sorteoPausado ? items.filter(n => n.to !== '/sorteo-panel') : items
 
   // Redirigir a login si no está autenticado
   if (!isDemo && !loading && !profile) {
     return <Navigate to="/login" replace />
   }
 
-  const NAV = isAdmin ? ADMIN_NAV
+  const NAV = sinSorteo(isAdmin ? ADMIN_NAV
     : soloAsistencia ? WORKER_NAV.filter(n => n.to === '/' || n.to === '/asistencia')
-    : WORKER_NAV
+    : WORKER_NAV)
   const ADMIN_MOBILE = [
     ADMIN_NAV.find(n => n.to === '/'),
     ADMIN_NAV.find(n => n.to === '/registro'),
@@ -389,7 +393,10 @@ export default function Layout({ children }) {
     ADMIN_NAV.find(n => n.to === '/citas'),
     ADMIN_NAV.find(n => n.to === '/presupuesto'),
   ]
-  const mobileNav = isAdmin ? ADMIN_MOBILE : soloAsistencia ? NAV : WORKER_MOBILE
+  // En la barra de abajo, el lugar del sorteo lo toma Citas mientras está en pausa.
+  const mobileNav = isAdmin ? ADMIN_MOBILE : soloAsistencia ? NAV
+    : sorteoPausado ? WORKER_MOBILE.map(n => n.to === '/sorteo-panel' ? WORKER_NAV.find(x => x.to === '/citas') : n)
+    : WORKER_MOBILE
 
   const currentPage = NAV.find(i => {
     if (i.to === '/') return location.pathname === '/'

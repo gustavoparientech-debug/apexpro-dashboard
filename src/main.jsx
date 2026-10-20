@@ -77,6 +77,8 @@ const SorteoComprar = lazy(() => import('./pages/sorteo/SorteoComprar'))
 const SorteoEstado  = lazy(() => import('./pages/sorteo/SorteoEstado'))
 const SorteoLista   = lazy(() => import('./pages/sorteo/SorteoLista'))
 const SorteoPanel   = lazy(() => import('./pages/sorteo/SorteoPanel'))
+import SorteoPausado from './components/sorteo/SorteoPausado'
+import { useSorteoPausado } from './hooks/useSorteoPausado'
 
 // Páginas secundarias — lazy load (solo se descargan cuando el usuario navega ahí)
 const Trabajadores  = lazy(() => import('./pages/Trabajadores'))
@@ -94,6 +96,24 @@ const AsistenciaReporte  = lazy(() => import('./pages/AsistenciaReporte'))
 const Horarios           = lazy(() => import('./pages/Horarios'))
 const Facturas           = lazy(() => import('./pages/Facturas'))
 const Clientes           = lazy(() => import('./pages/Clientes'))
+
+// Sorteo en pausa: sus páginas públicas muestran solo el aviso. Mientras no se
+// sabe (primera visita, sin dato guardado) no se muestra nada del sorteo.
+function GateSorteo({ children }) {
+  const { pausado, cargado } = useSorteoPausado()
+  if (pausado) return <SorteoPausado />
+  if (!cargado) return PageFallback
+  return children
+}
+
+// Panel interno: en pausa el admin ve el aviso con el botón para reactivar y
+// el trabajador vuelve al inicio.
+function SorteoPanelRoute() {
+  const { isAdmin, isDemo } = useAuth()
+  const { pausado } = useSorteoPausado()
+  if (pausado) return (isAdmin || isDemo) ? <SorteoPausado dentroDeLaApp puedeReactivar /> : <Navigate to="/" replace />
+  return <SorteoPanel />
+}
 
 function HomeRoute() {
   const { isAdmin, isDemo } = useAuth()
@@ -122,10 +142,10 @@ function SorteoSite() {
     <BrowserRouter>
       <Suspense fallback={PageFallback}>
         <Routes>
-          <Route path="/sorteo"                 element={<SorteoLanding />} />
-          <Route path="/sorteo/comprar"         element={<SorteoComprar />} />
-          <Route path="/sorteo/estado/:orderId" element={<SorteoEstado />} />
-          <Route path="/sorteo/lista"           element={<SorteoLista />} />
+          <Route path="/sorteo"                 element={<GateSorteo><SorteoLanding /></GateSorteo>} />
+          <Route path="/sorteo/comprar"         element={<GateSorteo><SorteoComprar /></GateSorteo>} />
+          <Route path="/sorteo/estado/:orderId" element={<GateSorteo><SorteoEstado /></GateSorteo>} />
+          <Route path="/sorteo/lista"           element={<GateSorteo><SorteoLista /></GateSorteo>} />
           <Route path="*"                       element={<Navigate to="/sorteo" replace />} />
         </Routes>
       </Suspense>
@@ -149,10 +169,10 @@ ReactDOM.createRoot(document.getElementById('root')).render(IS_SORTEO_HOST ? (
               <Route path="/login" element={<Login />} />
               <Route path="/auth/callback" element={<AuthCallback />} />
               <Route path="/fidelidad" element={<Suspense fallback={PageFallback}><Fidelidad /></Suspense>} />
-              <Route path="/sorteo"                  element={<Suspense fallback={PageFallback}><SorteoLanding /></Suspense>} />
-              <Route path="/sorteo/comprar"          element={<Suspense fallback={PageFallback}><SorteoComprar /></Suspense>} />
-              <Route path="/sorteo/estado/:orderId"  element={<Suspense fallback={PageFallback}><SorteoEstado /></Suspense>} />
-              <Route path="/sorteo/lista"            element={<Suspense fallback={PageFallback}><SorteoLista /></Suspense>} />
+              <Route path="/sorteo"                  element={<Suspense fallback={PageFallback}><GateSorteo><SorteoLanding /></GateSorteo></Suspense>} />
+              <Route path="/sorteo/comprar"          element={<Suspense fallback={PageFallback}><GateSorteo><SorteoComprar /></GateSorteo></Suspense>} />
+              <Route path="/sorteo/estado/:orderId"  element={<Suspense fallback={PageFallback}><GateSorteo><SorteoEstado /></GateSorteo></Suspense>} />
+              <Route path="/sorteo/lista"            element={<Suspense fallback={PageFallback}><GateSorteo><SorteoLista /></GateSorteo></Suspense>} />
               <Route path="/*" element={
                 <Layout>
                   <Suspense fallback={PageFallback}>
@@ -174,7 +194,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(IS_SORTEO_HOST ? (
                       <Route path="/horarios"          element={<AdminOnly><Horarios /></AdminOnly>} />
                       <Route path="/facturas"          element={<AdminOnly><Facturas /></AdminOnly>} />
                       <Route path="/clientes"          element={<AdminOnly><Clientes /></AdminOnly>} />
-                      <Route path="/sorteo-panel"      element={<SorteoPanel />} />
+                      <Route path="/sorteo-panel"      element={<SorteoPanelRoute />} />
                     </Routes>
                   </Suspense>
                 </Layout>

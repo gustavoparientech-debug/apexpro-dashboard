@@ -2,11 +2,13 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Ticket, ChevronRight } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
+import { useSorteoPausado } from '../../hooks/useSorteoPausado'
 
 // Atajo del inicio del colaborador para vender tickets del sorteo.
 // Solo aparece mientras la venta está abierta.
 export default function AtajoSorteo() {
   const [info, setInfo] = useState(null)
+  const { pausado } = useSorteoPausado()
 
   useEffect(() => {
     let vivo = true
@@ -19,7 +21,7 @@ export default function AtajoSorteo() {
     return () => { vivo = false }
   }, [])
 
-  if (!info || info.estado !== 'abierto') return null
+  if (pausado || !info || info.estado !== 'abierto') return null
 
   return (
     <Link to="/sorteo-panel"

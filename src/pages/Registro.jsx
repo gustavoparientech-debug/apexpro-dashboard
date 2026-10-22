@@ -1343,7 +1343,8 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
         {/* Tarjeta de fidelidad del cliente */}
         <LoyaltyPanel plate={ticket.plate} card={loyaltyCard} config={loyaltyConfig}
           onCobrar={handleCobrarBono} onDeshacer={handleDeshacerBono} onAjustar={handleAjustarSellos} cobrando={cobrandoBono}
-          confirmTier={confirmTier} setConfirmTier={setConfirmTier} />
+          confirmTier={confirmTier} setConfirmTier={setConfirmTier}
+          puedeAjustar={esAdmin || esDemo} />
 
         {/* Descuento */}
         <div className="px-4 pb-1">
@@ -1842,7 +1843,7 @@ function LoyaltyBadge({ card, config }) {
 // Panel del ticket: el check que cobra el bono. Al marcarlo se registra el
 // canje y se aplica el descuento; si es el último nivel, la tarjeta se
 // reinicia sola y arranca la siguiente.
-function LoyaltyPanel({ plate, card, config, onCobrar, onDeshacer, onAjustar, cobrando, confirmTier, setConfirmTier }) {
+function LoyaltyPanel({ plate, card, config, onCobrar, onDeshacer, onAjustar, cobrando, confirmTier, setConfirmTier, puedeAjustar }) {
   const [ajuste, setAjuste] = useState(null) // sellos escritos a mano, null = panel cerrado
   if (!plate || normPlate(plate).length < 4) return null
   const est = cardState(card || { sellos: 0, canjeados: [] }, config)
@@ -1935,8 +1936,9 @@ function LoyaltyPanel({ plate, card, config, onCobrar, onDeshacer, onAjustar, co
         )}
 
         {/* Ajuste manual: el sistema solo cuenta desde que se registran los
-            tickets, así que la tarjeta de papel manda. */}
-        {ajuste === null ? (
+            tickets, así que la tarjeta de papel manda. Solo admin: los sellos
+            son dinero (descuentos del 20% y 40%), no un dato operativo. */}
+        {!puedeAjustar ? null : ajuste === null ? (
           <div className="flex items-center gap-3 pt-0.5">
             <button type="button" onClick={() => setAjuste(String(est.sellos))}
               className="text-[11px] font-semibold text-indigo-500 hover:underline">

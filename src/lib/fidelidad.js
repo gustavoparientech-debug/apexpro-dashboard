@@ -163,6 +163,7 @@ export const REDEEM_ERRORS = {
   sellos_insuficientes: 'Todavía no llega a ese premio',
   ya_canjeado:          'Ese premio ya fue canjeado en esta tarjeta',
   no_canjeado:          'Ese bono no figura como cobrado',
+  solo_admin:           'Solo un administrador puede ajustar los sellos',
 }
 
 // ─── Estado derivado de la tarjeta ──────────────────────────────────────────

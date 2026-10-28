@@ -1179,6 +1179,24 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
           </div>
         </div>
 
+        {/* Fecha del servicio: el admin la corrige, por ejemplo al reabrir un
+            ticket que se registró un día pero se trabajó al siguiente. */}
+        {verCostos && (
+          <div className="px-4 py-2.5 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between gap-3">
+            <span className="text-sm text-gray-600 dark:text-gray-400">Fecha del servicio</span>
+            <input type="date" className="input w-40 py-1 text-sm"
+              value={ticket.date || ''}
+              onChange={async e => {
+                const nueva = e.target.value
+                if (!nueva || nueva === ticket.date) return
+                try {
+                  await onUpdate(ticket.id, { date: nueva })
+                  toast.success(`Fecha cambiada al ${nueva.split('-').reverse().join('/')}`)
+                } catch { toast.error('No se pudo cambiar la fecha') }
+              }} />
+          </div>
+        )}
+
         {/* Precio base */}
         <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-800">
           <div className="flex items-center justify-between">

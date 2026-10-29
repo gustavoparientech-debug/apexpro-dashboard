@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { useApp } from '../context/AppContext'
 import { supabase } from '../lib/supabase'
-import { scheduleForDate } from '../lib/horarios'
+import { scheduleForDate, finDeJornada } from '../lib/horarios'
 import { calcLatenessDiscount, calcOvertimePay } from '../lib/utils'
 import {
   Camera, MapPin, Clock, LogIn, Coffee, LogOut, CheckCircle,
@@ -433,7 +433,8 @@ export default function Asistencia() {
       const { data: dayLogs } = await supabase.from('attendance_logs')
         .select('type').eq('worker_id', workerId).eq('date', dateStr)
       const hadLunch = (dayLogs || []).some(l => l.type === 'almuerzo_inicio')
-      const effectiveEndMin = hadLunch ? timeToMin(sched.end_time) : timeToMin(sched.end_time) - 60
+      const jornada = finDeJornada(sched, dateStr)
+      const effectiveEndMin = hadLunch ? jornada.fin : jornada.fin - jornada.almuerzo
       const earlyMin = effectiveEndMin - nowMin
       const lateMin  = nowMin - effectiveEndMin
       // Borrar incidencias automáticas previas de salida
@@ -497,10 +498,10 @@ export default function Asistencia() {
       // Auto-incidencia por salida anticipada (máx 4h para evitar falsos en pruebas fuera de horario)
       if (sched?.end_time && pendingType === 'salida') {
         const hadLunch = logs.some(l => l.type === 'almuerzo_inicio')
-        const lunchMin = 60 // 1 hora estándar de almuerzo
-        const schedMin = timeToMin(sched.end_time)
-        // Si no almorzó, la salida esperada se adelanta 1h (ya cumplió 8h trabajando el almuerzo)
-        const effectiveEndMin = hadLunch ? schedMin : schedMin - lunchMin
+        // Si no almorzó, la salida esperada se adelanta lo que dura el almuerzo
+        // de su horario (nada en un horario de corrido como el de Gabriela).
+        const jornada = finDeJornada(sched, today)
+        const effectiveEndMin = hadLunch ? jornada.fin : jornada.fin - jornada.almuerzo
         const earlyMin = effectiveEndMin - nowMin
         const lateMin  = nowMin - effectiveEndMin
         if (earlyMin > tolerance && earlyMin <= 240) {
@@ -573,9 +574,8 @@ export default function Asistencia() {
         const { data: dayLogs } = await supabase.from('attendance_logs')
           .select('type').eq('worker_id', editingLog.worker_id).eq('date', adminDate)
         const hadLunch = (dayLogs || []).some(l => l.type === 'almuerzo_inicio')
-        const lunchMin = 60
-        const schedEndMin = timeToMin(sched.end_time)
-        const effectiveEndMin = hadLunch ? schedEndMin : schedEndMin - lunchMin
+        const jornada = finDeJornada(sched, adminDate)
+        const effectiveEndMin = hadLunch ? jornada.fin : jornada.fin - jornada.almuerzo
         const earlyMin = effectiveEndMin - editedMin
         const lateMin  = editedMin - effectiveEndMin
         if (earlyMin > tolerance && earlyMin <= 240) {

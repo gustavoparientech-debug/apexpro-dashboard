@@ -355,17 +355,32 @@ export default function Asistencia() {
   }
 
   // Almuerzo de más de 1 hora: se descuenta el tiempo de más (desde sep 2026).
-  // Multa por marcacion olvidada. Una sola incidencia por dia que va sumando
-  // veces: si el trabajador olvido entrada y salida del mismo dia son dos
-  // multas, no dos incidencias sueltas que ensucian el desglose.
+  async function revisarAlmuerzo(workerId, dateStr) {
+    try {
+      const { creadas } = await reconciliarAlmuerzos({ prefix: dateStr.slice(0, 7), workerId, workers })
+      if (creadas) toast('Almuerzo de más de 1 hora: se descontó el tiempo extra', { icon: '⏱️' })
+    } catch { /* si falla, se pone al día al abrir Equipo */ }
+  }
+
+  // Multa por marcacion olvidada: S/ 5 por cada marca que el admin tuvo que
+  // poner a mano ese dia. Se cuenta con las marcas manuales que existen, no
+  // sumando cada vez que se guarda: antes, borrar y volver a poner una marca
+  // la cobraba dos veces y el dia de Gabriela quedaba en 3 marcas teniendo 1.
+  // Una sola incidencia por dia; sin marcas manuales, se borra.
   async function cobrarNoMarcacion(workerId, dateStr) {
     try {
-      const { data: previa } = await supabase.from('attendance_incidents')
-        .select('id, no_marcacion_count')
-        .eq('worker_id', workerId).eq('date', dateStr).eq('type', 'no_marcacion')
-        .maybeSingle()
-
-      const veces = (previa?.no_marcacion_count || 0) + 1
+      const [{ count }, { data: previa }] = await Promise.all([
+        supabase.from('attendance_logs').select('id', { count: 'exact', head: true })
+          .eq('worker_id', workerId).eq('date', dateStr).eq('manual', true),
+        supabase.from('attendance_incidents').select('id, no_marcacion_count')
+          .eq('worker_id', workerId).eq('date', dateStr).eq('type', 'no_marcacion').maybeSingle(),
+      ])
+      const veces = count || 0
+      if (!veces) {
+        if (previa) await supabase.from('attendance_incidents').delete().eq('id', previa.id)
+        return null
+      }
+      if (previa?.no_marcacion_count === veces) return null
       const total = veces * NO_MARCACION_COST
       const fila = {
         worker_id: workerId, date: dateStr, type: 'no_marcacion',
@@ -381,13 +396,6 @@ export default function Asistencia() {
       toast.error('No se pudo registrar la multa por no marcar')
       return null
     }
-  }
-
-  async function revisarAlmuerzo(workerId, dateStr) {
-    try {
-      const { creadas } = await reconciliarAlmuerzos({ prefix: dateStr.slice(0, 7), workerId, workers })
-      if (creadas) toast('Almuerzo de más de 1 hora: se descontó el tiempo extra', { icon: '⏱️' })
-    } catch { /* si falla, se pone al día al abrir Equipo */ }
   }
 
   async function autoCreateOvertime(hoursExtra, dateStr, workerId) {
@@ -600,6 +608,8 @@ export default function Asistencia() {
   async function deleteAdminLog(id) {
     await supabase.from('attendance_logs').delete().eq('id', id)
     if (adminWorker && adminDate) await revisarAlmuerzo(adminWorker, adminDate)
+    // Si era una marca puesta a mano, la multa por no marcar baja con ella.
+    if (adminWorker && adminDate) await cobrarNoMarcacion(adminWorker, adminDate)
     toast.success('Registro eliminado')
     loadAdminLogs()
     loadLogs()
@@ -796,7 +806,7 @@ export default function Asistencia() {
               const [h, m, s] = addingEntry.time.split(':').map(Number)
               const dt = new Date(`${adminDate}T00:00:00`)
               dt.setHours(h, m, s || 0, 0)
-              await supabase.from('attendance_logs').insert({ worker_id: adminWorker, type: addingEntry.type, date: adminDate, logged_at: dt.toISOString() })
+              await supabase.from('attendance_logs').insert({ worker_id: adminWorker, type: addingEntry.type, date: adminDate, logged_at: dt.toISOString(), manual: true })
               await recalcIncidents(adminWorker, adminDate, addingEntry.type, dt)
               if (['almuerzo_inicio', 'almuerzo_fin', 'salida'].includes(addingEntry.type)) await revisarAlmuerzo(adminWorker, adminDate)
               // Si el admin tiene que poner la marca a mano es porque el

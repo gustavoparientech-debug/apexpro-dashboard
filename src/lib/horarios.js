@@ -60,3 +60,35 @@ export async function fetchScheduleHistory(workerId) {
     .order('start_date', { ascending: false })
   return data || []
 }
+
+// ─── Fin de la jornada de un día ─────────────────────────────────────────────
+// No todos los horarios llevan almuerzo: el de Gabriela es 9:00 a 14:00 de
+// corrido (5 h) y el sábado hace 7 h. Antes se restaba siempre 1 hora de
+// almuerzo a la hora de salida si no lo marcaba, y su jornada "terminaba" a
+// las 13:00: una salida a las 12:04 contaba 56 min de menos en vez de 1 h 56,
+// y cada día salía una hora extra falsa.
+//
+// Se toma la hora de entrada más las horas que le tocan ese día
+// (`weekday_hours`), más el almuerzo que trae el horario:
+// - si entre entrada y salida del horario hay más tiempo que las horas del
+//   día, esa diferencia es el almuerzo (8:15–17:15 con 8 h = 1 h);
+// - si el día es más largo que el horario (el sábado de 7 h con un horario
+//   de 5 h), lleva 1 h de almuerzo solo si pasa de 6 h.
+// Devuelve minutos del día: `fin` con almuerzo tomado y `almuerzo`, que se
+// descuenta del fin cuando no almorzó.
+const aMin = t => { const [h, m] = String(t || '').split(':').map(Number); return (h || 0) * 60 + (m || 0) }
+
+export function finDeJornada(sched, dateStr) {
+  if (!sched?.start_time || !sched?.end_time) return null
+  const ini = aMin(sched.start_time)
+  const span = aMin(sched.end_time) - ini
+  const dow = new Date(`${dateStr}T00:00:00`).getDay()
+  const h = sched.weekday_hours?.[dow] ?? sched.weekday_hours?.[String(dow)]
+  // Horario sin horas por día: el de siempre, con 1 h de almuerzo adentro.
+  if (h === undefined || h === null) return { fin: ini + span, almuerzo: 60 }
+  const trabajo = Number(h) * 60
+  const almuerzo = span > trabajo
+    ? Math.min(60, span - trabajo)
+    : (trabajo > 6 * 60 ? 60 : 0)
+  return { fin: ini + trabajo + almuerzo, almuerzo }
+}

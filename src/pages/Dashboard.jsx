@@ -125,7 +125,7 @@ function BonusSection({ workers, bonuses, addBonus, deleteBonus, monthPrefix }) 
   )
 }
 
-const CAT_LABELS = { insumos: '🧴 Insumos', pintura: '🎨 Pintura', repuestos: '⚙️ Repuestos', herramientas: '🔧 Herramientas', transporte: '🚌 Transporte', comida: '🍱 Comida', adelanto: '💵 Adelanto', otro: '📦 Otro' }
+const CAT_LABELS = { insumos: '🧴 Insumos', pintura: '🎨 Pintura', repuestos: '⚙️ Repuestos', herramientas: '🔧 Herramientas', transporte: '🚌 Transporte', comida: '🍱 Comida', adelanto: '💵 Adelanto', comision: '💰 Comisión', otro: '📦 Otro' }
 const SORT_OPTIONS = [
   { value: 'date_desc', label: 'Fecha ↓' },
   { value: 'date_asc',  label: 'Fecha ↑' },

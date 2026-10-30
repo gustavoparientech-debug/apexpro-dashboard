@@ -3,6 +3,10 @@
 // horas de su horario) y quien viene a trabajar cobra comisión, el 50% de lo
 // que cobraron sus tickets ese día. Quien no viene queda solo con el descuento.
 //
+// La comisión se le paga ese mismo día, en mano: es un GASTO del día (categoría
+// "comision" en worker_expenses), no una suma en su planilla. El descuento del
+// día sí es una incidencia de planilla.
+//
 // Los feriados se marcan en Equipo y se guardan en `app_settings` (clave
 // `feriados`). Las incidencias se crean solas y se ponen al día cada vez que se
 // abre Equipo o Nómina: si se cierra otro ticket, la comisión sube; si se quita
@@ -17,7 +21,9 @@ import { calcHourlyRate, hoursForDate } from './utils'
 export const FERIADOS_KEY       = 'feriados'
 export const COMISION_FERIADO   = 0.5
 export const TIPO_FERIADO       = 'feriado'
-export const TIPO_COMISION      = 'comision_feriado'
+export const TIPO_COMISION      = 'comision_feriado'   // ya no se usa: la comisión es un gasto
+export const CATEGORIA_COMISION = 'comision'
+const MARCA_GASTO = 'Comisión de feriado'
 export const MARCA_FERIADO      = 'Feriado'
 
 const IS_DEMO = !import.meta.env.VITE_SUPABASE_URL ||
@@ -82,8 +88,9 @@ export async function esFeriado(fecha) {
 const dinero = n => `S/ ${(Math.round(n * 100) / 100).toFixed(2)}`
 
 // Qué incidencias crear, corregir o borrar. Recibe todo ya leído; no toca la base.
-export function planFeriados({ feriados, workers, horarios, entradas, tickets, incidencias, hasta }) {
+export function planFeriados({ feriados, workers, horarios, entradas, tickets, incidencias, gastosActuales = [], hasta }) {
   const deseadas = []
+  const gastos = []
   const horarioDe = Object.fromEntries((horarios || []).map(h => [h.id, h.weekday_hours || null]))
   for (const f of feriados) {
     if (f.date > hasta) continue
@@ -102,15 +109,16 @@ export function planFeriados({ feriados, workers, horarios, entradas, tickets, i
           worker_id: w.id, date: f.date, type: TIPO_FERIADO, is_addition: false,
           hours_late: horas, discount_amount: monto,
           observation: `${MARCA_FERIADO} — ${f.nombre}: el día no se paga con sueldo (${horas} h). ` +
-            (vino ? `Vino a trabajar y cobra el ${COMISION_FERIADO * 100}% de sus tickets.` : 'No vino.'),
+            (vino ? `Vino a trabajar: su comisión del ${COMISION_FERIADO * 100}% se le paga ese día (va en gastos).` : 'No vino.'),
         })
       }
       if (vino && cobrado > 0) {
-        deseadas.push({
-          worker_id: w.id, date: f.date, type: TIPO_COMISION, is_addition: true,
-          hours_late: 0, discount_amount: Math.round(cobrado * COMISION_FERIADO * 100) / 100,
-          observation: `${MARCA_FERIADO} — ${f.nombre}: comisión ${COMISION_FERIADO * 100}% de ` +
-            `${suyos.length} ticket${suyos.length === 1 ? '' : 's'} (${dinero(cobrado)}).`,
+        gastos.push({
+          worker_id: w.id, date: f.date, category: CATEGORIA_COMISION, paid: true,
+          hidden_from_workers: true,
+          amount: Math.round(cobrado * COMISION_FERIADO * 100) / 100,
+          description: `${MARCA_GASTO} — ${f.nombre}: ${COMISION_FERIADO * 100}% de ` +
+            `${suyos.length} ticket${suyos.length === 1 ? '' : 's'} (${dinero(cobrado)})`,
         })
       }
     }
@@ -122,7 +130,9 @@ export function planFeriados({ feriados, workers, horarios, entradas, tickets, i
   const crear = [], actualizar = [], borrar = []
   const vistas = new Set()
   for (const i of incidencias) {
-    if (i.type === TIPO_FERIADO || i.type === TIPO_COMISION) {
+    // Comisiones guardadas como incidencia (versión anterior): pasan a gasto.
+    if (i.type === TIPO_COMISION) { borrar.push(i.id); continue }
+    if (i.type === TIPO_FERIADO) {
       const d = porClave.get(clave(i))
       if (!d || vistas.has(clave(i))) { borrar.push(i.id); continue }
       vistas.add(clave(i))
@@ -134,7 +144,22 @@ export function planFeriados({ feriados, workers, horarios, entradas, tickets, i
     }
   }
   for (const d of deseadas) if (!vistas.has(clave(d))) crear.push(d)
-  return { crear, actualizar, borrar }
+
+  // Gastos de comisión: uno por trabajador y feriado.
+  const claveG = g => `${g.worker_id}|${g.date}`
+  const gPorClave = new Map(gastos.map(g => [claveG(g), g]))
+  const gVistos = new Set()
+  const gastosCrear = [], gastosActualizar = [], gastosBorrar = []
+  for (const g of gastosActuales) {
+    const d = gPorClave.get(claveG(g))
+    if (!d || gVistos.has(claveG(g))) { gastosBorrar.push(g.id); continue }
+    gVistos.add(claveG(g))
+    if (Number(g.amount) !== d.amount || g.description !== d.description) {
+      gastosActualizar.push({ id: g.id, amount: d.amount, description: d.description })
+    }
+  }
+  for (const g of gastos) if (!gVistos.has(claveG(g))) gastosCrear.push(g)
+  return { crear, actualizar, borrar, gastosCrear, gastosActualizar, gastosBorrar }
 }
 
 // Pone al día las incidencias de feriado del mes. Va en fila, como las multas.
@@ -160,7 +185,12 @@ async function reconciliar({ prefix, workers = [] }) {
     .gte('date', desde).lte('date', hastaMes)
     .in('type', [TIPO_FERIADO, TIPO_COMISION, 'tardanza', 'permiso_horas', 'hora_extra'])
   if (error) throw error
-  if (!feriados.length && !(incs || []).some(i => i.type === TIPO_FERIADO || i.type === TIPO_COMISION)) return vacio
+  const { data: gastosActuales } = await supabase.from('worker_expenses')
+    .select('id, worker_id, date, amount, description')
+    .gte('date', desde).lte('date', hastaMes)
+    .eq('category', CATEGORIA_COMISION).like('description', `${MARCA_GASTO}%`)
+  if (!feriados.length && !(gastosActuales || []).length &&
+      !(incs || []).some(i => i.type === TIPO_FERIADO || i.type === TIPO_COMISION)) return vacio
 
   const fechas = feriados.map(f => f.date)
   const [{ data: entradas }, { data: tickets }, { data: horarios }, { data: todos }] = await Promise.all([
@@ -174,10 +204,18 @@ async function reconciliar({ prefix, workers = [] }) {
     workers.length ? Promise.resolve({ data: workers }) : supabase.from('workers').select('*'),
   ])
 
-  const { crear, actualizar, borrar } = planFeriados({
+  const { crear, actualizar, borrar, gastosCrear, gastosActualizar, gastosBorrar } = planFeriados({
     feriados, workers: todos || [], horarios: horarios || [],
-    entradas: entradas || [], tickets: tickets || [], incidencias: incs || [], hasta: hoyISO,
+    entradas: entradas || [], tickets: tickets || [], incidencias: incs || [],
+    gastosActuales: gastosActuales || [], hasta: hoyISO,
   })
+  for (const u of gastosActualizar) {
+    const { id, ...campos } = u
+    await supabase.from('worker_expenses').update(campos).eq('id', id)
+  }
+  for (const id of gastosBorrar) await supabase.from('worker_expenses').delete().eq('id', id)
+  if (gastosCrear.length) await supabase.from('worker_expenses').insert(gastosCrear)
+  const cambiosGastos = gastosCrear.length + gastosActualizar.length + gastosBorrar.length
   for (const u of actualizar) {
     const { id, ...campos } = u
     await supabase.from('attendance_incidents').update(campos).eq('id', id)
@@ -193,5 +231,5 @@ async function reconciliar({ prefix, workers = [] }) {
       crear.map(c => ({ ...c, apply_discount: true })))
     if (!e) creadas = crear.length
   }
-  return { creadas, borradas, cambios: creadas + borradas + actualizar.length }
+  return { creadas, borradas, cambios: creadas + borradas + actualizar.length + cambiosGastos }
 }

@@ -56,7 +56,8 @@ export default function FeriadosCard({ year, month, onCambio }) {
       </div>
       <p className="text-[11px] text-gray-400 leading-relaxed mb-3">
         En feriado el día no se paga con sueldo: a todos se les descuenta. Quien viene a trabajar cobra
-        el <b>{COMISION_FERIADO * 100}% de sus tickets</b> de ese día. Ese día no corren tardanzas, horas extra
+        el <b>{COMISION_FERIADO * 100}% de sus tickets</b> de ese día, que se le paga ese mismo día: queda como
+        un <b>gasto del día</b> (categoría Comisión), no en su planilla. Ese día no corren tardanzas, horas extra
         ni almuerzo extendido. Se calcula solo y se actualiza al cerrar más tickets.
       </p>
 

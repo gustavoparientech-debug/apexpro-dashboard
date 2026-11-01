@@ -8,7 +8,7 @@ import {
 } from '../lib/utils'
 import {
   GRUPOS, monthPrefix, resolveItems, baysDelMes, computeProgress, estadoMeta,
-  computeEconomics, costoFijoMes,
+  computeEconomics, costoFijoMes, pagaExternos,
   fetchMetasConfig, fetchMetasRows, rowsFromTickets, METAS_KEY,
 } from '../lib/metas'
 import { Target, RefreshCw, CalendarDays, Flame, TrendingUp, Wallet, Settings2, BarChart3, Calculator } from 'lucide-react'
@@ -98,7 +98,9 @@ function MetaRow({ item, expectedPct, diasRestantes, verDinero }) {
         <p className="text-[11px] text-gray-400 mt-1 tabular-nums">
           {item.price > 0 || item.margin > 0
             ? <>Meta: <span className="font-semibold text-gray-600 dark:text-gray-300">{formatMoney(item.goal * (item.price || 0))}</span>
-                {' '}· margen {formatMoney(item.goal * (item.margin || 0))}
+                {pagaExternos(item)
+                  ? <>{' '}· pago a externos {formatMoney(item.goal * Math.max(0, (item.price || 0) - (item.margin || 0)))}</>
+                  : <>{' '}· costo en gastos fijos</>}
                 {' '}· llevamos {formatMoney(item.done * (item.price || 0))}</>
             : 'Sin precio cargado'}
         </p>
@@ -443,8 +445,8 @@ export default function Metas() {
                 <p className="text-lg font-black text-gray-900 dark:text-white tabular-nums leading-tight">{formatMoney(econ.ingresoMeta)}</p>
               </div>
               <div className="rounded-xl bg-gray-50 dark:bg-gray-800 px-3 py-2.5">
-                <p className="text-[10px] text-gray-400 uppercase tracking-wide">Margen del plan</p>
-                <p className="text-lg font-black text-gray-900 dark:text-white tabular-nums leading-tight">{formatMoney(econ.margenMeta)}</p>
+                <p className="text-[10px] text-gray-400 uppercase tracking-wide">Pago a externos</p>
+                <p className="text-lg font-black text-gray-900 dark:text-white tabular-nums leading-tight">−{formatMoney(econ.costoExternoMeta)}</p>
               </div>
               <div className="rounded-xl bg-gray-50 dark:bg-gray-800 px-3 py-2.5">
                 <p className="text-[10px] text-gray-400 uppercase tracking-wide">Costo fijo del mes</p>
@@ -475,7 +477,7 @@ export default function Metas() {
                 De eso, los servicios de la meta suman <span className="font-semibold text-gray-600 dark:text-gray-300">{formatMoney(econ.ingresoReal)}</span> a precio de lista.
               </p>
               <p className="text-[11px] text-gray-400 mt-0.5">
-                Margen de esos servicios: <span className="font-semibold text-gray-600 dark:text-gray-300">{formatMoney(econ.margenReal)}</span>
+                Después de pagar externos: <span className="font-semibold text-gray-600 dark:text-gray-300">{formatMoney(econ.margenReal)}</span>
                 {' '}· falta {formatMoney(Math.max(0, econ.costoFijo - econ.margenReal))} para cubrir el costo fijo
               </p>
             </div>
@@ -502,7 +504,7 @@ export default function Metas() {
             {/* De dónde sale el margen */}
             {topMargen.length > 0 && (
               <div>
-                <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">De dónde sale el margen</p>
+                <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">De dónde sale la ganancia</p>
                 <div className="space-y-1.5">
                   {topMargen.map(i => (
                     <div key={i.id} className="flex items-center gap-2">

@@ -6,6 +6,7 @@ import {
   GRUPOS, DEFAULT_ITEMS, DEFAULT_BAYS, METAS_KEY, monthPrefix, resolveItems, computeProgress,
   computeEconomics, fetchMetasConfig, saveMetasConfig, fetchMetasRows, rowsFromTickets,
   origenMes, baysDelMes, conPrecioCatalogo, conCostoTabla, servicioVinculado,
+  pagaExternos,
 } from '../../lib/metas'
 import { monthName, todayISO, formatMoney, getWorkingDaysInMonth } from '../../lib/utils'
 import { CATEGORIAS, porCategoria } from '../../lib/servicios'
@@ -397,8 +398,8 @@ export default function MetasConfig({ year, month, costoFijo = 0, onChangeMonth,
                 <p className="text-sm font-black text-gray-800 dark:text-gray-100 tabular-nums">{formatMoney(econ.ingresoMeta)}</p>
               </div>
               <div className="bg-white dark:bg-gray-900 rounded-xl px-3 py-2">
-                <p className="text-[10px] text-gray-400">Margen proyectado</p>
-                <p className="text-sm font-black text-gray-800 dark:text-gray-100 tabular-nums">{formatMoney(econ.margenMeta)}</p>
+                <p className="text-[10px] text-gray-400">Pago a externos</p>
+                <p className="text-sm font-black text-gray-800 dark:text-gray-100 tabular-nums">−{formatMoney(econ.costoExternoMeta)}</p>
               </div>
               <div className="bg-white dark:bg-gray-900 rounded-xl px-3 py-2">
                 <p className="text-[10px] text-gray-400">Costo fijo del mes</p>
@@ -412,12 +413,16 @@ export default function MetasConfig({ year, month, costoFijo = 0, onChangeMonth,
               </div>
             </div>
             <p className="text-[11px] text-gray-400 mt-2 leading-snug">
+              Utilidad = ingreso − pago a externos (PPF, polarizados) − costo fijo. Los servicios que hace el
+              equipo no restan aparte: su material y mano de obra ya están en el costo fijo.
+            </p>
+            <p className="text-[11px] text-gray-400 mt-1 leading-snug">
               Días de bahía necesarios: <strong>{econ.diasMeta.toFixed(1)}</strong> de {econ.capacidad.toFixed(0)} disponibles
               ({diasHabiles} días hábiles × {bays} bahías) — <strong>{Math.round(econ.capacidadPct)}%</strong> de capacidad.
               {econ.capacidadPct > 100 && ' El plan no entra en el taller.'}
             </p>
             <p className="text-[11px] text-gray-400 mt-1 leading-snug">
-              Generado hasta hoy: <strong>{formatMoney(econ.ingresoReal)}</strong> · margen {formatMoney(econ.margenReal)}
+              Generado hasta hoy: <strong>{formatMoney(econ.ingresoReal)}</strong> · después de externos {formatMoney(econ.margenReal)}
             </p>
           </div>
 
@@ -481,7 +486,9 @@ export default function MetasConfig({ year, month, costoFijo = 0, onChangeMonth,
                   <p className="text-[11px] text-gray-400 pl-1 mt-0.5">
                     {item.goal > 0 && (Number(v.price) || Number(v.margin))
                       ? <>Genera <strong className="text-gray-600 dark:text-gray-300">{formatMoney((Number(item.goal) || 0) * (Number(v.price) || 0))}</strong>
-                          {' '}· margen {formatMoney((Number(item.goal) || 0) * (Number(v.margin) || 0))}</>
+                          {pagaExternos({ ...item, ...v })
+                            ? <> · pago a externos {formatMoney((Number(item.goal) || 0) * Math.max(0, (Number(v.price) || 0) - (Number(v.margin) || 0)))}</>
+                            : <> · costo en gastos fijos</>}</>
                       : Number(v.price) > 0
                         ? 'Pon una meta para que sume al plan'
                         : 'Sin precio cargado — no suma al plan'}
@@ -597,8 +604,19 @@ export default function MetasConfig({ year, month, costoFijo = 0, onChangeMonth,
                             onChange={e => update(item.id, { bayDays: e.target.value === '' ? 0 : Number(e.target.value) })} />
                         </div>
                       </div>
+                      {/* Quién lo hace: decide si su costo se resta aparte. */}
+                      <label className="flex items-start gap-2 rounded-xl bg-gray-50 dark:bg-gray-800/50 px-3 py-2 cursor-pointer">
+                        <input type="checkbox" className="mt-0.5 accent-red-600"
+                          checked={pagaExternos({ ...item, ...v })}
+                          onChange={e => update(item.id, { costoAparte: e.target.checked })} />
+                        <span className="text-[11px] text-gray-600 dark:text-gray-300 leading-snug">
+                          <strong>Lo hacen personas de fuera</strong> (se les paga aparte). Si no está marcado, lo hace el
+                          equipo y su costo ya está en el costo fijo: no se resta otra vez.
+                        </span>
+                      </label>
                       <p className="text-[11px] text-gray-400 leading-snug">
-                        El <strong>margen</strong> es lo que queda del precio después del material y la mano de obra.
+                        El <strong>margen</strong> es lo que queda del precio después del material y la mano de obra;
+                        solo se usa en los servicios que hacen personas de fuera.
                         Los <strong>días de bahía</strong> dicen cuánto ocupa el taller una unidad (0.05 = un rato; 3 = tres días).
                         {v.costoTabla && <> El margen de este servicio sale de la pestaña <strong>Márgenes</strong> (costo {formatMoney(v.costo)}).</>}
                       </p>

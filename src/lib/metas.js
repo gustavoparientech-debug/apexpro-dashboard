@@ -284,9 +284,9 @@ export function estadoMeta(pct, expectedPct) {
 // La mayoría de servicios los hace el equipo con insumos del taller: su costo
 // ya está en el costo fijo del mes (planilla, insumos, alquiler) y restarlo
 // otra vez contaba dos veces el mismo gasto. Solo los que se encargan a gente
-// de fuera (PPF, polarizados) tienen un costo aparte, lo que se les paga.
+// de fuera (PPF, polarizados, pintura) tienen un costo aparte, lo que se les paga.
 // Cada meta puede marcarlo a mano (`costoAparte`); sin marca, se deduce.
-const EXTERNOS = /ppf|polariz|\bpol_|lexen|\b3m\b|3m_|appfilm|protec|nanocer/i
+const EXTERNOS = /ppf|polariz|\bpol_|lexen|\b3m\b|3m_|appfilm|protec|nanocer|pano|paño|pintura|planchado/i
 export function pagaExternos(item) {
   if (typeof item?.costoAparte === 'boolean') return item.costoAparte
   return EXTERNOS.test(`${item?.id || ''} ${item?.label || ''} ${item?.precioDe || ''} ${item?.costoTabla || ''}`)
@@ -311,6 +311,8 @@ export function computeEconomics(items, { costoFijo = 0, diasHabiles = 0, bays =
       id: it.id, label: it.label, emoji: it.emoji, group: it.group,
       goal, done, price, margin, bayDays, externo,
       costoExternoMeta: externo ? goal * Math.max(0, price - margin) : 0,
+      ingresoEquipoMeta: externo ? 0 : goal * price,
+      ingresoExternoMeta: externo ? goal * price : 0,
       ingresoMeta: goal * price,
       margenMeta:  goal * margin,
       ingresoReal: done * price,
@@ -325,6 +327,8 @@ export function computeEconomics(items, { costoFijo = 0, diasHabiles = 0, bays =
   const sum = k => porItem.reduce((s, i) => s + i[k], 0)
   const ingresoMeta = sum('ingresoMeta')
   const costoExternoMeta = sum('costoExternoMeta')
+  const ingresoEquipoMeta = sum('ingresoEquipoMeta')
+  const ingresoExternoMeta = sum('ingresoExternoMeta')
   const margenMeta  = sum('margenMeta')
   const ingresoReal = sum('ingresoReal')
   const margenReal  = sum('margenReal')
@@ -339,7 +343,9 @@ export function computeEconomics(items, { costoFijo = 0, diasHabiles = 0, bays =
       ...i,
       pctMargen: margenMeta > 0 ? (i.margenMeta / margenMeta) * 100 : 0,
     })),
-    ingresoMeta, margenMeta, ingresoReal, margenReal, costoExternoMeta,
+    ingresoMeta, margenMeta, ingresoReal, margenReal, costoExternoMeta, ingresoEquipoMeta, ingresoExternoMeta,
+    // Lo que dejan los servicios con externos después de pagarles.
+    gananciaExternaMeta: ingresoExternoMeta - costoExternoMeta,
     ingresoLogrado, margenLogrado,
     // El avance del mes se mide en dinero, no en cantidad de servicios: cien
     // lavados no equivalen a un PPF.
@@ -420,7 +426,9 @@ export function claveCosto(item, claves, costos) {
 }
 
 export function conCostoTabla(item, { claves, costos } = {}) {
-  const clave = claveCosto(item, claves, costos)
+  // Metas viejas (ppf_full) toman la fila del servicio de Presupuesto
+  // equivalente (pres_ppf_full), así usan el mismo costo que muestra Márgenes.
+  const clave = claveCosto(item, claves, costos) || (costos?.[`pres_${item.id}`] ? `pres_${item.id}` : null)
   const costo = clave ? costoTotal(costos?.[clave]) : null
   if (costo == null) return item
   return { ...item, costo, margin: Math.max(0, (Number(item.price) || 0) - costo), costoTabla: clave }

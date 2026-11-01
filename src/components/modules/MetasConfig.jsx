@@ -12,6 +12,7 @@ import { monthName, todayISO, formatMoney, getWorkingDaysInMonth } from '../../l
 import { CATEGORIAS, porCategoria } from '../../lib/servicios'
 import { Plus, Save, Trash2, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, SlidersHorizontal, ExternalLink, RotateCcw, Calculator, Link2, X, Check, Search } from 'lucide-react'
 import toast from 'react-hot-toast'
+import DesgloseUtilidad from './DesgloseUtilidad'
 
 const FUENTES = [
   { value: 'vehiculo',  label: 'Por servicio del catálogo', hint: 'Cuenta los tickets del mes cuyo servicio sea uno de los marcados. Es el conteo directo: no depende de cómo se escriba nada.' },
@@ -412,10 +413,7 @@ export default function MetasConfig({ year, month, costoFijo = 0, onChangeMonth,
                 </p>
               </div>
             </div>
-            <p className="text-[11px] text-gray-400 mt-2 leading-snug">
-              Utilidad = ingreso − pago a externos (PPF, polarizados) − costo fijo. Los servicios que hace el
-              equipo no restan aparte: su material y mano de obra ya están en el costo fijo.
-            </p>
+            <div className="mt-2"><DesgloseUtilidad econ={econ} /></div>
             <p className="text-[11px] text-gray-400 mt-1 leading-snug">
               Días de bahía necesarios: <strong>{econ.diasMeta.toFixed(1)}</strong> de {econ.capacidad.toFixed(0)} disponibles
               ({diasHabiles} días hábiles × {bays} bahías) — <strong>{Math.round(econ.capacidadPct)}%</strong> de capacidad.

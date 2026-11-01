@@ -280,6 +280,18 @@ export function estadoMeta(pct, expectedPct) {
   return 'atrasado'
 }
 
+// ─── Quién hace el servicio ──────────────────────────────────────────────────
+// La mayoría de servicios los hace el equipo con insumos del taller: su costo
+// ya está en el costo fijo del mes (planilla, insumos, alquiler) y restarlo
+// otra vez contaba dos veces el mismo gasto. Solo los que se encargan a gente
+// de fuera (PPF, polarizados) tienen un costo aparte, lo que se les paga.
+// Cada meta puede marcarlo a mano (`costoAparte`); sin marca, se deduce.
+const EXTERNOS = /ppf|polariz|\bpol_|lexen|\b3m\b|3m_|appfilm|protec|nanocer/i
+export function pagaExternos(item) {
+  if (typeof item?.costoAparte === 'boolean') return item.costoAparte
+  return EXTERNOS.test(`${item?.id || ''} ${item?.label || ''} ${item?.precioDe || ''} ${item?.costoTabla || ''}`)
+}
+
 // ─── Dinero: qué genera el plan del mes ──────────────────────────────────────
 // Mismo cálculo del plan mensual en Excel: cada meta aporta su precio y su
 // margen, y ocupa días de bahía. `done` da lo que ya se generó; `goal`, lo que
@@ -289,11 +301,16 @@ export function computeEconomics(items, { costoFijo = 0, diasHabiles = 0, bays =
     const goal    = Number(it.goal) || 0
     const done    = Number(it.done) || 0
     const price   = Number(it.price) || 0
-    const margin  = Number(it.margin) || 0
+    // Lo que queda de cada servicio: todo el precio si lo hace el equipo
+    // (su costo ya está en el costo fijo) o el precio menos lo que se le
+    // paga al externo.
+    const externo = pagaExternos(it)
+    const margin  = externo ? (Number(it.margin) || 0) : price
     const bayDays = Number(it.bayDays) || 0
     return {
       id: it.id, label: it.label, emoji: it.emoji, group: it.group,
-      goal, done, price, margin, bayDays,
+      goal, done, price, margin, bayDays, externo,
+      costoExternoMeta: externo ? goal * Math.max(0, price - margin) : 0,
       ingresoMeta: goal * price,
       margenMeta:  goal * margin,
       ingresoReal: done * price,
@@ -307,6 +324,7 @@ export function computeEconomics(items, { costoFijo = 0, diasHabiles = 0, bays =
   })
   const sum = k => porItem.reduce((s, i) => s + i[k], 0)
   const ingresoMeta = sum('ingresoMeta')
+  const costoExternoMeta = sum('costoExternoMeta')
   const margenMeta  = sum('margenMeta')
   const ingresoReal = sum('ingresoReal')
   const margenReal  = sum('margenReal')
@@ -321,7 +339,7 @@ export function computeEconomics(items, { costoFijo = 0, diasHabiles = 0, bays =
       ...i,
       pctMargen: margenMeta > 0 ? (i.margenMeta / margenMeta) * 100 : 0,
     })),
-    ingresoMeta, margenMeta, ingresoReal, margenReal,
+    ingresoMeta, margenMeta, ingresoReal, margenReal, costoExternoMeta,
     ingresoLogrado, margenLogrado,
     // El avance del mes se mide en dinero, no en cantidad de servicios: cien
     // lavados no equivalen a un PPF.

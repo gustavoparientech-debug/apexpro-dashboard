@@ -19,6 +19,7 @@ import { supabase } from '../lib/supabase'
 import { formatMoney, todayISO, compressImage } from '../lib/utils'
 import { estadisticaLlegadas, metaDelMes, ritmoDelDia } from '../lib/ritmoDia'
 import { fetchFeriados, COMISION_FERIADO } from '../lib/feriados'
+import CierreCaja, { useCajaDelDia } from '../components/CierreCaja'
 import ConfirmDialog from '../components/ui/ConfirmDialog'
 import { CATEGORIAS, catInfo, porCategoria, nombreServicio } from '../lib/servicios'
 import { planchadoConfig, precioPanel, PLANCHADO_GAMAS, PLANCHADO_VEHICULOS, PLANCHADO_NIVELES, descuentoPlanchado } from '../lib/catalogoPresupuesto'
@@ -3218,6 +3219,14 @@ export default function Registro() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [verRitmo, today, tickets, dailySummaries, monthlyCosts, workers, dayGross, estadistica, ahora])
 
+  // Cierre de caja del día elegido (solo admin): Yapes revisados, efectivo
+  // contado y cierre. Ver components/CierreCaja.
+  const caja = useCajaDelDia({
+    fecha: selectedDate, cerrados: closedToday, gastos: expensesToday, tickets,
+    activo: canAdmin && !hasRange,
+  })
+  const [verCierre, setVerCierre] = useState(false)
+
   // Caja por método de pago
   const cajaStats = useMemo(() => {
     const map = {}
@@ -3642,6 +3651,42 @@ export default function Registro() {
             })}
           </div>
         </div>
+      )}
+
+      {/* CIERRE DE CAJA */}
+      {canAdmin && !hasRange && (() => {
+        const { mov, cierre } = caja
+        const cerrada = cierre?.estado === 'cerrada'
+        const ver = cierre?.verificados || {}
+        const revisados = mov.digitales.filter(d => ver[d.key]).length
+        // Si después de cerrar entra o cambia un cobro, se avisa.
+        const cambio = cerrada && JSON.stringify(cierre.totales || {}) !== JSON.stringify(mov.totales)
+        return (
+          <button onClick={() => setVerCierre(true)}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl border text-left transition-colors ${
+              cerrada && !cambio ? 'border-emerald-200 bg-emerald-50 dark:bg-emerald-900/10 dark:border-emerald-800'
+              : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 hover:border-gray-300'}`}>
+            <span className="text-xl">🧾</span>
+            <span className="flex-1 min-w-0">
+              <span className="block text-sm font-bold text-gray-800 dark:text-gray-100">
+                {cerrada ? 'Caja cerrada' : 'Cierre de caja'}
+              </span>
+              <span className={`block text-xs ${cambio ? 'text-amber-600 font-semibold' : 'text-gray-400'}`}>
+                {cambio
+                  ? '⚠ Hubo cobros después del cierre: revísala'
+                  : cerrada
+                    ? `${new Date(cierre.cerrado_at).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit', hour12: false })}${cierre.cerrado_por ? ` · ${cierre.cerrado_por}` : ''} · ${Math.abs(cierre.diferencia || 0) < 0.5 ? 'cuadró' : `${cierre.diferencia > 0 ? 'sobró' : 'faltó'} ${formatMoney(Math.abs(cierre.diferencia))}`}`
+                    : `${revisados}/${mov.digitales.length} Yape/transferencias revisados · efectivo por contar`}
+              </span>
+            </span>
+            <span className="text-xs font-semibold text-red-600">{cerrada ? 'Ver' : 'Abrir'}</span>
+          </button>
+        )
+      })()}
+      {verCierre && (
+        <CierreCaja fecha={selectedDate} caja={caja}
+          quien={profile?.display_name?.trim().split(' ')[0] || 'Admin'}
+          onClose={() => setVerCierre(false)} />
       )}
 
       {/* POR COLABORADOR */}

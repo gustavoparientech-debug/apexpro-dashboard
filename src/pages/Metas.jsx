@@ -14,6 +14,7 @@ import {
 import { Target, RefreshCw, CalendarDays, Flame, TrendingUp, Wallet, Settings2, BarChart3, Calculator } from 'lucide-react'
 import MetasConfig from '../components/modules/MetasConfig'
 import MargenesServicios from '../components/modules/MargenesServicios'
+import DesgloseUtilidad from '../components/modules/DesgloseUtilidad'
 
 // Semáforo contra el ritmo del mes, no contra el 100%: al día 5 nadie va al 80%.
 const ESTADO = {
@@ -459,6 +460,8 @@ export default function Metas() {
                 </p>
               </div>
             </div>
+
+            <DesgloseUtilidad econ={econ} />
 
             {/* Lo que ya se generó contra lo que promete el plan */}
             <div>

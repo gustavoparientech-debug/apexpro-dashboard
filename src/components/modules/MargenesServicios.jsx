@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useApp } from '../../context/AppContext'
 import { precioBase } from '../../lib/catalogoPresupuesto'
 import {
-  costoTotal, saveCostos, DEFAULT_ECON, DEFAULT_PRECIO_DE,
+  costoTotal, saveCostos, DEFAULT_ECON, DEFAULT_PRECIO_DE, pagaExternos,
   monthPrefix, resolveItems, claveCosto, fetchMetasConfig, METAS_KEY,
 } from '../../lib/metas'
 import { supabase } from '../../lib/supabase'
@@ -93,12 +93,16 @@ export default function MargenesServicios() {
     }
     return { porFila, otras }
   }, [metasMes, metasCatalogo])
+  // Mismo criterio que Metas: solo los servicios con externos (PPF,
+  // polarizados, pintura) restan su costo; el resto ya está en el costo fijo.
   const plan = useMemo(() => metasMes.reduce((acc, it) => {
     const goal = Number(it.goal) || 0
-    acc.ingreso += goal * (Number(it.price) || 0)
-    acc.margen  += goal * (Number(it.margin) || 0)
+    const price = Number(it.price) || 0
+    acc.ingreso += goal * price
+    if (pagaExternos(it)) acc.externos += goal * Math.max(0, price - (Number(it.margin) || 0))
+    acc.margen = acc.ingreso - acc.externos
     return acc
-  }, { ingreso: 0, margen: 0 }), [metasMes])
+  }, { ingreso: 0, externos: 0, margen: 0 }), [metasMes])
 
   function set(id, campo, valor) {
     setDraft(d => ({ ...d, [id]: { ...(d[id] || {}), [campo]: valor === '' ? '' : Number(valor) } }))
@@ -162,15 +166,16 @@ export default function MargenesServicios() {
             <p className="text-sm font-black tabular-nums">{formatMoney(plan.ingreso)}</p>
           </div>
           <div>
-            <p className="text-[9px] uppercase tracking-widest text-gray-400">Margen del plan</p>
-            <p className="text-sm font-black tabular-nums text-emerald-400">{formatMoney(plan.margen)}</p>
+            <p className="text-[9px] uppercase tracking-widest text-gray-400">Pago a externos</p>
+            <p className="text-sm font-black tabular-nums text-amber-300">−{formatMoney(plan.externos)}</p>
           </div>
           <div className="text-right">
-            <p className="text-[9px] uppercase tracking-widest text-gray-400">Margen %</p>
-            <p className="text-sm font-black tabular-nums">{plan.ingreso > 0 ? Math.round((plan.margen / plan.ingreso) * 100) : 0}%</p>
+            <p className="text-[9px] uppercase tracking-widest text-gray-400">Queda</p>
+            <p className="text-sm font-black tabular-nums text-emerald-400">{formatMoney(plan.margen)}</p>
           </div>
           <p className="col-span-3 text-[10px] text-gray-400">
-            Metas de {monthName(month)} {year}. Cambia al escribir; al guardar se aplica en Metas.
+            Metas de {monthName(month)} {year}. Solo PPF, polarizados y pintura restan su costo: el resto ya está en
+            el costo fijo del mes. Cambia al escribir; al guardar se aplica en Metas.
           </p>
         </div>
       </div>

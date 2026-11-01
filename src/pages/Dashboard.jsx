@@ -1598,7 +1598,15 @@ export default function Dashboard() {
 
     // Promedios de tiempo por tipo+subcategoría+extras — solo desde 2026-06-23 en adelante
     const AVG_TIME_START = '2026-06-23'
-    const avgTimeByType = {}
+    // Tiempos que no son del trabajo real se descartan: un ticket abierto
+    // tarde (el trabajador se acordó al final) da minutos de menos, y uno que
+    // quedó abierto por olvido o porque el cliente tardó en recoger da horas
+    // de más. Un lavado va de 10 min a 2 h; los demás servicios (cerámico,
+    // planchado), desde 10 min y hasta 3 veces lo normal de ese servicio.
+    const MIN_SERVICIO = 10
+    const MAX_LAVADO   = 120
+    const VECES_MEDIANA = 3
+    const grupos = {}
     periodTickets.forEach(t => {
       // El servicio dura hasta que se marcó terminado, no hasta que se cobró.
       const finServicio = t.finished_at || t.closed_at
@@ -1610,10 +1618,26 @@ export default function Dashboard() {
         ? t.extras.map(e => e.name || e.label || e).sort().join(', ')
         : null
       const key = [t.vehicle_type, t.vehicle_subtype, extrasLabel].filter(Boolean).join('||')
-      if (!avgTimeByType[key]) avgTimeByType[key] = { total: 0, count: 0, vehicle_type: t.vehicle_type, vehicle_subtype: t.vehicle_subtype || null, extras_label: extrasLabel }
-      avgTimeByType[key].total += mins
-      avgTimeByType[key].count += 1
+      const lavado = t.service_cat ? t.service_cat === 'lavados' : (Number(t.price_charged) || 0) < PRECIO_MAX_LAVADO
+      if (!grupos[key]) grupos[key] = { mins: [], lavado, vehicle_type: t.vehicle_type, vehicle_subtype: t.vehicle_subtype || null, extras_label: extrasLabel }
+      grupos[key].mins.push(mins)
+      if (lavado) grupos[key].lavado = true
     })
+    const avgTimeByType = {}
+    let tiemposDescartados = 0
+    for (const [key, g] of Object.entries(grupos)) {
+      const orden = [...g.mins].sort((a, b) => a - b)
+      const mediana = orden[Math.floor(orden.length / 2)]
+      const tope = g.lavado ? MAX_LAVADO : Math.max(MAX_LAVADO, mediana * VECES_MEDIANA)
+      const validos = g.mins.filter(m => m >= MIN_SERVICIO && m <= tope)
+      tiemposDescartados += g.mins.length - validos.length
+      if (!validos.length) continue
+      avgTimeByType[key] = {
+        total: validos.reduce((s, m) => s + m, 0), count: validos.length,
+        descartados: g.mins.length - validos.length,
+        vehicle_type: g.vehicle_type, vehicle_subtype: g.vehicle_subtype, extras_label: g.extras_label,
+      }
+    }
 
     const ticketIncome    = periodTickets.reduce((s, t) => s + (t.price_charged || 0), 0)
     const summaryIncome   = periodSummaries.reduce((s, d) => s + (d.total_income || 0), 0)
@@ -1760,7 +1784,7 @@ export default function Dashboard() {
       bestDay, efectivo, yape, transferencia, onTrack, projectedIncome, dailyData,
       workerRanking, monthBonusAmt, workerExpTotal, periodExpenses, costItemsData,
       adelantosAbiertos, ticketsConAdelanto, ticketsAbiertos, saldoPorCobrar, gastosPendTotal,
-      proportionalFixed, proportionRatio, avgTimeByType,
+      proportionalFixed, proportionRatio, avgTimeByType, tiemposDescartados,
     }
   }, [tickets, dailySummaries, expenses, pastTickets, pastSummaries, pastExpenses, workers, services, incidents, selectedCosts, bonuses, casualPayments, advances, workerMonthlyConfigs, workerConfigsHasta, prefix, selMonth, selYear, isCurrentMonth, rangeFrom, rangeTo, hasRange])
 
@@ -2161,7 +2185,7 @@ export default function Dashboard() {
               ? [...avgTimeOrder.map(t => filteredEntries.find(e => e.type === t)).filter(Boolean),
                  ...filteredEntries.filter(e => !avgTimeOrder.includes(e.type))]
               : [...filteredEntries].sort((a, b) => b.count - a.count)
-            const visibleEntries = ordered.filter(e => !avgTimeHidden.includes(e.type) && e.count > 5)
+            const visibleEntries = ordered.filter(e => !avgTimeHidden.includes(e.type) && e.count >= 3)
             const maxAvg = Math.max(...ordered.map(e => e.avg))
             const moveEntry = (idx, dir) => {
               const newOrder = ordered.map(e => e.type)
@@ -2247,6 +2271,13 @@ export default function Dashboard() {
                       )
                     })}
                   </div>
+                )}
+                {data.tiemposDescartados > 0 && (
+                  <p className="text-[11px] text-gray-400 mt-3 leading-relaxed">
+                    {data.tiemposDescartados} ticket{data.tiemposDescartados === 1 ? '' : 's'} fuera del promedio por
+                    tiempos que no son reales: menos de 10 min (ticket abierto tarde) o más de 2 h en un lavado
+                    (quedó abierto o el cliente tardó en recoger). En otros servicios, más de 3 veces lo normal.
+                  </p>
                 )}
               </div>
             )

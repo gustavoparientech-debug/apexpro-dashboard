@@ -1138,6 +1138,10 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
       payment_method: effectivePayment,
       // Un ticket reabierto conserva su primer cierre.
       closed_at:      ticket.closed_at || new Date().toISOString(),
+      // Un trabajo de varios días se cobra hoy: cuenta en la caja y el
+      // ingreso de hoy, no del día en que entró. Uno reabierto para
+      // corregirlo (ya tenía cierre) conserva su fecha.
+      ...(!ticket.closed_at && ticket.date && ticket.date < todayISO() && { date: todayISO() }),
       // Si no se marcó antes como terminado, termina al cobrarse.
       finished_at:    ticket.finished_at || new Date().toISOString(),
       ...(paymentPhoto && { payment_photo: paymentPhoto }),
@@ -3075,6 +3079,12 @@ export default function Registro() {
         .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0)),
     [tickets, selectedDate, canAdmin]
   )
+  // Trabajos de varios días (pintura, cerámico, PPF…) siguen abiertos de un
+  // día para otro. No se mezclan con los del día ni suman al pendiente de
+  // hoy: van en su propio apartado, plegado, y cuentan el día que se cierren.
+  const openDelDia  = useMemo(() => openTickets.filter(t => (t.date || '') >= todayISO()), [openTickets])
+  const openPrevios = useMemo(() => openTickets.filter(t => (t.date || '') < todayISO()), [openTickets])
+  const [verPrevios, setVerPrevios] = useState(false)
 
   // Tickets cerrados del día seleccionado (o rango) — más reciente primero
   const closedToday = useMemo(
@@ -3154,8 +3164,8 @@ export default function Registro() {
   }
 
   const openTicketsTotal = useMemo(
-    () => openTickets.reduce((s, t) => s + totalAbierto(t), 0),
-    [openTickets]
+    () => openDelDia.reduce((s, t) => s + totalAbierto(t), 0),
+    [openDelDia]
   )
 
   // Feriado del día elegido: se avisa a todos que ese día se cobra por comisión.
@@ -3250,7 +3260,8 @@ export default function Registro() {
     const map = {}
     const nuevo = () => ({ total: 0, extras: 0, income: 0, byVehicle: {}, abiertos: 0, pendiente: 0 })
     // Lo de tickets abiertos cuenta aparte, como pendiente hasta que se cierren.
-    openTickets.forEach(t => {
+    // Solo los del día: un trabajo de varios días no es pendiente de hoy.
+    openDelDia.forEach(t => {
       if (!t.worker_id) return
       if (!map[t.worker_id]) map[t.worker_id] = nuevo()
       map[t.worker_id].abiertos  += 1
@@ -3276,7 +3287,7 @@ export default function Registro() {
       // El avance de los administradores (el dueño) no se muestra al equipo.
       .filter(r => r.worker && (canAdmin || r.worker.role !== 'admin'))
       .sort((a, b) => (b.total - a.total) || (b.pendiente - a.pendiente))
-  }, [closedToday, openTickets, workers, canAdmin])
+  }, [closedToday, openDelDia, workers, canAdmin])
 
   async function handleSaveTicket(data) {
     try {
@@ -3435,7 +3446,7 @@ export default function Registro() {
                   <span className="text-sm font-bold text-sky-400">
                     {hideTotal && canAdmin ? '•••' : formatMoney(dayGross + openTicketsTotal)}
                   </span>
-                  <span className="text-[10px] text-white/30">({openTickets.length})</span>
+                  <span className="text-[10px] text-white/30">({openDelDia.length})</span>
                 </div>
               )}
               {/* Ritmo del día: una línea, sin robarle lugar a los totales */}
@@ -3785,19 +3796,19 @@ export default function Registro() {
           <h2 className="text-sm font-bold text-gray-600 dark:text-gray-400 uppercase tracking-wide">
             Tickets activos
           </h2>
-          {openTickets.length > 0 && (
+          {openDelDia.length > 0 && (
             <span className="bg-amber-500 text-white text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center">
-              {openTickets.length}
+              {openDelDia.length}
             </span>
           )}
         </div>
-        {openTickets.length === 0 ? (
+        {openDelDia.length === 0 ? (
           <div className="card text-center py-6 border-dashed">
             <p className="text-sm text-gray-400">Sin tickets activos</p>
           </div>
         ) : (
           <div className="space-y-2">
-            {openTickets.map(t => (
+            {openDelDia.map(t => (
               <ActiveTicketCard key={t.id} ticket={t} workers={workers} vehicleTypes={vehicleTypes} expenses={expensesVisibles} advances={advances}
                 loyaltyCard={cardOf(t)} loyaltyConfig={fidelidadConfig}
                 onClick={() => setActiveTicket(t.id)}
@@ -3807,6 +3818,37 @@ export default function Registro() {
           </div>
         )}
       </div>
+
+      {/* EN PROCESO DE DÍAS ANTERIORES: plegado para no repetirse cada día */}
+      {openPrevios.length > 0 && (
+        <div>
+          <button onClick={() => setVerPrevios(v => !v)}
+            className="w-full flex items-center gap-2 mb-2 text-left">
+            <h2 className="text-sm font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide flex-1">
+              En proceso de días anteriores
+              <span className="ml-2 bg-gray-400 dark:bg-gray-600 text-white text-xs font-bold px-1.5 py-0.5 rounded-full align-middle">{openPrevios.length}</span>
+            </h2>
+            <span className="text-xs font-semibold text-red-600 dark:text-red-400">{verPrevios ? 'Ocultar' : 'Ver'}</span>
+          </button>
+          {verPrevios ? (
+            <div className="space-y-2">
+              {openPrevios.map(t => (
+                <ActiveTicketCard key={t.id} ticket={t} workers={workers} vehicleTypes={vehicleTypes} expenses={expensesVisibles} advances={advances}
+                  loyaltyCard={cardOf(t)} loyaltyConfig={fidelidadConfig}
+                  onClick={() => setActiveTicket(t.id)}
+                  onToggleHide={canAdmin ? handleToggleHideTicket : null}
+                  onToggleTerminado={handleToggleTerminado} />
+              ))}
+            </div>
+          ) : (
+            <button onClick={() => setVerPrevios(true)}
+              className="w-full card py-2.5 text-left text-xs text-gray-500 dark:text-gray-400">
+              {openPrevios.map(t => t.plate || 'Sin placa').join(' · ')}
+              <span className="text-gray-400"> — trabajos largos; cuentan el día que se cierren</span>
+            </button>
+          )}
+        </div>
+      )}
 
       {/* CERRADOS DEL DÍA */}
       <div>

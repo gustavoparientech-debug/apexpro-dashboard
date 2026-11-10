@@ -1438,7 +1438,7 @@ export default function Dashboard() {
     localStorage.setItem('apexpro_avgtime_hidden', JSON.stringify(hidden))
   }
 
-  const DEFAULT_PANEL_ORDER = ['kpis','adelantos','tendencia','afluencia','mix','clientes','tiempos','progreso','estadisticas','cobros','gastos','gastos_personal','ranking','bonos','grafico']
+  const DEFAULT_PANEL_ORDER = ['kpis','adelantos','comparativo','tendencia','afluencia','mix','clientes','tiempos','progreso','estadisticas','cobros','gastos','gastos_personal','ranking','bonos','grafico']
   const [panelOrder, setPanelOrder] = useState(() => {
     try {
       const saved = JSON.parse(localStorage.getItem('apexpro_panel_order') || 'null')
@@ -1581,8 +1581,67 @@ export default function Dashboard() {
     const pctRecurrencia = actual.placas.length
       ? (recurrentes / actual.placas.length) * 100 : 0
 
-    return { serie, actual, previo, variacion, mix, recurrentes, nuevos, pctRecurrencia }
-  }, [trend])
+    // ── Este mes contra el anterior, a la misma altura ─────────────────────
+    // Comparar 8 días de noviembre con octubre entero siempre da "−88%".
+    // Se compara día hábil contra día hábil (sin domingos): lo que se llevaba
+    // al día hábil N del mes anterior contra lo que se lleva hoy. Cuenta lo
+    // cobrado (tickets cerrados), por la fecha del ticket.
+    let comparativo = null
+    if (previo) {
+      const habiles = (y, m) => {
+        const dias = new Date(y, m, 0).getDate()
+        const idx = {}
+        let n = 0
+        for (let d = 1; d <= dias; d++) {
+          if (new Date(y, m - 1, d).getDay() === 0) continue
+          n += 1
+          idx[`${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`] = n
+        }
+        return { idx, total: n }
+      }
+      const porDiaHabil = (mes) => {
+        const { idx, total } = habiles(mes.year, mes.month)
+        const ingreso = Array(total + 1).fill(0)
+        const autos   = Array(total + 1).fill(0)
+        for (const t of mes.tickets) {
+          if (t.status === 'abierto') continue
+          const k = idx[t.date]
+          if (!k) continue
+          ingreso[k] += Number(t.price_charged) || 0
+          autos[k]   += 1
+        }
+        for (let k = 1; k <= total; k++) { ingreso[k] += ingreso[k - 1]; autos[k] += autos[k - 1] }
+        return { ingreso, autos, total }
+      }
+      const A = porDiaHabil(actual), B = porDiaHabil(previo)
+      const n = isCurrentMonth ? Math.min(getWorkingDaysElapsed(selYear, selMonth), A.total) : A.total
+      const nB = Math.min(n, B.total)
+      const ingA = A.ingreso[n] || 0, ingB = B.ingreso[nB] || 0
+      const autA = A.autos[n] || 0,   autB = B.autos[nB] || 0
+      const pct = (a, b) => (b > 0 ? ((a - b) / b) * 100 : null)
+      const curva = []
+      for (let k = 1; k <= Math.max(A.total, B.total); k++) {
+        curva.push({
+          dia: k,
+          actual: k <= n ? Math.round(A.ingreso[k] || 0) : null,
+          anterior: k <= B.total ? Math.round(B.ingreso[k] || 0) : null,
+        })
+      }
+      // Si sigue al mismo ritmo, cómo cerraría el mes frente al anterior.
+      const proyeccion = n > 0 ? (ingA / n) * A.total : 0
+      comparativo = {
+        n, totalDias: A.total,
+        nombreAnterior: new Date(previo.year, previo.month - 1, 1).toLocaleDateString('es-PE', { month: 'long' }),
+        ingresoActual: ingA, ingresoAnterior: ingB, difIngreso: ingA - ingB, pctIngreso: pct(ingA, ingB),
+        autosActual: autA, autosAnterior: autB, pctAutos: pct(autA, autB),
+        ticketActual: autA ? ingA / autA : 0, ticketAnterior: autB ? ingB / autB : 0,
+        totalAnterior: B.ingreso[B.total] || 0,
+        proyeccion, curva,
+      }
+    }
+
+    return { serie, actual, previo, variacion, mix, recurrentes, nuevos, pctRecurrencia, comparativo }
+  }, [trend, isCurrentMonth, selYear, selMonth])
 
   const data = useMemo(() => {
     const dateFilter = (date) => {
@@ -1995,6 +2054,69 @@ export default function Dashboard() {
             </div>
           ) : null
 
+          // Este mes contra el anterior, a la misma altura del mes
+          if (sectionId === 'comparativo') return !hasRange && insights?.comparativo ? (() => {
+            const c = insights.comparativo
+            const p = c.pctIngreso
+            const estado = p == null ? null : p >= 5 ? 'arriba' : p <= -5 ? 'abajo' : 'igual'
+            const tono = { arriba: 'text-emerald-600', igual: 'text-amber-600', abajo: 'text-red-600' }[estado] || 'text-gray-600'
+            const fondo = { arriba: 'bg-emerald-50 dark:bg-emerald-900/15', igual: 'bg-amber-50 dark:bg-amber-900/15', abajo: 'bg-red-50 dark:bg-red-900/15' }[estado] || 'bg-gray-50'
+            const fmtPct = v => v == null ? '—' : `${v >= 0 ? '+' : ''}${v.toFixed(0)}%`
+            const Ant = c.nombreAnterior.charAt(0).toUpperCase() + c.nombreAnterior.slice(1)
+            return (
+              <div key="comparativo" className="card">
+                <p className="text-sm font-bold text-gray-900 dark:text-white">Este mes vs. {c.nombreAnterior}</p>
+                <p className="text-xs text-gray-400">
+                  A la misma altura: {c.n} de {c.totalDias} días hábiles (sin domingos) · lo cobrado
+                </p>
+                <div className={`mt-3 rounded-xl px-3 py-2.5 ${fondo}`}>
+                  <p className={`text-base font-black ${tono}`}>
+                    {estado === 'arriba' && `Vas ${fmtPct(p)} por encima de ${c.nombreAnterior}`}
+                    {estado === 'igual' && `Vas igual que ${c.nombreAnterior} (${fmtPct(p)})`}
+                    {estado === 'abajo' && `Vas atrasado: ${fmtPct(p)} frente a ${c.nombreAnterior}`}
+                    {estado === null && `Sin ingresos de ${c.nombreAnterior} para comparar`}
+                  </p>
+                  <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                    {c.difIngreso >= 0 ? 'Llevas ' : 'Te faltan '}<b>{formatMoney(Math.abs(c.difIngreso))}</b>
+                    {c.difIngreso >= 0 ? ' más' : ''} que al día hábil {c.n} de {c.nombreAnterior}.
+                    {isCurrentMonth && c.n < c.totalDias && <> A este ritmo cerrarías en <b>{formatMoney(c.proyeccion)}</b> ({c.nombreAnterior} cerró en {formatMoney(c.totalAnterior)}).</>}
+                  </p>
+                </div>
+                <div className="grid grid-cols-3 gap-2 mt-3">
+                  {[
+                    ['Ingresos', formatMoney(c.ingresoActual), formatMoney(c.ingresoAnterior), c.pctIngreso],
+                    ['Autos', String(c.autosActual), String(c.autosAnterior), c.pctAutos],
+                    ['Ticket prom.', formatMoney(c.ticketActual), formatMoney(c.ticketAnterior),
+                      c.ticketAnterior > 0 ? ((c.ticketActual - c.ticketAnterior) / c.ticketAnterior) * 100 : null],
+                  ].map(([label, a, b, v]) => (
+                    <div key={label} className="rounded-xl bg-gray-50 dark:bg-gray-800/50 px-2.5 py-2">
+                      <p className="text-[10px] text-gray-400 uppercase tracking-wide">{label}</p>
+                      <p className="text-sm font-black text-gray-900 dark:text-white tabular-nums">{a}</p>
+                      <p className="text-[10px] text-gray-400 tabular-nums">{Ant}: {b}</p>
+                      <p className={`text-[11px] font-bold ${v == null ? 'text-gray-400' : v >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{fmtPct(v)}</p>
+                    </div>
+                  ))}
+                </div>
+                <div className="h-48 mt-3">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <ComposedChart data={c.curva} margin={{ top: 8, right: 8, left: -10, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
+                      <XAxis dataKey="dia" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+                      <YAxis tick={{ fontSize: 10 }} axisLine={false} tickLine={false}
+                        tickFormatter={v => v >= 1000 ? `${Math.round(v / 100) / 10}k` : v} />
+                      <Tooltip contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.12)', fontSize: 12 }}
+                        labelFormatter={d => `Día hábil ${d}`}
+                        formatter={(v, name) => [formatMoney(v), name]} />
+                      <Line type="monotone" dataKey="anterior" name={Ant} stroke="#9ca3af" strokeWidth={2} dot={false} strokeDasharray="4 3" connectNulls={false} />
+                      <Line type="monotone" dataKey="actual" name="Este mes" stroke="#dc2626" strokeWidth={2.5} dot={false} connectNulls={false} />
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                </div>
+                <p className="text-[10px] text-gray-400 mt-1">Ingreso acumulado por día hábil · roja: este mes · gris: {c.nombreAnterior}</p>
+              </div>
+            )
+          })() : null
+
           // Evolución mensual de ingresos — el avance real del negocio
           if (sectionId === 'tendencia') return insights && insights.serie.some(m => m.ingresos > 0) ? (() => {
             // Solo el mes en curso lleva proyeccion: en uno pasado no queda
@@ -2008,18 +2130,23 @@ export default function Dashboard() {
                   <p className="text-sm font-bold text-gray-900 dark:text-white">Evolución del negocio</p>
                   <p className="text-xs text-gray-400">Últimos 6 meses · ingresos por mes</p>
                 </div>
-                {insights.variacion !== null && (
-                  <div className={`text-right shrink-0 px-2.5 py-1 rounded-lg ${
-                    insights.variacion >= 0
-                      ? 'bg-green-50 dark:bg-green-900/20'
-                      : 'bg-red-50 dark:bg-red-900/20'}`}>
-                    <p className={`text-base font-black leading-none ${
-                      insights.variacion >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      {insights.variacion >= 0 ? '▲' : '▼'} {Math.abs(insights.variacion).toFixed(0)}%
-                    </p>
-                    <p className="text-[10px] text-gray-400 mt-0.5">vs. mes anterior</p>
-                  </div>
-                )}
+                {(() => {
+                  // Mes en curso: contra el anterior a la misma altura, no
+                  // contra el mes entero (que siempre daba una caída falsa).
+                  const c = insights.comparativo
+                  const v = isCurrentMonth && c?.pctIngreso != null ? c.pctIngreso : insights.variacion
+                  if (v === null || v === undefined) return null
+                  return (
+                    <div className={`text-right shrink-0 px-2.5 py-1 rounded-lg ${v >= 0 ? 'bg-green-50 dark:bg-green-900/20' : 'bg-red-50 dark:bg-red-900/20'}`}>
+                      <p className={`text-base font-black leading-none ${v >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        {v >= 0 ? '▲' : '▼'} {Math.abs(v).toFixed(0)}%
+                      </p>
+                      <p className="text-[10px] text-gray-400 mt-0.5">
+                        {isCurrentMonth && c ? `vs. ${c.nombreAnterior} al día ${c.n}` : 'vs. mes anterior'}
+                      </p>
+                    </div>
+                  )
+                })()}
               </div>
               <div className="h-72 mt-3">
                 <ResponsiveContainer width="100%" height="100%">
@@ -2384,7 +2511,7 @@ export default function Dashboard() {
 
         if (!sectionContent) return null
 
-        const SECTION_LABELS = { kpis: 'KPIs', adelantos: 'Adelantos por cobrar', tendencia: 'Evolución mensual', afluencia: 'Afluencia por día y hora', mix: 'Rentabilidad por servicio', clientes: 'Clientes nuevos vs. recurrentes', tiempos: 'Tiempos promedio', progreso: 'Meta mensual', estadisticas: 'Estadísticas', cobros: 'Métodos de cobro', gastos: 'Desglose gastos', gastos_personal: 'Gastos personal', ranking: 'Ranking', bonos: 'Bonos', grafico: 'Gráfico diario' }
+        const SECTION_LABELS = { kpis: 'KPIs', adelantos: 'Adelantos por cobrar', comparativo: 'Este mes vs. anterior', tendencia: 'Evolución mensual', afluencia: 'Afluencia por día y hora', mix: 'Rentabilidad por servicio', clientes: 'Clientes nuevos vs. recurrentes', tiempos: 'Tiempos promedio', progreso: 'Meta mensual', estadisticas: 'Estadísticas', cobros: 'Métodos de cobro', gastos: 'Desglose gastos', gastos_personal: 'Gastos personal', ranking: 'Ranking', bonos: 'Bonos', grafico: 'Gráfico diario' }
 
         return (
           <div key={sectionId} className="relative group">

@@ -7,7 +7,7 @@ const IS_DEMO = !import.meta.env.VITE_SUPABASE_URL || import.meta.env.VITE_SUPAB
 import {
   formatMoney, formatDate, getSemaforoColor, calcRealSalary, calcTicketProfit,
   getWorkingDaysInMonth, getWorkingDaysElapsed, getWorkingDaysRemaining, getWorkingDaysInRange,
-  currentMonthYear, monthName, salarioDelMes } from '../lib/utils'
+  currentMonthYear, monthName, salarioDelMes, todayISO } from '../lib/utils'
 import StatCard from '../components/ui/StatCard'
 import Badge from '../components/ui/Badge'
 import {
@@ -1438,7 +1438,7 @@ export default function Dashboard() {
     localStorage.setItem('apexpro_avgtime_hidden', JSON.stringify(hidden))
   }
 
-  const DEFAULT_PANEL_ORDER = ['kpis','adelantos','comparativo','tendencia','afluencia','mix','clientes','tiempos','progreso','estadisticas','cobros','gastos','gastos_personal','ranking','bonos','grafico']
+  const DEFAULT_PANEL_ORDER = ['kpis','adelantos','comparativo_dia','comparativo','tendencia','afluencia','mix','clientes','tiempos','progreso','estadisticas','cobros','gastos','gastos_personal','ranking','bonos','grafico']
   const [panelOrder, setPanelOrder] = useState(() => {
     try {
       const saved = JSON.parse(localStorage.getItem('apexpro_panel_order') || 'null')
@@ -1547,6 +1547,78 @@ export default function Dashboard() {
   useEffect(() => {
     fetchBusinessTrend(6, selYear, selMonth).then(setTrend)
   }, [selMonth, selYear])
+
+  // ── Hoy contra un día igual promedio ──────────────────────────────────────
+  // Lo cobrado hasta esta hora frente a lo que se cobra a esta misma hora en
+  // ese día de la semana, en promedio de las últimas 13 semanas. Los días de
+  // esa semana sin ningún ticket (no se trabajó) no cuentan para la media.
+  const [historialDia, setHistorialDia] = useState([])
+  const [ahoraDia, setAhoraDia] = useState(() => new Date())
+  useEffect(() => {
+    if (!isCurrentMonth) return
+    const desde = new Date(); desde.setDate(desde.getDate() - 7 * 13)
+    supabase.from('tickets').select('date, closed_at, price_charged, status')
+      .gte('date', desde.toISOString().slice(0, 10)).lt('date', todayISO())
+      .then(({ data }) => setHistorialDia(data || []))
+    const id = setInterval(() => setAhoraDia(new Date()), 60000)
+    return () => clearInterval(id)
+  }, [isCurrentMonth])
+  const comparativoDia = useMemo(() => {
+    if (!isCurrentMonth || !historialDia.length) return null
+    const hoy = todayISO()
+    const ahora = ahoraDia
+    const dow = ahora.getDay()
+    const diaDe = f => new Date(`${f}T00:00:00`).getDay()
+    const horaDe = iso => { const d = new Date(iso); return d.getHours() + d.getMinutes() / 60 }
+    const HORAS = Array.from({ length: 13 }, (_, i) => 8 + i)   // 8:00 … 20:00
+    const acumulado = lista => HORAS.map(h => {
+      const hasta = lista.filter(t => horaDe(t.closed_at) < h + 1)
+      return { monto: hasta.reduce((s, t) => s + (Number(t.price_charged) || 0), 0), autos: hasta.length }
+    })
+    const cerrados = t => t.status !== 'abierto' && t.closed_at
+    // Días iguales con trabajo.
+    const porFecha = {}
+    for (const t of historialDia) {
+      if (diaDe(t.date) !== dow || !cerrados(t)) continue
+      ;(porFecha[t.date] = porFecha[t.date] || []).push(t)
+    }
+    const fechas = Object.keys(porFecha)
+    if (!fechas.length) return null
+    const curvas = fechas.map(f => acumulado(porFecha[f]))
+    const media = HORAS.map((_, i) => ({
+      monto: curvas.reduce((s, c) => s + c[i].monto, 0) / curvas.length,
+      autos: curvas.reduce((s, c) => s + c[i].autos, 0) / curvas.length,
+    }))
+    const deHoy = acumulado((tickets || []).filter(t => t.date === hoy && cerrados(t)))
+    // Valor a esta hora exacta, interpolando dentro de la hora.
+    const h = ahora.getHours() + ahora.getMinutes() / 60
+    const enHora = (serie, campo) => {
+      if (h < HORAS[0]) return 0
+      const i = Math.min(HORAS.length - 1, Math.floor(h) - HORAS[0])
+      const prev = i > 0 ? serie[i - 1][campo] : 0
+      return prev + (serie[i][campo] - prev) * Math.min(1, h - Math.floor(h))
+    }
+    const hoyMonto = deHoy.reduce((m, x) => Math.max(m, x.monto), 0)
+    const hoyAutos = deHoy.reduce((m, x) => Math.max(m, x.autos), 0)
+    const mediaAhora = enHora(media, 'monto')
+    const autosMediaAhora = enHora(media, 'autos')
+    const mediaDia = media[media.length - 1].monto
+    const nombre = ahora.toLocaleDateString('es-PE', { weekday: 'long' })
+    return {
+      nombre, dias: fechas.length,
+      hoyMonto, hoyAutos, mediaAhora, autosMediaAhora, mediaDia,
+      autosMediaDia: media[media.length - 1].autos,
+      pct: mediaAhora > 0 ? ((hoyMonto - mediaAhora) / mediaAhora) * 100 : null,
+      // Lo de hoy más lo que suele entrar el resto del día.
+      proyeccion: hoyMonto + Math.max(0, mediaDia - mediaAhora),
+      hora: ahora.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit', hour12: false }),
+      curva: HORAS.map((hh, i) => ({
+        hora: `${String(hh).padStart(2, '0')}:00`,
+        hoy: hh <= Math.floor(h) ? Math.round(deHoy[i].monto) : null,
+        media: Math.round(media[i].monto),
+      })),
+    }
+  }, [isCurrentMonth, historialDia, tickets, ahoraDia])
 
   // Métricas de gestión derivadas de la serie histórica.
   const insights = useMemo(() => {
@@ -2054,6 +2126,65 @@ export default function Dashboard() {
             </div>
           ) : null
 
+          // Hoy contra el promedio de ese día de la semana, a la misma hora
+          if (sectionId === 'comparativo_dia') return !hasRange && comparativoDia ? (() => {
+            const c = comparativoDia
+            const p = c.pct
+            const estado = p == null ? null : p >= 10 ? 'arriba' : p <= -10 ? 'abajo' : 'igual'
+            const tono = { arriba: 'text-emerald-600', igual: 'text-amber-600', abajo: 'text-red-600' }[estado] || 'text-gray-600'
+            const fondo = { arriba: 'bg-emerald-50 dark:bg-emerald-900/15', igual: 'bg-amber-50 dark:bg-amber-900/15', abajo: 'bg-red-50 dark:bg-red-900/15' }[estado] || 'bg-gray-50 dark:bg-gray-800/50'
+            const fmtPct = v => v == null ? '—' : `${v >= 0 ? '+' : ''}${v.toFixed(0)}%`
+            const dif = c.hoyMonto - c.mediaAhora
+            return (
+              <div key="comparativo_dia" className="card">
+                <p className="text-sm font-bold text-gray-900 dark:text-white">Hoy vs. un {c.nombre} promedio</p>
+                <p className="text-xs text-gray-400">
+                  Hasta las {c.hora} · lo cobrado · media de {c.dias} {c.nombre}{c.dias === 1 ? '' : (c.nombre.endsWith('s') ? '' : 's')} de los últimos 3 meses
+                </p>
+                <div className={`mt-3 rounded-xl px-3 py-2.5 ${fondo}`}>
+                  <p className={`text-base font-black ${tono}`}>
+                    {estado === 'arriba' && `Vas ${fmtPct(p)} por encima de un ${c.nombre} normal`}
+                    {estado === 'igual' && `Vas como un ${c.nombre} normal (${fmtPct(p)})`}
+                    {estado === 'abajo' && `Vas atrasado: ${fmtPct(p)} frente a un ${c.nombre} normal`}
+                    {estado === null && 'Todavía no abre: a esta hora un día así no ha cobrado nada'}
+                  </p>
+                  <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                    {estado !== null && <>{dif >= 0 ? 'Llevas ' : 'Te faltan '}<b>{formatMoney(Math.abs(dif))}</b>{dif >= 0 ? ' más' : ''} que lo normal a esta hora. </>}
+                    Un {c.nombre} normal cierra en <b>{formatMoney(c.mediaDia)}</b>; al ritmo de hoy cerrarías en <b>{formatMoney(c.proyeccion)}</b>.
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 gap-2 mt-3">
+                  {[
+                    ['Cobrado', formatMoney(c.hoyMonto), formatMoney(c.mediaAhora), c.pct],
+                    ['Autos cerrados', String(c.hoyAutos), (Math.round(c.autosMediaAhora * 10) / 10).toString(),
+                      c.autosMediaAhora > 0 ? ((c.hoyAutos - c.autosMediaAhora) / c.autosMediaAhora) * 100 : null],
+                  ].map(([label, a, b, v]) => (
+                    <div key={label} className="rounded-xl bg-gray-50 dark:bg-gray-800/50 px-2.5 py-2">
+                      <p className="text-[10px] text-gray-400 uppercase tracking-wide">{label}</p>
+                      <p className="text-sm font-black text-gray-900 dark:text-white tabular-nums">{a}</p>
+                      <p className="text-[10px] text-gray-400 tabular-nums">Normal a esta hora: {b}</p>
+                      <p className={`text-[11px] font-bold ${v == null ? 'text-gray-400' : v >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{fmtPct(v)}</p>
+                    </div>
+                  ))}
+                </div>
+                <div className="h-44 mt-3">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <ComposedChart data={c.curva} margin={{ top: 8, right: 8, left: -10, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
+                      <XAxis dataKey="hora" tick={{ fontSize: 9 }} axisLine={false} tickLine={false} interval={1} />
+                      <YAxis tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+                      <Tooltip contentStyle={{ borderRadius: 12, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.12)', fontSize: 12 }}
+                        formatter={(v, name) => [formatMoney(v), name]} />
+                      <Line type="monotone" dataKey="media" name={`${c.nombre} promedio`} stroke="#9ca3af" strokeWidth={2} dot={false} strokeDasharray="4 3" />
+                      <Line type="monotone" dataKey="hoy" name="Hoy" stroke="#dc2626" strokeWidth={2.5} dot={false} connectNulls={false} />
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                </div>
+                <p className="text-[10px] text-gray-400 mt-1">Cobrado acumulado por hora · roja: hoy · gris: {c.nombre} promedio</p>
+              </div>
+            )
+          })() : null
+
           // Este mes contra el anterior, a la misma altura del mes
           if (sectionId === 'comparativo') return !hasRange && insights?.comparativo ? (() => {
             const c = insights.comparativo
@@ -2511,7 +2642,7 @@ export default function Dashboard() {
 
         if (!sectionContent) return null
 
-        const SECTION_LABELS = { kpis: 'KPIs', adelantos: 'Adelantos por cobrar', comparativo: 'Este mes vs. anterior', tendencia: 'Evolución mensual', afluencia: 'Afluencia por día y hora', mix: 'Rentabilidad por servicio', clientes: 'Clientes nuevos vs. recurrentes', tiempos: 'Tiempos promedio', progreso: 'Meta mensual', estadisticas: 'Estadísticas', cobros: 'Métodos de cobro', gastos: 'Desglose gastos', gastos_personal: 'Gastos personal', ranking: 'Ranking', bonos: 'Bonos', grafico: 'Gráfico diario' }
+        const SECTION_LABELS = { kpis: 'KPIs', adelantos: 'Adelantos por cobrar', comparativo_dia: 'Hoy vs. día promedio', comparativo: 'Este mes vs. anterior', tendencia: 'Evolución mensual', afluencia: 'Afluencia por día y hora', mix: 'Rentabilidad por servicio', clientes: 'Clientes nuevos vs. recurrentes', tiempos: 'Tiempos promedio', progreso: 'Meta mensual', estadisticas: 'Estadísticas', cobros: 'Métodos de cobro', gastos: 'Desglose gastos', gastos_personal: 'Gastos personal', ranking: 'Ranking', bonos: 'Bonos', grafico: 'Gráfico diario' }
 
         return (
           <div key={sectionId} className="relative group">

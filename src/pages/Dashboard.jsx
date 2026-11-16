@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from 'react'
+import { useMemo, useState, useEffect, useCallback } from 'react'
 import { useApp } from '../context/AppContext'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
@@ -312,12 +312,31 @@ function AfluenciaPanel() {
   // contrata o sale alguien la tarjeta se ajusta sola. El admin queda fuera:
   // lleva ceramicos, que es trabajo de tecnico aparte y no de equipo de taller.
   const { workers } = useApp()
-  // Sin admins (Gustavo, Gloria) y sin quien ya tiene fecha de salida pasada.
-  const equipoLavados = useMemo(() => {
+  // Quién cuenta: los trabajadores activos sin fecha de salida pasada. Por
+  // defecto los admin no, salvo que se incluyan a mano (Gustavo lava; Gloria
+  // no). Se guarda en app_settings.lavados_equipo = { incluir, excluir }.
+  const [equipoCfg, setEquipoCfg] = useState({ incluir: [], excluir: [] })
+  const [editEquipo, setEditEquipo] = useState(false)
+  useEffect(() => {
+    supabase.from('app_settings').select('value').eq('key', 'lavados_equipo').maybeSingle()
+      .then(({ data }) => { if (data?.value) setEquipoCfg({ incluir: [], excluir: [], ...data.value }) })
+  }, [])
+  const vigentes = useMemo(() => {
     const hoy = todayISO()
-    return (workers || []).filter(w => w.active && w.role !== 'admin' &&
-      !(w.terminated_at && String(w.terminated_at).slice(0, 10) < hoy))
+    return (workers || []).filter(w => w.active && !(w.terminated_at && String(w.terminated_at).slice(0, 10) < hoy))
   }, [workers])
+  const cuentaEnLavados = useCallback(w => equipoCfg.incluir.includes(w.id)
+    || (w.role !== 'admin' && !equipoCfg.excluir.includes(w.id)), [equipoCfg])
+  const equipoLavados = useMemo(() => vigentes.filter(cuentaEnLavados), [vigentes, cuentaEnLavados])
+  async function toggleEquipo(w) {
+    const dentro = cuentaEnLavados(w)
+    const sin = arr => arr.filter(id => id !== w.id)
+    const next = dentro
+      ? { incluir: sin(equipoCfg.incluir), excluir: w.role !== 'admin' ? [...sin(equipoCfg.excluir), w.id] : sin(equipoCfg.excluir) }
+      : { incluir: w.role === 'admin' ? [...sin(equipoCfg.incluir), w.id] : sin(equipoCfg.incluir), excluir: sin(equipoCfg.excluir) }
+    setEquipoCfg(next)
+    await supabase.from('app_settings').upsert({ key: 'lavados_equipo', value: next, updated_at: new Date().toISOString() }, { onConflict: 'key' })
+  }
   const plantilla = equipoLavados.length
   // Los horarios traen las horas reales de cada dia: Gabriela sale a las 2 y los
   // demas hacen el dia completo, asi que la capacidad del sabado no es la del
@@ -874,10 +893,25 @@ function AfluenciaPanel() {
               <div className="rounded-xl border border-gray-100 dark:border-gray-800 p-3 space-y-3">
                 <div className="flex items-baseline justify-between gap-2">
                   <p className="text-xs font-bold uppercase tracking-widest text-gray-400">Personal de lavados</p>
-                  <p className="text-[11px] text-gray-400 truncate">
-                    {plantilla === 0 ? 'Sin personal activo' : `${plantilla} · ${nombres}`}
-                  </p>
+                  <button onClick={() => setEditEquipo(v => !v)} className="text-[11px] text-gray-400 text-right leading-snug hover:text-red-600">
+                    {plantilla === 0 ? 'Sin personal' : `${plantilla} · ${nombres}`} · <span className="text-red-600 font-semibold">{editEquipo ? 'Listo' : 'Editar'}</span>
+                  </button>
                 </div>
+                {editEquipo && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {vigentes.map(w => {
+                      const dentro = cuentaEnLavados(w)
+                      return (
+                        <button key={w.id} onClick={() => toggleEquipo(w)}
+                          className={`text-xs px-2.5 py-1 rounded-full border font-semibold transition-colors ${
+                            dentro ? 'bg-emerald-600 border-emerald-600 text-white' : 'border-gray-300 dark:border-gray-600 text-gray-500'}`}>
+                          {dentro ? '✓ ' : ''}{w.name.split(' ')[0]}
+                        </button>
+                      )
+                    })}
+                    <p className="w-full text-[10px] text-gray-400">Toca para incluir o quitar a alguien del equipo de lavados. Cuentan sus horas según su horario.</p>
+                  </div>
+                )}
 
                 {/* Veredicto */}
                 <div className={`rounded-xl px-3 py-2.5 ${
@@ -929,7 +963,7 @@ function AfluenciaPanel() {
                   )}
                 </ul>
                 <p className="text-[10px] text-gray-400">
-                  Solo lavados, últimos meses · 1 auto/h por persona, 45 min en pareja · horas según el horario de cada uno · sin admins.
+                  Solo lavados, últimos meses · 1 auto/h por persona, 45 min en pareja · horas según el horario de cada uno.
                 </p>
               </div>
             )

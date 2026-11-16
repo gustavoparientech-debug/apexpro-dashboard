@@ -312,10 +312,12 @@ function AfluenciaPanel() {
   // contrata o sale alguien la tarjeta se ajusta sola. El admin queda fuera:
   // lleva ceramicos, que es trabajo de tecnico aparte y no de equipo de taller.
   const { workers } = useApp()
-  const equipoLavados = useMemo(
-    () => (workers || []).filter(w => w.active && w.role !== 'admin'),
-    [workers]
-  )
+  // Sin admins (Gustavo, Gloria) y sin quien ya tiene fecha de salida pasada.
+  const equipoLavados = useMemo(() => {
+    const hoy = todayISO()
+    return (workers || []).filter(w => w.active && w.role !== 'admin' &&
+      !(w.terminated_at && String(w.terminated_at).slice(0, 10) < hoy))
+  }, [workers])
   const plantilla = equipoLavados.length
   // Los horarios traen las horas reales de cada dia: Gabriela sale a las 2 y los
   // demas hacen el dia completo, asi que la capacidad del sabado no es la del
@@ -852,156 +854,86 @@ function AfluenciaPanel() {
             </p>
           )}
 
-          {/* Cuánta gente pide el trabajo que entra */}
-          {analisis.carga && (
-            <div className="rounded-xl border border-gray-100 dark:border-gray-800 p-3">
-              <div className="flex items-baseline justify-between mb-2">
-                <p className="text-xs font-bold uppercase tracking-widest text-gray-400">Personal fijo de lavados</p>
-                <p className="text-[11px] text-gray-400">
-                  {analisis.carga.jornadas} días con trabajo
-                  {analisis.carga.otrosServicios > 0 && ` · ${analisis.carga.otrosServicios} servicios de técnico aparte, fuera`}
+          {/* Cuánta gente pide el trabajo que entra (resumido) */}
+          {analisis.carga && (() => {
+            const k = analisis.carga
+            const c = k.crecimiento
+            // "lunes a viernes", "todos los días", "lunes y sábado"
+            const listaDias = dias => {
+              const idx = dias.map(d => DIAS_SEMANA.indexOf(d.dia)).sort((a, b) => a - b)
+              if (idx.length === 6) return 'todos los días'
+              const nombres = idx.map(i => DIAS_SEMANA[i].toLowerCase())
+              const seguidos = idx.length > 2 && idx.every((v, i) => i === 0 || v === idx[i - 1] + 1)
+              if (seguidos) return `${nombres[0]} a ${nombres[nombres.length - 1]}`
+              return nombres.length > 1 ? `${nombres.slice(0, -1).join(', ')} y ${nombres[nombres.length - 1]}` : nombres[0]
+            }
+            const faltan = Math.max(0, k.personasPico - plantilla)
+            const nombres = equipoLavados.map(w => w.name.split(' ')[0]).join(', ')
+            const ocupColor = v => v >= 100 ? 'bg-red-500' : v >= 80 ? 'bg-amber-500' : 'bg-emerald-500'
+            return (
+              <div className="rounded-xl border border-gray-100 dark:border-gray-800 p-3 space-y-3">
+                <div className="flex items-baseline justify-between gap-2">
+                  <p className="text-xs font-bold uppercase tracking-widest text-gray-400">Personal de lavados</p>
+                  <p className="text-[11px] text-gray-400 truncate">
+                    {plantilla === 0 ? 'Sin personal activo' : `${plantilla} · ${nombres}`}
+                  </p>
+                </div>
+
+                {/* Veredicto */}
+                <div className={`rounded-xl px-3 py-2.5 ${
+                  plantilla === 0 || faltan > 0 || c.contratar ? 'bg-red-50 dark:bg-red-900/15'
+                  : k.ocupacionProm >= 80 ? 'bg-amber-50 dark:bg-amber-900/15' : 'bg-emerald-50 dark:bg-emerald-900/15'}`}>
+                  <p className={`text-base font-black ${
+                    plantilla === 0 || faltan > 0 || c.contratar ? 'text-red-600'
+                    : k.ocupacionProm >= 80 ? 'text-amber-600' : 'text-emerald-600'}`}>
+                    {plantilla === 0
+                      ? 'No hay personal de lavados activo'
+                      : faltan > 0 || c.contratar
+                        ? `Falta${Math.max(1, faltan) === 1 ? '' : 'n'} ${Math.max(1, faltan)} persona${Math.max(1, faltan) === 1 ? '' : 's'}`
+                        : k.ocupacionProm >= 80 ? 'El equipo alcanza, pero justo' : 'El equipo alcanza'}
+                  </p>
+                  <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                    Entran <b>{k.autosProm}</b> autos al día (máx. {k.maxDia}); {plantilla === 1 ? 'tu equipo saca' : 'en pareja salen'}{' '}
+                    <b>{k.capacidadProm}</b> · taller al <b>{k.ocupacionProm}%</b>. Para el día más cargado hacen falta <b>{k.personasPico}</b>.
+                  </p>
+                </div>
+
+                {/* Semana: autos que entran / caben */}
+                <div className="grid grid-cols-6 gap-1">
+                  {k.porDiaSemana.map(d => (
+                    <div key={d.dia} className="text-center rounded-lg bg-gray-50 dark:bg-gray-800/50 py-1.5 px-0.5">
+                      <p className="text-[10px] text-gray-400 uppercase">{d.corto}</p>
+                      <p className="text-sm font-black text-gray-900 dark:text-white leading-tight">{d.autos || '—'}</p>
+                      <p className="text-[9px] text-gray-400 leading-tight">de {d.capacidad}</p>
+                      <div className="mx-1 mt-1 h-1 rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden">
+                        <div className={`h-full ${ocupColor(d.ocupacion)}`} style={{ width: `${Math.min(100, d.ocupacion)}%` }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Qué hacer: pocas líneas */}
+                <ul className="text-[11px] text-gray-600 dark:text-gray-300 space-y-1 leading-snug list-disc pl-4">
+                  {c.libresMes > 0 && (
+                    <li>Caben <b>{c.libresMes} autos más al mes</b> (≈ {formatMoney(c.ingresoPotencialMes)}) sin contratar
+                      {c.flojos.length > 0 && <>: llena primero <b>{listaDias(c.flojos)}</b></>}.</li>
+                  )}
+                  {c.llenos.length > 0 && plantilla > 1 && (
+                    <li><b>{listaDias(c.llenos)}</b> se llena: ese día trabajen por separado (de {c.capSemanaPareja} a {c.capSemanaSolo} autos/semana).</li>
+                  )}
+                  {c.ampliar.map(a => (
+                    <li key={a.nombre}><b>{a.nombre.split(' ')[0]}</b> puede sumar {a.extra} h/semana (≈ {Math.floor(a.extra / HORAS_AUTO_PAREJA)} autos) por ~{formatMoney(a.costo)}/mes.</li>
+                  ))}
+                  {(faltan > 0 || c.contratar) && c.sueldoNuevo > 0 && (
+                    <li>Una persona más cuesta {formatMoney(c.sueldoNuevo)} y se paga con {c.autosPagaSueldo} lavados al mes (≈ {Math.ceil(c.autosPagaSueldo / 26)} por día).</li>
+                  )}
+                </ul>
+                <p className="text-[10px] text-gray-400">
+                  Solo lavados, últimos meses · 1 auto/h por persona, 45 min en pareja · horas según el horario de cada uno · sin admins.
                 </p>
               </div>
-
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-2">
-                <div className="rounded-xl bg-gray-50 dark:bg-gray-800/50 px-3 py-2">
-                  <p className="text-[10px] text-gray-400 uppercase tracking-wide">Entran al día</p>
-                  <p className="text-sm font-black text-gray-900 dark:text-white">{analisis.carga.autosProm} autos</p>
-                  <p className="text-[11px] text-gray-400">máximo visto: {analisis.carga.maxDia}</p>
-                </div>
-                <div className="rounded-xl bg-gray-50 dark:bg-gray-800/50 px-3 py-2">
-                  <p className="text-[10px] text-gray-400 uppercase tracking-wide">Podrían salir</p>
-                  <p className="text-sm font-black text-gray-900 dark:text-white">{analisis.carga.capacidadProm} autos</p>
-                  <p className="text-[11px] text-gray-400">con {plantilla} en pareja · 45 min c/u</p>
-                </div>
-                <div className={`rounded-xl px-3 py-2 ${
-                  analisis.carga.ocupacionProm >= 80
-                    ? 'bg-red-50 dark:bg-red-900/20'
-                    : analisis.carga.ocupacionProm >= 50
-                      ? 'bg-amber-50 dark:bg-amber-900/20'
-                      : 'bg-emerald-50 dark:bg-emerald-900/20'
-                }`}>
-                  <p className="text-[10px] text-gray-400 uppercase tracking-wide">Taller usado</p>
-                  <p className="text-sm font-black text-gray-900 dark:text-white">{analisis.carga.ocupacionProm} de cada 100</p>
-                  <p className="text-[11px] text-gray-400">
-                    {analisis.carga.ocupacionProm >= 80 ? 'Al límite' : `Sobra sitio para ${Math.max(0, Math.round(analisis.carga.capacidadProm - analisis.carga.autosProm))} autos más`}
-                  </p>
-                </div>
-                <div className="rounded-xl bg-gray-50 dark:bg-gray-800/50 px-3 py-2">
-                  <p className="text-[10px] text-gray-400 uppercase tracking-wide">Hacen falta</p>
-                  <p className="text-sm font-black text-gray-900 dark:text-white">
-                    {analisis.carga.personasProm} <span className="font-normal text-gray-400">/ {analisis.carga.personasPico} en pico</span>
-                  </p>
-                  <p className="text-[11px] text-gray-400">tienes {plantilla}</p>
-                </div>
-              </div>
-
-              {/* Por día de la semana: sirve para repartir a la gente */}
-              <p className="text-[11px] text-gray-500 dark:text-gray-400 mb-1.5">
-                Con {plantilla} {plantilla === 1 ? 'persona' : 'personas'} trabajando en pareja saldrían{' '}
-                <b>{analisis.carga.capacidadProm} autos al día</b>; entran <b>{analisis.carga.autosProm}</b>.
-                Eso llena <b>{analisis.carga.ocupacionProm} de cada 100</b> lugares. Abajo, por día: los autos que
-                entran, los que caben, el día más cargado que hubo y la gente que hace falta para cubrir ese día.
-              </p>
-              <div className="flex gap-1.5 flex-wrap">
-                {analisis.carga.porDiaSemana.map(d => (
-                  <div key={d.dia} className="flex-1 min-w-[76px] rounded-lg bg-gray-50 dark:bg-gray-800/50 px-2 py-1.5 text-center">
-                    <p className="text-[10px] text-gray-400 uppercase">{d.corto}</p>
-                    <p className="text-sm font-black text-gray-900 dark:text-white">{d.autos || '—'}</p>
-                    <p className="text-[10px] text-gray-400">de {d.capacidad} que caben</p>
-                    {/* El pico manda: dimensionar por el promedio deja corto el
-                        dia fuerte, que es cuando se pierde al cliente. */}
-                    <p className="text-[10px] text-gray-400">máx. {d.maxAutos}</p>
-                    <p className={`text-[11px] font-bold mb-1 ${
-                      d.personas > plantilla ? 'text-red-600 dark:text-red-400' : 'text-gray-600 dark:text-gray-300'
-                    }`}>
-                      {d.personas ? `${d.personas} pers.` : '—'}
-                    </p>
-                    {/* La barra dice de un vistazo cuanto del dia se llena. */}
-                    <div className="h-1.5 rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden">
-                      <div className={`h-full rounded-full ${
-                        d.ocupacion >= 80 ? 'bg-red-500' : d.ocupacion >= 50 ? 'bg-amber-500' : 'bg-emerald-500'
-                      }`} style={{ width: `${Math.min(100, d.ocupacion)}%` }} />
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Para crecer: cuánto más se puede vender con la misma gente */}
-              {(() => {
-                const c = analisis.carga.crecimiento
-                const fmtDias = l => l.map(d => d.dia.toLowerCase()).join(' y ')
-                return (
-                  <div className="mt-3 rounded-xl bg-emerald-50/60 dark:bg-emerald-900/10 border border-emerald-100 dark:border-emerald-900/40 p-3">
-                    <p className="text-xs font-bold uppercase tracking-widest text-emerald-700 dark:text-emerald-400 mb-2">
-                      Para crecer
-                    </p>
-                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-2">
-                      <div className="rounded-xl bg-white dark:bg-gray-900/40 px-3 py-2">
-                        <p className="text-[10px] text-gray-400 uppercase tracking-wide">Por semana</p>
-                        <p className="text-sm font-black text-gray-900 dark:text-white">{c.demandaSemana} de {c.capSemanaPareja} autos</p>
-                        <p className="text-[11px] text-gray-400">entran / caben en pareja</p>
-                      </div>
-                      <div className="rounded-xl bg-white dark:bg-gray-900/40 px-3 py-2">
-                        <p className="text-[10px] text-gray-400 uppercase tracking-wide">Lugares libres</p>
-                        <p className="text-sm font-black text-gray-900 dark:text-white">{c.libresMes} autos al mes</p>
-                        <p className="text-[11px] text-gray-400">≈ {c.libresDia} más por día</p>
-                      </div>
-                      <div className="rounded-xl bg-white dark:bg-gray-900/40 px-3 py-2">
-                        <p className="text-[10px] text-gray-400 uppercase tracking-wide">Ingreso por ganar</p>
-                        <p className="text-sm font-black text-emerald-700 dark:text-emerald-400">{formatMoney(c.ingresoPotencialMes)} al mes</p>
-                        <p className="text-[11px] text-gray-400">a {formatMoney(c.ticketProm)} por lavado, sin contratar</p>
-                      </div>
-                      <div className="rounded-xl bg-white dark:bg-gray-900/40 px-3 py-2">
-                        <p className="text-[10px] text-gray-400 uppercase tracking-wide">Meta diaria</p>
-                        <p className="text-sm font-black text-gray-900 dark:text-white">{c.metaDia} autos</p>
-                        <p className="text-[11px] text-gray-400">llena el taller al {OCUPACION_LLENA}%</p>
-                      </div>
-                    </div>
-                    <ul className="text-[11px] text-gray-600 dark:text-gray-300 space-y-1 leading-relaxed list-disc pl-4">
-                      {c.libresSemana > 0 && c.flojos.length > 0 && (
-                        <li>
-                          <b>Llena primero {fmtDias(c.flojos)}</b> ({c.flojos.map(d => `${d.ocupacion}%`).join(' y ')} usado): ahí
-                          conviene la promoción, los clientes de flota o las citas que puedas mover de otros días.
-                        </li>
-                      )}
-                      {c.llenos.length > 0 && (
-                        <li>
-                          <b>{fmtDias(c.llenos)}</b> el día más cargado ya llena el taller en pareja. Ese día que trabajen
-                          {' '}<b>por separado</b>, un auto cada uno: la semana pasa de {c.capSemanaPareja} a {c.capSemanaSolo} autos
-                          sin sumar a nadie.
-                        </li>
-                      )}
-                      {c.ampliar.map(a => (
-                        <li key={a.nombre}>
-                          Antes de contratar: <b>{a.nombre}</b> puede hacer {a.extra} h más por semana
-                          {' '}(≈ {Math.floor(a.extra / HORAS_AUTO_PAREJA)} autos)
-                          {a.costo > 0 && <> por unos {formatMoney(a.costo)} al mes</>}.
-                        </li>
-                      ))}
-                      <li>
-                        {c.contratar
-                          ? <><b className="text-red-600 dark:text-red-400">Ya hace falta otra persona:</b> el pico no se cubre ni trabajando por separado.</>
-                          : <><b>Todavía no hace falta contratar.</b> Una persona más a jornada completa cuesta {formatMoney(c.sueldoNuevo)} y
-                            se paga con {c.autosPagaSueldo} lavados más al mes (≈ {Math.ceil(c.autosPagaSueldo / 26)} por día).
-                            Conviene cuando la semana pase de {Math.round(c.capSemanaPareja * OCUPACION_LLENA / 100)} autos.</>}
-                      </li>
-                    </ul>
-                  </div>
-                )
-              })()}
-
-              <p className="text-[11px] text-gray-400 leading-relaxed mt-2">
-                Solo lavados: planchado, cerámicos, polarizados y pintura los cubren técnicos que vienen esos
-                días, así que no pesan al dimensionar la plantilla fija. Se calcula con la productividad real —un
-                trabajador saca un auto por hora, dos juntos lo sacan en 45 minutos— y con las horas que cada uno
-                hace ese día, tomadas de su horario: por eso el sábado tiene más capacidad que el jueves. Cada fila
-                de abajo es la ocupación del día y, debajo, los autos que entran de los que caben. Los tickets
-                anteriores a agosto no guardaban categoría; para esos se toma como lavado el trabajo del mismo día
-                por debajo de S/{PRECIO_MAX_LAVADO}.
-              </p>
-            </div>
-          )}
+            )
+          })()}
         </div>
       )}
     </div>

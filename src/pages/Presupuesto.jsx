@@ -1071,6 +1071,19 @@ export default function Presupuesto() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   ], [catMeta])
 
+  // Ids por categoria, incluidos los servicios agregados a mano: sin ellos un
+  // polarizado nuevo se marcaba pero no entraba en el resumen ni en el total.
+  const idsCat = useMemo(() => {
+    const agregados = cat => catMeta.added.filter(a => a.category === cat).map(a => a.id)
+    return {
+      ceramico: new Set([...CERAMICO_DATA.map(x => x.id), ...agregados('ceramico')]),
+      ppf: new Set([...PPF_DATA.map(x => x.id), ...agregados('ppf')]),
+      polarizados: new Set([...POLARIZADOS_DATA.map(x => x.id), ...agregados('polarizados')]),
+      lavados: new Set([...LAVADOS_DATA.map(x => x.id), ...agregados('lavados')]),
+      servicios: new Set([...SERVICIOS_DATA.map(x => x.id), ...agregados('servicios')]),
+    }
+  }, [catMeta])
+
   // Precio de variante → clave de precio en LAVADOS_DATA
   const VARIANT_PRICE_TO_LAV_KEY = { 15: 'auto', 25: 'auto', 30: 'suv', 35: 'suv_xl', 40: 'pickup_xl' }
 
@@ -1259,7 +1272,8 @@ export default function Presupuesto() {
   const manualTotal = manualItems.reduce((s, i) => s + i.monto, 0)
   const totalItemsSelected = selectedCount + catRows.length + serviciosRows.length + manualItems.length + lavItems.length
 
-  const ALL_DATA_FLAT = [...CERAMICO_DATA, ...PPF_DATA, ...POLARIZADOS_DATA, ...SERVICIOS_DATA]
+  // Incluye los servicios agregados a mano y sus tiempos editados.
+  const ALL_DATA_FLAT = ALL_CAT_DATA.filter(x => !idsCat.lavados.has(x.id))
 
   function getItemDefaultTimeMin(id) {
     // Una subcategoria puede tardar bastante mas que otra del mismo servicio
@@ -1313,9 +1327,7 @@ export default function Presupuesto() {
 
 
   function buildExportSections() {
-    const ceramicoIds = new Set(CERAMICO_DATA.map(x => x.id))
-    const ppfIds = new Set(PPF_DATA.map(x => x.id))
-    const polIds = new Set(POLARIZADOS_DATA.map(x => x.id))
+    const { ceramico: ceramicoIds, ppf: ppfIds, polarizados: polIds } = idsCat
     const planchadoRows = rows.filter(r => selected[r.id])
     // El cliente tiene que ver que el precio es de tricapa, si no el importe no
     // se explica frente a otra proforma.
@@ -1870,13 +1882,11 @@ export default function Presupuesto() {
       <div className="grid grid-cols-5 gap-2">
         {CATEGORIES.map(cat => {
           const isActive = category === cat.id
-          const ceramicoPpfIds = new Set([...CERAMICO_DATA, ...PPF_DATA].map(s => s.id))
           const hasSelected = cat.id === 'planchado'
             ? selectedCount > 0
             : catRows.some(r => {
-                if (cat.id === 'ceramico') return ceramicoPpfIds.has(r.id)
-                const src = cat.id === 'polarizados' ? POLARIZADOS_DATA : cat.id === 'lavados' ? LAVADOS_DATA : SERVICIOS_DATA
-                return src.some(s => s.id === r.id)
+                if (cat.id === 'ceramico') return idsCat.ceramico.has(r.id) || idsCat.ppf.has(r.id)
+                return idsCat[cat.id]?.has(r.id)
               })
           return (
             <button key={cat.id} onClick={() => setCategory(cat.id)}
@@ -2947,9 +2957,7 @@ export default function Presupuesto() {
 
       {/* ── Barra de exportación unificada (todas las categorías) ── */}
       {totalItemsSelected > 0 && (() => {
-        const ceramicoIds = new Set(CERAMICO_DATA.map(x => x.id))
-        const ppfIds = new Set(PPF_DATA.map(x => x.id))
-        const polIds = new Set(POLARIZADOS_DATA.map(x => x.id))
+        const { ceramico: ceramicoIds, ppf: ppfIds, polarizados: polIds } = idsCat
         const planchadoBase = rows.filter(r => selected[r.id]).map(r => ({
           key: `p_${r.id}`, label: r.fixed != null ? r.label : r.damageId !== 'none' ? `${r.label} + Planchado (${DAMAGE_LEVELS.find(d => d.id === r.damageId)?.label})` : `Pintado — ${r.label}`,
           price: r.price, onRemove: () => setSelected(s => ({ ...s, [r.id]: false })),
@@ -3392,9 +3400,7 @@ export default function Presupuesto() {
             </div>
             {/* Preview detallado por categoría */}
             {(() => {
-              const ceramicoIds = new Set(CERAMICO_DATA.map(x => x.id))
-              const ppfIds = new Set(PPF_DATA.map(x => x.id))
-              const polIds = new Set(POLARIZADOS_DATA.map(x => x.id))
+              const { ceramico: ceramicoIds, ppf: ppfIds, polarizados: polIds } = idsCat
               const planchadoItems = rows.filter(r => selected[r.id]).map(r => ({
                 label: r.fixed != null ? r.label : r.damageId !== 'none' ? `${r.label} + Planchado` : `Pintado — ${r.label}`, price: r.price,
               }))

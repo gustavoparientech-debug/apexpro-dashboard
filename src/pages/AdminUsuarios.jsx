@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useApp } from '../context/AppContext'
 import { useAuth } from '../context/AuthContext'
-import { Shield, User, Link, Trash2, RefreshCw, UserCheck, ToggleLeft, ToggleRight } from 'lucide-react'
+import { Shield, User, Link, Trash2, RefreshCw, UserCheck, ToggleLeft, ToggleRight, UserPlus } from 'lucide-react'
+import { todayISO } from '../lib/utils'
 import toast from 'react-hot-toast'
 import ConfirmDialog from '../components/ui/ConfirmDialog'
 
@@ -13,7 +14,7 @@ const ROLE_COLORS = {
 }
 
 export default function AdminUsuarios() {
-  const { workers } = useApp()
+  const { workers, addWorker } = useApp()
   const { profile: myProfile, refreshProfile } = useAuth()
 
   const [profiles, setProfiles] = useState([])
@@ -22,6 +23,32 @@ export default function AdminUsuarios() {
   const [deleteTarget, setDeleteTarget] = useState(null)
 
   const activeWorkers = workers.filter(w => w.active)
+  const [creando, setCreando] = useState(null)
+
+  // Un usuario nuevo no tiene ficha en Equipo y sin ella no aparece en
+  // Asistencia ni se le pueden asignar tickets: se crea aqui mismo y se
+  // vincula, y el sueldo y horario se completan luego en Equipo.
+  const nombreDe = (p) => {
+    const base = (p.display_name || p.email?.split('@')[0] || '').trim()
+    return base.split(/\s+/).map(x => x.charAt(0).toUpperCase() + x.slice(1)).join(' ')
+  }
+  async function handleCrearFicha(p) {
+    const nombre = nombreDe(p)
+    if (!nombre) { toast.error('El usuario no tiene nombre'); return }
+    setCreando(p.id)
+    try {
+      const w = await addWorker({
+        name: nombre, base_salary: 0, weekly_hours: 48,
+        hire_date: todayISO(), role: p.role === 'admin' ? 'admin' : 'worker', schedule_id: null,
+      })
+      await handleWorkerLink(p.id, w.id)
+      toast.success(`${nombre} ya está en Equipo. Completa su sueldo y horario allí.`, { duration: 5000 })
+    } catch (err) {
+      toast.error('No se pudo crear: ' + (err.message || err))
+    } finally {
+      setCreando(null)
+    }
+  }
 
   async function loadProfiles() {
     setLoading(true)
@@ -227,6 +254,13 @@ export default function AdminUsuarios() {
                     ))}
                   </select>
                 </div>
+                {!p.worker_id && (
+                  <button onClick={() => handleCrearFicha(p)} disabled={creando === p.id}
+                    className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-800/50 hover:bg-green-100 disabled:opacity-50">
+                    <UserPlus className="w-3.5 h-3.5" />
+                    {creando === p.id ? 'Creando…' : `Crear ficha de trabajador "${nombreDe(p)}" y vincular`}
+                  </button>
+                )}
               </div>
             )
           })}

@@ -23,7 +23,7 @@ import CierreCaja, { useCajaDelDia } from '../components/CierreCaja'
 import ConfirmDialog from '../components/ui/ConfirmDialog'
 import { CATEGORIAS, catInfo, porCategoria, nombreServicio } from '../lib/servicios'
 import { planchadoConfig, precioPanel, PLANCHADO_GAMAS, PLANCHADO_VEHICULOS, PLANCHADO_NIVELES, descuentoPlanchado } from '../lib/catalogoPresupuesto'
-import { Plus, Camera, Search, X, Clock, CheckCircle, Trash2, PenLine, Zap, Save, ChevronLeft, ChevronRight, Eye, EyeOff, AlertCircle, TrendingDown, Gift, RotateCcw } from 'lucide-react'
+import { Plus, Camera, Search, X, Clock, CheckCircle, Trash2, PenLine, Zap, Save, ChevronLeft, ChevronRight, Eye, EyeOff, AlertCircle, TrendingDown, Gift, RotateCcw, Send } from 'lucide-react'
 import {
   cardState, cardsFromTickets, fetchStaffCards, loadConfig as loadFidelidadConfig,
   normPlate, redeemTier, undoTier, setStamps, REDEEM_ERRORS, DEFAULT_CONFIG as FIDELIDAD_DEFAULT,
@@ -962,6 +962,11 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
   // Paños de planchado y pintura a último momento: se cotizan en la misma
   // ventana que Presupuesto y entran como un extra con su total.
   const [panosPicker, setPanosPicker] = useState(false)
+  // Presupuesto por WhatsApp mientras el ticket sigue abierto: el cliente ve
+  // lo que lleva acumulado (base, extras, descuento y adelantos) antes de pagar.
+  const [showPresWa, setShowPresWa] = useState(false)
+  const [presCountry, setPresCountry] = useState('51')
+  const [presPhone, setPresPhone] = useState(ticket.client_phone || '')
   const [editPrice,     setEditPrice]     = useState(false)
   const [discountPct,   setDiscountPct]   = useState(ticket.discount_pct || 0)
   const [discountFixed, setDiscountFixed] = useState(ticket.discount_fixed || 0)
@@ -1036,6 +1041,40 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
   async function removeExtra(idx) {
     const newExtras = extras.filter((_, i) => i !== idx)
     await onUpdate(ticket.id, { extras: newExtras })
+  }
+
+  function enviarPresupuesto() {
+    const sep = '━━━━━━━━━━━━━━━━━━━━'
+    const base = parseFloat(basePrice) || 0
+    const saldo = Math.max(0, totalFinal - adelanto)
+    const texto = [
+      `✨ *APEX PRO DETAILING* ✨`,
+      `📋 *Presupuesto del servicio*`,
+      sep,
+      `🚘 *Placa:* ${ticket.plate || 'Sin placa'}`,
+      ticket.vehicle_subtype ? `🚗 *Vehículo:* ${ticket.vehicle_subtype}` : null,
+      `🧹 *Servicio:* ${nombreServicio(ticket, vehicleTypes)}`,
+      sep,
+      `🧾 *Detalle:*`,
+      base > 0 ? `  • ${nombreServicio(ticket, vehicleTypes)}: ${formatMoney(base)}` : null,
+      ...extras.map(e => `  • ${e.name}: ${formatMoney(e.price || 0)}`),
+      discountAmt > 0 ? `  • Descuento${discountPct > 0 ? ` (${discountPct}%)` : ''}: -${formatMoney(discountAmt)}` : null,
+      sep,
+      `💰 *Total: ${formatMoney(totalFinal)}*`,
+      adelanto > 0 ? `✅ *Adelanto recibido:* -${formatMoney(adelanto)}` : null,
+      adelanto > 0 ? `💵 *Saldo por pagar: ${formatMoney(saldo)}*` : null,
+      sep,
+      `🙌 Cualquier consulta, con gusto te ayudamos.`,
+    ].filter(v => v !== null).join('\n')
+    const tel = (presPhone || '').replace(/\D/g, '')
+    const url = tel
+      ? `https://api.whatsapp.com/send?phone=${presCountry}${tel}&text=${encodeURIComponent(texto)}`
+      : `https://api.whatsapp.com/send?text=${encodeURIComponent(texto)}`
+    window.open(url, '_blank')
+    // El numero queda en el ticket para el comprobante al cerrar.
+    if (tel && tel !== (ticket.client_phone || '')) {
+      Promise.resolve(onUpdate(ticket.id, { client_phone: tel })).catch(() => {})
+    }
   }
 
   async function handleSave() {
@@ -1201,6 +1240,32 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
               }} />
           </div>
         )}
+
+        {/* Enviar presupuesto por WhatsApp */}
+        <div className="px-4 py-2.5 border-b border-gray-100 dark:border-gray-800">
+          <button onClick={() => setShowPresWa(v => !v)}
+            className={`w-full flex items-center justify-center gap-2 text-sm font-bold py-2.5 rounded-xl transition-colors ${showPresWa ? 'bg-green-700 text-white' : 'bg-green-500 hover:bg-green-600 text-white'}`}>
+            <Send className="w-4 h-4" /> Enviar presupuesto por WhatsApp
+          </button>
+          {showPresWa && (
+            <div className="mt-2.5 space-y-1.5">
+              <div className="flex gap-2 items-center">
+                <select value={presCountry} onChange={e => setPresCountry(e.target.value)}
+                  className="text-xs border border-gray-200 dark:border-gray-700 rounded-xl px-2 py-2.5 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-green-400">
+                  {COUNTRY_CODES.map(c => <option key={c.code} value={c.code}>{c.flag} +{c.code}</option>)}
+                </select>
+                <input type="tel" inputMode="numeric" placeholder="Número del cliente"
+                  value={presPhone} onChange={e => setPresPhone(e.target.value.replace(/\D/g, ''))}
+                  className="flex-1 min-w-0 text-sm border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2.5 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-green-400" />
+                <button onClick={enviarPresupuesto}
+                  className="bg-green-500 hover:bg-green-600 text-white text-sm font-bold px-4 py-2.5 rounded-xl whitespace-nowrap">
+                  Enviar
+                </button>
+              </div>
+              <p className="text-[11px] text-gray-400 text-center">Va el detalle con el total de ahora{adelanto > 0 ? ', el adelanto y el saldo' : ''}. Sin número, eliges el chat en WhatsApp.</p>
+            </div>
+          )}
+        </div>
 
         {/* Precio base */}
         <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-800">

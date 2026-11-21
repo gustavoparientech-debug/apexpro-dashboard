@@ -965,6 +965,28 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
   // Presupuesto por WhatsApp mientras el ticket sigue abierto: el cliente ve
   // lo que lleva acumulado (base, extras, descuento y adelantos) antes de pagar.
   const [showPresWa, setShowPresWa] = useState(false)
+  // Entrada y salida editables por el admin: a veces el ticket se abre tarde
+  // o se reabre otro dia, y la duracion y la hora de cierre quedan mal.
+  const [horas, setHoras] = useState({ entrada: isoALocal(ticket.opened_at), salida: isoALocal(ticket.closed_at) })
+  const [guardandoHoras, setGuardandoHoras] = useState(false)
+  useEffect(() => {
+    setHoras({ entrada: isoALocal(ticket.opened_at), salida: isoALocal(ticket.closed_at) })
+  }, [ticket.opened_at, ticket.closed_at])
+  const horasCambiadas = horas.entrada !== isoALocal(ticket.opened_at) || horas.salida !== isoALocal(ticket.closed_at)
+  async function guardarHoras() {
+    const entrada = localAIso(horas.entrada)
+    const salida  = localAIso(horas.salida)
+    if (!entrada) { toast.error('Indica el día y la hora de entrada'); return }
+    if (salida && new Date(salida) < new Date(entrada)) {
+      toast.error('La salida no puede ser antes de la entrada'); return
+    }
+    setGuardandoHoras(true)
+    try {
+      await onUpdate(ticket.id, { opened_at: entrada, closed_at: salida })
+      toast.success('Entrada y salida actualizadas')
+    } catch { toast.error('No se pudieron guardar las horas') }
+    setGuardandoHoras(false)
+  }
   const [presCountry, setPresCountry] = useState('51')
   const [presPhone, setPresPhone] = useState(ticket.client_phone || '')
   const [editPrice,     setEditPrice]     = useState(false)
@@ -1238,6 +1260,41 @@ function TicketDetail({ ticket, onClose, workers, vehicleTypes, extrasCatalog, o
                   toast.success(`Fecha cambiada al ${nueva.split('-').reverse().join('/')}`)
                 } catch { toast.error('No se pudo cambiar la fecha') }
               }} />
+          </div>
+        )}
+        {verCostos && (
+          <div className="px-4 py-2.5 border-b border-gray-100 dark:border-gray-800 space-y-2">
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-sm text-gray-600 dark:text-gray-400">Entrada</span>
+              <input type="datetime-local" className="input w-52 py-1 text-sm"
+                value={horas.entrada} onChange={e => setHoras(h => ({ ...h, entrada: e.target.value }))} />
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-sm text-gray-600 dark:text-gray-400">
+                Salida
+                {!horas.salida && <span className="block text-[11px] text-gray-400">Se pone al cerrar</span>}
+              </span>
+              <div className="flex items-center gap-1.5">
+                <input type="datetime-local" className="input w-52 py-1 text-sm"
+                  value={horas.salida} onChange={e => setHoras(h => ({ ...h, salida: e.target.value }))} />
+                {horas.salida && (
+                  <button onClick={() => setHoras(h => ({ ...h, salida: '' }))} title="Quitar salida"
+                    className="p-1 text-gray-400 hover:text-red-500"><X className="w-4 h-4" /></button>
+                )}
+              </div>
+            </div>
+            {horasCambiadas && (
+              <div className="flex gap-2">
+                <button onClick={() => setHoras({ entrada: isoALocal(ticket.opened_at), salida: isoALocal(ticket.closed_at) })}
+                  className="flex-1 py-2 rounded-xl text-sm font-semibold bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300">
+                  Deshacer
+                </button>
+                <button onClick={guardarHoras} disabled={guardandoHoras}
+                  className="flex-1 py-2 rounded-xl text-sm font-bold bg-red-600 hover:bg-red-700 text-white disabled:opacity-50">
+                  {guardandoHoras ? 'Guardando…' : 'Guardar horas'}
+                </button>
+              </div>
+            )}
           </div>
         )}
 

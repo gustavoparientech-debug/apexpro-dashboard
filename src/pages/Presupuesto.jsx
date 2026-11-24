@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, Fragment } from 'react'
+import { useState, useMemo, useEffect, useRef, Fragment } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { useApp } from '../context/AppContext'
 import { supabase } from '../lib/supabase'
@@ -504,7 +504,12 @@ export default function Presupuesto() {
   const descMontoNum = Math.max(0, parseFloat(descMonto) || 0)
   // El resumen de abajo va pegado a la pantalla: abierto tapaba la lista de
   // servicios, asi que arranca contraido y se despliega a pedido.
-  const [resumenAbierto, setResumenAbierto] = useState(false)
+  // En el celular el resumen no flota: queda al final de la pagina, abierto,
+  // y una pastilla chica con el total lleva hasta el. En PC sigue pegado abajo.
+  const esCelular = typeof window !== 'undefined' && window.matchMedia?.('(max-width: 1023px)').matches
+  const [resumenAbierto, setResumenAbierto] = useState(esCelular)
+  const resumenRef = useRef(null)
+  const [resumenVisible, setResumenVisible] = useState(false)
   const [catPriceOverrides, setCatPriceOverrides] = useState({})
   // catMeta: { overrides: { [id]: { name?, desc? } }, added: [{ id, category, name, desc, price?, prices? }], deleted: [id] }
   const [catMeta, setCatMeta] = useState({ overrides: {}, added: [], deleted: [] })
@@ -1279,6 +1284,16 @@ export default function Presupuesto() {
 
   const manualTotal = manualItems.reduce((s, i) => s + i.monto, 0)
   const totalItemsSelected = selectedCount + catRows.length + serviciosRows.length + manualItems.length + lavItems.length
+  const hayResumen = totalItemsSelected > 0
+  useEffect(() => {
+    const el = resumenRef.current
+    if (!el || typeof IntersectionObserver === 'undefined') return
+    const obs = new IntersectionObserver(([e]) => setResumenVisible(e.isIntersecting), { threshold: 0.05 })
+    obs.observe(el)
+    return () => obs.disconnect()
+  // El resumen se monta al elegir el primer servicio: ahi hay que observarlo.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hayResumen])
 
   // Incluye los servicios agregados a mano y sus tiempos editados.
   const ALL_DATA_FLAT = ALL_CAT_DATA.filter(x => !idsCat.lavados.has(x.id))
@@ -2995,7 +3010,7 @@ export default function Presupuesto() {
 
       {/* ── Barra fija de acciones (siempre visible) ── */}
       {totalItemsSelected === 0 && (
-        <div className="sticky bottom-4 z-20 mx-1">
+        <div className="hidden lg:block sticky bottom-4 z-20 mx-1">
           <div className="card shadow-xl border border-gray-100 dark:border-gray-800 flex items-center justify-between px-4 py-3">
             <p className="text-xs text-gray-400">Selecciona servicios para continuar</p>
             <div className="flex gap-1.5">
@@ -3137,7 +3152,19 @@ export default function Presupuesto() {
         }
 
         return (
-          <div className="sticky bottom-2 z-20">
+          <>
+          {/* Pastilla del celular: alto 0 para no empujar nada; se ve pegada
+              abajo a la izquierda (el boton + queda a la derecha). */}
+          {!resumenVisible && (
+            <div className="lg:hidden sticky bottom-3 z-20 h-0">
+              <button onClick={() => resumenRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                className="absolute bottom-0 left-0 flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-gray-900/90 dark:bg-gray-800/95 text-white text-xs font-bold shadow-lg">
+                {formatMoney(grandTotal)} · {totalItemsSelected} servicio{totalItemsSelected !== 1 ? 's' : ''}
+                <ChevronDown className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+          <div ref={resumenRef} className="lg:sticky lg:bottom-2 z-20 scroll-mt-4">
             <div className="card shadow-xl border border-red-100 dark:border-red-900/30 overflow-hidden">
               {/* Detalle: contraido por defecto para no tapar la lista. */}
               <button onClick={() => setResumenAbierto(v => !v)}
@@ -3295,6 +3322,7 @@ export default function Presupuesto() {
               </div>
             </div>
           </div>
+          </>
         )
       })()}
 

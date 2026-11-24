@@ -498,6 +498,13 @@ export default function Presupuesto() {
   const [serviciosSelected, setServiciosSelected] = useState({})
   const [catSelected, setCatSelected] = useState({})
   const [catDiscountPct, setCatDiscountPct] = useState(0)
+  // Descuento en soles (no porcentaje): se resta al final, despues del % global
+  // o de los de cada seccion. Texto para que el input se pueda dejar vacio.
+  const [descMonto, setDescMonto] = useState('')
+  const descMontoNum = Math.max(0, parseFloat(descMonto) || 0)
+  // El resumen de abajo va pegado a la pantalla: abierto tapaba la lista de
+  // servicios, asi que arranca contraido y se despliega a pedido.
+  const [resumenAbierto, setResumenAbierto] = useState(false)
   const [catPriceOverrides, setCatPriceOverrides] = useState({})
   // catMeta: { overrides: { [id]: { name?, desc? } }, added: [{ id, category, name, desc, price?, prices? }], deleted: [id] }
   const [catMeta, setCatMeta] = useState({ overrides: {}, added: [], deleted: [] })
@@ -672,7 +679,7 @@ export default function Presupuesto() {
       // seleccionado en ese momento y no coincidian con lo cotizado.
       vehicleType, selectedTier, selectedBrand,
       teamSize, withPulido, agruparPintura, armadosSel, tricapa,
-      discountMode, sectionDiscounts, manualDiscountPct,
+      discountMode, sectionDiscounts, manualDiscountPct, descMonto,
       created_at: Date.now(),
       expires_at: Date.now() + 7 * 24 * 60 * 60 * 1000,
     }
@@ -744,6 +751,7 @@ export default function Presupuesto() {
     if (q.discountMode)      setDiscountMode(q.discountMode)
     if (q.sectionDiscounts)  setSectionDiscounts(q.sectionDiscounts)
     if (q.manualDiscountPct !== undefined) setManualDiscountPct(q.manualDiscountPct)
+    setDescMonto(q.descMonto || '')
     toast.success(`Cotización "${q.nombre || q.placa}" cargada ✓`)
   }
 
@@ -1388,6 +1396,7 @@ export default function Presupuesto() {
         return a + sub - Math.round(sub * (sd[s.sectKey] || 0) / 100)
       }, 0)
     }
+    grandTotalExport = Math.max(0, grandTotalExport - descMontoNum)
     return { sections, subtotalBruto, grandTotalExport }
   }
 
@@ -1440,6 +1449,11 @@ export default function Presupuesto() {
         msg += `Subtotal: ${formatMoney(subtotalBruto)}\n`
         msg += `🎁 Descuento (${activePct}%): -${formatMoney(Math.round(subtotalBruto * activePct / 100))}\n`
       }
+    }
+    if (descMontoNum > 0) {
+      const yaSubtotal = discountMode === 'global' && (manualDiscountPct != null ? manualDiscountPct : autoDiscountPct || catDiscountPct) > 0
+      if (!yaSubtotal) msg += `Subtotal: ${formatMoney(subtotalBruto)}\n`
+      msg += `🎁 Descuento especial: -${formatMoney(descMontoNum)}\n`
     }
     msg += `💵 *TOTAL: ${formatMoney(grandTotalExport)}*\n`
     // Adelanto y saldo: mismo criterio que el PDF, para que no se contradigan.
@@ -1689,7 +1703,7 @@ export default function Presupuesto() {
     // hoja nueva con media pagina en blanco detras.
     const altoTotales = (discountMode === 'global'
       ? ((manualDiscountPct != null ? manualDiscountPct : autoDiscountPct || catDiscountPct) > 0 ? 16 : 0)
-      : (pdfBruto - pdfTotal > 0 ? 16 : 0)) + 13
+      : (pdfBruto - pdfTotal - descMontoNum > 0 ? 16 : 0)) + 13 + (descMontoNum > 0 ? 16 : 0)
     const adelantoPdf = parseFloat(exportForm.adelanto) || 0
     const altoAdelanto = adelantoPdf > 0 ? 16 : 0
     // Las observaciones ya no son de alto fijo: se mide lo que de verdad ocupan.
@@ -1741,7 +1755,7 @@ export default function Presupuesto() {
       }
     } else {
       // Por sección: mostrar subtotal bruto y descuento total
-      const totalDiscAmt = pdfBruto - pdfTotal
+      const totalDiscAmt = pdfBruto - pdfTotal - descMontoNum
       if (totalDiscAmt > 0) {
         doc.setFontSize(8); doc.setFont('helvetica', 'normal'); doc.setTextColor(100, 100, 100)
         doc.text('Subtotal:', numCol, y + 5, { align: 'right' })
@@ -1753,6 +1767,21 @@ export default function Presupuesto() {
         doc.text(`-${formatMoney(totalDiscAmt)}`, W - mR - 2, y + 5, { align: 'right' })
         y += 9
       }
+    }
+    if (descMontoNum > 0) {
+      const conPct = pdfBruto - pdfTotal - descMontoNum > 0
+      if (!conPct) {
+        doc.setFontSize(8); doc.setFont('helvetica', 'normal'); doc.setTextColor(100, 100, 100)
+        doc.text('Subtotal:', numCol, y + 5, { align: 'right' })
+        doc.text(formatMoney(pdfBruto), W - mR - 2, y + 5, { align: 'right' })
+        y += 7
+      }
+      doc.setFontSize(8)
+      doc.setFillColor(255, 240, 240); doc.rect(mL, y, cW, 7, 'F')
+      doc.setTextColor(185, 28, 28); doc.setFont('helvetica', 'bold')
+      doc.text('Descuento especial:', numCol, y + 5, { align: 'right' })
+      doc.text(`-${formatMoney(descMontoNum)}`, W - mR - 2, y + 5, { align: 'right' })
+      y += 9
     }
     doc.setFillColor(189, 189, 189); doc.rect(mL, y, cW, 9, 'F')
     doc.setDrawColor(150, 150, 150); doc.setLineWidth(0.3); doc.rect(mL, y, cW, 9, 'S')
@@ -2452,6 +2481,18 @@ export default function Presupuesto() {
                         </button>
                       ))}
                     </div>
+                    {/* Porcentaje libre: cualquier valor que no este en los botones. */}
+                    <div className="flex items-center gap-2 mt-2">
+                      <span className="text-xs text-gray-500 w-20 shrink-0">Otro %</span>
+                      <input type="number" inputMode="decimal" min="0" max="100" step="0.5"
+                        className="input text-sm py-1.5 flex-1" placeholder="Ej: 12"
+                        value={[0, 5, 10, 15, 20, 25, 30].includes(catDiscountPct) ? '' : catDiscountPct}
+                        onChange={e => {
+                          const v = parseFloat(e.target.value)
+                          setCatDiscountPct(isNaN(v) ? 0 : Math.min(100, Math.max(0, v)))
+                        }} />
+                      <span className="text-xs text-gray-400">%</span>
+                    </div>
                     {catDiscountPct > 0 && (() => {
                       const bruto = total + catTotal + serviciosTotal + manualTotal + lavItems.reduce((s, i) => s + i.price, 0)
                       const disc = Math.round(bruto * catDiscountPct / 100)
@@ -2464,7 +2505,24 @@ export default function Presupuesto() {
                   </>
                 )}
                 {discountMode === 'section' && (
-                  <p className="text-[11px] text-gray-400">Los descuentos se configuran por sección en el resumen.</p>
+                  <p className="text-[11px] text-gray-400">Los porcentajes se configuran por sección en el resumen.</p>
+                )}
+                {/* Monto fijo en soles: se resta al final, en cualquier modo. */}
+                <div className="flex items-center gap-2 mt-2 pt-2 border-t border-gray-100 dark:border-gray-800">
+                  <span className="text-xs text-gray-500 w-20 shrink-0">Monto S/</span>
+                  <input type="number" inputMode="decimal" min="0" step="1"
+                    className="input text-sm py-1.5 flex-1" placeholder="Ej: 50 (descuento en soles)"
+                    value={descMonto} onChange={e => setDescMonto(e.target.value)} />
+                  {descMonto !== '' && (
+                    <button onClick={() => setDescMonto('')} className="p-1 text-gray-400 hover:text-red-500" title="Quitar">
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+                {descMontoNum > 0 && (
+                  <div className="flex justify-between mt-1.5 text-xs text-green-600 font-semibold">
+                    <span>Descuento especial</span><span>-{formatMoney(descMontoNum)}</span>
+                  </div>
                 )}
               </div>
             )}
@@ -3023,6 +3081,8 @@ export default function Presupuesto() {
             - Math.round(serviciosTot * sd.servicios / 100)
             - Math.round(manualTot * sd.manual / 100)
         }
+        const descuentoTotal = subtotalBruto - grandTotal + Math.min(descMontoNum, grandTotal)
+        grandTotal = Math.max(0, grandTotal - descMontoNum)
 
         // Chips de descuento por sección
         const DISC_PCTS = [0, 5, 10, 15, 20, 25, 30]
@@ -3077,10 +3137,16 @@ export default function Presupuesto() {
         }
 
         return (
-          <div className="sticky bottom-4 z-20">
+          <div className="sticky bottom-2 z-20">
             <div className="card shadow-xl border border-red-100 dark:border-red-900/30 overflow-hidden">
-              {/* Detalle agrupado por categoría */}
-              <div>
+              {/* Detalle: contraido por defecto para no tapar la lista. */}
+              <button onClick={() => setResumenAbierto(v => !v)}
+                className="w-full flex items-center justify-between -mt-1 mb-1 py-1 text-xs font-semibold text-gray-500 dark:text-gray-400">
+                <span>{resumenAbierto ? 'Ocultar detalle' : `Ver detalle (${allSelected.length})`}</span>
+                {resumenAbierto ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+              </button>
+              {resumenAbierto && (<>
+              <div className="max-h-[40vh] overflow-y-auto">
                 <SectGroup title="Planchado" items={planchadoSel} sectKey="planchado" total={planchadoTotal} />
                 <SectGroup title="Cerám/PPF" items={ceramicoSel} sectKey="ceramico" total={ceramicoTotal} />
                 <SectGroup title="Polarizados" items={polSel} sectKey="polarizados" total={polTotal} />
@@ -3124,16 +3190,20 @@ export default function Presupuesto() {
                   + Agregar ítem personalizado
                 </button>
               )}
+              </>)}
 
               {/* Footer con total y botones */}
-              <div className="pt-2 border-t border-gray-100 dark:border-gray-800 mt-2 space-y-2">
+              <div className={`space-y-2 ${resumenAbierto ? 'pt-2 border-t border-gray-100 dark:border-gray-800 mt-2' : ''}`}>
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-[10px] text-gray-400">{totalItemsSelected} servicio{totalItemsSelected !== 1 ? 's' : ''}{totalTimeMin > 0 ? ` · 🕐 ${autoTiempoDias} día${autoTiempoDias !== 1 ? 's' : ''} hábiles (${formatMinutes(totalTimeMin)})` : ''}</p>
-                    <p className="text-lg font-black text-red-600 dark:text-red-400">{formatMoney(grandTotal)}</p>
+                    <p className="text-lg font-black text-red-600 dark:text-red-400">
+                      {formatMoney(grandTotal)}
+                      {descuentoTotal > 0 && <span className="ml-2 text-[11px] font-semibold text-green-600">desc. −{formatMoney(descuentoTotal)}</span>}
+                    </p>
                   </div>
                   <button
-                    onClick={() => { setSelected({}); setCatSelected({}); setServiciosSelected({}); setManualItems([]); setLavItems([]); setLoadedQuoteId(null) }}
+                    onClick={() => { setSelected({}); setCatSelected({}); setServiciosSelected({}); setManualItems([]); setLavItems([]); setLoadedQuoteId(null); setDescMonto('') }}
                     className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-400 hover:text-red-500 hover:border-red-300 text-xs transition-all">
                     <X className="w-3 h-3" />Limpiar
                   </button>
@@ -3181,6 +3251,7 @@ export default function Presupuesto() {
                       vehicle_subtype: lavSubLabel,
                       price_charged: lavPriceDiscounted,
                       ticketSections,
+                      discountFixed: descMontoNum,
                     })
                   }}
                     className="flex items-center justify-center gap-1 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-bold text-sm transition-all">
@@ -3296,7 +3367,7 @@ export default function Presupuesto() {
                   </button>
                   <button onClick={() => {
                     const discPct = q.discount_pct || 0
-                    setTicketModal({ allSelected: q.items, grandTotal: q.grand_total, discountPct: discPct })
+                    setTicketModal({ allSelected: q.items, grandTotal: q.grand_total, discountPct: discPct, discountFixed: parseFloat(q.descMonto) || 0 })
                   }}
                     className="flex items-center justify-center gap-1 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-bold text-xs transition-all">
                     <PlusCircle className="w-3.5 h-3.5" />Ticket
@@ -3429,6 +3500,7 @@ export default function Presupuesto() {
                   return a + Math.round(sub * (sectionDiscounts[s.key] || 0) / 100)
                 }, 0)
               }
+              const descEsp = Math.min(descMontoNum, Math.max(0, bruto - totalDisc))
 
               return (
                 <div className="text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800/50 rounded-xl px-3 py-2.5 space-y-1 max-h-56 overflow-y-auto">
@@ -3467,8 +3539,13 @@ export default function Presupuesto() {
                         <span>-{formatMoney(totalDisc)}</span>
                       </div>
                     )}
+                    {descEsp > 0 && (
+                      <div className="flex justify-between text-green-600 font-semibold">
+                        <span>Descuento especial</span><span>-{formatMoney(descEsp)}</span>
+                      </div>
+                    )}
                     <p className="font-bold text-gray-700 dark:text-gray-300">
-                      Total: {formatMoney(bruto - totalDisc)}
+                      Total: {formatMoney(bruto - totalDisc - descEsp)}
                     </p>
                   </div>
                 </div>
@@ -3633,6 +3710,7 @@ export default function Presupuesto() {
                 : ticketModal.allSelected?.map(i => ({ name: i.label, price: i.price }))
             }
             defaultDiscountPct={ticketModal.ticketSections ? 0 : (ticketModal.discountPct || 0)}
+            defaultDiscountFixed={ticketModal.discountFixed || 0}
             defaultVehicleType={ticketModal.vehicle_type}
             defaultVehicleSubtype={ticketModal.vehicle_subtype}
             defaultPriceCharged={ticketModal.price_charged}

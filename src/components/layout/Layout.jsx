@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { NavLink, useLocation, Navigate, useNavigate } from 'react-router-dom'
 import { useTheme } from '../../context/ThemeContext'
 import { useAuth } from '../../context/AuthContext'
@@ -378,6 +378,12 @@ export default function Layout({ children }) {
   const { pausado: sorteoPausado } = useSorteoPausado()
   const sinSorteo = items => sorteoPausado ? items.filter(n => n.to !== '/sorteo-panel') : items
 
+  // La app es una caja del alto de la pantalla y solo <main> hace scroll: con
+  // la barra de abajo en position:fixed, el iPhone (app instalada) a veces la
+  // dejaba a media pantalla al volver de WhatsApp o al cerrar el teclado.
+  const mainRef = useRef(null)
+  useEffect(() => { mainRef.current?.scrollTo(0, 0) }, [location.pathname])
+
   // Redirigir a login si no está autenticado
   if (!isDemo && !loading && !profile) {
     return <Navigate to="/login" replace />
@@ -404,11 +410,11 @@ export default function Layout({ children }) {
   })
 
   return (
-    <div className="min-h-screen flex bg-gray-50 dark:bg-gray-950">
+    <div className="h-screen flex overflow-hidden bg-gray-50 dark:bg-gray-950" style={{ height: '100dvh' }}>
       {isWorker && <AnuncioOverlay profile={profile} />}
       {/* Sidebar desktop */}
       <aside className={cn(
-        'hidden lg:flex flex-col bg-[#1e1e1e] transition-all duration-200',
+        'hidden lg:flex flex-col bg-[#1e1e1e] transition-all duration-200 overflow-y-auto',
         collapsed ? 'w-16' : 'w-56'
       )}>
         {/* Logo */}
@@ -483,9 +489,9 @@ export default function Layout({ children }) {
       )}
 
       {/* Main content */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 min-h-0">
         {/* Header móvil */}
-        <header className="lg:hidden flex items-center gap-3 px-4 py-3 bg-[#1e1e1e] sticky top-0 z-30">
+        <header className="lg:hidden flex-none flex items-center gap-3 px-4 py-3 bg-[#1e1e1e] z-30">
           <button onClick={() => setSidebarOpen(true)} className="p-1.5 rounded-lg hover:bg-white/10">
             <Menu className="w-5 h-5 text-gray-300" />
           </button>
@@ -507,7 +513,7 @@ export default function Layout({ children }) {
           )}
         </header>
 
-        <main className="flex-1 p-4 lg:p-6 overflow-auto pb-20 lg:pb-6">
+        <main ref={mainRef} className="flex-1 min-h-0 p-4 lg:p-6 pb-20 lg:pb-6 overflow-y-auto overscroll-contain">
           {soloAsistencia && !location.pathname.startsWith('/asistencia')
             ? <FueraDeTurno nombre={profile?.display_name?.trim().split(' ')[0]} logs={fueraDeTurno.logs} />
             : children}
@@ -518,7 +524,7 @@ export default function Layout({ children }) {
         <InstallBanner />
 
         {/* Bottom nav móvil */}
-        <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-30 bg-[#1e1e1e] border-t border-white/10 flex">
+        <nav className="lg:hidden flex-none relative z-30 bg-[#1e1e1e] border-t border-white/10 flex">
           {mobileNav.map(item => {
             const Icon = item.icon
             return (

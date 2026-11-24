@@ -501,6 +501,26 @@ export default function Presupuesto() {
   // Descuento en soles (no porcentaje): se resta al final, despues del % global
   // o de los de cada seccion. Texto para que el input se pueda dejar vacio.
   const [descMonto, setDescMonto] = useState('')
+  // Descuento por item: id del item -> { modo: '%' | 'S/', valor }. Se aplica
+  // en la fila misma, asi el cliente ve el precio normal, la rebaja y el final
+  // de ese servicio, en vez de un descuento general que no se aprecia.
+  const [descItems, setDescItems] = useState({})
+  const [editDesc, setEditDesc] = useState(null)
+  function conDescItem(id, price) {
+    const d = descItems[id]
+    const valor = Number(d?.valor) || 0
+    if (!d || valor <= 0 || !(price > 0)) return { price }
+    const desc = d.modo === '%' ? Math.round(price * Math.min(100, valor) / 100) : Math.min(price, valor)
+    return { price: price - desc, precioLista: price, descItem: desc, descLabel: d.modo === '%' ? `${valor}%` : null }
+  }
+  function ponerDescItem(id, modo, valor) {
+    setDescItems(m => {
+      const n = { ...m }
+      if (!(valor > 0)) delete n[id]
+      else n[id] = { modo, valor }
+      return n
+    })
+  }
   const descMontoNum = Math.max(0, parseFloat(descMonto) || 0)
   // El resumen de abajo va pegado a la pantalla: abierto tapaba la lista de
   // servicios, asi que arranca contraido y se despliega a pedido.
@@ -684,7 +704,7 @@ export default function Presupuesto() {
       // seleccionado en ese momento y no coincidian con lo cotizado.
       vehicleType, selectedTier, selectedBrand,
       teamSize, withPulido, agruparPintura, armadosSel, tricapa,
-      discountMode, sectionDiscounts, manualDiscountPct, descMonto,
+      discountMode, sectionDiscounts, manualDiscountPct, descMonto, descItems,
       created_at: Date.now(),
       expires_at: Date.now() + 7 * 24 * 60 * 60 * 1000,
     }
@@ -757,6 +777,7 @@ export default function Presupuesto() {
     if (q.sectionDiscounts)  setSectionDiscounts(q.sectionDiscounts)
     if (q.manualDiscountPct !== undefined) setManualDiscountPct(q.manualDiscountPct)
     setDescMonto(q.descMonto || '')
+    setDescItems(q.descItems || {})
     toast.success(`Cotización "${q.nombre || q.placa}" cargada ✓`)
   }
 
@@ -1121,12 +1142,12 @@ export default function Presupuesto() {
         return {
           id: s.id,
           label: s.brand ? `${s.brand} — ${s.cobertura}` : s.name,
-          price: getEffectivePrice(s, vKey),
+          ...conDescItem(s.id, getEffectivePrice(s, vKey)),
           desc: s.desc,
         }
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [ALL_CAT_DATA, catSelected, catVehicle, serviciosVehicle, catPriceOverrides, lavSubtype]
+    [ALL_CAT_DATA, catSelected, catVehicle, serviciosVehicle, catPriceOverrides, lavSubtype, descItems]
   )
   const catTotal = catRows.reduce((s, r) => s + r.price, 0)
   const catDiscountAmt = Math.round(catTotal * catDiscountPct / 100)
@@ -1143,18 +1164,18 @@ export default function Presupuesto() {
         const subKey = key.slice(svc.id.length + 1)
         if (svc.subcats?.length) {
           const sc = svc.subcats.find(x => x.key === subKey)
-          if (sc) return { id: key, label: `${svc.name} — ${sc.label}`, price: sc.price, desc: svc.desc }
+          if (sc) return { id: key, label: `${svc.name} — ${sc.label}`, ...conDescItem(key, sc.price), desc: svc.desc }
         }
         if (svc.prices && SV_VK_LABELS[subKey]) {
-          return { id: key, label: `${svc.name} — ${SV_VK_LABELS[subKey]}`, price: getEffectivePrice(svc, subKey), desc: svc.desc }
+          return { id: key, label: `${svc.name} — ${SV_VK_LABELS[subKey]}`, ...conDescItem(key, getEffectivePrice(svc, subKey)), desc: svc.desc }
         }
       }
       const svc = ALL_CAT_DATA.find(s => s.id === key)
-      if (svc) return { id: key, label: svc.name, price: getEffectivePrice(svc, null), desc: svc.desc }
+      if (svc) return { id: key, label: svc.name, ...conDescItem(key, getEffectivePrice(svc, null)), desc: svc.desc }
       return null
     }).filter(Boolean)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [serviciosSelected, ALL_CAT_DATA, catPriceOverrides])
+  }, [serviciosSelected, ALL_CAT_DATA, catPriceOverrides, descItems])
   const serviciosTotal = serviciosRows.reduce((s, r) => s + r.price, 0)
 
   // Filas actuales de la categoría visible (para el catData useMemo que ya existe)
@@ -1164,6 +1185,11 @@ export default function Presupuesto() {
   )
 
   const [manualItems, setManualItems] = useState([])
+  const manualItemsD = useMemo(() => manualItems.map(r => {
+    const d = conDescItem(r.id, r.monto)
+    return { ...r, monto: d.price, precioLista: d.precioLista, descItem: d.descItem, descLabel: d.descLabel }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [manualItems, descItems])
   const [showManualForm, setShowManualForm] = useState(false)
   const [manualDraft, setManualDraft] = useState({ titulo: '', descripcion: '', monto: '', timeH: '', timeM: '' })
   const [timeOverrides, setTimeOverrides] = useState({})
@@ -1282,7 +1308,7 @@ export default function Presupuesto() {
     return next
   }
 
-  const manualTotal = manualItems.reduce((s, i) => s + i.monto, 0)
+  const manualTotal = manualItemsD.reduce((s, i) => s + i.monto, 0)
   const totalItemsSelected = selectedCount + catRows.length + serviciosRows.length + manualItems.length + lavItems.length
   const hayResumen = totalItemsSelected > 0
   useEffect(() => {
@@ -1386,11 +1412,11 @@ export default function Presupuesto() {
     }
     // La descripcion del catalogo viaja con cada item: es lo que explica al
     // cliente que incluye el servicio y por que cuesta lo que cuesta.
-    const ceramicoSel = catRows.filter(r => !r._divider && (ceramicoIds.has(r.id) || ppfIds.has(r.id))).map(r => ({ label: r.label, price: r.price, desc: r.desc }))
-    const polSel = catRows.filter(r => polIds.has(r.id)).map(r => ({ label: r.label, price: r.price, desc: r.desc }))
+    const ceramicoSel = catRows.filter(r => !r._divider && (ceramicoIds.has(r.id) || ppfIds.has(r.id))).map(r => ({ label: r.label, price: r.price, desc: r.desc, precioLista: r.precioLista, descItem: r.descItem, descLabel: r.descLabel }))
+    const polSel = catRows.filter(r => polIds.has(r.id)).map(r => ({ label: r.label, price: r.price, desc: r.desc, precioLista: r.precioLista, descItem: r.descItem, descLabel: r.descLabel }))
     const lavSel = lavItems.map(r => ({ label: r.label, price: r.price, desc: r.desc }))
-    const svSel = serviciosRows.map(r => ({ label: r.label, price: r.price, desc: r.desc }))
-    const manualSel = manualItems.map(r => ({ label: r.titulo + (r.descripcion ? ` — ${r.descripcion}` : ''), price: r.monto }))
+    const svSel = serviciosRows.map(r => ({ label: r.label, price: r.price, desc: r.desc, precioLista: r.precioLista, descItem: r.descItem, descLabel: r.descLabel }))
+    const manualSel = manualItemsD.map(r => ({ label: r.titulo + (r.descripcion ? ` — ${r.descripcion}` : ''), price: r.monto, precioLista: r.precioLista, descItem: r.descItem, descLabel: r.descLabel }))
     const sections = [
       { title: 'Planchado & Pintura', items: planchadoSel, sectKey: 'planchado' },
       { title: 'Cerám/PPF', items: lineaVehiculoNuevo(ceramicoSel), sectKey: 'ceramico' },
@@ -1453,7 +1479,9 @@ export default function Presupuesto() {
         msg += `*${idx++}.* ${r.label}\n`
         // La descripcion del catalogo explica que incluye el servicio.
         if (r.desc) msg += `   _${String(r.desc).trim()}_\n`
-        msg += `   💰 ${formatMoney(r.price)}\n`
+        msg += r.descItem > 0
+          ? `   💰 ~${formatMoney(r.precioLista)}~ ➜ *${formatMoney(r.price)}*  🎁 -${formatMoney(r.descItem)}${r.descLabel ? ` (${r.descLabel})` : ''}\n`
+          : `   💰 ${formatMoney(r.price)}\n`
       })
       if (discPctS > 0) msg += `   🎁 Dto. ${s.title}: -${formatMoney(discAmtS)}\n`
     })
@@ -1677,7 +1705,7 @@ export default function Presupuesto() {
           : []
         const rowH = r.esDescuento
           ? 7.5
-          : Math.max(7.5, labelLines.length * 4 + descLines.length * 3 + 3.5)
+          : Math.max(r.descItem > 0 ? 11 : 7.5, labelLines.length * 4 + descLines.length * 3 + 3.5)
         y = espacio(rowH)
 
         // Los descuentos se pintan en verde y sin numero de fila: no son un
@@ -1707,6 +1735,22 @@ export default function Presupuesto() {
         doc.setTextColor(20, 20, 20); doc.setFontSize(8.5)
         doc.setFont('helvetica', 'bold')
         doc.text(formatMoney(r.price), W - mR - 2, y + 5, { align: 'right' })
+        // Descuento del item: precio normal tachado y la rebaja, bajo el final.
+        if (r.descItem > 0) {
+          doc.setFontSize(6.5); doc.setFont('helvetica', 'normal')
+          const antes = formatMoney(r.precioLista)
+          const rebaja = `-${formatMoney(r.descItem)}${r.descLabel ? ` (${r.descLabel})` : ''}`
+          const xR = W - mR - 2
+          doc.setTextColor(21, 128, 61)
+          doc.text(rebaja, xR, y + 8.8, { align: 'right' })
+          const wReb = doc.getTextWidth(rebaja)
+          doc.setTextColor(150, 150, 150)
+          const xAntes = xR - wReb - 2
+          doc.text(antes, xAntes, y + 8.8, { align: 'right' })
+          const wAntes = doc.getTextWidth(antes)
+          doc.setDrawColor(150, 150, 150); doc.setLineWidth(0.2)
+          doc.line(xAntes - wAntes, y + 8.1, xAntes, y + 8.1)
+        }
         y += rowH
         rowIdx++
       })
@@ -2581,7 +2625,7 @@ export default function Presupuesto() {
               )}
               {manualItems.length > 0 && (
                 <div className="mt-2 space-y-1.5 pt-2 border-t border-gray-100 dark:border-gray-800">
-                  {manualItems.map(item => (
+                  {manualItemsD.map(item => (
                     <div key={item.id} className="flex items-center gap-2">
                       <button onClick={() => setManualItems(items => items.filter(i => i.id !== item.id))}
                         className="w-5 h-5 flex-shrink-0 flex items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30 text-red-500 hover:bg-red-200">
@@ -3045,7 +3089,7 @@ export default function Presupuesto() {
           })),
         ]
         const ceramicoBase = catRows.filter(r => ceramicoIds.has(r.id) || ppfIds.has(r.id)).map(r => ({
-          key: `c_${r.id}`, label: r.label, price: r.price, onRemove: () => setCatSelected(s => ({ ...s, [r.id]: false })),
+          key: `c_${r.id}`, label: r.label, price: r.price, itemId: r.id, precioLista: r.precioLista, descItem: r.descItem, descLabel: r.descLabel, onRemove: () => setCatSelected(s => ({ ...s, [r.id]: false })),
         }))
         // El descuento se apaga desde su propio interruptor, de ahi el onRemove.
         const ceramicoSel = ceramicoVehiculoNuevo && ceramicoBase.length > 0
@@ -3056,16 +3100,16 @@ export default function Presupuesto() {
             }]
           : ceramicoBase
         const polSel = catRows.filter(r => polIds.has(r.id)).map(r => ({
-          key: `pol_${r.id}`, label: r.label, price: r.price, onRemove: () => setCatSelected(s => ({ ...s, [r.id]: false })),
+          key: `pol_${r.id}`, label: r.label, price: r.price, itemId: r.id, precioLista: r.precioLista, descItem: r.descItem, descLabel: r.descLabel, onRemove: () => setCatSelected(s => ({ ...s, [r.id]: false })),
         }))
         const lavSel = lavItems.map(r => ({
           key: r.id, label: r.label, price: r.price, onRemove: () => setLavItems(items => items.filter(i => i.id !== r.id)),
         }))
         const serviciosSel = serviciosRows.map(r => ({
-          key: `sv_${r.id}`, label: r.label, price: r.price, onRemove: () => setServiciosSelected(s => ({ ...s, [r.id]: false })),
+          key: `sv_${r.id}`, label: r.label, price: r.price, itemId: r.id, precioLista: r.precioLista, descItem: r.descItem, descLabel: r.descLabel, onRemove: () => setServiciosSelected(s => ({ ...s, [r.id]: false })),
         }))
-        const manualSel = manualItems.map(r => ({
-          key: `m_${r.id}`, label: r.titulo, sub: r.descripcion, price: r.monto, manual: true,
+        const manualSel = manualItemsD.map(r => ({
+          key: `m_${r.id}`, label: r.titulo, sub: r.descripcion, price: r.monto, manual: true, itemId: r.id, precioLista: r.precioLista, descItem: r.descItem, descLabel: r.descLabel, 
           onRemove: () => setManualItems(items => items.filter(i => i.id !== r.id)),
         }))
         const allSelected = [...planchadoSel, ...ceramicoSel, ...polSel, ...lavSel, ...serviciosSel, ...manualSel]
@@ -3116,6 +3160,9 @@ export default function Presupuesto() {
           )
         }
 
+        // Se llama como funcion, no como <SectGroup/>: al ser una funcion nueva
+        // en cada render, React la remontaba y el input del descuento por
+        // item perdia el foco con cada tecla.
         function SectGroup({ title, items, sectKey, total: sectTotal }) {
           if (!items.length) return null
           const disc = discountMode === 'section' ? sectionDiscounts[sectKey] : 0
@@ -3130,7 +3177,8 @@ export default function Presupuesto() {
                 </div>
               </div>
               {items.map(item => (
-                <div key={item.key} className="flex items-center gap-2 py-1.5">
+                <Fragment key={item.key}>
+                <div className="flex items-center gap-2 py-1.5">
                   <button onClick={item.onRemove} className="w-5 h-5 flex-shrink-0 flex items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30 text-red-500 hover:bg-red-200 transition-colors">
                     <X className="w-3 h-3" />
                   </button>
@@ -3141,10 +3189,42 @@ export default function Presupuesto() {
                     {item.sub && <p className="text-[10px] text-gray-400 truncate">{item.sub}</p>}
                   </div>
                   {item.manual && <span className="text-[9px] font-bold text-blue-500 bg-blue-50 dark:bg-blue-900/20 px-1.5 py-0.5 rounded">MANUAL</span>}
-                  <p className={`text-xs font-bold flex-shrink-0 ${item.esDescuento ? 'text-green-600' : 'text-gray-800 dark:text-gray-200'}`}>
-                    {item.esDescuento ? `-${formatMoney(Math.abs(item.price))}` : formatMoney(item.price)}
-                  </p>
+                  {item.itemId && !item.esDescuento && (
+                    <button onClick={() => setEditDesc(e => e === item.itemId ? null : item.itemId)}
+                      className={`text-[10px] font-bold px-1.5 py-0.5 rounded flex-shrink-0 ${item.descItem > 0 ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' : 'bg-gray-100 dark:bg-gray-800 text-gray-500'}`}>
+                      {item.descItem > 0 ? `-${item.descLabel || formatMoney(item.descItem)}` : 'Desc.'}
+                    </button>
+                  )}
+                  <div className="text-right flex-shrink-0">
+                    {item.descItem > 0 && <p className="text-[10px] text-gray-400 line-through leading-none">{formatMoney(item.precioLista)}</p>}
+                    <p className={`text-xs font-bold ${item.esDescuento || item.descItem > 0 ? 'text-green-600' : 'text-gray-800 dark:text-gray-200'}`}>
+                      {item.esDescuento ? `-${formatMoney(Math.abs(item.price))}` : formatMoney(item.price)}
+                    </p>
+                  </div>
                 </div>
+                {editDesc === item.itemId && (() => {
+                  const d = descItems[item.itemId]
+                  return (
+                    <div className="flex items-center gap-1 flex-wrap pl-7 pb-2">
+                      {[5, 10, 15, 20, 25].map(p => (
+                        <button key={p} onClick={() => ponerDescItem(item.itemId, '%', d?.modo === '%' && d.valor === p ? 0 : p)}
+                          className={`px-2 py-0.5 rounded-lg text-[10px] font-bold border ${d?.modo === '%' && d.valor === p ? 'bg-green-600 border-green-600 text-white' : 'border-gray-200 dark:border-gray-700 text-gray-500'}`}>
+                          {p}%
+                        </button>
+                      ))}
+                      <span className="text-[10px] text-gray-400 ml-1">o S/</span>
+                      <input type="number" inputMode="decimal" min="0" placeholder="monto"
+                        className="input text-xs py-0.5 px-2 w-20"
+                        value={d?.modo === 'S/' ? d.valor : ''}
+                        onChange={e => ponerDescItem(item.itemId, 'S/', parseFloat(e.target.value))} />
+                      {d && (
+                        <button onClick={() => { ponerDescItem(item.itemId, null, 0); setEditDesc(null) }}
+                          className="text-[10px] text-red-500 font-semibold ml-1">Quitar</button>
+                      )}
+                    </div>
+                  )
+                })()}
+                </Fragment>
               ))}
               {discountMode === 'section' && <SectDiscount sectKey={sectKey} label={`Desc. ${title.toLowerCase()}`} />}
             </div>
@@ -3174,12 +3254,12 @@ export default function Presupuesto() {
               </button>
               {resumenAbierto && (<>
               <div className="max-h-[40vh] overflow-y-auto">
-                <SectGroup title="Planchado" items={planchadoSel} sectKey="planchado" total={planchadoTotal} />
-                <SectGroup title="Cerám/PPF" items={ceramicoSel} sectKey="ceramico" total={ceramicoTotal} />
-                <SectGroup title="Polarizados" items={polSel} sectKey="polarizados" total={polTotal} />
-                <SectGroup title="Lavados" items={lavSel} sectKey="lavados" total={lavTot} />
-                <SectGroup title="Servicios" items={serviciosSel} sectKey="servicios" total={serviciosTot} />
-                <SectGroup title="Personalizados" items={manualSel} sectKey="manual" total={manualTot} />
+                {SectGroup({ title: "Planchado", items: planchadoSel, sectKey: "planchado", total: planchadoTotal })}
+                {SectGroup({ title: "Cerám/PPF", items: ceramicoSel, sectKey: "ceramico", total: ceramicoTotal })}
+                {SectGroup({ title: "Polarizados", items: polSel, sectKey: "polarizados", total: polTotal })}
+                {SectGroup({ title: "Lavados", items: lavSel, sectKey: "lavados", total: lavTot })}
+                {SectGroup({ title: "Servicios", items: serviciosSel, sectKey: "servicios", total: serviciosTot })}
+                {SectGroup({ title: "Personalizados", items: manualSel, sectKey: "manual", total: manualTot })}
               </div>
 
               {/* Formulario ítem manual */}
@@ -3230,7 +3310,7 @@ export default function Presupuesto() {
                     </p>
                   </div>
                   <button
-                    onClick={() => { setSelected({}); setCatSelected({}); setServiciosSelected({}); setManualItems([]); setLavItems([]); setLoadedQuoteId(null); setDescMonto('') }}
+                    onClick={() => { setSelected({}); setCatSelected({}); setServiciosSelected({}); setManualItems([]); setLavItems([]); setLoadedQuoteId(null); setDescMonto(''); setDescItems({}) }}
                     className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-400 hover:text-red-500 hover:border-red-300 text-xs transition-all">
                     <X className="w-3 h-3" />Limpiar
                   </button>
@@ -3259,13 +3339,14 @@ export default function Presupuesto() {
                     const lavSectItems = hasLavado
                       ? lavSel.slice(1).map(i => ({ name: i.label, price: i.price }))
                       : lavSel.map(i => ({ name: i.label, price: i.price }))
+                    const itemTicket = i => ({ name: i.label, price: i.price, precioLista: i.precioLista, descLabel: i.descLabel })
                     const ticketSections = discountMode === 'section' ? [
-                      { title: 'Planchado', items: planchadoSel.map(i => ({ name: i.label, price: i.price })), discountPct: sectionDiscounts.planchado },
-                      { title: 'Cerám/PPF', items: ceramicoSel.map(i => ({ name: i.label, price: i.price })), discountPct: sectionDiscounts.ceramico },
-                      { title: 'Polarizados', items: polSel.map(i => ({ name: i.label, price: i.price })), discountPct: sectionDiscounts.polarizados },
+                      { title: 'Planchado', items: planchadoSel.map(itemTicket), discountPct: sectionDiscounts.planchado },
+                      { title: 'Cerám/PPF', items: ceramicoSel.map(itemTicket), discountPct: sectionDiscounts.ceramico },
+                      { title: 'Polarizados', items: polSel.map(itemTicket), discountPct: sectionDiscounts.polarizados },
                       { title: 'Lavados', items: lavSectItems, discountPct: lavDiscPct },
-                      { title: 'Servicios', items: serviciosSel.map(i => ({ name: i.label, price: i.price })), discountPct: sectionDiscounts.servicios },
-                      { title: 'Personalizados', items: manualSel.map(i => ({ name: i.label, price: i.price })), discountPct: sectionDiscounts.manual },
+                      { title: 'Servicios', items: serviciosSel.map(itemTicket), discountPct: sectionDiscounts.servicios },
+                      { title: 'Personalizados', items: manualSel.map(itemTicket), discountPct: sectionDiscounts.manual },
                     ].filter(s => s.items.length > 0) : null
                     // Excluir firstLav de allSelected para que no aparezca en extras del ticket
                     const allSelectedForTicket = hasLavado && firstLav
@@ -3507,7 +3588,7 @@ export default function Presupuesto() {
               const polItems = catRows.filter(r => polIds.has(r.id)).map(r => ({ label: r.label, price: r.price }))
               const lavadosItems = lavItems.map(r => ({ label: r.label, price: r.price }))
               const serviciosItems = serviciosRows.map(r => ({ label: r.label, price: r.price }))
-              const manualItemsP = manualItems.map(r => ({ label: r.titulo + (r.descripcion ? ` — ${r.descripcion}` : ''), price: r.monto }))
+              const manualItemsP = manualItemsD.map(r => ({ label: r.titulo + (r.descripcion ? ` — ${r.descripcion}` : ''), price: r.monto }))
 
               const sections = [
                 { key: 'planchado', title: 'Planchado', items: planchadoItems },
@@ -3731,11 +3812,16 @@ export default function Presupuesto() {
                       return {
                         name: i.name,
                         price: i.price - discAmt,
-                        ...(s.discountPct > 0 ? { original_price: i.price, discount_pct: s.discountPct } : {}),
+                        ...(s.discountPct > 0 || i.precioLista ? { original_price: i.precioLista || i.price } : {}),
+                        ...(s.discountPct > 0 ? { discount_pct: s.discountPct } : i.descLabel ? { discount_pct: parseFloat(i.descLabel) } : {}),
                       }
                     })
                   )
-                : ticketModal.allSelected?.map(i => ({ name: i.label, price: i.price }))
+                : ticketModal.allSelected?.map(i => ({
+                    name: i.label, price: i.price,
+                    ...(i.precioLista ? { original_price: i.precioLista } : {}),
+                    ...(i.descLabel ? { discount_pct: parseFloat(i.descLabel) } : {}),
+                  }))
             }
             defaultDiscountPct={ticketModal.ticketSections ? 0 : (ticketModal.discountPct || 0)}
             defaultDiscountFixed={ticketModal.discountFixed || 0}
